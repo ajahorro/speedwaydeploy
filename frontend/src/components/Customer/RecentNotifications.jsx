@@ -1,0 +1,167 @@
+import React, { useState } from 'react';
+import { Bell, CheckCircle, Clock, CreditCard, AlertCircle, CheckCircle2, MessageCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useUnifiedData } from '../../context/UnifiedContext';
+import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabase';
+import NotificationDetailsModal from '../NotificationDetailsModal';
+
+const RecentNotifications = () => {
+  const navigate = useNavigate();
+
+  const { notifications: allNotifications, isLoading: loading, refreshData } = useUnifiedData();
+  const { profile } = useAuth();
+  const [selectedNotification, setSelectedNotification] = useState(null);
+  const notifications = (allNotifications || []).slice(0, 5); // Show latest 5
+
+  const getIcon = (type) => {
+    switch (type) {
+      case 'PAYMENT_APPROVED':
+      case 'PAYMENT_RECEIVED':
+      case 'PAYMENT_VERIFIED':
+        return <CreditCard size={16} color="#10b981" />;
+      case 'PAYMENT_REJECTED':
+        return <AlertCircle size={16} color="#ef4444" />;
+      case 'TASK_ASSIGNED':
+      case 'STATUS_UPDATE':
+        return <Clock size={16} color="var(--admin-brand)" />;
+      case 'VEHICLE_COMPLETED':
+        return <CheckCircle2 size={16} color="#10b981" />;
+      case 'CHAT_MESSAGE':
+        return <MessageCircle size={16} color="#3b82f6" />;
+      case 'BOOKING_CONFIRMED':
+        return <CheckCircle size={16} color="var(--admin-info)" />;
+      default:
+        return <Bell size={16} color="var(--admin-text-secondary)" />;
+    }
+  };
+
+  const timeAgo = (dateStr) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
+  const renderMessagePreview = (notif) => {
+    const isChatNote = notif.notification_type === 'MESSAGE_RECEIVED' || (notif.title || '').toLowerCase().includes('new message');
+    if (!isChatNote || !notif.booking_id) return notif.message;
+
+    const rawText = String(notif.message || '').replace(/\s+/g, ' ').trim();
+    const words = rawText.split(' ');
+    if (words.length <= 3) return rawText;
+
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+        <span>{words.slice(0, 3).join(' ')}</span>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            navigate(`/customer/bookings/${notif.booking_id}?chat=open`);
+          }}
+          style={{ background: 'none', border: 'none', color: 'var(--admin-brand)', fontWeight: '900', cursor: 'pointer', padding: 0, fontSize: 'inherit', textDecoration: 'underline' }}
+        >
+          See More
+        </button>
+      </span>
+    );
+  };
+
+  return (
+    <div style={{
+      background: 'var(--admin-card)',
+      borderRadius: 'var(--admin-radius-lg)',
+      border: '1px solid var(--admin-border)',
+      boxShadow: 'var(--admin-card-shadow)',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
+      <div style={{
+        padding: '1.25rem 1.5rem',
+        borderBottom: '1px solid var(--admin-border)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Operational Alerts</h3>
+        <button
+          onClick={() => navigate('/customer/notifications')}
+          style={{ background: 'none', border: 'none', color: 'var(--admin-brand)', fontSize: '0.7rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}
+        >
+          View All
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {loading ? (
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--admin-brand)', fontWeight: '900', fontSize: '0.8rem' }}>SYNCING...</div>
+        ) : notifications.length === 0 ? (
+          <div style={{ padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+            <Bell size={24} style={{ opacity: 0.2 }} />
+            NO RECENT ACTIVITY
+          </div>
+        ) : (
+          notifications.map((notif) => (
+            <div
+              key={notif.id}
+              onClick={async () => {
+                setSelectedNotification(notif);
+                if (!notif.is_read) {
+                  await supabase.from('notifications').update({ is_read: true }).eq('id', notif.id);
+                  if (typeof refreshData === 'function') await refreshData();
+                }
+              }}
+              style={{
+                padding: '1rem 1.5rem',
+                borderBottom: '1px solid var(--admin-border)',
+                cursor: 'pointer',
+                display: 'flex',
+                gap: '1rem',
+                background: notif.is_read ? 'transparent' : 'rgba(var(--admin-brand-rgb), 0.03)',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--admin-input-bg)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = notif.is_read ? 'transparent' : 'rgba(var(--admin-brand-rgb), 0.03)'}
+            >
+              <div style={{
+                width: '36px', height: '36px', borderRadius: '8px',
+                background: 'var(--admin-input-bg)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '1px solid var(--admin-border)',
+                flexShrink: 0
+              }}>
+                {getIcon(notif.notification_type)}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0 }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: '950', color: 'var(--admin-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {notif.title}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  {renderMessagePreview(notif)}
+                </div>
+                <div style={{ fontSize: '0.6rem', fontWeight: '900', color: 'var(--admin-text-secondary)', marginTop: '0.25rem', textTransform: 'uppercase', opacity: 0.6 }}>
+                  {timeAgo(notif.created_at)}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+      
+      {/* Notification Details Modal */}
+      <NotificationDetailsModal
+        notification={selectedNotification}
+        onClose={() => setSelectedNotification(null)}
+        profile={profile}
+      />
+    </div>
+  );
+};
+
+export default RecentNotifications;

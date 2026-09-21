@@ -1,0 +1,447 @@
+import { supabase } from '../lib/supabase';
+import { emitEvent, EVENTS } from './eventEngine';
+import { SHOP_CONFIG } from '../config/constants';
+import { getEffectivePriceForService } from '../data/servicesCatalog';
+import { getRequiredDownpayment } from '../utils/paymentUtils';
+import { sendStatusEmail } from './notificationService';
+import { calculateBayUsage } from '../utils/schedulingUtils';
+
+/**
+ * bookingService.js
+ * Centralized booking logic for the Customer portal.
+ * Handles creation, fetching, and real-time subscription for bookings.
+ */
+
+/**
+ * Create a new booking with vehicles and services.
+ * Mirrors the schema used by AdminBookings:
+ *   bookings -> booking_vehicles -> booking_vehicle_services
+ */
+export const createBooking = async (customerId, bookingData) => {
+  const bookingCustomerId = Object.prototype.hasOwnProperty.call(bookingData || {}, 'customerId')
+    ? (bookingData.customerId ?? null)
+    : (customerId ?? null);
+  const vehicles = bookingData.vehicles || [];
+  const { data: customerProfile } = bookingCustomerId
+    ? await supabase.from('profiles').select('email').eq('id', bookingCustomerId).maybeSingle()
+    : { data: null };
+
+  // 🛡️ INTEGRITY SHIELD: Prevent 'Ghost Bookings' (REQ-SYS-01)
+  if (vehicles.length === 0) {
+    console.error('CRITICAL: Attempted to create a booking without any vehicles.');
+    throw new Error('SYSTEM ERROR: No vehicles provided for this booking session. Operation aborted for integrity.');
+  }
+
+  const { data: capacityConfig } = await supabase.from('business_config').select('slots_per_hour').maybeSingle();
+  const maxBays = Number(capacityConfig?.slots_per_hour || SHOP_CONFIG.MAX_BAYS);
+  const requestedBays = calculateBayUsage(vehicles);
+  if (requestedBays > maxBays) {
+    throw new Error(`This booking needs ${requestedBays} bays, but the shop currently has ${maxBays}. Two motorcycles can share one bay; cars and vans need a full bay.`);
+  }
+
+  const totalAmount = vehicles.reduce((total, v) => {
+    return total + (v.services || []).reduce((sub, s) => sub + getEffectivePriceForService(s.price, v.type, s.name || s.service_name), 0);
+  }, 0);
+
+  // 1. Insert the master booking record
+  const { data: booking, error: bookingError } = await supabase
+    .from('bookings')
+    .insert({
+      customer_id: bookingCustomerId,
+      customer_name: bookingData.customerName, // Added this field
+      customer_email: bookingData.customerEmail || customerProfile?.email || null,
+      start_datetime: combineDateAndTime(bookingData.date, bookingData.time),
+      end_datetime: calculateEstimatedEnd(bookingData.date, bookingData.time, vehicles),
+      status: 'scheduled',
+      total_amount: totalAmount,
+      notes: [bookingData.notes, bookingData.fleetGroupId ? `FLEET_GROUP:${bookingData.fleetGroupId}` : ''].filter(Boolean).join(' | '),
+      contact_number: bookingData.contactNumber,
+      ocr_metadata: bookingData.payment?.ocrData || {} // PERSIST OCR RESULTS
+    })
+    .select()
+    .single();
+
+  if (bookingError) {
+    console.error('Master Booking Insert Error:', bookingError);
+    throw new Error(`Master Booking Error: ${bookingError.message}`);
+  }
+
+  if (!bookingCustomerId && bookingData.customerEmail) {
+    try {
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      await fetch(`${BACKEND_URL}/admin/generate-invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: bookingData.customerEmail, role: 'CUSTOMER' })
+      });
+    } catch (inviteError) {
+      console.warn('Guest account invitation failed:', inviteError);
+    }
+  }
+
+  const bookingRef = booking.id.substring(0, 8).toUpperCase();
+
+  // 2. Insert vehicle(s) into booking_vehicles
+  for (const vehicle of vehicles) {
+    const { data: bv, error: bvError } = await supabase
+      .from('booking_vehicles')
+      .insert({
+        booking_id: booking.id,
+        vehicle_type: vehicle.type,
+        brand: vehicle.brand,
+        model: vehicle.model,
+        plate_number: vehicle.plateNumber,
+        fleet_group_id: vehicle.fleetGroupId || bookingData.fleetGroupId || null,
+        status: 'SCHEDULED'
+      })
+      .select()
+      .single();
+
+    if (bvError) {
+      console.error('Vehicle Insert Error:', bvError);
+      throw new Error(`Vehicle Error: ${bvError.message}`);
+    }
+
+    // REQ-CST-10: POPULATE GARAGE (Silent Backend Sync)
+    try {
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      await fetch(`${BACKEND_URL}/api/garage/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: bookingCustomerId, vehicle })
+      });
+    } catch (garageEx) {
+      console.warn('Silent Garage Sync Failure:', garageEx);
+    }
+
+    // 3. Insert selected services for that vehicle
+    const services = vehicle.services || [];
+    if (services.length > 0) {
+      const serviceRows = services.map(s => ({
+        booking_vehicle_id: bv.id,
+        service_name: s.name,
+        price: getEffectivePriceForService(s.price, vehicle.type, s.name || s.service_name)
+      }));
+
+      const { error: svcError } = await supabase
+        .from('booking_vehicle_services')
+        .insert(serviceRows);
+
+      if (svcError) {
+        console.error('Service Insert Error:', svcError);
+        throw new Error(`Service Error: ${svcError.message}`);
+      }
+    }
+  }
+
+  // 4. Persist payment against the booking. Digital payments require a receipt;
+  // cash bookings are recorded as pending on-site payment.
+  if ((!bookingData.adminWalkIn && bookingData.payment?.method === 'Cash') || (bookingData.payment?.method === 'GCash' && bookingData.payment.proofOfPayment)) {
+    try {
+      if (bookingData.payment.method === 'Cash') {
+        const cashAmount = bookingData.payment.type === 'Downpayment' ? getRequiredDownpayment(totalAmount) : totalAmount;
+        const { error: cashError } = await supabase.from('payments').insert({
+          booking_id: booking.id,
+          amount: cashAmount,
+          method: 'Cash',
+          payment_type: bookingData.payment.type || 'Full',
+          status: 'PENDING',
+          notes: `PAYMENT_CASH|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${cashAmount}`
+        });
+        if (cashError) throw cashError;
+      } else {
+      const file = bookingData.payment.proofOfPayment;
+      const fileExt = file.name.split('.').pop();
+      const filePath = `receipts/${booking.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('payment-receipts')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(filePath);
+
+      const paymentAmount = bookingData.payment.type === 'Full' ? totalAmount : getRequiredDownpayment(totalAmount);
+      const detectedAmount = Number(bookingData.payment?.ocrData?.amount || 0);
+      const detectedReference = bookingData.payment?.ocrData?.referenceNo || null;
+      const requiredDownpayment = getRequiredDownpayment(totalAmount);
+      if (
+        !bookingData.adminWalkIn &&
+        !bookingData.payment?.ocrData?.isManualReview &&
+        detectedAmount < requiredDownpayment
+      ) {
+        throw new Error(`The detected payment amount must be at least ₱${requiredDownpayment.toLocaleString()} for the required downpayment.`);
+      }
+
+      const { error: payError } = await supabase.from('payments').insert({
+        booking_id: booking.id,
+        amount: paymentAmount,
+        method: 'GCash',
+        payment_type: bookingData.payment.type || 'Full',
+        status: 'FOR_VERIFICATION',
+        receipt_url: publicUrl,
+        detected_amount: detectedAmount > 0 ? detectedAmount : null,
+        detected_ref: detectedReference,
+        notes: `PAYMENT_DIGITAL|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${paymentAmount}|OCR_AMOUNT:${detectedAmount > 0 ? detectedAmount : 'NULL'}`,
+        reference_number: detectedReference || '' // Transaction Reference
+      });
+
+      if (payError) throw payError;
+
+      // EVENT: Payment Submitted
+      await emitEvent(EVENTS.PAYMENT_SUBMITTED, {
+        userId: bookingCustomerId,
+        bookingId: booking.id,
+        meta: { bookingRef, amount: paymentAmount }
+      });
+      }
+    } catch (payEx) {
+      console.error('Payment Processing Error:', payEx);
+      throw new Error(`Payment processing failed: ${payEx.message}`);
+    }
+  }
+
+  // The scheduled email is the single lifecycle trigger. The status-email
+  // function creates the in-app notification only after email delivery succeeds.
+  const scheduledEmailResult = await sendStatusEmail(booking.id, 'scheduled');
+  if (scheduledEmailResult?.error) {
+    console.warn(`[Booking] Scheduled lifecycle email failed for ${booking.id}:`, scheduledEmailResult.error);
+  }
+
+  return booking;
+};
+
+/**
+ * Fetch all bookings for a specific customer, with vehicles and payments.
+ */
+export const fetchCustomerBookings = async (customerId) => {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`
+      *,
+      vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services!booking_vehicle_id(*)),
+      payments:payments!payments_booking_id_fkey(*),
+      assigned_staff:profiles!bookings_staff_id_fkey(first_name, last_name, email)
+    `)
+    .eq('customer_id', customerId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[Reschedule] RPC failed:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint
+    });
+    throw new Error(error.message || 'The selected appointment time could not be reserved.');
+  }
+  return data || [];
+};
+
+/**
+ * Fetch a single booking by ID for the customer detail view.
+ */
+export const fetchBookingById = async (bookingId) => {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`
+      *,
+      vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services!booking_vehicle_id(*)),
+      payments:payments!payments_booking_id_fkey(*),
+      assigned_staff:profiles!bookings_staff_id_fkey(first_name, last_name, email)
+    `)
+    .eq('id', bookingId)
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+/**
+ * Subscribe to real-time changes on a specific booking.
+ * Returns the channel so the caller can unsubscribe.
+ */
+export const subscribeToBooking = (bookingId, callback) => {
+  const channel = supabase
+    .channel(`booking-${bookingId}`)
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'bookings',
+      filter: `id=eq.${bookingId}`
+    }, callback)
+    .subscribe();
+
+  return channel;
+};
+
+/**
+ * Subscribe to all bookings for a customer (for dashboard live updates).
+ */
+export const subscribeToCustomerBookings = (customerId, callback) => {
+  const channel = supabase
+    .channel(`customer-bookings-${customerId}`)
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'bookings',
+      filter: `customer_id=eq.${customerId}`
+    }, callback)
+    .subscribe();
+
+  return channel;
+};
+
+// --- Utility ---
+
+function combineDateAndTime(dateStr, timeStr) {
+  if (!dateStr) return new Date().toISOString();
+  if (!timeStr) return `${dateStr}T00:00:00Z`;
+
+  try {
+    const [time, meridian] = timeStr.split(' ');
+    let [hours, minutes = 0] = time.split(':').map(Number);
+    if (meridian === 'PM' && hours !== 12) hours += 12;
+    if (meridian === 'AM' && hours === 12) hours = 0;
+
+    // Construct Date in local timezone, then convert to UTC ISO string
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const d = new Date(year, month - 1, day, hours, minutes, 0);
+
+    if (isNaN(d.getTime())) throw new Error('Invalid Date');
+    return d.toISOString();
+  } catch (e) {
+    return `${dateStr}T12:00:00Z`; // Fallback
+  }
+}
+
+export function calculateEstimatedEnd(dateStr, timeStr, vehicles = []) {
+  try {
+    const startIso = combineDateAndTime(dateStr, timeStr);
+    const date = new Date(startIso);
+
+    // Vehicles are serviced concurrently; use the longest unit duration.
+    let totalMinutes = 0;
+    vehicles.forEach(v => {
+      const vehicleDuration = (v.services || []).reduce((sum, service) => sum + Number(service.durationMinutes || 60), 0);
+      totalMinutes = Math.max(totalMinutes, vehicleDuration);
+    });
+
+    // Minimum duration of 1 hour if no services selected yet
+    if (totalMinutes === 0) totalMinutes = 60;
+
+    // Add the 1-hour cleanup/handover buffer (REQ-SYS-BUFFER)
+    totalMinutes += SHOP_CONFIG.BOOKING_CLEANUP_BUFFER_MINUTES;
+
+    date.setMinutes(date.getMinutes() + totalMinutes);
+
+    if (isNaN(date.getTime())) return new Date().toISOString();
+    return date.toISOString();
+  } catch (e) {
+    return new Date().toISOString();
+  }
+}
+
+/**
+ * Request a cancellation/refund for a booking.
+ */
+export const cancelBooking = async (bookingId, reason) => {
+  try {
+    // 1. Fetch the booking using maybeSingle() to prevent hard 404 crashes
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('id', bookingId)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+
+    // 🛡️ Defensive Check: If the booking doesn't exist or RLS blocks it
+    if (!booking) {
+      throw new Error(`Booking ID ${bookingId} not found. It may have been deleted, or you do not have permission to access it.`);
+    }
+
+    // 2. Update booking status to 'cancelled' and append reason to notes
+    const updatedNotes = booking.notes
+      ? `${booking.notes}\nCancellation Reason: ${reason}`
+      : `Cancellation Reason: ${reason}`;
+
+    const { error: updateError } = await supabase
+      .from('bookings')
+      .update({
+        status: 'cancelled',
+        refund_status: 'QUEUED',
+        staff_id: null,
+        cancellation_reason: reason,
+        notes: updatedNotes
+      })
+      .eq('id', bookingId);
+
+    if (updateError) throw updateError;
+
+    // 3. Mark all related vehicles as cancelled to free up the queue
+    const { error: vehicleError } = await supabase
+      .from('booking_vehicles')
+      .update({ status: 'cancelled' })
+      .eq('booking_id', bookingId);
+
+    if (vehicleError) console.warn('Non-fatal error updating vehicles:', vehicleError);
+
+    // 4. Mark associated active payments as REFUND_PENDING
+    const { data: payments } = await supabase
+      .from('payments')
+      .select('id, status')
+      .eq('booking_id', bookingId);
+
+    if (payments && payments.length > 0) {
+      for (const p of payments) {
+        if (p.status === 'PAID' || p.status === 'FOR_VERIFICATION') {
+          await supabase
+            .from('payments')
+            .update({ status: 'REFUND_PENDING' })
+            .eq('id', p.id);
+        }
+      }
+    }
+
+    // The lifecycle email is the single cancellation dispatcher. It creates the
+    // in-app notification only after the email is delivered successfully.
+    const cancellationEmail = await sendStatusEmail(bookingId, 'cancelled', reason);
+    if (cancellationEmail?.error) {
+      console.warn(`[Booking] Cancellation email failed for ${bookingId}:`, cancellationEmail.error);
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('Error cancelling booking:', err.message || err);
+    throw err;
+  }
+};
+
+export const rescheduleBooking = async (bookingId, startDatetime, endDatetime, reason = null) => {
+  if (startDatetime && typeof startDatetime === 'object') {
+    const bookingData = startDatetime;
+    startDatetime = combineDateAndTime(bookingData.date, bookingData.time);
+    endDatetime = calculateEstimatedEnd(bookingData.date, bookingData.time, bookingData.vehicles || []);
+  }
+
+  const { data, error } = await supabase.rpc('reschedule_booking', {
+    p_booking_id: bookingId,
+    p_start_datetime: startDatetime,
+    p_end_datetime: endDatetime,
+    p_reason: reason || null
+  });
+
+  if (error) {
+    console.error('[Reschedule] RPC failed:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint
+    });
+    throw new Error(error.message || 'The selected appointment time could not be reserved.');
+  }
+  await sendStatusEmail(bookingId, 'scheduled');
+  return data;
+};

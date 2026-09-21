@@ -1,0 +1,395 @@
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { supabase } from '../lib/supabase';
+import { logger } from '../utils/logger';
+import toast from 'react-hot-toast';
+
+export const AuthContext = createContext({});
+
+export const AuthProvider = ({ children }) => {
+  const LOGIN_ATTEMPT_KEY = 'speedway-login-attempts';
+  const LOGIN_LOCKOUT_MS = 20 * 60 * 1000;
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [error, setError] = useState(null);
+
+  const activeFetchRef = useRef(0);
+  const fetchedForRef = useRef(null);
+  const profileRef = useRef(null);
+
+  // Sync ref with state
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
+
+  const signOut = async () => {
+    try {
+      logger.auth('Initiating sign out sequence...');
+      setUser(null);
+      setProfile(null);
+      fetchedForRef.current = null;
+      await supabase.auth.signOut();
+      logger.auth('Sign out complete.');
+    } catch (err) {
+      logger.error('Sign Out Error', err);
+    } finally {
+      setLoading(false);
+      setIsInitialized(true);
+    }
+  };
+
+  const fetchProfile = useCallback(async (userId, source = 'unknown', force = false) => {
+    if (!userId) return;
+
+    if (!force && fetchedForRef.current === userId && profileRef.current) return;
+
+    const fetchId = ++activeFetchRef.current;
+    fetchedForRef.current = userId;
+
+    try {
+      setError(null);
+      setLoading(true);
+
+      const { data, error: supabaseError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (fetchId !== activeFetchRef.current) {
+        logger.auth(`Ignoring stale response (ID: ${fetchId})`);
+        return;
+      }
+
+      if (supabaseError) throw supabaseError;
+
+      if (data) {
+        if (data.is_active === false) {
+          const deactDate = new Date(data.deactivated_at);
+          const now = new Date();
+          const diffDays = Math.ceil((now - deactDate) / (1000 * 60 * 60 * 24));
+
+          if (diffDays <= 15) {
+            const shouldRecover = window.confirm(`This account is DEACTIVATED (Day ${diffDays}/15). Would you like to RECOVER and reactivate it?`);
+            if (shouldRecover) {
+              const res = await recoverAccount(userId);
+              if (res.success) return; // fetchProfile will be called again inside recoverAccount
+            }
+          } else {
+            toast.error('Account has been permanently purged after grace period.');
+          }
+          await signOut();
+          return;
+        }
+        setProfile(data);
+      } else {
+        logger.warn(`Profile missing for user (ID: ${fetchId})`);
+        setProfile(null);
+      }
+    } catch (err) {
+      if (fetchId !== activeFetchRef.current) return;
+      logger.error(`Sync Error (ID: ${fetchId})`, err);
+      setError(err.message);
+    } finally {
+      if (fetchId === activeFetchRef.current) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        logger.auth('Bootstrap initialization starting...');
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (session?.user) {
+          setUser(session.user);
+          // 🛡️ CRITICAL: Wait for profile before marking as initialized
+          // to prevent landing page race conditions
+          await fetchProfile(session.user.id, 'BOOTSTRAP');
+        }
+
+        setIsInitialized(true);
+        logger.auth('Bootstrap complete.');
+      } catch (err) {
+        logger.error('Bootstrap Error', err);
+        setIsInitialized(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'INITIAL_SESSION') return;
+
+      logger.auth(`Event: ${event}`);
+
+      if (session?.user) {
+        setUser(session.user);
+        if (event === 'SIGNED_IN' && fetchedForRef.current !== session.user.id) {
+          fetchProfile(session.user.id, 'LISTENER_SIGN_IN');
+        }
+      } else {
+        setUser(null);
+        setProfile(null);
+        fetchedForRef.current = null;
+        setLoading(false);
+        setIsInitialized(true);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [fetchProfile]);
+
+  const signInWithPassword = async (email, password) => {
+    logger.auth('Attempting sign in with credentials...');
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    if (!normalizedEmail || typeof password !== 'string' || !password) {
+      return {
+        data: { user: null },
+        error: new Error('Enter both your email address and password.')
+      };
+    }
+
+    let attempts = {};
+    try {
+      attempts = JSON.parse(localStorage.getItem(LOGIN_ATTEMPT_KEY) || '{}');
+    } catch {
+      localStorage.removeItem(LOGIN_ATTEMPT_KEY);
+    }
+    const current = attempts[normalizedEmail];
+    if (current?.lockedUntil && current.lockedUntil > Date.now()) {
+      const minutes = Math.ceil((current.lockedUntil - Date.now()) / 60000);
+      return { data: { user: null }, error: new Error(`Account temporarily locked. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`) };
+    }
+
+    const recordFailure = (authError) => {
+      let latestAttempts = {};
+      try {
+        latestAttempts = JSON.parse(localStorage.getItem(LOGIN_ATTEMPT_KEY) || '{}');
+      } catch {
+        localStorage.removeItem(LOGIN_ATTEMPT_KEY);
+      }
+      const latest = latestAttempts[normalizedEmail];
+      const failedAttempts = (latest?.failedAttempts || 0) + 1;
+      const isLocked = failedAttempts >= 5;
+      latestAttempts[normalizedEmail] = isLocked
+        ? { failedAttempts: 0, lockedUntil: Date.now() + LOGIN_LOCKOUT_MS }
+        : { failedAttempts, lockedUntil: null };
+      localStorage.setItem(LOGIN_ATTEMPT_KEY, JSON.stringify(latestAttempts));
+
+      return isLocked
+        ? new Error('Too many failed login attempts. Account locked for 20 minutes.')
+        : new Error(`Invalid login credentials. Attempt ${failedAttempts} of 5.`);
+    };
+
+    try {
+      logger.auth('Submitting login credentials', {
+        email: normalizedEmail,
+        passwordPresent: true
+      });
+      const result = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+      if (result.error) throw result.error;
+
+      delete attempts[normalizedEmail];
+      localStorage.setItem(LOGIN_ATTEMPT_KEY, JSON.stringify(attempts));
+      if (result.data?.user) {
+        fetchProfile(result.data.user.id, 'MANUAL_LOGIN');
+      }
+      return result;
+    } catch (authError) {
+      logger.auth('Login failed', {
+        email: normalizedEmail,
+        status: authError?.status,
+        code: authError?.code,
+        message: authError?.message
+      });
+      return {
+        data: { user: null },
+        error: recordFailure(authError)
+      };
+    }
+  };
+
+  const requestPasswordReset = async (email) => {
+    logger.auth('Requesting password reset for:', email);
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/login?reset=true`,
+    });
+    if (error) {
+      const isServerError = error.status >= 500 || error.message?.toLowerCase().includes('internal');
+      if (isServerError) {
+        throw new Error('SMTP_UNAVAILABLE');
+      }
+      throw new Error(error.message || 'Failed to send reset email');
+    }
+    return data;
+  };
+
+  const resetPassword = requestPasswordReset;
+
+  const changePassword = async (newPassword) => {
+    throw new Error('Password changes require current-password verification and email confirmation.');
+  };
+
+  const requestPasswordChange = async (currentPassword, newPassword) => {
+    if (!user?.email) throw new Error('You must be logged in to change your password.');
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/api/auth/request-password-change`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: user.email, currentPassword, newPassword })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.error || 'Unable to send password confirmation email.');
+    return result;
+  };
+
+  const updateProfile = async (updates) => {
+    if (!user) return;
+    logger.auth('Updating user profile...');
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', user.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    setProfile(data);
+    return data;
+  };
+
+  const verifyPassword = async (password) => {
+    if (!user) return { success: false, error: 'Not authenticated' };
+    try {
+      const response = await fetch('http://localhost:3000/api/auth/verify-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email, password })
+      });
+      return await response.json();
+    } catch (err) {
+      return { success: false, error: 'Connection failed' };
+    }
+  };
+
+  const requestEmailChange = async (newEmail) => {
+    if (!user) return;
+    try {
+      const response = await fetch('http://localhost:3000/api/auth/request-email-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, oldEmail: user.email, newEmail })
+      });
+      return await response.json();
+    } catch (err) {
+      return { success: false, error: 'Request failed' };
+    }
+  };
+
+  const confirmEmailChange = async (otp) => {
+    if (!user) return;
+    try {
+      const response = await fetch('http://localhost:3000/api/auth/confirm-email-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, otp })
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchProfile(user.id, 'EMAIL_CHANGE_COMPLETE');
+      }
+      return result;
+    } catch (err) {
+      return { success: false, error: 'Confirmation failed' };
+    }
+  };
+
+  const deactivateAccount = async () => {
+    if (!user) return;
+    try {
+      const response = await fetch('http://localhost:3000/api/auth/deactivate-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
+      });
+      const result = await response.json();
+      if (result.success) {
+        await signOut();
+      }
+      return result;
+    } catch (err) {
+      return { success: false, error: 'Deactivation failed' };
+    }
+  };
+
+  const recoverAccount = async (userId) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: true, deactivated_at: null })
+        .eq('id', userId);
+      if (error) throw error;
+      await fetchProfile(userId, 'ACCOUNT_RECOVERY');
+      toast.success('Account successfully recovered!');
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const toggleShift = async (newStatus) => {
+    if (!profile?.id) return;
+    const toastId = toast.loading(newStatus ? 'Clocking in...' : 'Clocking out...');
+
+    try {
+      // 🛡️ REQ-AUTH-09: Use secure backend relay for administrative shift toggle
+      // This bypasses RLS restrictions on the profiles table for staff.
+      const response = await fetch('http://localhost:3000/api/staff/toggle-shift', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: profile.id, newStatus })
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Backend shift toggle failed');
+      }
+
+      // Immediately sync local state from the backend's source of truth
+      if (result.profile) {
+        setProfile(result.profile);
+      }
+
+      toast.success(newStatus ? 'Successfully Clocked In!' : 'Successfully Clocked Out!', { id: toastId });
+
+      // Secondary background re-sync to ensure any other profile fields are fresh
+      setTimeout(async () => {
+        await fetchProfile(profile.id, 'SHIFT_TOGGLE', true);
+      }, 500);
+
+      return { success: true };
+    } catch (err) {
+      logger.error('Shift Toggle Relay Error', err);
+      toast.error('Failed to update shift status. System relay unavailable.', { id: toastId });
+      return { success: false, error: err.message };
+    }
+  };
+
+  return (
+    <AuthContext.Provider value={{
+      user, profile, loading, isInitialized, signInWithPassword, signOut, resetPassword, requestPasswordReset, changePassword,
+      updateProfile, verifyPassword, requestPasswordChange, requestEmailChange, confirmEmailChange, deactivateAccount, recoverAccount, fetchProfile, setProfile,
+      toggleShift
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
