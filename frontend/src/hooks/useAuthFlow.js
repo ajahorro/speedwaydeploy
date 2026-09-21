@@ -21,8 +21,11 @@ export const useAuthFlow = () => {
         STAFF: '/staff',
         CUSTOMER: '/customer'
       };
-      // Only redirect if we're not currently in the middle of a password reset
-      if (mode !== 'RESET') {
+      // Stay put during a password reset AND during account activation. When the
+      // confirmation link is followed, Supabase creates a session; without this
+      // guard the user was bounced straight into the dashboard and never saw the
+      // "check your email" screen.
+      if (mode !== 'RESET' && mode !== 'AWAIT_LINK') {
         navigate(routes[profile.role] || '/customer');
       }
     }
@@ -60,41 +63,41 @@ export const useAuthFlow = () => {
         throw new Error('First and last name are required.');
       }
 
+      // Email confirmation is mandatory, so a successful signUp() returns NO
+      // session. The profile row below therefore cannot be written from the
+      // client — RLS would reject it (auth.uid() is null) and the crash surfaced
+      // as "Registration failed". The backend writes the profile on confirm
+      // instead, which is why this now only validates and reports success.
       const { data, error } = await supabase.auth.signUp({
         email,
         password: userData.password,
         options: {
+          // Consumed by the backend when it materialises the profile on confirm.
           data: {
             full_name: fullName,
             first_name: userData.firstName.trim(),
             last_name: userData.lastName.trim(),
             phone_number: userData.phone.trim(),
             role: 'CUSTOMER'
-          }
+          },
+          emailRedirectTo: `${window.location.origin}/login`
         }
       });
       if (error) throw error;
 
-      if (data.user) {
-        const { error: profileError } = await supabase.from('profiles').upsert({
-          id: data.user.id,
-          email,
-          full_name: fullName,
-          first_name: userData.firstName.trim(),
-          last_name: userData.lastName.trim(),
-          phone_number: userData.phone.trim(),
-          role: 'CUSTOMER',
-          is_active: true
-        }, { onConflict: 'id' });
-        if (profileError) throw profileError;
+      // Supabase deliberately returns a fake user with no identities when the
+      // address is already registered, to avoid account enumeration. Treat it as
+      // "nothing sent" rather than showing a success screen that never arrives.
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        throw new Error('An account with this email already exists. Try signing in or use "Forgot Password?".');
       }
 
       setVerificationEmail(email);
 
-      toast.success('Registration successful!', {
+      toast.success('Registration successful! Check your inbox to activate your account.', {
         style: { background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', backdropFilter: 'blur(12px)' }
       });
-      
+
       setMode('AWAIT_LINK');
     } catch (error) {
       toast.error(error.message || 'Registration failed.', {
@@ -105,15 +108,27 @@ export const useAuthFlow = () => {
     }
   };
 
-  const verifyOtp = async (otpCode) => {
+  /**
+   * ACE-16: account activation is link-based, so a 6-digit code is not required.
+   * Routing registration here previously re-submitted the whole sign-up form —
+   * firing a second confirmation email — instead of resending. From the
+   * VERIFY screen we now re-dispatch the signup confirmation.
+   */
+  const resendConfirmation = async () => {
+    const target = (verificationEmail || '').trim();
+    if (!target) {
+      toast.error('Enter your email address to resend the activation link.');
+      return;
+    }
     setIsLoading(true);
     try {
-      // verifyOtp is now only used for Password Recovery flows
-      if (mode === 'RECOVER_VERIFY') {
-        setMode('RESET');
-      }
+      const { error } = await supabase.auth.resend({ type: 'signup', email: target.toLowerCase() });
+      if (error) throw error;
+      toast.success(`Activation link resent to ${target}.`, {
+        style: { background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', backdropFilter: 'blur(12px)' }
+      });
     } catch (error) {
-      toast.error(error.message, {
+      toast.error(error.message || 'Could not resend the activation link.', {
         style: { background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', backdropFilter: 'blur(12px)' }
       });
     } finally {
@@ -134,7 +149,7 @@ export const useAuthFlow = () => {
       const result = await res.json();
       if (!result.success) throw new Error(result.error || 'Recovery request failed');
 
-      
+
       setVerificationEmail(email);
       toast.success('If an account is associated with that email, a password reset link has been sent.', {
         style: { background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', backdropFilter: 'blur(12px)' }
@@ -149,10 +164,6 @@ export const useAuthFlow = () => {
     }
   };
 
-  const updatePassword = async (newPassword) => {
-    throw new Error('Use the password confirmation link from your email to create a new password.');
-  };
-
   return {
     mode,
     setMode,
@@ -160,9 +171,8 @@ export const useAuthFlow = () => {
     verificationEmail,
     login,
     startRegister,
-    verifyOtp,
+    resendConfirmation,
     recoverPassword,
-    updatePassword,
     loginError,
     clearLoginError: () => setLoginError(''),
   };

@@ -13,7 +13,7 @@ import { useGlobalChat } from '../context/ChatContext';
  */
 const BookingChat = ({ bookingId }) => {
   const { user, profile } = useAuth();
-  const { refreshUnreadCount } = useGlobalChat();
+  const { refreshUnreadCount, reportThreadUnread } = useGlobalChat();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -44,13 +44,16 @@ const BookingChat = ({ bookingId }) => {
   const fetchMessages = async () => {
     const { data, error } = await supabase
       .from('booking_messages')
-      .select('*, sender:profiles!booking_messages_sender_id_fkey(full_name, first_name, last_name, role)')
+      .select('*, read_at, sender:profiles!booking_messages_sender_id_fkey(full_name, first_name, last_name, role)')
       .eq('booking_id', bookingId)
       .order('created_at', { ascending: true });
 
     if (!error && data) {
       const conversationMessages = data.filter(message => message.message_type !== 'system');
       setMessages(conversationMessages);
+      // Publish this thread's own unread count so the launcher can badge the
+      // exact booking instead of only showing a global total.
+      reportThreadUnread(bookingId, conversationMessages.filter(message => message.sender_id !== user?.id && !message.is_read).length);
       await markMessagesAsRead(conversationMessages);
     }
   };
@@ -101,7 +104,7 @@ const BookingChat = ({ bookingId }) => {
       });
 
     return () => { supabase.removeChannel(channel); };
-  }, [bookingId, user?.id, refreshUnreadCount]);
+  }, [bookingId, user?.id, refreshUnreadCount, reportThreadUnread]);
 
   // Smart Auto-scroll (REQ-NFR-30)
   const prevMsgCount = useRef(0);
@@ -121,12 +124,12 @@ const BookingChat = ({ bookingId }) => {
     prevMsgCount.current = messages.length;
   }, [messages]);
 
-  // --- SEND MESSAGE ---
-  const handleSend = async (retryMessage = null) => {
+    // --- SEND MESSAGE ---
+    const handleSend = async (retryMessage = null) => {
     const textToSend = retryMessage?.message || newMessage.trim();
     if ((!textToSend && !attachment) || sending) return;
     setError('');
-    
+
     const tempId = retryMessage?.id || `temp-${Date.now()}`;
     setSending(true);
 
@@ -168,7 +171,11 @@ const BookingChat = ({ bookingId }) => {
         await emitEventToMany(EVENTS.MESSAGE_RECEIVED, {
           userIds: recipients,
           bookingId,
-          meta: { bookingRef: bookingId.substring(0, 8).toUpperCase(), senderName: profile?.full_name || profile?.first_name || 'A user' }
+          meta: {
+            bookingRef: bookingId.substring(0, 8).toUpperCase(),
+            senderName: profile?.full_name || profile?.first_name || 'A user',
+            messageText: textToSend
+          }
         });
       }
       toast.success('Message sent securely', { position: 'top-center' });
@@ -215,12 +222,16 @@ const BookingChat = ({ bookingId }) => {
       if (uploadErr) throw uploadErr;
 
       const { data: { publicUrl } } = supabase.storage.from('chat_media').getPublicUrl(filePath);
+      const isImage = attachment.type.startsWith('image/');
       const { error: insertError } = await supabase.from('booking_messages').insert({
         booking_id: bookingId,
         sender_id: user.id,
         message: publicUrl,
-        message_text: publicUrl,
-        message_type: attachment.type.startsWith('image/') ? 'image' : 'file',
+        // Store the human-readable filename, NOT the storage URL. The chat
+        // notification is built from message_text, so a URL here produced
+        // notification rows full of signed-link noise.
+        message_text: safeName,
+        message_type: isImage ? 'image' : 'file',
         is_read: false
       });
       if (insertError) throw insertError;
@@ -234,7 +245,13 @@ const BookingChat = ({ bookingId }) => {
         await emitEventToMany(EVENTS.MESSAGE_RECEIVED, {
           userIds: recipients,
           bookingId,
-          meta: { bookingRef: bookingId.substring(0, 8).toUpperCase(), senderName: profile?.full_name || profile?.first_name || 'A user' }
+          meta: {
+            bookingRef: bookingId.substring(0, 8).toUpperCase(),
+            senderName: profile?.full_name || profile?.first_name || 'A user',
+            messageText: safeName,
+            isAttachment: true,
+            attachmentType: isImage ? 'image' : 'file'
+          }
         });
       }
       setAttachment(null);
@@ -287,7 +304,7 @@ const BookingChat = ({ bookingId }) => {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-md)', overflow: 'hidden' }}>
-      
+
       {/* Message Area */}
       <div ref={chatContainerRef} style={{ flex: 1, padding: '1rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         {messages.length === 0 ? (
@@ -325,9 +342,9 @@ const BookingChat = ({ bookingId }) => {
 
                 {/* Bubble */}
                 {msg.message_type === 'image' ? (
-                  <img 
-                    src={msg.message} 
-                    alt="attachment" 
+                  <img
+                    src={msg.message}
+                    alt="attachment"
                     style={{ maxWidth: '200px', maxHeight: '200px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', cursor: 'zoom-in', objectFit: 'cover', opacity: msg.status === 'sending' ? 0.6 : 1 }}
                     onClick={() => window.open(msg.message, '_blank')}
                   />
@@ -354,16 +371,18 @@ const BookingChat = ({ bookingId }) => {
                 )}
 
                 {/* Status / Timestamp */}
-                <div style={{ fontSize: '0.6rem', fontWeight: '700', color: 'var(--admin-text-secondary)', marginTop: '0.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ fontSize: '0.6rem', fontWeight: '700', color: 'var(--admin-text-secondary)', marginTop: '0.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                   {msg.status === 'sending' && <span>Sending...</span>}
                   {msg.status === 'failed' && (
                     <span style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                      Failed 
+                      Failed
                       <button onClick={() => handleSend(msg)} style={{ background: 'none', border: 'none', color: '#ef4444', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: '0.6rem', fontWeight: 'bold' }}>Retry</button>
                     </span>
                   )}
                   {msg.status !== 'sending' && msg.status !== 'failed' && <span>{timeFormat(msg.created_at)}</span>}
-                  {isMe && msg.status !== 'sending' && msg.status !== 'failed' && (msg.is_read ? <CheckCheck size={13} color="#34d399" title="Seen" /> : <Check size={13} title="Sent" />)}
+                  {isMe && msg.status !== 'sending' && msg.status !== 'failed' && (msg.is_read
+                    ? <span title={`Seen${msg.read_at ? ` ${timeFormat(msg.read_at)}` : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', color: '#34d399', fontWeight: '900' }}><CheckCheck size={13} /> Seen</span>
+                    : <span title="Delivered — not opened yet" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><Check size={13} /> Sent</span>)}
                 </div>
               </div>
             );

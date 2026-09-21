@@ -22,6 +22,8 @@ const AdminRefunds = () => {
     loading: true,
     searchQuery: '',
     filter: 'PENDING',
+    // Sub-filter under the PROCESSED view: ALL | Digital | Cash.
+    methodFilter: 'ALL',
     selectedItem: null,
     confirmRefundItem: null,
     refundReason: '',
@@ -32,7 +34,7 @@ const AdminRefunds = () => {
     setState(prev => ({ ...prev, loading: true }));
     try {
       logger.admin('Fetching live refund-eligible records...');
-      
+
       const { data, error } = await supabase
         .from('bookings')
         .select(`
@@ -54,14 +56,23 @@ const AdminRefunds = () => {
           .filter(p => p.method === 'SYSTEM_REFUND' && Number(p.amount) < 0)
           .reduce((sum, p) => sum + Math.abs(Number(p.amount)), 0);
         const totalPaid = Math.max(0, positivePayments - processedRefunds);
-        
+
+        // Derive the payment channel from the booking's positive payments so the
+        // PROCESSED view can be split into Digital vs Cash. Mirrors the method
+        // bucketing used by AdminPayments (GCash/online/card => Digital).
+        const methodOf = (b.payments || []).find(p => Number(p.amount) > 0)?.method;
+        const normalizedMethod = String(methodOf || '').trim().toLowerCase();
+        const isCashMethod = normalizedMethod === 'cash';
+        const isDigitalMethod = ['gcash', 'digital', 'bank transfer', 'paymaya', 'maya', 'card', 'online'].includes(normalizedMethod);
+
         return {
           ...b,
           customer: b.customer
             ? { ...b.customer, full_name: b.customer.full_name || b.customer_name || 'Customer' }
             : { full_name: b.customer_name || 'Customer' },
           totalPaid,
-          refundStatus: b.refund_status || 'QUEUED' 
+          paymentMethod: isCashMethod ? 'Cash' : (isDigitalMethod ? 'Digital' : 'Unknown'),
+          refundStatus: b.refund_status || 'QUEUED'
         };
       }).filter(b => b.totalPaid > 0 || ['PROCESSED', 'EMAIL_PENDING'].includes(b.refundStatus));
 
@@ -81,17 +92,20 @@ const AdminRefunds = () => {
   // MEMOIZED FILTERING
   const filteredItems = useMemo(() => {
     return state.refundItems.filter(b => {
-      const matchesSearch = 
-        b.customer?.full_name?.toLowerCase().includes(state.searchQuery.toLowerCase()) || 
+      const matchesSearch =
+        b.customer?.full_name?.toLowerCase().includes(state.searchQuery.toLowerCase()) ||
         b.customer_name?.toLowerCase().includes(state.searchQuery.toLowerCase()) ||
         b.id.toLowerCase().includes(state.searchQuery.toLowerCase());
-      
+
       if (state.filter === 'PENDING') return matchesSearch && ['PENDING', 'QUEUED', 'PROCESSING', 'EMAIL_PENDING'].includes(b.refundStatus);
-      if (state.filter === 'PROCESSED') return matchesSearch && b.refundStatus === 'PROCESSED';
-      
+      if (state.filter === 'PROCESSED') {
+        const matchesMethodFilter = state.methodFilter === 'ALL' ? true : b.paymentMethod === state.methodFilter;
+        return matchesSearch && b.refundStatus === 'PROCESSED' && matchesMethodFilter;
+      }
+
       return matchesSearch;
     });
-  }, [state.refundItems, state.searchQuery, state.filter]);
+  }, [state.refundItems, state.searchQuery, state.filter, state.methodFilter]);
 
   const handleProcessRefund = async (item) => {
     const toastId = toast.loading('Synchronizing financial reversal...');
@@ -203,6 +217,36 @@ const AdminRefunds = () => {
               ))}
             </div>
           </div>
+
+          {/* PROCESSED sub-filters: split settled refunds by payment channel. */}
+          {state.filter === 'PROCESSED' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Payment Method
+              </span>
+              <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--admin-card)', padding: '0.25rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
+                {['ALL', 'Digital', 'Cash'].map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setState(prev => ({ ...prev, methodFilter: m }))}
+                    style={{
+                      padding: '0.45rem 0.7rem',
+                      borderRadius: 'var(--admin-radius-sm)',
+                      border: 'none',
+                      background: state.methodFilter === m ? 'var(--admin-brand)' : 'transparent',
+                      color: state.methodFilter === m ? 'white' : 'var(--admin-text-secondary)',
+                      fontSize: '0.66rem',
+                      fontWeight: '900',
+                      cursor: 'pointer',
+                      textTransform: 'uppercase'
+                    }}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {filteredItems.length === 0 ? (
             <div style={{ ...cardStyle, padding: '4rem', textAlign: 'center', color: 'var(--admin-text-secondary)' }}>

@@ -1,7 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, ExternalLink, Info, Calendar, Star, Megaphone, Bell } from 'lucide-react';
+import { X, ExternalLink, Info, Calendar, Star, Megaphone, Bell, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { parseChatNotification } from './NotificationPopover';
 
 const TYPE_ICONS = {
   ANNOUNCEMENT: Megaphone,
@@ -11,6 +12,7 @@ const TYPE_ICONS = {
   BOOKING_CANCELLED: Calendar,
   PAYMENT_SUBMITTED: Star,
   PAYMENT_VERIFIED: Star,
+  MESSAGE_RECEIVED: MessageSquare,
   default: Info,
 };
 
@@ -20,6 +22,7 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
   const navigate = useNavigate();
   if (!notification) return null;
   const Icon = getIcon(notification.notification_type);
+  const chatNotification = parseChatNotification(notification);
 
   // Determine correct role prefix for routing
   const role = profile?.role?.toUpperCase();
@@ -143,7 +146,16 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
           {notification.title || 'Notification Details'}
         </h3>
 
-        {/* Full Elaboration Message with Clickable Booking IDs */}
+        {/* Full Elaboration Message with Clickable Booking IDs.
+            Chat notifications show WHO wrote the message above the body. */}
+        {chatNotification?.sender && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.5rem' }}>
+            <MessageSquare size={14} color="var(--admin-brand)" />
+            <span style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {chatNotification.sender}
+            </span>
+          </div>
+        )}
         <div style={{
           background: 'var(--admin-bg)',
           border: '1px solid var(--admin-border)',
@@ -156,7 +168,7 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
           fontWeight: '600',
           wordBreak: 'break-word'
         }}>
-          {renderFormattedMessage(notification.message)}
+          {renderFormattedMessage(chatNotification ? (chatNotification.body || 'Attachment') : notification.message)}
         </div>
 
         {/* Modal Actions */}

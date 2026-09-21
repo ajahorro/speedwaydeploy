@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { Mail, Lock, User, Phone, Loader2, AlertCircle } from 'lucide-react';
 import StyledInput from './StyledInput';
 
-const RegisterForm = ({ onRegister, onSwitchMode, isLoading }) => {
+const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '' }) => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
-    email: '',
+    email: initialEmail || '',
     phone: '',
     password: '',
     confirmPassword: ''

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import {
@@ -24,13 +24,25 @@ const CustomerBookingDetails = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { refreshData } = useUnifiedData(); // Now safely inside the component!
-  const { setActiveBookingId } = useGlobalChat();
+  const { setActiveBookingId, openChatForBooking } = useGlobalChat();
   const { settings } = useConfig();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     setActiveBookingId(id);
     return () => setActiveBookingId(null);
   }, [id, setActiveBookingId]);
+
+  // Deep links from notifications and the chat digest land on
+  // /bookings/:id?chat=open. Without this the thread was highlighted but the
+  // panel stayed shut, so "Open chat" appeared to do nothing.
+  useEffect(() => {
+    if (!id || searchParams.get('chat') !== 'open') return;
+    openChatForBooking(id);
+    const next = new URLSearchParams(searchParams);
+    next.delete('chat');
+    setSearchParams(next, { replace: true });
+  }, [id, searchParams, openChatForBooking, setSearchParams]);
 
   const [booking, setBooking] = useState(null);
   const [vehicles, setVehicles] = useState([]);

@@ -69,6 +69,14 @@ const PasswordConfirmation = () => {
   };
 
   const goToLogin = () => { window.location.href = '/login'; };
+
+  // Retry the reset without re-requesting a link. This only serves purpose
+  // 'RESET': an 'UPDATE' link consumes itself server-side on first use, so the
+  // only recovery there is a fresh request.
+  const requestNewLink = async () => {
+    window.location.href = '/login';
+  };
+
   const heading = status === 'invalid' ? 'Link Expired or Invalid' : status === 'complete' ? 'Password Updated' : purpose === 'UPDATE' ? 'Password Change Confirmed' : 'Create New Password';
 
   return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: 'var(--bg-primary)' }}>
@@ -78,7 +86,7 @@ const PasswordConfirmation = () => {
       </div>
       <h1 style={{ margin: '0 0 .75rem', fontSize: '1.4rem', fontWeight: 900 }}>{heading}</h1>
       {status === 'checking' && <p style={{ color: 'var(--admin-text-secondary)' }}>Validating your secure confirmation link...</p>}
-      {status === 'invalid' && <><p style={{ color: 'var(--admin-text-secondary)', lineHeight: 1.6 }}>This link has expired, was already used, or is invalid. Please request a new confirmation email.</p><button onClick={goToLogin} style={{ marginTop: '1rem', padding: '.75rem 1.25rem', background: 'var(--admin-brand)', color: '#fff', border: 0, borderRadius: '4px', fontWeight: 800, cursor: 'pointer' }}>Return to Login</button></>}
+      {status === 'invalid' && <><p style={{ color: 'var(--admin-text-secondary)', lineHeight: 1.6 }}>This link has expired, was already used, or is invalid. Request a fresh one from the login screen — use <strong>Forgot Password?</strong>.</p><button onClick={requestNewLink} style={{ marginTop: '1rem', padding: '.75rem 1.25rem', background: 'var(--admin-brand)', color: '#fff', border: 0, borderRadius: '4px', fontWeight: 800, cursor: 'pointer' }}>Request a New Link</button></>}
       {status === 'complete' && <><p style={{ color: 'var(--admin-text-secondary)', lineHeight: 1.6 }}>Your password has been updated successfully. You may now sign in with it.</p><button onClick={goToLogin} style={{ marginTop: '1rem', padding: '.75rem 1.25rem', background: 'var(--admin-brand)', color: '#fff', border: 0, borderRadius: '4px', fontWeight: 800, cursor: 'pointer' }}>Continue to Login</button></>}
       {status === 'ready' && purpose === 'RESET' && <form onSubmit={submitReset} style={{ textAlign: 'left' }}><label style={{ display: 'block', marginBottom: '.4rem', fontWeight: 700 }}>New Password</label><input type="password" autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} required style={{ width: '100%', boxSizing: 'border-box', padding: '.8rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px' }} /><label style={{ display: 'block', margin: '1rem 0 .4rem', fontWeight: 700 }}>Confirm New Password</label><input type="password" autoComplete="new-password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} required style={{ width: '100%', boxSizing: 'border-box', padding: '.8rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px' }} /><button disabled={isSubmitting} style={{ width: '100%', marginTop: '1.25rem', padding: '.85rem', background: 'var(--admin-brand)', color: '#fff', border: 0, borderRadius: '4px', fontWeight: 800, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}>{isSubmitting ? 'Updating...' : 'Update Password'}</button></form>}
     </div>

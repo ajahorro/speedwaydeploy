@@ -19,6 +19,7 @@ import AdminAuditLogs from './pages/Admin/AdminAuditLogs';
 import AdminAccountsManagement from './pages/Admin/AdminAccountsManagement';
 import AdminUserManagement from './pages/Admin/AdminUserManagement';
 import AdminSettings from './pages/Admin/AdminSettings';
+import BusinessHub from './pages/Admin/BusinessHub';
 import AdminNotifications from './pages/Admin/AdminNotifications';
 import AdminProfile from './pages/Admin/AdminProfile';
 import AdminAcceptInvite from './pages/Admin/AdminAcceptInvite';
@@ -105,6 +106,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   }
                 >
                   <Route index element={<AdminDashboard />} />
+                  <Route path="business" element={<BusinessHub />} />
                   <Route path="walk-in" element={<AdminWalkInForm />} />
                   <Route path="bookings" element={<AdminBookings />} />
                   <Route path="bookings/:id" element={<AdminBookingDetails />} />

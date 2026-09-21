@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import PageHeader from "../components/PageHeader";
-import { Bell, CheckCircle, Trash2, Search, AlertTriangle, X, Info, Calendar, Star, Megaphone, ExternalLink } from 'lucide-react';
+import { Bell, CheckCircle, Trash2, Search, AlertTriangle, X, Info, Calendar, Star, Megaphone, ExternalLink, MessageSquare } from 'lucide-react';
+import { parseChatNotification } from '../components/NotificationPopover';
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import toast from 'react-hot-toast';
 import { logger } from "../utils/logger";
@@ -142,13 +143,29 @@ const GlobalNotifications = () => {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', minWidth: 0 }}>
-                  <Bell size={20} color={notif.is_read ? 'var(--admin-text-secondary)' : 'var(--admin-brand)'} style={{ flexShrink: 0 }} />
+                  {(() => {
+                    const chat = parseChatNotification(notif);
+                    const Icon = chat ? MessageSquare : Bell;
+                    return <Icon size={20} color={notif.is_read ? 'var(--admin-text-secondary)' : 'var(--admin-brand)'} style={{ flexShrink: 0 }} />;
+                  })()}
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.15rem' }}>
                       <span style={{ fontSize: '0.65rem', fontWeight: '950', color: notif.is_read ? 'var(--admin-text-secondary)' : 'var(--admin-brand)' }}>{notif.notification_type || 'SYSTEM'}</span>
                       <span style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)' }}>{new Date(notif.created_at).toLocaleString()}</span>
                     </div>
                     <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{notif.title || 'Notification Received'}</p>
+                    {/* Chat rows carry "<Sender> sent: <body>"; show the author
+                        and a one-line body instead of the raw concatenation. */}
+                    {(() => {
+                      const chat = parseChatNotification(notif);
+                      if (!chat) return null;
+                      return (
+                        <div style={{ marginTop: '0.15rem', minWidth: 0 }}>
+                          {chat.sender && <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase' }}>{chat.sender}</span>}
+                          <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--admin-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{chat.body || 'Attachment'}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>

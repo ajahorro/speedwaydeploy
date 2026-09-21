@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useUnifiedData } from '../context/UnifiedContext';
-import { Bell, CheckCheck, ChevronRight, Info, Calendar, Star, Megaphone } from 'lucide-react';
+import { Bell, CheckCheck, ChevronRight, Info, Calendar, Star, Megaphone, MessageSquare } from 'lucide-react';
 import NotificationDetailsModal from './NotificationDetailsModal';
 
 const TYPE_ICONS = {
@@ -13,10 +13,30 @@ const TYPE_ICONS = {
   BOOKING_CANCELLED: Calendar,
   PAYMENT_SUBMITTED: Star,
   PAYMENT_VERIFIED: Star,
+  MESSAGE_RECEIVED: MessageSquare,
   default: Info,
 };
 
 const getIcon = (type) => TYPE_ICONS[type] || TYPE_ICONS.default;
+
+/**
+ * Chat notifications are persisted as "<Sender> sent: <text>". Split the sender
+ * from the body so the popover can render the author as a name and the body as
+ * the message, instead of dumping one long unformatted string.
+ */
+export const parseChatNotification = (notification) => {
+  if (!notification) return null;
+  const isChat = notification.notification_type === 'MESSAGE_RECEIVED' || (notification.title || '').toLowerCase().includes('new message');
+  if (!isChat) return null;
+  const raw = String(notification.message || '').replace(/\s+/g, ' ').trim();
+  // Two persisted shapes: "<Sender> sent[: <kind>]: <body>" and the attachment-less
+  // fallback "<Sender> sent a new message on booking #REF." — the sender must be
+  // recoverable from both so the UI always attributes the message.
+  const match = raw.match(/^(.+?) sent(?: (an image|a file))?:\s*([\s\S]*)$/)
+    || raw.match(/^(.+?) sent (?:a new message|an image|a file) on booking #.+$/);
+  if (!match) return { sender: null, body: raw, kind: null };
+  return { sender: match[1], kind: match[2] || null, body: (match[3] || '').trim() };
+};
 
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr)) / 1000;
@@ -54,32 +74,48 @@ const NotificationPopover = ({ profile, onClose, onRead }) => {
 
   const isChatNotification = (n) => n.notification_type === 'MESSAGE_RECEIVED' || (n.title || '').toLowerCase().includes('new message');
 
+  const openChatThread = (n) => {
+    if (!n.booking_id) return;
+    const rolePrefix = profile?.role?.toUpperCase() === 'ADMIN'
+      ? '/admin'
+      : profile?.role?.toUpperCase() === 'STAFF' ? '/staff' : '/customer';
+    onClose();
+    navigate(`${rolePrefix}/bookings/${n.booking_id}?chat=open`);
+  };
+
+  /**
+   * Lock-screen style preview: the author on their own line, then a CSS-clamped
+   * body. Truncation is a pure render concern here, so the persisted message is
+   * never mutated and "See More" is never duplicated into the stored text.
+   */
   const renderNotificationPreview = (n) => {
-    if (!isChatNotification(n) || !n.booking_id) return n.message || 'New notification';
+    const chat = isChatNotification(n) ? parseChatNotification(n) : null;
 
-    const rawText = String(n.message || '').replace(/\s+/g, ' ').trim();
-    const words = rawText.split(' ');
-    if (words.length <= 3) return rawText;
+    if (chat) {
+      return (
+        <span style={{ display: 'block', minWidth: 0 }}>
+          {chat.sender && (
+            <span style={{ display: 'block', color: 'var(--admin-brand)', fontWeight: '950', fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              {chat.sender}
+            </span>
+          )}
+          <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', color: 'var(--admin-text-primary)' }}>
+            {chat.body || 'Attachment'}
+          </span>
+          {n.booking_id && (
+            <button
+              type="button"
+              onClick={(event) => { event.stopPropagation(); openChatThread(n); }}
+              style={{ background: 'none', border: 'none', color: 'var(--admin-brand)', fontWeight: '900', cursor: 'pointer', padding: 0, fontSize: '0.68rem', textDecoration: 'underline' }}
+            >
+              Open chat
+            </button>
+          )}
+        </span>
+      );
+    }
 
-    return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', color: 'var(--admin-text-primary)' }}>
-        <span>{words.slice(0, 3).join(' ')}</span>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            const rolePrefix = profile?.role?.toUpperCase() === 'ADMIN'
-              ? '/admin'
-              : profile?.role?.toUpperCase() === 'STAFF' ? '/staff' : '/customer';
-            onClose();
-            navigate(`${rolePrefix}/bookings/${n.booking_id}?chat=open`);
-          }}
-          style={{ background: 'none', border: 'none', color: 'var(--admin-brand)', fontWeight: '900', cursor: 'pointer', padding: 0, fontSize: 'inherit', textDecoration: 'underline' }}
-        >
-          See More
-        </button>
-      </span>
-    );
+    return n.message || 'New notification';
   };
 
   const handleNotificationClick = async (n) => {
@@ -175,9 +211,7 @@ const NotificationPopover = ({ profile, onClose, onRead }) => {
                   <div style={{
                     fontSize: '0.72rem', fontWeight: n.is_read ? '700' : '900',
                     color: n.is_read ? 'var(--admin-text-secondary)' : 'var(--admin-text-primary)',
-                    lineHeight: 1.4, marginBottom: '0.2rem',
-                    overflow: 'hidden', textOverflow: 'ellipsis',
-                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'
+                    lineHeight: 1.4, marginBottom: '0.2rem'
                   }}>
                     {renderNotificationPreview(n)}
                   </div>

@@ -22,6 +22,14 @@
   
   --primary-color: #E61E2A;
   --page-header-gap: clamp(0.5rem, 1vw, 0.75rem);
+
+  /* Status / saving colours. Dark theme keeps Emerald 500 (~6.5:1 on the
+     charcoal card). Light theme overrides the pair below for WCAG AA. */
+  --status-success: #10b981;
+  --status-success-soft: rgba(16, 185, 129, 0.12);
+  --status-success-border: rgba(16, 185, 129, 0.35);
+  --status-warning: #f59e0b;
+  --status-danger: #ef4444;
 }
 
 [data-theme='light'] {
@@ -39,6 +47,14 @@
   --modal-overlay: rgba(17, 24, 39, 0.42);
   --modal-shadow: 0 25px 50px -12px rgba(17, 24, 39, 0.25);
   --modal-hover-bg: rgba(17, 24, 39, 0.06);
+
+  /* Emerald 500 (#10b981) only reaches ~2.3:1 on white, failing WCAG AA.
+     Emerald 700 (#047857) gives ~5.3:1 on white and ~4.6:1 on #F9FAFB. */
+  --status-success: #047857;
+  --status-success-soft: rgba(4, 120, 87, 0.10);
+  --status-success-border: rgba(4, 120, 87, 0.30);
+  --status-warning: #b45309;
+  --status-danger: #b91c1c;
 }
 
 @media (max-width: 480px) {
@@ -54,6 +70,31 @@
   .app-modal-actions button {
     width: 100%;
     min-height: 2.75rem;
+  }
+}
+
+/* ── Full-viewport modal isolation ────────────────────────
+   While a full-screen backdrop is mounted, background navigation (including
+   the SPEEDWAY ADMIN sidebar) must be non-interactive so pointer hover/clicks
+   and keyboard focus cannot reach it. The backdrop itself stays interactive. */
+body:has(.app-modal-backdrop) .admin-sidebar,
+body:has(.app-modal-backdrop) nav,
+body:has(.app-modal-backdrop) aside {
+  pointer-events: none !important;
+}
+
+/* ── Promo Creation Engine: responsive 3 -> 2 -> 1 column grid ────────────
+   The inline style supplies the desktop 3-column layout; these breakpoints
+   collapse it cleanly for 1366x768 / 1024x768 without horizontal overflow. */
+@media (max-width: 1366px) {
+  .promo-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .promo-field-grid {
+    grid-template-columns: 1fr !important;
   }
 }
 

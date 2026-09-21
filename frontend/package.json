@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "npm run test:promo",
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:promo": "esbuild tests/domain/promoEngine.test.mjs --bundle --format=esm --platform=node --outfile=node_modules/.cache/promo.test.bundle.mjs --log-level=warning && node ./node_modules/.cache/promo.test.bundle.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

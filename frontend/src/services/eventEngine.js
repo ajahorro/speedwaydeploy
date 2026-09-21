@@ -30,15 +30,29 @@ export const EVENTS = {
 };
 
 // ===== EVENT → NOTIFICATION TEMPLATE MAP =====
-const truncateForPreview = (text, maxWords = 3) => {
-  const raw = String(text || '').replace(/\s+/g, ' ').trim();
-  if (!raw) return { preview: '', hasMore: false };
-  const words = raw.split(' ');
-  if (words.length <= maxWords) return { preview: raw, hasMore: false };
-  return {
-    preview: `${words.slice(0, maxWords).join(' ')} See More`,
-    hasMore: true
-  };
+
+/**
+ * Chat notifications must carry the SENDER and the MESSAGE, never a bare
+ * "See More" fragment. This used to bake the literal "See More" text into the
+ * stored `notifications.message`, which meant:
+ *   - the bell popover (which renders its own "See More" affordance) displayed
+ *     "... See More See More"
+ *   - the push/email body shipped a dangling fragment before the recipient ever
+ *     opened the app
+ *   - the notification row never said WHO wrote the message
+ * The persisted message is now always complete and self-describing; all visual
+ * truncation happens at render time in the UI.
+ */
+const MESSAGE_PREVIEW_CHARS = 90;
+const buildChatNotificationMessage = (meta = {}) => {
+  const sender = String(meta.senderName || 'Someone').replace(/\s+/g, ' ').trim() || 'Someone';
+  const body = String(meta.messageText || '').replace(/\s+/g, ' ').trim();
+  const kind = meta.attachmentType === 'image' ? 'an image' : 'a file';
+
+  if (!body) return `${sender} sent ${meta.isAttachment ? kind : 'a new message'} on booking #${meta.bookingRef || ''}.`;
+  if (meta.isAttachment) return `${sender} sent ${kind}: ${body}`;
+  const preview = body.length > MESSAGE_PREVIEW_CHARS ? `${body.slice(0, MESSAGE_PREVIEW_CHARS).trimEnd()}…` : body;
+  return `${sender} sent: ${preview}`;
 };
 
 const TEMPLATES = {
@@ -99,11 +113,7 @@ const TEMPLATES = {
   },
   [EVENTS.MESSAGE_RECEIVED]: {
     title: 'New Message 💬',
-    message: (meta) => {
-      const baseText = meta?.messageText ? `${meta.messageText}` : `${meta.senderName || 'Someone'} sent a message on booking #${meta.bookingRef}.`;
-      const shortened = truncateForPreview(baseText, 3);
-      return shortened.preview || baseText;
-    },
+    message: (meta) => buildChatNotificationMessage(meta),
     type: 'MESSAGE_RECEIVED'
   },
   [EVENTS.STATUS_UPDATE]: {

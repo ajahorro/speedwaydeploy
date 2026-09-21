@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, CheckCircle2, Wallet, Banknote, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { Upload, CheckCircle2, Wallet, Banknote, ShieldAlert, AlertTriangle, Package as PackageIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useConfig } from '../../context/ConfigContext';
 import { calculateBookingDiscountSummary } from '../../data/servicesCatalog';
@@ -249,6 +249,11 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
             {vehicles.map((v, idx) => (
               <div key={v.id} style={{ borderBottom: idx === vehicles.length - 1 ? 'none' : '1px solid var(--admin-border)', paddingBottom: '1rem' }}>
+                {v.packageId && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.4rem', color: 'var(--admin-brand)', fontSize: '.68rem', fontWeight: '900', textTransform: 'uppercase' }}>
+                    <PackageIcon size={13} /> {v.packageName || 'Package bundle'} · fixed rate
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                   <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '900', fontSize: '0.75rem', textTransform: 'uppercase' }}>Vehicle {idx + 1}</span>
                   <span style={{ color: 'var(--admin-text-primary)', fontWeight: '900', fontSize: '0.85rem', textAlign: 'right' }}>
@@ -265,6 +270,25 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                 </div>
               </div>
             ))}
+
+            {promoSummary.totalDiscount > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem', paddingTop: '.85rem', borderTop: '1px solid var(--admin-border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem' }}>
+                  <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Standalone subtotal</span>
+                  <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '800', textDecoration: 'line-through' }}>₱{promoSummary.originalTotal.toLocaleString()}</span>
+                </div>
+                {promoSummary.appliedPackages.map((entry) => (
+                  <div key={entry.packageId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem' }}>
+                    <span style={{ color: 'var(--status-success)', fontWeight: '800' }}>{entry.name} savings</span>
+                    <span style={{ color: 'var(--status-success)', fontWeight: '900' }}>−₱{entry.savings.toLocaleString()}</span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem' }}>
+                  <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Total savings</span>
+                  <span style={{ color: 'var(--status-success)', fontWeight: '900' }}>−₱{promoSummary.totalDiscount.toLocaleString()}</span>
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '1rem', borderTop: '2px dashed var(--admin-border)' }}>
               <span style={{ color: 'var(--admin-text-primary)', fontWeight: '950', fontSize: '1.25rem', textTransform: 'uppercase' }}>Grand Total</span>

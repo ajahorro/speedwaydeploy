@@ -70,6 +70,16 @@ export const getAvailableServiceNames = () => {
   return Object.values(catalog).flatMap(list => list.map(service => service.name));
 };
 
+import { PROMO_MODE, isNeverExpiring } from '../domain/promo/promoTypes';
+
+/**
+ * Return a snapshot of the promo rules that are currently active.
+ *
+ * NOTE: Promo persistence is owned by services/promoService.js (Supabase +
+ * localStorage fallback). This synchronous reader exists so the pure pricing
+ * helpers below stay usable without a network round-trip; the authoritative
+ * list is hydrated into the cache by promoService on app load.
+ */
 export const getPromoRules = () => {
   if (typeof window === 'undefined') return [];
   try {
@@ -82,18 +92,26 @@ export const getPromoRules = () => {
   }
 };
 
-const isPromoActiveForNow = (rule) => {
+/** Whether a promo rule is active and within its validity window right now. */
+export const isPromoActiveForNow = (rule) => {
   if (!rule || rule.active === false) return false;
 
   const now = new Date();
-  const validFrom = rule.valid_from ? new Date(rule.valid_from) : null;
-  const validUntil = rule.valid_until ? new Date(rule.valid_until) : null;
-
-  if (validFrom && validFrom > now) return false;
-  if (validUntil && validUntil < now) return false;
-  if (rule.never_expires === true || rule.neverExpires === true) return true;
+  const validFrom = rule.valid_from || rule.validFrom;
+  // Tolerates both the current JSON null and the legacy 'never' string.
+  const validUntil = isNeverExpiring(rule.valid_until) ? rule.validUntil : (rule.valid_until || rule.validUntil);
+  const fromDate = validFrom ? new Date(validFrom) : null;
+  const untilDate = !isNeverExpiring(validUntil) ? new Date(validUntil) : null;
+  if (fromDate && !Number.isNaN(fromDate.getTime()) && fromDate > now) return false;
+  if (untilDate && !Number.isNaN(untilDate.getTime()) && untilDate < now) return false;
   return true;
 };
+
+/** Standard promo rules only (excludes package bundles). */
+export const getStandardPromoRules = () => getPromoRules().filter(rule => rule.mode !== PROMO_MODE.PACKAGE);
+
+/** Package promo rules only. */
+export const getPackagePromoRules = () => getPromoRules().filter(rule => rule.mode === PROMO_MODE.PACKAGE);
 
 export const getApplicablePromoRules = ({ vehicleType, serviceName }) => {
   const targetVehicleType = String(vehicleType || '').trim();
@@ -101,7 +119,7 @@ export const getApplicablePromoRules = ({ vehicleType, serviceName }) => {
 
   if (!targetVehicleType || !targetServiceName) return [];
 
-  return getPromoRules().filter(rule => {
+  return getStandardPromoRules().filter(rule => {
     if (!isPromoActiveForNow(rule)) return false;
 
     const hasVehicleScope = Array.isArray(rule.vehicleTypes) && rule.vehicleTypes.length > 0;
@@ -135,11 +153,118 @@ export const getEffectivePriceForService = (basePrice, vehicleType, serviceName)
   return Math.round(adjustedPrice * 100) / 100;
 };
 
+// --- Package Promo pricing --------------------------------------------------
+
+/**
+ * Active package promos that apply to a given vehicle type.
+ * Used by the booking portals to populate the "Special Packages" tab.
+ */
+export const getApplicablePackages = (vehicleType) => {
+  const target = String(vehicleType || '').trim().toLowerCase();
+  return getPackagePromoRules().filter(rule => {
+    if (!isPromoActiveForNow(rule)) return false;
+    const scoped = Array.isArray(rule.vehicleTypes) && rule.vehicleTypes.length > 0;
+    return !scoped || rule.vehicleTypes.some(type => String(type).toLowerCase() === target);
+  });
+};
+
+/** Look up a single package rule by id. */
+export const getPackageById = (packageId) =>
+  getPackagePromoRules().find(rule => rule.id === packageId) || null;
+
+/**
+ * Resolve the standalone (undiscounted) price of a named service from the live
+ * catalog for a vehicle type. Returns 0 when the service/type is not priced.
+ */
+export const getStandaloneServicePrice = (serviceName, vehicleType) => {
+  const catalog = getServiceCatalog();
+  const target = String(serviceName || '').trim().toLowerCase();
+  for (const list of Object.values(catalog)) {
+    const match = list.find(service => String(service.name || '').trim().toLowerCase() === target);
+    if (match) return Number(match.prices?.[vehicleType] || 0);
+  }
+  return 0;
+};
+
+/**
+ * Sum the standalone prices of a package's bundled services for a vehicle type.
+ * This is the comparison baseline for the pricing invariant.
+ */
+export const getPackageStandaloneSum = (pkg, vehicleType) => {
+  if (!pkg) return 0;
+  const services = pkg.bundledServices || [];
+  return services.reduce((sum, name) => sum + getStandaloneServicePrice(name, vehicleType), 0);
+};
+
+/**
+ * Compute package savings relative to standalone totals for the services that
+ * were actually selected (falls back to the full bundle when none are given).
+ * @returns {{ packagePrice:number, standaloneTotal:number, savings:number, savingsPercent:number }}
+ */
+export const calculatePackageDiscount = (packageId, selectedServiceIds = [], vehicleType = '') => {
+  const pkg = typeof packageId === 'object' && packageId ? packageId : getPackageById(packageId);
+  if (!pkg) return { packagePrice: 0, standaloneTotal: 0, savings: 0, savingsPercent: 0 };
+
+  const bundle = pkg.bundledServices || [];
+  const selected = (selectedServiceIds || []).length ? selectedServiceIds : bundle;
+  const applicable = bundle.length ? bundle.filter(name => selected.includes(name)) : selected;
+  const standaloneTotal = applicable.reduce((sum, name) => sum + getStandaloneServicePrice(name, vehicleType), 0);
+  const packagePrice = Number(pkg.packagePrice || 0);
+  const savings = Math.max(0, standaloneTotal - packagePrice);
+  return {
+    packagePrice,
+    standaloneTotal,
+    savings,
+    savingsPercent: standaloneTotal > 0 ? Math.round((savings / standaloneTotal) * 100) : 0
+  };
+};
+
+/**
+ * Discount summary across a whole booking.
+ *
+ * - Standard promos apply per line item (existing behaviour, unchanged).
+ * - Package promos override a unit's subtotal as a *group*: the unit pays the
+ *   fixed package price instead of the itemised service sum. Baseline standalone
+ *   subtotals are never mutated in place.
+ *
+ * A vehicle opts into a package via `vehicle.packageId`; the bundled services
+ * remain as line items so bay usage and service history stay accurate.
+ */
 export const calculateBookingDiscountSummary = (vehicles = []) => {
   let originalTotal = 0;
   let discountedTotal = 0;
+  const appliedPackages = [];
 
   (vehicles || []).forEach(vehicle => {
+    const pkg = vehicle.packageId ? getPackageById(vehicle.packageId) : null;
+
+    if (pkg) {
+      // Package unit: subtotal locks to the fixed package rate. The comparison
+      // baseline is the standalone sum of whichever bundled services are present
+      // as line items; a fleet unit applies once per vehicle. If no line items
+      // survived (e.g. an emptied selection), fall back to the package's own
+      // declared standalone sum so the unit is never silently free.
+      const services = Array.isArray(vehicle.services) ? vehicle.services : [];
+      const itemisedSum = services.reduce(
+        (sum, service) => sum + Number(service.price || service.basePrice || 0),
+        0
+      );
+      const declaredSum = getPackageStandaloneSum(pkg, vehicle.type);
+      const standaloneSum = itemisedSum > 0 ? itemisedSum : declaredSum;
+      const packagePrice = Number(pkg.packagePrice || 0);
+      const unitMultiplier = Math.max(1, Number(vehicle.packageUnits || 1));
+      originalTotal += standaloneSum * unitMultiplier;
+      discountedTotal += packagePrice * unitMultiplier;
+      appliedPackages.push({
+        packageId: pkg.id,
+        name: pkg.name,
+        packagePrice: packagePrice * unitMultiplier,
+        standaloneSum: standaloneSum * unitMultiplier,
+        savings: Math.max(0, (standaloneSum - packagePrice) * unitMultiplier),
+      });
+      return;
+    }
+
     (vehicle.services || []).forEach(service => {
       const basePrice = Number(service.price || service.basePrice || 0);
       originalTotal += basePrice;
@@ -150,7 +275,8 @@ export const calculateBookingDiscountSummary = (vehicles = []) => {
   return {
     originalTotal,
     discountedTotal,
-    totalDiscount: Math.max(0, originalTotal - discountedTotal)
+    totalDiscount: Math.max(0, originalTotal - discountedTotal),
+    appliedPackages,
   };
 };
 

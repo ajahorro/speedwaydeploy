@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { emitEvent, EVENTS } from './eventEngine';
 import { SHOP_CONFIG } from '../config/constants';
-import { getEffectivePriceForService } from '../data/servicesCatalog';
+import { getEffectivePriceForService, calculateBookingDiscountSummary } from '../data/servicesCatalog';
 import { getRequiredDownpayment } from '../utils/paymentUtils';
 import { sendStatusEmail } from './notificationService';
 import { calculateBayUsage } from '../utils/schedulingUtils';
@@ -39,9 +39,27 @@ export const createBooking = async (customerId, bookingData) => {
     throw new Error(`This booking needs ${requestedBays} bays, but the shop currently has ${maxBays}. Two motorcycles can share one bay; cars and vans need a full bay.`);
   }
 
-  const totalAmount = vehicles.reduce((total, v) => {
-    return total + (v.services || []).reduce((sub, s) => sub + getEffectivePriceForService(s.price, v.type, s.name || s.service_name), 0);
-  }, 0);
+  // Pricing must mirror the wizard exactly: standard promos discount per line
+  // item, while a unit bound to a package (vehicle.packageId) is charged the
+  // fixed package rate instead of the itemised standalone sum. Reusing the
+  // shared summary guarantees the persisted total cannot drift from the
+  // amount the customer reviewed in Step 4.
+  const pricingSummary = calculateBookingDiscountSummary(vehicles);
+  const totalAmount = pricingSummary.discountedTotal;
+  const packagePlan = (pricingSummary.appliedPackages || []).map((entry) => ({
+    package_id: entry.packageId,
+    name: entry.name,
+    package_price: entry.packagePrice,
+    standalone_sum: entry.standaloneSum,
+    savings: entry.savings,
+  }));
+
+  // Admin-created walk-in bookings are captured on-site with payment already
+  // taken by the admin, so they skip the manual payment-verification pipeline
+  // and are scheduled immediately as CONFIRMED. Customer self-service bookings
+  // still start as 'scheduled' and await verification.
+  const isAdminWalkIn = Boolean(bookingData.adminWalkIn);
+  const initialBookingStatus = isAdminWalkIn ? 'confirmed' : 'scheduled';
 
   // 1. Insert the master booking record
   const { data: booking, error: bookingError } = await supabase
@@ -52,9 +70,15 @@ export const createBooking = async (customerId, bookingData) => {
       customer_email: bookingData.customerEmail || customerProfile?.email || null,
       start_datetime: combineDateAndTime(bookingData.date, bookingData.time),
       end_datetime: calculateEstimatedEnd(bookingData.date, bookingData.time, vehicles),
-      status: 'scheduled',
+      status: initialBookingStatus,
       total_amount: totalAmount,
-      notes: [bookingData.notes, bookingData.fleetGroupId ? `FLEET_GROUP:${bookingData.fleetGroupId}` : ''].filter(Boolean).join(' | '),
+      notes: [
+        bookingData.notes,
+        bookingData.fleetGroupId ? `FLEET_GROUP:${bookingData.fleetGroupId}` : '',
+        // Package provenance: keeps the applied bundle auditable alongside the
+        // authoritative total_amount without requiring a schema change.
+        packagePlan.length ? `PACKAGES:${JSON.stringify(packagePlan)}` : '',
+      ].filter(Boolean).join(' | '),
       contact_number: bookingData.contactNumber,
       ocr_metadata: bookingData.payment?.ocrData || {} // PERSIST OCR RESULTS
     })
@@ -202,11 +226,13 @@ export const createBooking = async (customerId, bookingData) => {
     }
   }
 
-  // The scheduled email is the single lifecycle trigger. The status-email
-  // function creates the in-app notification only after email delivery succeeds.
-  const scheduledEmailResult = await sendStatusEmail(booking.id, 'scheduled');
-  if (scheduledEmailResult?.error) {
-    console.warn(`[Booking] Scheduled lifecycle email failed for ${booking.id}:`, scheduledEmailResult.error);
+  // The lifecycle email is the single trigger; the status-email function also
+  // creates the in-app notification once delivery succeeds. Walk-ins are already
+  // confirmed, so they dispatch CONFIRMED instead of SCHEDULED.
+  const lifecycleStatus = isAdminWalkIn ? 'confirmed' : 'scheduled';
+  const lifecycleEmailResult = await sendStatusEmail(booking.id, lifecycleStatus);
+  if (lifecycleEmailResult?.error) {
+    console.warn(`[Booking] ${lifecycleStatus} lifecycle email failed for ${booking.id}:`, lifecycleEmailResult.error);
   }
 
   return booking;

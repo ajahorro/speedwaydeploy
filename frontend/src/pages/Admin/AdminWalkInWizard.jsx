@@ -70,8 +70,16 @@ const AdminWalkInWizard = () => {
       ...bookingData,
       adminWalkIn: true,
       notes: `${bookingData.notes || ''} WALK-IN`,
-      customerId: bookingData.customerId ?? null
+      customerId: bookingData.customerId ?? null,
+      // Never let the admin's own identity leak into the customer-facing record.
+      // For guest walk-ins there is no profile, so these booking columns are the
+      // only source of the customer name/contact used by the confirmation email.
+      customerName: bookingData.customerName,
+      contactNumber: bookingData.contactNumber,
+      customerEmail: bookingData.guest?.email || bookingData.customerEmail || null
     });
+    // Walk-ins bypass verification entirely: the admin has taken payment in
+    // person, so the payment is recorded as PAID immediately.
     const { error: paymentError } = await supabase.from('payments').insert({
       booking_id: booking.id,
       amount: paymentAmount,
@@ -83,10 +91,18 @@ const AdminWalkInWizard = () => {
       notes: `ADMIN_WALK_IN|TYPE:${paymentType}|DECLARED_AMOUNT:${paymentAmount}`
     });
     if (paymentError) throw paymentError;
-    toast.success('Walk-in booking created.');
+    toast.success('Walk-in booking created and confirmed.');
   };
 
-  return <CustomerBookAppointment adminMode renderAdminPanel={renderAdminPanel} onAdminSubmit={submitAdminBooking} />;
+  // Fired by the wizard after a successful submit so the next walk-in starts
+  // from a clean slate (customer fields, unit cards, Add New Vehicle gate).
+  const handleAdminReset = () => {
+    setIsNewGuest(true);
+    setSelectedCustomer('');
+    setGuest({ firstName: '', lastName: '', email: '', phone: '' });
+  };
+
+  return <CustomerBookAppointment adminMode renderAdminPanel={renderAdminPanel} onAdminSubmit={submitAdminBooking} onAdminReset={handleAdminReset} />;
 };
 
 export default AdminWalkInWizard;

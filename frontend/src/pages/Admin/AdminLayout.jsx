@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate, NavLink, Outlet } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import {
-  LayoutDashboard, ClipboardList, CheckSquare, Calendar, UserPlus,
+  LayoutDashboard, Building2, ClipboardList, CheckSquare, Calendar, UserPlus,
   Bell, Undo, BarChart2, History, Users, User,
   Settings, LogOut, Menu, X, ShieldAlert
 } from 'lucide-react';
@@ -103,6 +103,7 @@ const AdminLayout = () => {
       name: 'Core Operations',
       links: [
         { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, exact: true },
+        { name: 'Business Hub', path: '/admin/business', icon: Building2 },
         { name: 'Booking Management', path: '/admin/bookings', icon: ClipboardList },
         { name: 'Calendar', path: '/admin/schedule', icon: Calendar },
         { name: 'New Walk-In', path: '/admin/walk-in', icon: UserPlus }

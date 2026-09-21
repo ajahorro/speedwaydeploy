@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import {
   ArrowLeft, Clock, CreditCard, User, Car, ClipboardList,
@@ -37,7 +37,8 @@ const AdminBookingDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { openModal } = useUI();
-  const { setActiveBookingId } = useGlobalChat();
+  const { setActiveBookingId, openChatForBooking } = useGlobalChat();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [booking, setBooking] = useState(null);
   const [vehicles, setVehicles] = useState([]);
   const [staffList, setStaffList] = useState([]);
@@ -74,6 +75,18 @@ const AdminBookingDetails = () => {
     setActiveBookingId(id);
     return () => setActiveBookingId(null);
   }, [id, setActiveBookingId]);
+
+  // Deep links from notifications and the chat digest land on
+  // /bookings/:id?chat=open. Without this the thread was highlighted but the
+  // panel stayed shut, so "Open chat" appeared to do nothing.
+  useEffect(() => {
+    if (!id || searchParams.get('chat') !== 'open') return;
+    openChatForBooking(id);
+    const next = new URLSearchParams(searchParams);
+    next.delete('chat');
+    setSearchParams(next, { replace: true });
+  }, [id, searchParams, openChatForBooking, setSearchParams]);
+
   const isMobile = useMediaQuery('(max-width: 1024px)');
 
   useEffect(() => {

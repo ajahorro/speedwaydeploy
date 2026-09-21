@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Mail, Lock, AlertCircle } from 'lucide-react';
 import StyledInput from './StyledInput';
 
-const LoginForm = ({ onLogin, onSwitchMode, isLoading, error, onClearError }) => {
-  const [email, setEmail] = useState('');
+const LoginForm = ({ onLogin, onSwitchMode, isLoading, error, onClearError, initialEmail = '', onEmailChange }) => {
+  const [email, setEmail] = useState(initialEmail || '');
   const [password, setPassword] = useState('');
 
   const handleSubmit = (e) => {
@@ -37,7 +37,7 @@ const LoginForm = ({ onLogin, onSwitchMode, isLoading, error, onClearError }) =>
             <span>{error}</span>
           </div>
         )}
-        <StyledInput icon={Mail} type="email" placeholder="Email Address" required value={email} onChange={e => { setEmail(e.target.value); onClearError?.(); }} autoComplete="email" />
+        <StyledInput icon={Mail} type="email" placeholder="Email Address" required value={email} onChange={e => { setEmail(e.target.value); onEmailChange?.(e.target.value); onClearError?.(); }} autoComplete="email" />
       </div>
       <div style={{ position: 'relative', marginBottom: '1.25rem' }}>
         <StyledInput icon={Lock} type="password" placeholder="Password" required value={password} onChange={e => { setPassword(e.target.value); onClearError?.(); }} autoComplete="current-password" />
@@ -49,7 +49,7 @@ const LoginForm = ({ onLogin, onSwitchMode, isLoading, error, onClearError }) =>
         <p style={{ margin: 0, color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
           Don't have an account? <span onClick={() => onSwitchMode('REGISTER')} style={{ color: 'var(--admin-brand)', cursor: 'pointer', fontWeight: '900' }}>Register</span>
         </p>
-        <span onClick={() => onSwitchMode('RECOVER')} style={{ color: 'var(--admin-text-secondary)', cursor: 'pointer', fontWeight: '700', opacity: 0.6 }}>Forgot Password?</span>
+        <span onClick={() => onSwitchMode('RECOVER', email)} style={{ color: 'var(--admin-text-secondary)', cursor: 'pointer', fontWeight: '700', opacity: 0.6 }}>Forgot Password?</span>
       </div>
     </form>
   );

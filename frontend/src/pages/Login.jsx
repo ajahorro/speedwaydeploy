@@ -1,11 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuthFlow } from '../hooks/useAuthFlow';
 import AuthHeader from '../components/auth/AuthHeader';
 import LoginForm from '../components/auth/LoginForm';
 import RegisterForm from '../components/auth/RegisterForm';
-import VerifyForm from '../components/auth/VerifyForm';
 import RecoverForm from '../components/auth/RecoverForm';
-import ResetForm from '../components/auth/ResetForm';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { X, Mail } from 'lucide-react';
 
@@ -18,54 +16,54 @@ const Login = ({ isModal = false, onClose }) => {
     verificationEmail,
     login,
     startRegister,
-    verifyOtp,
+    resendConfirmation,
     recoverPassword,
-    updatePassword,
     loginError,
     clearLoginError
   } = useAuthFlow();
 
-  // Check for password reset in URL
+  // Carried across mode switches so "Forgot Password?" does not make the user
+  // retype the address they just entered on the login form.
+  const [prefillEmail, setPrefillEmail] = useState('');
+  const switchMode = (nextMode, carriedEmail) => {
+    // A form that knows the address passes it along; otherwise keep whatever the
+    // login form last reported so the prefill survives Register -> Login hops.
+    if (carriedEmail) setPrefillEmail(carriedEmail);
+    setMode(nextMode);
+  };
+
+  // Arriving from a password-reset email (/login?reset=true) lands on the login
+  // screen. /password-confirmation is the surface that actually completes a
+  // reset, so point the user there rather than at a screen that cannot.
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('reset') === 'true') {
-      setMode('RESET');
+      window.location.replace('/password-confirmation');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const renderForm = () => {
     switch (mode) {
       case 'LOGIN':
-        return <LoginForm onLogin={login} onSwitchMode={setMode} isLoading={isLoading} error={loginError} onClearError={clearLoginError} />;
+        return <LoginForm onLogin={login} onSwitchMode={switchMode} isLoading={isLoading} error={loginError} onClearError={clearLoginError} initialEmail={prefillEmail} onEmailChange={setPrefillEmail} />;
       case 'REGISTER':
-        return <RegisterForm onRegister={startRegister} onSwitchMode={setMode} isLoading={isLoading} />;
-      case 'VERIFY':
-      case 'RECOVER_VERIFY':
-        return (
-          <VerifyForm 
-            onVerify={verifyOtp} 
-            onResend={() => mode === 'VERIFY' ? startRegister : recoverPassword(verificationEmail)}
-            onBack={() => setMode(mode === 'VERIFY' ? 'REGISTER' : 'RECOVER')}
-            email={verificationEmail} 
-            isLoading={isLoading} 
-          />
-        );
+        return <RegisterForm onRegister={startRegister} onSwitchMode={switchMode} isLoading={isLoading} initialEmail={prefillEmail} />;
       case 'RECOVER':
-        return <RecoverForm onRecover={recoverPassword} onSwitchMode={setMode} isLoading={isLoading} />;
-      case 'RESET':
-        return <ResetForm onReset={updatePassword} onSwitchMode={setMode} isLoading={isLoading} />;
+        return <RecoverForm onRecover={recoverPassword} onSwitchMode={switchMode} isLoading={isLoading} initialEmail={prefillEmail} />;
+      // ACE-16: account activation is link-based, so no 6-digit VERIFY step and
+      // no in-page RESET step exist. Password resets are completed on the
+      // dedicated /password-confirmation page reached from the email link.
       case 'AWAIT_LINK':
         return (
           <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-            <div style={{ 
-              width: '64px', 
-              height: '64px', 
-              background: 'rgba(169, 27, 24, 0.1)', 
-              borderRadius: '1.5rem', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
+            <div style={{
+              width: '64px',
+              height: '64px',
+              background: 'rgba(169, 27, 24, 0.1)',
+              borderRadius: '1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               margin: '0 auto 1.5rem',
               color: 'var(--admin-brand)',
               border: '1px solid rgba(169, 27, 24, 0.2)'
@@ -74,19 +72,19 @@ const Login = ({ isModal = false, onClose }) => {
             </div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: '950', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Check Your Email</h2>
             <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.85rem', lineHeight: '1.6', marginBottom: '2rem' }}>
-              We've sent a activation link to <strong style={{ color: 'var(--admin-text-primary)' }}>{verificationEmail}</strong>. 
+              We've sent a activation link to <strong style={{ color: 'var(--admin-text-primary)' }}>{verificationEmail}</strong>.
               Please click the link to activate your account.
             </p>
-            <button 
-              onClick={() => setMode('LOGIN')}
-              style={{ 
-                background: 'transparent', 
-                border: '1px solid var(--admin-border)', 
-                color: 'var(--admin-text-primary)', 
-                padding: '0.75rem 1.5rem', 
-                borderRadius: '0.85rem', 
-                fontWeight: '900', 
-                fontSize: '0.8rem', 
+            <button
+              onClick={() => switchMode('LOGIN')}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--admin-border)',
+                color: 'var(--admin-text-primary)',
+                padding: '0.75rem 1.5rem',
+                borderRadius: '0.85rem',
+                fontWeight: '900',
+                fontSize: '0.8rem',
                 cursor: 'pointer',
                 textTransform: 'uppercase'
               }}
@@ -156,7 +154,7 @@ const Login = ({ isModal = false, onClose }) => {
             <X size={20} />
           </button>
         )}
-        <AuthHeader mode={mode} />
+        <AuthHeader mode={mode} email={prefillEmail} />
         {renderForm()}
       </div>
       <style>{`

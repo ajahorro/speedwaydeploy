@@ -12,7 +12,7 @@ import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { getAuditCompliantTransactions } from '../../utils/bookingHelpers';
-import { sendPaymentReceiptEmail } from '../../services/notificationService';
+import { sendPaymentReceiptEmail, sendBookingConfirmationEmail } from '../../services/notificationService';
 import { calculateRequiredDownpayment } from '../../utils/paymentUtils';
 import OfficialReceipt from '../../components/OfficialReceipt';
 
@@ -144,6 +144,15 @@ const AdminPayments = () => {
 
     const { error: updateError } = await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', bookingId);
     if (updateError) throw updateError;
+
+    // Auto-confirm previously changed status silently, so the customer never
+    // received a CONFIRMED email. Dispatch it here to match the manual confirm
+    // path in AdminBookingDetails. Failure must not roll back the status write.
+    try {
+      await sendBookingConfirmationEmail(bookingId);
+    } catch (emailError) {
+      console.warn('[AdminPayments] Confirmation email dispatch failed:', emailError);
+    }
   };
 
   const handleVerifyPayment = async (payment) => {

@@ -36,7 +36,7 @@ const hasMeaningfulBookingInput = (data) => {
   );
 };
 
-const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminSubmit }) => {
+const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminSubmit, onAdminReset }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
@@ -59,13 +59,19 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
 
   // Global Wizard State
   const [bookingData, setBookingData] = useState(() => {
-    const savedDraft = localStorage.getItem('speedway_booking_draft');
-    if (savedDraft && !prefillData) {
-      try {
-        const parsedDraft = JSON.parse(savedDraft);
-        if (hasMeaningfulBookingInput(parsedDraft)) return parsedDraft;
-        localStorage.removeItem('speedway_booking_draft');
-      } catch { localStorage.removeItem('speedway_booking_draft'); }
+    // Admin walk-in sessions never resume a draft; purge any stray one so the
+    // wizard always starts from a clean slate (QA Test Case 3.1).
+    if (adminMode) {
+      localStorage.removeItem('speedway_booking_draft');
+    } else {
+      const savedDraft = localStorage.getItem('speedway_booking_draft');
+      if (savedDraft && !prefillData) {
+        try {
+          const parsedDraft = JSON.parse(savedDraft);
+          if (hasMeaningfulBookingInput(parsedDraft)) return parsedDraft;
+          localStorage.removeItem('speedway_booking_draft');
+        } catch { localStorage.removeItem('speedway_booking_draft'); }
+      }
     }
     return {
     customerName: profile?.first_name ? `${profile.first_name} ${profile?.last_name || ''}`.trim() : (user?.user_metadata?.first_name ? `${user.user_metadata.first_name} ${user.user_metadata.last_name || ''}`.trim() : ''),
@@ -94,8 +100,8 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
       }
     ],
     payment: {
-      method: 'GCash', 
-      type: 'Full', 
+      method: 'GCash',
+      type: 'Full',
       proofOfPayment: null,
       ocrData: null
     },
@@ -121,11 +127,67 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
     setPendingLeave(() => action);
   };
 
+  // Focus trap for the leave-confirmation modal: while it is open, keyboard
+  // focus is confined to STAY/LEAVE and Tab can never escape to the background
+  // navigation (sidebar). Escape dismisses without leaving.
+  const leaveModalRef = React.useRef(null);
   React.useEffect(() => {
+    if (!pendingLeave) return;
+    const container = leaveModalRef.current;
+    const focusables = () => Array.from(container?.querySelectorAll('button:not([disabled])') || []);
+    // Move focus into the modal on open.
+    focusables()[0]?.focus();
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setPendingLeave(null);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = focusables();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      // Cycle strictly between the modal's own controls.
+      if (event.shiftKey && (active === first || !container.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !container.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [pendingLeave]);
+
+  // Draft persistence is route-scoped:
+  //  - Customer (/booking): keep the draft so an accidental reload does not
+  //    lose booking progress.
+  //  - Admin (/admin/booking): never persist. Walk-in sessions are discrete live
+  //    interactions, so an uncommitted draft must not leak into the next one.
+  React.useEffect(() => {
+    if (adminMode) return;
     if (!isSubmitted && hasDraftChanges) {
       localStorage.setItem('speedway_booking_draft', JSON.stringify(bookingData));
     }
-  }, [bookingData, hasDraftChanges, isSubmitted]);
+  }, [bookingData, hasDraftChanges, isSubmitted, adminMode]);
+
+  // Admin route: purge any draft on unmount / tab close so no orphaned state
+  // survives a refresh or navigation away from the walk-in wizard.
+  React.useEffect(() => {
+    if (!adminMode) return;
+    localStorage.removeItem('speedway_booking_draft');
+    const purge = () => localStorage.removeItem('speedway_booking_draft');
+    window.addEventListener('beforeunload', purge);
+    return () => {
+      window.removeEventListener('beforeunload', purge);
+      purge();
+    };
+  }, [adminMode]);
 
   React.useEffect(() => {
     if (!hasDraftChanges || isSubmitted) return undefined;
@@ -181,6 +243,14 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
       }
       localStorage.removeItem('speedway_booking_draft');
       setHasDraftChanges(false);
+      // Admin walk-in: clear the outer wizard's customer state and unlock the
+      // form again so the next walk-in starts fresh (QA: post-submission reset).
+      if (adminMode) {
+        resetBookingData();
+        setCustomerDetailsLocked(false);
+        setCurrentStep(1);
+        onAdminReset?.();
+      }
       toast.success('Booking submitted successfully!', {
         style: { background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)' }
       });
@@ -212,13 +282,13 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
       notes: '',
       vehicles: [{ id: crypto.randomUUID ? crypto.randomUUID() : 'v_' + Math.random().toString(36).substring(2, 9), type: '', brand: '', model: '', plateNumber: '', services: [] }],
       payment: {
-        method: 'GCash', 
-        type: 'Full', 
+        method: 'GCash',
+        type: 'Full',
         proofOfPayment: null,
         ocrData: null
       }
     });
-    
+
   };
 
   const handleCancelBooking = () => {
@@ -245,10 +315,10 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
           .step-title { display: none; }
         }
       `}</style>
-      
+
       {/* Header with Back Arrow */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2rem' }}>
-        <button 
+        <button
           onClick={() => {
             if (isSubTaskActive) {
               setIsSubTaskActive(false); // Close the sub-task first
@@ -259,8 +329,8 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
             }
           }}
           className="admin-card-hover"
-          style={{ 
-            background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', 
+          style={{
+            background: 'var(--admin-bg)', border: '1px solid var(--admin-border)',
             padding: '0.75rem', borderRadius: '50%', color: 'var(--admin-text-primary)', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}
@@ -277,21 +347,21 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4rem', position: 'relative' }}>
         <div style={{ position: 'absolute', top: '20px', left: '0', right: '0', height: '2px', background: 'var(--admin-border)', zIndex: 0 }} />
         <div style={{ position: 'absolute', top: '20px', left: '0', width: `${((currentStep - 1) / 3) * 100}%`, height: '2px', background: 'var(--admin-brand)', zIndex: 0, transition: 'all 0.5s ease' }} />
-        
+
         {steps.map((step) => (
-          <div 
-            key={step.num} 
+          <div
+            key={step.num}
             onClick={() => {
               if (step.num < currentStep || isRebooking) setCurrentStep(step.num);
             }}
-            style={{ 
+            style={{
               zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem',
               cursor: (step.num < currentStep || isRebooking) ? 'pointer' : 'default',
               opacity: (step.num <= currentStep) ? 1 : 0.4,
               transition: 'all 0.3s ease'
             }}
           >
-            <div style={{ 
+            <div style={{
               width: '40px', height: '40px', borderRadius: '50%', background: step.num === currentStep ? 'var(--admin-brand)' : (step.num < currentStep ? 'var(--admin-brand)' : 'var(--admin-card)'),
               border: `2px solid ${step.num <= currentStep ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center', color: step.num <= currentStep ? '#fff' : 'var(--admin-text-primary)', fontWeight: '900',
@@ -312,13 +382,13 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
         {currentStep === 1 && <Step2Services bookingData={bookingData} setBookingData={updateBookingData} adminMode={adminMode} activeVehicleIndex={activeVehicleIndex} onNext={nextStep} onCancel={handleCancelBooking} />}
         {currentStep === 2 && <Step1Schedule bookingData={bookingData} setBookingData={updateBookingData} activeVehicleIndex={activeVehicleIndex} onNext={nextStep} onBack={prevStep} onCancel={handleCancelBooking} customerDetailsLocked={customerDetailsLocked} />}
         {currentStep === 3 && (
-          <Step3FleetEditing 
-            bookingData={bookingData} 
-            setBookingData={updateBookingData} 
-            activeVehicleIndex={activeVehicleIndex} 
-            setActiveVehicleIndex={setActiveVehicleIndex} 
-            setCurrentStep={setCurrentStep} 
-            onNext={nextStep} 
+          <Step3FleetEditing
+            bookingData={bookingData}
+            setBookingData={updateBookingData}
+            activeVehicleIndex={activeVehicleIndex}
+            setActiveVehicleIndex={setActiveVehicleIndex}
+            setCurrentStep={setCurrentStep}
+            onNext={nextStep}
             onBack={prevStep}
             isSubTaskActive={isSubTaskActive}
             setIsSubTaskActive={setIsSubTaskActive}
@@ -327,8 +397,8 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
         )}
         {currentStep === 4 && <Step4ReviewPayment bookingData={bookingData} setBookingData={updateBookingData} adminMode={adminMode} onSubmit={handleSubmit} onBack={prevStep} isSubmitting={isSubmitting} onCancel={handleCancelBooking} />}
       </div>
-      {pendingLeave && <div role="dialog" aria-modal="true" aria-labelledby="leave-booking-title" style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: 'rgba(0, 0, 0, .72)', backdropFilter: 'blur(6px)' }}>
-        <div style={{ width: 'min(100%, 420px)', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', padding: 'clamp(1.25rem, 5vw, 2rem)', boxShadow: '0 24px 70px rgba(0, 0, 0, .45)' }}>
+      {pendingLeave && <div className="app-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="leave-booking-title" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: 'var(--modal-overlay)', backdropFilter: 'blur(6px)', pointerEvents: 'auto' }}>
+        <div ref={leaveModalRef} style={{ width: 'min(100%, 420px)', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', padding: 'clamp(1.25rem, 5vw, 2rem)', boxShadow: '0 24px 70px rgba(0, 0, 0, .45)' }}>
           <h2 id="leave-booking-title" style={{ margin: 0, fontSize: '1.15rem', fontWeight: '950' }}>Leave booking page?</h2>
           <p style={{ margin: '.75rem 0 1.25rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>Your unsaved booking changes will be lost.</p>
           <div style={{ display: 'flex', gap: '.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>

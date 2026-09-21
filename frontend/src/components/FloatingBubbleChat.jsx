@@ -9,10 +9,11 @@ const FloatingBubbleChat = () => {
     isOpen,
     activeBookingId,
     globalUnreadCount,
+    threadUnread,
     closeChat,
     openChatForBooking
   } = useGlobalChat();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ pointerId: null, startX: 0, startY: 0, originX: 0, originY: 0, moved: false });
@@ -48,6 +49,10 @@ const FloatingBubbleChat = () => {
   }, [isOpen, closeChat]);
 
   if (!user?.id) return null;
+
+  const role = profile?.role?.toUpperCase();
+  const rolePrefix = role === 'ADMIN' ? '/admin' : role === 'STAFF' ? '/staff' : '/customer';
+  const unreadThreadIds = Object.keys(threadUnread || {}).filter(threadId => threadUnread[threadId] > 0);
 
   const handlePointerDown = (event) => {
     dragRef.current = {
@@ -97,6 +102,31 @@ const FloatingBubbleChat = () => {
             <button onClick={closeChat} aria-label="Close support chat" style={{ background: 'none', border: 0, color: '#fff', cursor: 'pointer' }}><X size={18} /></button>
           </div>
           <div style={{ flex: 1, minHeight: 0 }}><BookingChat bookingId={activeBookingId} /></div>
+        </div>
+      )}
+
+      {/* Non-disruptive per-thread digest: tells the user WHICH conversation is
+          waiting without forcing the panel open. */}
+      {!isOpen && !activeBookingId && unreadThreadIds.length > 0 && (
+        <div style={{ width: 'clamp(240px, 80vw, 320px)', marginBottom: '0.75rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+          <div style={{ padding: '0.6rem 0.85rem', borderBottom: '1px solid var(--admin-border)', fontSize: '0.65rem', fontWeight: '950', letterSpacing: '1px', color: 'var(--admin-brand)', textTransform: 'uppercase' }}>
+            Unread conversations
+          </div>
+          {unreadThreadIds.slice(0, 4).map(threadId => (
+            <button
+              key={threadId}
+              type="button"
+              onClick={() => openChatForBooking(threadId)}
+              style={{ width: '100%', background: 'none', border: 0, borderBottom: '1px solid var(--admin-border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', padding: '0.6rem 0.85rem', textAlign: 'left' }}
+            >
+              <span style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--admin-text-primary)' }}>
+                {rolePrefix}/bookings/{threadId.slice(0, 8).toUpperCase()}
+              </span>
+              <span style={{ minWidth: '20px', height: '20px', padding: '0 5px', borderRadius: '999px', background: 'var(--admin-brand)', color: '#fff', fontSize: '0.62rem', fontWeight: '900', display: 'grid', placeItems: 'center' }}>
+                {threadUnread[threadId] > 99 ? '99+' : threadUnread[threadId]}
+              </span>
+            </button>
+          ))}
         </div>
       )}
 
