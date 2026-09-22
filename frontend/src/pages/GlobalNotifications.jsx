@@ -35,7 +35,7 @@ const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           flexShrink: 0
         }}>
-          <AlertTriangle size={20} color="#ef4444" />
+          <AlertTriangle size={20} color="var(--status-danger)" />
         </div>
         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase', color: 'var(--admin-text-primary)' }}>
           Confirm Deletion
@@ -46,7 +46,7 @@ const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
       </p>
       <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
         <button onClick={onCancel} style={{ padding: '0.75rem 1.5rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: '950', fontSize: '0.75rem', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
-        <button onClick={onConfirm} style={{ padding: '0.75rem 1.5rem', background: '#ef4444', border: 'none', borderRadius: 'var(--admin-radius-sm)', color: 'white', fontWeight: '950', fontSize: '0.75rem', textTransform: 'uppercase', cursor: 'pointer' }}>Confirm Delete</button>
+        <button onClick={onConfirm} style={{ padding: '0.75rem 1.5rem', background: 'var(--status-danger)', border: 'none', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: '950', fontSize: '0.75rem', textTransform: 'uppercase', cursor: 'pointer' }}>Confirm Delete</button>
       </div>
     </div>
   </div>
@@ -153,7 +153,7 @@ const GlobalNotifications = () => {
                       <span style={{ fontSize: '0.65rem', fontWeight: '950', color: notif.is_read ? 'var(--admin-text-secondary)' : 'var(--admin-brand)' }}>{notif.notification_type || 'SYSTEM'}</span>
                       <span style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)' }}>{new Date(notif.created_at).toLocaleString()}</span>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{notif.title || 'Notification Received'}</p>
+                    <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{notif.title || 'Notification Received'}</p>
                     {/* Chat rows carry "<Sender> sent: <body>"; show the author
                         and a one-line body instead of the raw concatenation. */}
                     {(() => {

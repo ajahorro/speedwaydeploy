@@ -61,6 +61,10 @@ export const createBooking = async (customerId, bookingData) => {
   const isAdminWalkIn = Boolean(bookingData.adminWalkIn);
   const initialBookingStatus = isAdminWalkIn ? 'confirmed' : 'scheduled';
 
+  // Task B: freeze the QR recipient target onto the booking at creation, so the
+  // payment QR the customer sees can never be switched out from under them.
+  const qrSnapshot = bookingData.qrSnapshot || null;
+
   // 1. Insert the master booking record
   const { data: booking, error: bookingError } = await supabase
     .from('bookings')
@@ -72,6 +76,9 @@ export const createBooking = async (customerId, bookingData) => {
       end_datetime: calculateEstimatedEnd(bookingData.date, bookingData.time, vehicles),
       status: initialBookingStatus,
       total_amount: totalAmount,
+      // Task B: mid-update QR concurrency fallback.
+      active_qr_snapshot: qrSnapshot,
+      qr_snapshot_version: qrSnapshot?.qr_config_version ?? null,
       notes: [
         bookingData.notes,
         bookingData.fleetGroupId ? `FLEET_GROUP:${bookingData.fleetGroupId}` : '',
@@ -198,6 +205,16 @@ export const createBooking = async (customerId, bookingData) => {
         throw new Error(`The detected payment amount must be at least ₱${requiredDownpayment.toLocaleString()} for the required downpayment.`);
       }
 
+      // Task B: Net Payment Credit = Total Deducted − Transfer Fee.
+      // A cross-bank / GoTyme transfer lands short by the fee; crediting the raw
+      // detected figure would create a phantom balance. The fee is supplied by
+      // the OCR payload (or 0) and the NET figure is what we credit.
+      const transferFee = Math.max(0, Number(bookingData.payment?.ocrData?.transferFee || 0));
+      const grossCredited = detectedAmount > 0 ? detectedAmount : paymentAmount;
+      const netCredit = Math.max(0, grossCredited - transferFee);
+      // Anything paid above what was required is an overpayment -> excess credit.
+      const excess = Math.max(0, netCredit - paymentAmount);
+
       const { error: payError } = await supabase.from('payments').insert({
         booking_id: booking.id,
         amount: paymentAmount,
@@ -207,11 +224,23 @@ export const createBooking = async (customerId, bookingData) => {
         receipt_url: publicUrl,
         detected_amount: detectedAmount > 0 ? detectedAmount : null,
         detected_ref: detectedReference,
-        notes: `PAYMENT_DIGITAL|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${paymentAmount}|OCR_AMOUNT:${detectedAmount > 0 ? detectedAmount : 'NULL'}`,
+        transfer_fee: transferFee,
+        net_credit: netCredit,
+        notes: `PAYMENT_DIGITAL|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${paymentAmount}|OCR_AMOUNT:${detectedAmount > 0 ? detectedAmount : 'NULL'}|FEE:${transferFee}|NET:${netCredit}`,
         reference_number: detectedReference || '' // Transaction Reference
       });
 
       if (payError) throw payError;
+
+      // Task B: bank any surplus as excess_credit on the ledger (non-fatal).
+      if (excess > 0 && bookingCustomerId) {
+        try {
+          const { recordExcessCredit } = await import('./creditLedgerService');
+          await recordExcessCredit(bookingCustomerId, booking.id, excess, 'Overpayment surplus on GCash receipt');
+        } catch (creditErr) {
+          console.warn('Excess credit recording failed (non-fatal):', creditErr);
+        }
+      }
 
       // EVENT: Payment Submitted
       await emitEvent(EVENTS.PAYMENT_SUBMITTED, {
@@ -254,13 +283,16 @@ export const fetchCustomerBookings = async (customerId) => {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('[Reschedule] RPC failed:', {
+    // This is a READ path. Its message used to say the booking "could not be
+    // reserved" — copy that leaked from the reschedule flow — which was
+    // misleading when simply loading the customer's booking list failed.
+    console.error('[CustomerBookings] Failed to load bookings:', {
       code: error.code,
       message: error.message,
       details: error.details,
       hint: error.hint
     });
-    throw new Error(error.message || 'The selected appointment time could not be reserved.');
+    throw new Error(error.message || 'We could not load your bookings right now. Please try again.');
   }
   return data || [];
 };

@@ -115,7 +115,7 @@ const AdminSlotManagement = () => {
   };
 
   const labelStyle = { fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem', display: 'block' };
-  const inputStyle = { width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'white', fontWeight: '700', fontSize: '0.85rem', outline: 'none' };
+  const inputStyle = { width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '700', fontSize: '0.85rem', outline: 'none' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '4rem' }}>
@@ -141,8 +141,8 @@ const AdminSlotManagement = () => {
               </h3>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1))} style={{ padding: '0.5rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'white', cursor: 'pointer' }}><ChevronLeft size={16} /></button>
-              <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1))} style={{ padding: '0.5rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'white', cursor: 'pointer' }}><ChevronRight size={16} /></button>
+              <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1))} style={{ padding: '0.5rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', cursor: 'pointer' }}><ChevronLeft size={16} /></button>
+              <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1))} style={{ padding: '0.5rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', cursor: 'pointer' }}><ChevronRight size={16} /></button>
             </div>
           </div>
 
@@ -241,7 +241,7 @@ const AdminSlotManagement = () => {
                   <input type="text" placeholder="e.g. MAINTENANCE" value={formData.reason} onChange={(e) => setFormData({...formData, reason: e.target.value.toUpperCase()})} style={inputStyle} />
                 </div>
 
-                <button onClick={handleAddSlot} style={{ width: '100%', background: 'var(--admin-brand)', color: 'white', border: 'none', borderRadius: '4px', padding: '0.85rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', marginTop: '0.5rem' }}>
+                <button onClick={handleAddSlot} style={{ width: '100%', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '4px', padding: '0.85rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', marginTop: '0.5rem' }}>
                   Commit Block
                 </button>
               </div>
@@ -263,7 +263,7 @@ const AdminSlotManagement = () => {
                     <div style={{ fontSize: '0.8rem', fontWeight: '950' }}>{new Date(slot.block_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
                     <div style={{ fontSize: '0.65rem', color: 'var(--admin-brand)', fontWeight: '900' }}>{slot.start_time ? `${slot.start_time.slice(0, 5)} - ${slot.end_time.slice(0, 5)}` : 'WHOLE DAY'}</div>
                   </div>
-                  <button onClick={() => handleDeleteSlot(slot.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0.5rem' }}><Trash size={16} /></button>
+                  <button onClick={() => handleDeleteSlot(slot.id)} style={{ background: 'transparent', border: 'none', color: 'var(--status-danger)', cursor: 'pointer', padding: '0.5rem' }}><Trash size={16} /></button>
                 </div>
               ))}
             </div>

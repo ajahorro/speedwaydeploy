@@ -314,7 +314,7 @@ const ValidationModal = ({
                 flex: '1 1 160px', minHeight: '2.75rem',
                 padding: '0.85rem 1.25rem',
                 background: 'var(--admin-brand)',
-                color: '#fff',
+                color: 'var(--admin-text-on-brand)',
                 border: '1px solid var(--admin-brand)',
                 borderRadius: 'var(--admin-radius-sm)',
                 fontWeight: 950, fontSize: '0.78rem',

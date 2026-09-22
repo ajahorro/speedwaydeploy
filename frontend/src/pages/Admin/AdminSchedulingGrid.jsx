@@ -106,7 +106,7 @@ const AdminSchedulingGrid = ({ onBack }) => {
           background: getStatusColor(booking.status),
           borderRadius: '4px',
           padding: '0.5rem',
-          color: 'white',
+          color: 'var(--admin-text-primary)',
           fontSize: '0.65rem',
           fontWeight: '950',
           cursor: 'pointer',
@@ -151,18 +151,18 @@ const AdminSchedulingGrid = ({ onBack }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.3s ease' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--admin-card)', padding: '1.5rem', borderRadius: '4px', border: '1px solid var(--admin-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <button onClick={onBack} style={{ background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'white', padding: '0.6rem 1.25rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button onClick={onBack} style={{ background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', padding: '0.6rem 1.25rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <LayoutGrid size={14} /> LIST VIEW
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() - 1)))} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}><ChevronLeft size={20} /></button>
+            <button onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() - 1)))} style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-primary)', cursor: 'pointer' }}><ChevronLeft size={20} /></button>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <Calendar size={18} color="var(--admin-brand)" />
-              <span style={{ fontSize: '1rem', fontWeight: '950', color: 'white', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '1rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>
                 {selectedDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
               </span>
             </div>
-            <button onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() + 1)))} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}><ChevronRight size={20} /></button>
+            <button onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() + 1)))} style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-primary)', cursor: 'pointer' }}><ChevronRight size={20} /></button>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
@@ -174,7 +174,7 @@ const AdminSchedulingGrid = ({ onBack }) => {
               </div>
             ))}
           </div>
-          <button onClick={fetchGridData} style={{ background: 'var(--admin-brand)', border: 'none', color: 'white', padding: '0.6rem 1rem', borderRadius: '4px', cursor: 'pointer' }}><RefreshCcw size={16} /></button>
+          <button onClick={fetchGridData} style={{ background: 'var(--admin-brand)', border: 'none', color: 'var(--admin-text-primary)', padding: '0.6rem 1rem', borderRadius: '4px', cursor: 'pointer' }}><RefreshCcw size={16} /></button>
         </div>
       </div>
 

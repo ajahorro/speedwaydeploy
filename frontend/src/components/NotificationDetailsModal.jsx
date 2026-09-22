@@ -142,7 +142,7 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
         </div>
 
         {/* Title */}
-        <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '1.15rem', fontWeight: '950', color: 'white', textTransform: 'uppercase' }}>
+        <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '1.15rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>
           {notification.title || 'Notification Details'}
         </h3>
 
@@ -176,7 +176,7 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
           {(notification.booking_id || notification.message?.match(/#[A-Za-z0-9_-]{8}/)) && (
             <button
               onClick={handleViewBooking}
-              style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', color: 'white', fontWeight: '950', fontSize: '0.75rem', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: '950', fontSize: '0.75rem', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
             >
               View Booking <ExternalLink size={14} />
             </button>

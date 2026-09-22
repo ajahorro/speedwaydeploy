@@ -86,7 +86,7 @@ const CustomerMyBookings = () => {
               </button>
               <button 
                 onClick={confirmRebook}
-                style={{ flex: 1, padding: '1rem', background: 'var(--admin-brand)', border: 'none', color: 'white', borderRadius: '8px', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase', boxShadow: '0 4px 15px rgba(var(--admin-brand-rgb), 0.3)' }}
+                style={{ flex: 1, padding: '1rem', background: 'var(--admin-brand)', border: 'none', color: 'var(--admin-text-primary)', borderRadius: '8px', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase', boxShadow: '0 4px 15px rgba(var(--admin-brand-rgb), 0.3)' }}
               >
                 Let's Go
               </button>
@@ -108,7 +108,7 @@ const CustomerMyBookings = () => {
         <button
           onClick={() => navigate('/customer/book')}
           className="admin-card-hover"
-          style={{ padding: '0.85rem 1.5rem', background: 'var(--admin-brand)', color: '#fff', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}
+          style={{ padding: '0.85rem 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}
         >
           + Book Appointment
         </button>
@@ -222,7 +222,7 @@ const CustomerMyBookings = () => {
                     <div style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Status</div>
                     {(() => {
                       if (b.status?.toUpperCase() === 'CANCELLED') {
-                        return <div style={{ fontSize: '0.8rem', fontWeight: '950', color: '#ef4444' }}>CANCELLED</div>;
+                        return <div style={{ fontSize: '0.8rem', fontWeight: '950', color: 'var(--status-danger)' }}>CANCELLED</div>;
                       }
                       const totalPaid = (b.payments || []).filter(p => p.status === 'PAID').reduce((s, p) => s + Number(p.amount), 0);
                       const balance = Math.max(0, (b.total_amount || 0) - totalPaid);

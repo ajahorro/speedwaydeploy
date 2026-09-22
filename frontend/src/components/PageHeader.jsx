@@ -42,7 +42,7 @@ const PageHeader = ({ badge, title, subtitle, onRefresh, showBack, onBack, actio
         <button
           onClick={onAction}
           style={{
-            background: 'var(--admin-brand)', color: '#fff', border: 'none',
+            background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none',
             padding: '0.75rem 1.5rem', borderRadius: '4px', fontWeight: '950',
             cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem',
             fontSize: '0.75rem', letterSpacing: '1px', whiteSpace: 'nowrap'

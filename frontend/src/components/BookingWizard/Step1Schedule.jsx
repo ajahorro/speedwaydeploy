@@ -218,7 +218,7 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
                 Checking bay capacity...
               </div>
             ) : availableSlots.length === 0 ? (
-              <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 'var(--admin-radius-md)', padding: '1.5rem', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: '600', fontSize: '0.9rem' }}>
+              <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 'var(--admin-radius-md)', padding: '1.5rem', color: 'var(--status-danger)', display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: '600', fontSize: '0.9rem' }}>
                 <AlertCircle size={20} style={{ flexShrink: 0 }} />
                 <span>
                   {dateGate && !dateGate.bookable
@@ -298,7 +298,7 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
               flex: '1 1 150px',
               background: 'transparent', 
               border: '1px solid #ef4444', 
-              color: '#ef4444', 
+              color: 'var(--status-danger)', 
               padding: '1rem 2rem', 
               borderRadius: 'var(--admin-radius-md)', 
               fontWeight: '950', 

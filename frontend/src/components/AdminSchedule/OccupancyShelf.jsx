@@ -27,7 +27,7 @@ const OccupancyShelf = ({ bookings, onBookingClick, config }) => {
                 {Math.ceil((new Date(booking.end_datetime) - new Date(booking.start_datetime)) / (1000 * 60 * 60))}H DURATION
               </span>
             </div>
-            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '950', color: 'white' }}>{booking.customer?.full_name}</h4>
+            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>{booking.customer?.full_name}</h4>
             <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>
               {formatBookingDate(booking.start_datetime)} - {formatBookingDate(booking.end_datetime)}
             </p>

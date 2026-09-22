@@ -192,10 +192,10 @@ const CustomerBilling = () => {
           {rows}
           {receipt.refund_status === 'PROCESSED' && (
             <tr>
-              <td style={{ padding: '15px 5px', fontSize: '0.85rem', color: '#ef4444', fontWeight: '900', borderTop: '1px dashed #ef4444' }}>
+              <td style={{ padding: '15px 5px', fontSize: '0.85rem', color: 'var(--status-danger)', fontWeight: '900', borderTop: '1px dashed #ef4444' }}>
                 SYSTEM REFUND (Ref: {receipt.payments?.find(p => p.status === 'REFUNDED')?.reference_number || 'VOID'})
               </td>
-              <td style={{ padding: '15px 5px', textAlign: 'right', fontSize: '0.85rem', color: '#ef4444', fontWeight: '900', borderTop: '1px dashed #ef4444' }}>
+              <td style={{ padding: '15px 5px', textAlign: 'right', fontSize: '0.85rem', color: 'var(--status-danger)', fontWeight: '900', borderTop: '1px dashed #ef4444' }}>
                 {formatCurrency((receipt.payments || []).filter(p => p.status === 'REFUNDED').reduce((s, p) => s + Number(p.amount), 0))}
               </td>
             </tr>
@@ -251,7 +251,7 @@ const CustomerBilling = () => {
 
           <div style={{ background: 'var(--admin-card)', padding: '1.5rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', gap: '1.5rem', boxShadow: 'var(--admin-card-shadow)' }}>
             <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-              <Clock size={28} color="#f59e0b" />
+              <Clock size={28} color="var(--status-warning)" />
             </div>
             <div>
               <div style={labelStyle}>Pending Balance</div>
@@ -285,7 +285,7 @@ const CustomerBilling = () => {
                   bookings.flatMap((booking) => {
                     const accessible = canAccessReceipt(booking);
                     const bookingPayments = (booking.payments || []).filter(p => p.status === 'PAID');
-                    
+
                     return bookingPayments.map((p, pIdx) => (
                       <tr key={p.id} className="admin-card-hover" style={{ borderBottom: '1px solid var(--admin-border)', transition: 'all 0.2s ease' }}>
                         <td style={{ padding: '1.25rem 2rem', fontSize: '0.95rem', fontWeight: '900', color: 'var(--admin-text-primary)', fontFamily: 'monospace' }}>
@@ -299,10 +299,10 @@ const CustomerBilling = () => {
                           {formatCurrency(p.amount)}
                         </td>
                         <td style={{ padding: '1.25rem 2rem' }}>
-                          <span style={{ 
-                            fontSize: '0.65rem', fontWeight: '950', 
+                          <span style={{
+                            fontSize: '0.65rem', fontWeight: '950',
                             background: 'rgba(16, 185, 129, 0.1)',
-                            color: '#10b981',
+                            color: 'var(--status-success)',
                             padding: '0.3rem 0.75rem', borderRadius: '4px', textTransform: 'uppercase', border: '1px solid currentColor'
                           }}>
                             {pIdx === 0 ? 'DOWNPAYMENT' : 'SETTLEMENT'}

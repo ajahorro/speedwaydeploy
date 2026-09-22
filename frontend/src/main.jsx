@@ -1,6 +1,10 @@
 import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { TOASTER_DEFAULTS } from './utils/toastChrome';
+import ErrorBoundary from './components/ErrorBoundary';
+import { installGlobalErrorReporter } from './utils/globalErrorReporter';
 import { UIProvider } from './context/UIContext';
 import { AuthProvider } from './context/AuthContext';
 import { UnifiedProvider } from './context/UnifiedContext';
@@ -80,16 +84,21 @@ console.warn = (...args) => {
   originalWarn(...args);
 };
 
+// Install the global unhandled-error net once, before the tree mounts, so even
+// a boot-time rejection is caught and surfaced rather than silently dropped.
+installGlobalErrorReporter();
+
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <ConfigProvider>
-    <ThemeProvider>
-      <AuthProvider>
-        <ChatProvider>
-          <InputCapitalizationController />
-          <UnifiedProvider>
-            <BrowserRouter>
-              <UIProvider>
-              <Routes>
+  <ErrorBoundary>
+    <ConfigProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <ChatProvider>
+            <InputCapitalizationController />
+            <UnifiedProvider>
+              <BrowserRouter>
+                <UIProvider>
+                <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<Landing />} />
                 <Route path="/login" element={<Login />} />
@@ -164,11 +173,23 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route path="receipt/:id" element={<CustomerReceipt />} />
                 </Route>
                 </Routes>
-              </UIProvider>
-            </BrowserRouter>
-          </UnifiedProvider>
-        </ChatProvider>
-      </AuthProvider>
-    </ThemeProvider>
-  </ConfigProvider>
+                {/* react-hot-toast host — the ONE toast engine for the whole app
+                    after Step 7.3 consolidation. Previously no <Toaster/> was
+                    mounted, so every `toast.*()` call was a silent no-op; and a
+                    second bespoke stack lived in UIContext. Both are resolved:
+                    all toast output flows here, styled from the shared
+                    token-based chrome in utils/toastChrome so it adapts to
+                    dark/light and stays 375px-safe. */}
+                <Toaster
+                  position="top-center"
+                  toastOptions={TOASTER_DEFAULTS}
+                />
+                </UIProvider>
+              </BrowserRouter>
+            </UnifiedProvider>
+          </ChatProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </ConfigProvider>
+  </ErrorBoundary>
 );

@@ -11,7 +11,6 @@ import { useUI } from '../../context/UIContext';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
-import ConfirmationToast from '../../components/ConfirmationToast';
 import PhotoProofUploader from '../../components/Photos/PhotoProofUploader';
 import IntakeWarningBadge from '../../components/Photos/IntakeWarningBadge';
 import { BACKEND_URL } from '../../config/api';
@@ -276,10 +275,10 @@ const StaffDashboard = () => {
           subtitle={`Ready for duty, ${profile?.full_name?.split(' ')[0]}. Manage your assigned vehicle jobs below.`}
         />
         
-        <div style={{ background: '#15171A', padding: '1.25rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ fontSize: '0.65rem', fontWeight: '950', color: '#8E9196', textTransform: 'uppercase', letterSpacing: '1.5px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+        <div style={{ background: 'var(--admin-card)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--admin-border)', minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <TrendingUp size={14} color="#10b981" /> SHIFT ACTIVITY SNAPSHOT
+              <TrendingUp size={14} color="var(--status-success)" /> SHIFT ACTIVITY SNAPSHOT
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -287,14 +286,14 @@ const StaffDashboard = () => {
               <div style={{ fontSize: '1.1rem', fontWeight: '950', color: stats.active > 0 ? '#f59e0b' : '#8E9196', textTransform: 'uppercase' }}>
                 {stats.active > 0 ? `${stats.active} IN PROGRESS` : 'NO ACTIVE JOB'}
               </div>
-              <div style={{ fontSize: '0.55rem', color: '#8E9196', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>ACTIVE JOB</div>
+              <div style={{ fontSize: '0.55rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>ACTIVE JOB</div>
             </div>
             <div style={{ width: '1px', height: '30px', background: 'rgba(255,255,255,0.05)' }}></div>
             <div style={{ textAlign: 'center', flex: 1 }}>
               <div style={{ fontSize: '1.1rem', fontWeight: '950', color: profile?.is_clocked_in ? '#10b981' : '#E61E2A', textTransform: 'uppercase' }}>
                 {shiftTimer}
               </div>
-              <div style={{ fontSize: '0.55rem', color: '#8E9196', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>ACTIVE SHIFT</div>
+              <div style={{ fontSize: '0.55rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>ACTIVE SHIFT</div>
             </div>
           </div>
         </div>
@@ -303,27 +302,27 @@ const StaffDashboard = () => {
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '2rem', alignItems: 'start' }}>
         <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-            <ClipboardList size={20} color="#E61E2A" />
-            <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', color: 'white', textTransform: 'uppercase', letterSpacing: '1px' }}>
+            <ClipboardList size={20} color="var(--admin-brand)" />
+            <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
               Pending Job Queue
             </h3>
           </div>
 
           {tasks.length > 0 ? (
             tasks.map((task) => (
-              <div key={task.id} style={{ background: '#15171A', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.2s', opacity: task.status === 'COMPLETED' ? 0.7 : 1 }}>
-                <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)' }}>
-                  <div 
+              <div key={task.id} style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.2s', opacity: task.status === 'COMPLETED' ? 0.7 : 1 }}>
+                <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)' }}>
+                  <div
                     onClick={() => navigate(`/staff/job/${task.id}`)}
                     style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }}
                   >
-                    <div style={{ width: '56px', height: '56px', borderRadius: '8px', background: '#0A0B0D', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E61E2A', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <div style={{ width: '56px', height: '56px', borderRadius: '8px', background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)', border: '1px solid var(--admin-border)' }}>
                       <Car size={28} />
                     </div>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <span style={{ fontSize: '0.6rem', fontWeight: '950', color: '#E61E2A', background: 'rgba(230, 30, 42, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '2px', letterSpacing: '1px' }}>JOB #{task.id.slice(0, 8).toUpperCase()}</span>
-                        <span style={{ fontSize: '0.6rem', fontWeight: '950', color: '#8E9196', textTransform: 'uppercase' }}>• Plate: {task.plate_number || 'N/A'}</span>
+                        <span style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-brand)', background: 'rgba(230, 30, 42, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '2px', letterSpacing: '1px' }}>JOB #{task.id.slice(0, 8).toUpperCase()}</span>
+                        <span style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>• Plate: {task.plate_number || 'N/A'}</span>
                       </div>
                       <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{task.brand} {task.model}</h3>
                     </div>
@@ -337,13 +336,13 @@ const StaffDashboard = () => {
                 </div>
 
                 <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  <div style={{ background: '#0A0B0D', borderRadius: '6px', padding: '1.25rem', border: '1px solid rgba(255,255,255,0.03)' }}>
+                  <div style={{ background: 'var(--admin-bg)', borderRadius: '6px', padding: '1.25rem', border: '1px solid rgba(255,255,255,0.03)' }}>
                     <div style={{ fontSize: '0.6rem', fontWeight: '950', color: '#444', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.75rem' }}>Service Breakdown</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
                       {task.services?.map((s, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#15171A', padding: '0.4rem 0.8rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#E61E2A' }}></div>
-                          <span style={{ fontSize: '0.7rem', color: 'white', fontWeight: '800', textTransform: 'uppercase' }}>{s.service_name}</span>
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--admin-card)', padding: '0.4rem 0.8rem', borderRadius: '4px', border: '1px solid var(--admin-border)' }}>
+                          <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--admin-brand)' }}></div>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--admin-text-primary)', fontWeight: '800', textTransform: 'uppercase' }}>{s.service_name}</span>
                         </div>
                       ))}
                     </div>
@@ -353,21 +352,21 @@ const StaffDashboard = () => {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                       <div style={{ position: 'relative' }}>
                         <div style={{ fontSize: '0.6rem', fontWeight: '950', color: '#444', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Detailing Observations</div>
-                        <textarea 
+                        <textarea
                           placeholder="Document service steps or vehicle conditions..."
                           value={localNotes[task.id] || ''}
                           onChange={(e) => setLocalNotes({ ...localNotes, [task.id]: e.target.value })}
                           disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'}
-                          style={{ width: '100%', minHeight: '100px', background: '#0A0B0D', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '4px', padding: '1rem', color: 'white', fontSize: '0.8rem', fontWeight: '600', outline: 'none', resize: 'none' }}
+                          style={{ width: '100%', minHeight: '100px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '1rem', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '600', outline: 'none', resize: 'none' }}
                         />
-                        <button onClick={() => handleSaveNotes(task.id)} disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'} style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: '#E61E2A', color: 'white', border: 'none', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer' }}>
+                        <button onClick={() => handleSaveNotes(task.id)} disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'} style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer' }}>
                           <Save size={16} />
                         </button>
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <div style={{ fontSize: '0.6rem', fontWeight: '950', color: '#444', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Service Evidence</div>
-                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.62rem', color: '#8E9196', fontWeight: '700', lineHeight: 1.5 }}>
+                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.62rem', color: 'var(--admin-text-secondary)', fontWeight: '700', lineHeight: 1.5 }}>
                           Intake photos are recommended (a warning is logged if skipped). At least one completion photo is required to finish.
                         </p>
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
@@ -439,7 +438,7 @@ const StaffDashboard = () => {
               </div>
             ))
           ) : (
-            <div style={{ background: '#15171A', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '8px', textAlign: 'center', padding: '5rem 2rem' }}>
+            <div style={{ background: 'var(--admin-card)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '8px', textAlign: 'center', padding: '5rem 2rem' }}>
               <ClipboardList size={48} style={{ margin: '0 auto 1.5rem', opacity: 0.1 }} />
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '950', color: '#444' }}>No tasks assigned yet</h3>
               <p style={{ color: '#333', fontSize: '0.75rem', fontWeight: '700', marginTop: '0.5rem' }}>Your daily queue is empty. Refresh later for new assignments.</p>
@@ -449,10 +448,10 @@ const StaffDashboard = () => {
 
         <div style={{ width: isMobile ? '100%' : '320px', display: 'flex', flexDirection: 'column', gap: '2rem', position: 'sticky', top: '100px' }}>
           {/* System Broadcasts & Announcements */}
-          <div style={{ background: '#15171A', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--admin-card)', borderRadius: '8px', border: '1px solid var(--admin-border)', overflow: 'hidden' }}>
             <div style={{ padding: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <Bell size={18} color="#E61E2A" />
-              <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: '950', color: 'white', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              <Bell size={18} color="var(--admin-brand)" />
+              <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
                 System Broadcasts & Announcements
               </h3>
             </div>
@@ -461,16 +460,16 @@ const StaffDashboard = () => {
                 broadcasts.map(b => (
                   <div key={b.id} style={{ padding: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', alignItems: 'center' }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: '900', color: 'white' }}>{b.title || 'Announcement'}</div>
-                      <div style={{ fontSize: '0.55rem', fontWeight: '900', color: '#8E9196' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--admin-text-primary)' }}>{b.title || 'Announcement'}</div>
+                      <div style={{ fontSize: '0.55rem', fontWeight: '900', color: 'var(--admin-text-secondary)' }}>
                         {b.created_at ? new Date(b.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''}
                       </div>
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#8E9196', fontWeight: '600', lineHeight: 1.4 }}>{b.message}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '600', lineHeight: 1.4 }}>{b.message}</div>
                   </div>
                 ))
               ) : (
-                <div style={{ padding: '2rem 1.25rem', textAlign: 'center', color: '#8E9196', fontSize: '0.75rem', fontWeight: '600' }}>
+                <div style={{ padding: '2rem 1.25rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: '600' }}>
                   No active shop announcements
                 </div>
               )}
@@ -479,9 +478,9 @@ const StaffDashboard = () => {
 
           {!profile?.is_clocked_in && (
             <div style={{ padding: '1.25rem', background: 'rgba(230, 30, 42, 0.05)', border: '1px solid rgba(230, 30, 42, 0.1)', borderRadius: '8px', textAlign: 'center' }}>
-              <Clock size={24} color="#E61E2A" style={{ margin: '0 auto 0.75rem' }} />
-              <div style={{ fontSize: '0.7rem', fontWeight: '950', color: '#E61E2A', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Attendance Missing</div>
-              <div style={{ fontSize: '0.65rem', color: '#8E9196', fontWeight: '700' }}>Clock in from the sidebar to enable service controls.</div>
+              <Clock size={24} color="var(--admin-brand)" style={{ margin: '0 auto 0.75rem' }} />
+              <div style={{ fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Attendance Missing</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Clock in from the sidebar to enable service controls.</div>
             </div>
           )}
         </div>

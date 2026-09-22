@@ -43,12 +43,12 @@ export const getRequiredDownpayment = (totalAmount) => calculateRequiredDownpaym
 export const getPaymentStatusUI = (status) => {
   switch (status) {
     case 'PAID': 
-      return { label: 'FULLY PAID', color: '#10b981' };
-    case 'VERIFYING': 
+      return { label: 'FULLY PAID', color: 'var(--status-success)' };
+    case 'VERIFYING':
       return { label: 'VERIFYING', color: '#8b5cf6' };
-    case 'DOWNPAYMENT_PAID': 
+    case 'DOWNPAYMENT_PAID':
       return { label: 'DOWNPAYMENT', color: '#3b82f6' };
-    default: 
-      return { label: 'UNPAID', color: '#ef4444' };
+    default:
+      return { label: 'UNPAID', color: 'var(--status-danger)' };
   }
 };

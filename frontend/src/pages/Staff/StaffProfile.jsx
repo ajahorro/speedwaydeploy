@@ -44,8 +44,8 @@ const StaffProfile = () => {
   };
 
   const cardStyle = {
-    background: '#15171A',
-    border: '1px solid rgba(255, 255, 255, 0.05)',
+    background: 'var(--admin-card)',
+    border: '1px solid var(--admin-border)',
     borderRadius: '8px',
     padding: '2rem',
     display: 'flex',
@@ -56,7 +56,7 @@ const StaffProfile = () => {
   const labelStyle = {
     fontSize: '0.65rem',
     fontWeight: '950',
-    color: '#8E9196',
+    color: 'var(--admin-text-secondary)',
     textTransform: 'uppercase',
     letterSpacing: '1px',
     marginBottom: '0.5rem'
@@ -64,11 +64,11 @@ const StaffProfile = () => {
 
   const inputStyle = {
     width: '100%',
-    background: '#0A0B0D',
-    border: '1px solid rgba(255, 255, 255, 0.05)',
+    background: 'var(--admin-bg)',
+    border: '1px solid var(--admin-border)',
     borderRadius: '4px',
     padding: '0.85rem 1rem',
-    color: 'white',
+    color: 'var(--admin-text-primary)',
     fontSize: '0.9rem',
     fontWeight: '600',
     outline: 'none'
@@ -76,23 +76,23 @@ const StaffProfile = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', maxWidth: '800px' }}>
-      <PageHeader 
+      <PageHeader
         badge="ACCOUNT SETTINGS"
         title="Technician Profile"
         subtitle="Manage your identity, credentials, and account security settings."
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
-        
+
         {/* Identity Section */}
         <section style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1.5rem' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '8px', background: '#E61E2A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '8px', background: 'var(--admin-brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <UserCircle size={40} color="white" />
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '950', textTransform: 'uppercase' }}>{profile?.full_name}</h3>
-              <div style={{ fontSize: '0.75rem', color: '#8E9196', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>
                 Employee ID: SW-{profile?.id?.slice(0, 8).toUpperCase()}
               </div>
             </div>
@@ -114,12 +114,12 @@ const StaffProfile = () => {
             <div>
               <div style={labelStyle}>Access Role</div>
               <div style={{ ...inputStyle, opacity: 0.6, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Shield size={16} color="#E61E2A" /> {profile?.role || 'TECHNICIAN'}
+                <Shield size={16} color="var(--admin-brand)" /> {profile?.role || 'TECHNICIAN'}
               </div>
             </div>
             <div>
               <div style={labelStyle}>Account Status</div>
-              <div style={{ ...inputStyle, opacity: 0.6, color: '#10b981', fontWeight: '950' }}>
+              <div style={{ ...inputStyle, opacity: 0.6, color: 'var(--status-success)', fontWeight: '950' }}>
                 ACTIVE & VERIFIED
               </div>
             </div>
@@ -129,7 +129,7 @@ const StaffProfile = () => {
         {/* Security Section */}
         <section style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Key size={20} color="#E61E2A" />
+            <Key size={20} color="var(--admin-brand)" />
             <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1px' }}>Security Credentials</h3>
           </div>
 
@@ -188,12 +188,12 @@ const StaffProfile = () => {
 
             {/* Inline validation hints */}
             {newPassword.length > 0 && newPassword.length <= 4 && (
-              <div style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: '700', marginTop: '-0.5rem' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--status-warning)', fontWeight: '700', marginTop: '-0.5rem' }}>
                 ⚠ Password must be more than 4 characters
               </div>
             )}
             {confirmPassword.length > 0 && newPassword !== confirmPassword && (
-              <div style={{ fontSize: '0.72rem', color: '#ef4444', fontWeight: '700', marginTop: '-0.5rem' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--status-danger)', fontWeight: '700', marginTop: '-0.5rem' }}>
                 ✕ Passwords do not match
               </div>
             )}

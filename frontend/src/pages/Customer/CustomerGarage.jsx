@@ -16,7 +16,6 @@ import {
   fetchVehicleHistory
 } from '../../services/garageService';
 import toast from 'react-hot-toast';
-import ConfirmationToast from '../../components/ConfirmationToast';
 import { sanitizeVehiclePlate, sanitizeVehicleText, VEHICLE_TYPE_OPTIONS } from '../../config/constants';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
 
@@ -297,7 +296,7 @@ const CustomerGarage = () => {
       <section>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
           <h2 style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase' }}>Vehicles</h2>
-          <button onClick={handleOpenAdd} className="admin-card-hover" style={{ padding: '0.7rem 1rem', background: 'var(--admin-brand)', color: '#fff', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '.8px', display: 'flex', alignItems: 'center', gap: '.45rem', fontSize: '.72rem', boxShadow: '0 4px 15px rgba(var(--admin-brand-rgb), 0.3)' }}>
+          <button onClick={handleOpenAdd} className="admin-card-hover" style={{ padding: '0.7rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '.8px', display: 'flex', alignItems: 'center', gap: '.45rem', fontSize: '.72rem', boxShadow: '0 4px 15px rgba(var(--admin-brand-rgb), 0.3)' }}>
             <Plus size={16} /> Add New Vehicle
           </button>
         </div>
@@ -379,7 +378,7 @@ const CustomerGarage = () => {
                 </button>
                 <button
                   onClick={() => handleDelete(vehicle.id)}
-                  style={{ padding: '0.85rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 'var(--admin-radius-sm)', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  style={{ padding: '0.85rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <Trash2 size={16} />
                 </button>
@@ -403,7 +402,7 @@ const CustomerGarage = () => {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 {!isEditingFleet && <button type="button" onClick={handleStartFleetEdit} style={{ padding: '0.55rem 0.75rem', background: 'transparent', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-brand)', fontSize: '0.68rem', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase' }}>Edit Fleet</button>}
-                <button type="button" onClick={handleDeleteFleet} aria-label="Delete fleet" style={{ padding: '0.55rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: 'var(--admin-radius-sm)', color: '#ef4444', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Trash2 size={16} /></button>
+                <button type="button" onClick={handleDeleteFleet} aria-label="Delete fleet" style={{ padding: '0.55rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-danger)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Trash2 size={16} /></button>
                 <button type="button" onClick={() => { setSelectedFleetGroup(null); setIsEditingFleet(false); }} style={{ background: 'none', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}><X size={24} /></button>
               </div>
             </div>
@@ -416,7 +415,7 @@ const CustomerGarage = () => {
                     return <label key={vehicle.id} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.85rem', background: isSelected ? 'rgba(var(--admin-brand-rgb), 0.1)' : 'var(--admin-bg)', border: `1px solid ${isSelected ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '8px', cursor: 'pointer' }}><input type="checkbox" checked={isSelected} onChange={() => setFleetEditVehicleIds(current => isSelected ? current.filter(id => id !== vehicle.id) : [...current, vehicle.id])} /><span style={{ minWidth: 0, color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '800' }}><strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vehicle.brand} {vehicle.model}</strong><small style={{ color: 'var(--admin-text-secondary)' }}>{vehicle.plate_number} · {vehicle.type}</small></span></label>;
                   })}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}><button type="button" onClick={() => setIsEditingFleet(false)} style={{ padding: '0.75rem 1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '900', cursor: 'pointer' }}>Cancel</button><button type="button" disabled={isSavingFleet} onClick={handleSaveFleetEdit} style={{ padding: '0.75rem 1rem', background: 'var(--admin-brand)', border: 0, borderRadius: '8px', color: '#fff', fontWeight: '900', cursor: 'pointer', opacity: isSavingFleet ? 0.5 : 1 }}>{isSavingFleet ? 'Saving...' : 'Save Fleet'}</button></div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}><button type="button" onClick={() => setIsEditingFleet(false)} style={{ padding: '0.75rem 1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '900', cursor: 'pointer' }}>Cancel</button><button type="button" disabled={isSavingFleet} onClick={handleSaveFleetEdit} style={{ padding: '0.75rem 1rem', background: 'var(--admin-brand)', border: 0, borderRadius: '8px', color: 'var(--admin-text-on-brand)', fontWeight: '900', cursor: 'pointer', opacity: isSavingFleet ? 0.5 : 1 }}>{isSavingFleet ? 'Saving...' : 'Save Fleet'}</button></div>
               </>
             ) : (
               <>
@@ -471,7 +470,7 @@ const CustomerGarage = () => {
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => setIsGroupModalOpen(false)} style={{ padding: '0.8rem 1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '900', cursor: 'pointer' }}>Cancel</button>
-                <button type="submit" disabled={isCreatingFleet || selectedFleetVehicleIds.length === 0} style={{ padding: '0.8rem 1rem', background: 'var(--admin-brand)', border: 0, borderRadius: '8px', color: '#fff', fontWeight: '900', cursor: 'pointer', opacity: isCreatingFleet || selectedFleetVehicleIds.length === 0 ? 0.5 : 1 }}>{isCreatingFleet ? 'Creating...' : 'Create Fleet'}</button>
+                <button type="submit" disabled={isCreatingFleet || selectedFleetVehicleIds.length === 0} style={{ padding: '0.8rem 1rem', background: 'var(--admin-brand)', border: 0, borderRadius: '8px', color: 'var(--admin-text-on-brand)', fontWeight: '900', cursor: 'pointer', opacity: isCreatingFleet || selectedFleetVehicleIds.length === 0 ? 0.5 : 1 }}>{isCreatingFleet ? 'Creating...' : 'Create Fleet'}</button>
               </div>
             </form>
           </div>
@@ -545,7 +544,7 @@ const CustomerGarage = () => {
 
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                 <button type="button" onClick={() => setIsModalOpen(false)} style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>Cancel</button>
-                <button type="submit" style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}>{selectedVehicle ? 'Save Changes' : 'Register Vehicle'}</button>
+                <button type="submit" style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '8px', color: 'var(--admin-text-on-brand)', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}>{selectedVehicle ? 'Save Changes' : 'Register Vehicle'}</button>
               </div>
             </form>
           </div>

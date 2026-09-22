@@ -19,14 +19,14 @@ const RecentNotifications = () => {
       case 'PAYMENT_APPROVED':
       case 'PAYMENT_RECEIVED':
       case 'PAYMENT_VERIFIED':
-        return <CreditCard size={16} color="#10b981" />;
+        return <CreditCard size={16} color="var(--status-success)" />;
       case 'PAYMENT_REJECTED':
-        return <AlertCircle size={16} color="#ef4444" />;
+        return <AlertCircle size={16} color="var(--status-danger)" />;
       case 'TASK_ASSIGNED':
       case 'STATUS_UPDATE':
         return <Clock size={16} color="var(--admin-brand)" />;
       case 'VEHICLE_COMPLETED':
-        return <CheckCircle2 size={16} color="#10b981" />;
+        return <CheckCircle2 size={16} color="var(--status-success)" />;
       case 'CHAT_MESSAGE':
         return <MessageCircle size={16} color="#3b82f6" />;
       case 'BOOKING_CONFIRMED':

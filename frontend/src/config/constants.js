@@ -60,6 +60,31 @@ export const VEHICLE_TYPE_OPTIONS = [
 export const sanitizeVehiclePlate = (value = '') => value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 export const sanitizeVehicleText = (value = '') => value.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ');
 
+// ─── Task B: STRICT ALPHANUMERIC INPUT GUARD ─────────────────────────────────
+// Canonical allow-list: letters, digits and whitespace only (no special chars).
+// Used by every free-text input across the system (names, addresses, notes,
+// plate numbers) so a paste of `"><script>` or `₱1,000!!` can never land in the
+// DB. Sanitising and validating are intentionally separate: `sanitizeAlphaNum`
+// cleans on input; `isAlphaNum` gates submission.
+export const ALPHANUMERIC_PATTERN = /^[a-zA-Z0-9\s]+$/;
+export const sanitizeAlphaNum = (value = '') =>
+  String(value).replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, ' ');
+export const isAlphaNum = (value = '') =>
+  ALPHANUMERIC_PATTERN.test(String(value).trim());
+
+// ─── Task B: PAYMENT FEE + OVERPAYMENT CONSTANTS ────────────────────────────
+// Cross-bank / e-wallet transfer fee defense. GoTyme and other cross-bank
+// transfers deduct a fee before the amount lands, so the CREDITED figure is
+// (total deducted − transfer fee). Defaults to a flat fee unless overridden by
+// business_config.transfer_fee.
+export const DEFAULT_TRANSFER_FEE = 0;
+export const CREDIT_LEDGER = Object.freeze({
+  EXCESS: 'EXCESS',
+  ABSORBED: 'ABSORBED',
+  REFUND_QUEUED: 'REFUND_QUEUED',
+  ADJUSTMENT: 'ADJUSTMENT',
+});
+
 // ─── UNIFIED STATUS COLORS ──────────────────────────────────────
 // Extracted from AdminBookings, SchedulingGrid, CustomerBookingDetails
 export const STATUS_COLORS = {

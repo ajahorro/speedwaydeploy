@@ -185,9 +185,8 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
 
   const handleSaveMetadata = () => {
     setEditingIndex(null);
-    toast.success('Vehicle details updated!', {
-      style: { background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)' }
-    });
+    // Chrome supplied by the global <Toaster>; no inline override.
+    toast.success('Vehicle details updated!');
   };
 
   const updateMetadataField = (field, value) => {
@@ -272,7 +271,7 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
                 <button 
                   onClick={(e) => handleDeleteVehicle(e, idx)}
                   disabled={vehicles.length <= 1}
-                  style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '0.5rem', cursor: idx === 0 && vehicles.length === 1 ? 'not-allowed' : 'pointer', color: '#ef4444' }}
+                  style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '0.5rem', cursor: idx === 0 && vehicles.length === 1 ? 'not-allowed' : 'pointer', color: 'var(--status-danger)' }}
                   title="Remove Vehicle"
                 >
                   <Trash2 size={16} />
@@ -292,7 +291,7 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
                     </span>
                   ))
                 ) : (
-                  <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '800' }}>No services selected. Click to add.</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--status-danger)', fontWeight: '800' }}>No services selected. Click to add.</span>
                 )}
               </div>
             </div>
@@ -304,7 +303,7 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
         ))}
 
         {/* Add Vehicle Placeholder Card */}
-        {canAddAnyVehicle && <div 
+        {canAddAnyVehicle && <div
           onClick={handleAddVehicle}
           className="admin-card-hover"
           style={{
@@ -337,7 +336,7 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
 
       {/* Action Footer */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem', marginTop: '1rem', gap: '1rem' }}>
-        <button 
+        <button
           onClick={onBack}
           style={{
             padding: '1rem 2rem',
@@ -356,17 +355,17 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
         </button>
 
         {onCancel && (
-          <button 
-            type="button" 
-            onClick={onCancel} 
-            style={{ 
-              background: 'transparent', 
-              border: '1px solid #ef4444', 
-              color: '#ef4444', 
-              padding: '1rem 2rem', 
-              borderRadius: 'var(--admin-radius-md)', 
-              fontWeight: '950', 
-              cursor: 'pointer', 
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--status-danger)',
+              color: 'var(--status-danger)',
+              padding: '1rem 2rem',
+              borderRadius: 'var(--admin-radius-md)',
+              fontWeight: '950',
+              cursor: 'pointer',
               textTransform: 'uppercase',
               letterSpacing: '1px'
             }}
@@ -376,11 +375,11 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
         )}
         <div style={{ position: 'relative' }}>
           {vehicles.length === 0 && (
-            <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '0.4rem 0.8rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '950', textTransform: 'uppercase', border: '1px solid rgba(239, 68, 68, 0.2)', whiteSpace: 'nowrap' }}>
+            <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-danger)', padding: '0.4rem 0.8rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '950', textTransform: 'uppercase', border: '1px solid rgba(239, 68, 68, 0.2)', whiteSpace: 'nowrap' }}>
               At least one vehicle required to proceed
             </div>
           )}
-          <button 
+          <button
             onClick={onNext}
             disabled={vehicles.length === 0}
             style={{
@@ -415,7 +414,7 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
             </div>
             <div style={{ display: 'flex', gap: '.75rem', justifyContent: 'flex-end', marginTop: '1.5rem', flexWrap: 'wrap' }}>
               <button type="button" onClick={() => setDuplicateSourceIndex(null)} style={{ padding: '.8rem 1rem', background: 'transparent', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}>CANCEL</button>
-              <button type="button" onClick={confirmDuplicate} style={{ padding: '.8rem 1rem', background: 'var(--admin-brand)', color: '#fff', border: '1px solid var(--admin-brand)', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}>ADD VEHICLE</button>
+              <button type="button" onClick={confirmDuplicate} style={{ padding: '.8rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: '1px solid var(--admin-brand)', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}>ADD VEHICLE</button>
             </div>
           </div>
         </div>
@@ -424,22 +423,22 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
           <div style={{ background: 'var(--admin-card)', padding: '2.5rem', borderRadius: 'var(--admin-radius-lg)', border: '1px solid var(--admin-border)', width: '100%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
             <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
-              <Trash2 size={40} color="#ef4444" />
+              <Trash2 size={40} color="var(--status-danger)" />
             </div>
             <h3 style={{ fontSize: '1.5rem', fontWeight: '950', color: 'var(--admin-text-primary)', margin: '0 0 1rem 0' }}>Remove Vehicle?</h3>
             <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.95rem', fontWeight: '600', lineHeight: 1.6, margin: '0 0 2rem 0' }}>
               Are you sure you want to remove <strong>{vehicles[showDeleteConfirm]?.brand} {vehicles[showDeleteConfirm]?.model}</strong> from this booking? This action cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button 
+              <button
                 onClick={() => setShowDeleteConfirm(null)}
                 style={{ flex: 1, padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-md)', fontWeight: '900', color: 'var(--admin-text-primary)', cursor: 'pointer' }}
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={confirmDelete}
-                style={{ flex: 1, padding: '1rem', background: '#ef4444', border: 'none', borderRadius: 'var(--admin-radius-md)', fontWeight: '900', color: '#fff', cursor: 'pointer' }}
+                style={{ flex: 1, padding: '1rem', background: 'var(--status-danger)', border: 'none', borderRadius: 'var(--admin-radius-md)', fontWeight: '900', color: 'var(--admin-text-on-brand)', cursor: 'pointer' }}
               >
                 Yes, Delete
               </button>
@@ -451,9 +450,9 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
       {editingIndex !== null && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
           <div style={{ background: 'var(--admin-card)', padding: '2.5rem', borderRadius: 'var(--admin-radius-lg)', border: '1px solid var(--admin-border)', width: '100%', maxWidth: '550px', textAlign: 'left', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }}>
-            
+
             {/* Close Button */}
-            <button 
+            <button
               onClick={() => setEditingIndex(null)}
               style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer', padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', transition: 'all 0.2s' }}
               className="admin-card-hover"
@@ -476,33 +475,33 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '800', color: 'var(--admin-text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Brand</label>
-                  <input 
+                  <input
                     type="text"
                     value={vehicles[editingIndex].brand}
                     onChange={(e) => updateMetadataField('brand', sanitizeVehicleText(e.target.value))}
-                    style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'white', fontWeight: '700' }}
+                    style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '700' }}
                   />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '800', color: 'var(--admin-text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Model</label>
-                  <input 
+                  <input
                     type="text"
                     value={vehicles[editingIndex].model}
                     onChange={(e) => updateMetadataField('model', sanitizeVehicleText(e.target.value))}
-                    style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'white', fontWeight: '700' }}
+                    style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '700' }}
                   />
                 </div>
               </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '800', color: 'var(--admin-text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Plate Number</label>
-                <input 
+                <input
                   type="text"
                   value={vehicles[editingIndex].plateNumber}
                   minLength={4}
                   pattern="[A-Za-z0-9]{4,}"
                   onChange={(e) => updateMetadataField('plateNumber', sanitizeVehiclePlate(e.target.value))}
-                  style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'white', fontWeight: '700' }}
+                  style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '700' }}
                 />
               </div>
 
@@ -526,9 +525,9 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
             </div>
 
             <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-              <button 
+              <button
                 onClick={handleSaveMetadata}
-                style={{ flex: 1, padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-md)', fontWeight: '900', color: '#fff', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}
+                style={{ flex: 1, padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-md)', fontWeight: '900', color: 'var(--admin-text-on-brand)', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}
               >
                 Save Vehicle Details
               </button>

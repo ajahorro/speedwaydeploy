@@ -15,6 +15,13 @@ export const ConfigProvider = ({ children }) => {
     PAYMENT_ACCOUNT_NAME: 'SPEEDWAY STUDIO',
     PAYMENT_ACCOUNT_NUMBER: '0912 345 6789',
     PAYMENT_QR_URL: null,
+    // Task B: the four QR recipient fields + version.
+    QR_ACCOUNT_NAME: '',
+    QR_ACCOUNT_NUMBER: '',
+    QR_FALLBACK_NAME: '',
+    QR_FALLBACK_NUMBER: '',
+    QR_CONFIG_VERSION: 1,
+    QR_CONFIG_COMPLETE: false,
     loaded: false
   });
 
@@ -54,8 +61,17 @@ export const ConfigProvider = ({ children }) => {
           OPENING_HOUR: parseHour(data.opening_hour, SHOP_CONFIG.OPENING_HOUR),
           CLOSING_HOUR: parseHour(data.closing_hour, SHOP_CONFIG.CLOSING_HOUR),
           BUSINESS_NAME: data.business_name || 'SPEEDWAY STUDIO',
-          PAYMENT_ACCOUNT_NAME: data.payment_account_name || data.gcash_name || 'SPEEDWAY STUDIO',
-          PAYMENT_ACCOUNT_NUMBER: data.payment_account_number || data.gcash_number || '0912 345 6789',
+          // Task B: the mandated QR recipients are the source of truth. Legacy
+          // payment_account_* / gcash_* keys remain as fallbacks so older rows
+          // still render a QR during the migration window.
+          QR_ACCOUNT_NAME: data.qr_account_name || data.payment_account_name || data.gcash_name || '',
+          QR_ACCOUNT_NUMBER: data.qr_account_number || data.payment_account_number || data.gcash_number || '',
+          QR_FALLBACK_NAME: data.fallback_receiver_name || '',
+          QR_FALLBACK_NUMBER: data.fallback_receiver_number || '',
+          QR_CONFIG_VERSION: data.qr_config_version ?? 1,
+          QR_CONFIG_COMPLETE: data.qr_config_complete === true,
+          PAYMENT_ACCOUNT_NAME: data.qr_account_name || data.payment_account_name || data.gcash_name || 'SPEEDWAY STUDIO',
+          PAYMENT_ACCOUNT_NUMBER: data.qr_account_number || data.payment_account_number || data.gcash_number || '0912 345 6789',
           PAYMENT_QR_URL: data.payment_qr_url || data.gcash_qr_url || null,
           loaded: true
         });

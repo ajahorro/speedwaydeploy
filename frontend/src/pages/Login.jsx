@@ -103,10 +103,14 @@ const Login = ({ isModal = false, onClose }) => {
     top: 0, left: 0, width: '100vw', height: '100vh',
     background: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)',
     display: 'flex', justifyContent: 'center', alignItems: 'center',
-    zIndex: 2000, padding: '1rem'
+    zIndex: 2000, padding: '1rem', overflow: 'hidden'
   } : {
     minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    background: 'var(--bg-primary)', padding: '1rem'
+    background: 'var(--admin-bg)', padding: '1rem', position: 'relative', overflow: 'hidden',
+    // The decorative BlurGlow discs are sized in the hundreds of px and offset
+    // negative; clipping them here keeps /login at zero horizontal overflow on
+    // 375px without touching their visual effect within the viewport.
+    maxWidth: '100vw'
   };
 
   const cardStyle = {
@@ -150,7 +154,7 @@ const Login = ({ isModal = false, onClose }) => {
 
       <div style={cardStyle} onClick={e => e.stopPropagation()}>
         {isModal && (
-          <button onClick={onClose} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.5rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={onClose} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer', padding: '0.5rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={20} />
           </button>
         )}

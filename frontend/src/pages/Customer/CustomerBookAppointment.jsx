@@ -119,13 +119,22 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
   // NOTE: Draft persistence to localStorage is intentionally omitted.
   // Booking data lives only in React memory; a page reload always produces a clean slate.
 
-  // Session purge on page unload / tab close:
-  // Flush all sessionStorage booking keys silently (no native browser dialog).
+  // Session purge on page unload / tab close + unsaved-refresh guard.
   React.useEffect(() => {
     const purgeSessionStorage = () => {
       sessionStorage.removeItem('speedway_rebook_data');
     };
-    // beforeunload fires on reload and tab close; pagehide fires on mobile/bfcache unload.
+    // Task B: block browser refresh / tab close while there are unsaved edits.
+    // The custom STAY/LEAVE modal covers in-app navigation; this native prompt
+    // covers the browser-level refresh and tab close, which cannot be cancelled
+    // except via beforeunload.
+    const blockUnload = (event) => {
+      if (!hasDraftChanges || isSubmitted) return undefined;
+      event.preventDefault();
+      event.returnValue = 'You have unsaved booking changes. Leave without saving?';
+      return event.returnValue;
+    };
+    window.addEventListener('beforeunload', blockUnload);
     window.addEventListener('beforeunload', purgeSessionStorage);
     window.addEventListener('pagehide', purgeSessionStorage);
     // Internal SPA navigation guard — show custom modal before navigating away.
@@ -140,6 +149,7 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
     };
     document.addEventListener('click', handleNavigationClick, true);
     return () => {
+      window.removeEventListener('beforeunload', blockUnload);
       window.removeEventListener('beforeunload', purgeSessionStorage);
       window.removeEventListener('pagehide', purgeSessionStorage);
       document.removeEventListener('click', handleNavigationClick, true);
@@ -150,9 +160,9 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
   React.useEffect(() => {
     if (isRebooking || isRescheduling) {
       sessionStorage.removeItem('speedway_rebook_data');
-      toast.success(isRescheduling ? 'Rescheduling Active!' : 'Fast-Track Rebooking Active!', {
-        style: { background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)' }
-      });
+      // Styling comes from the global <Toaster> chrome (utils/toastChrome) —
+      // no per-call override needed for a standard success toast.
+      toast.success(isRescheduling ? 'Rescheduling Active!' : 'Fast-Track Rebooking Active!');
     }
   }, [isRebooking]);
 
@@ -204,15 +214,13 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
         else await createBooking(user.id, bookingData);
       }
       setHasDraftChanges(false);
-      toast.success('Booking submitted successfully!', {
-        style: { background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)' }
-      });
+      toast.success('Booking submitted successfully!');
       setIsSubmitted(true);
     } catch (err) {
       console.error('Booking submission error:', err);
-      toast.error(err.message || 'Failed to submit booking.', {
-        style: { background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }
-      });
+      // Standard error chrome from the global <Toaster>; the previous inline
+      // rgba override was a third styling path and is now removed.
+      toast.error(err.message || 'Failed to submit booking.');
     } finally {
       setIsSubmitting(false);
     }
@@ -371,7 +379,7 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
           <p style={{ margin: '.75rem 0 1.25rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>Your unsaved booking changes will be lost.</p>
           <div style={{ display: 'flex', gap: '.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
             <button type="button" onClick={() => setPendingLeave(null)} style={{ minWidth: '110px', padding: '.75rem 1rem', background: 'transparent', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer' }}>STAY</button>
-            <button type="button" onClick={() => { const action = pendingLeave; setPendingLeave(null); setHasDraftChanges(false); action?.(); }} style={{ minWidth: '110px', padding: '.75rem 1rem', background: 'var(--admin-brand)', color: '#fff', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer' }}>LEAVE</button>
+            <button type="button" onClick={() => { const action = pendingLeave; setPendingLeave(null); setHasDraftChanges(false); action?.(); }} style={{ minWidth: '110px', padding: '.75rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer' }}>LEAVE</button>
           </div>
         </div>
       </div>}

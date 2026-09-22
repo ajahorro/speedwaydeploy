@@ -53,7 +53,7 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
           const isCurrent = index === currentStepIndex;
           return (
             <div key={step} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', zIndex: 1, minWidth: '80px', flex: '1 0 80px' }}>
-              <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: isCompleted ? 'var(--admin-brand)' : 'var(--admin-bg)', border: `2px solid ${isCompleted ? 'var(--admin-brand)' : 'var(--admin-border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+              <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: isCompleted ? 'var(--admin-brand)' : 'var(--admin-bg)', border: `2px solid ${isCompleted ? 'var(--admin-brand)' : 'var(--admin-border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-text-on-brand)' }}>
                 {isCompleted && <CheckCircle size={14} />}
               </div>
               <span style={{ fontSize: '0.7rem', fontWeight: isCurrent ? '700' : '400', color: isCurrent ? 'var(--admin-text-primary)' : 'var(--admin-text-secondary)', textAlign: 'center' }}>{step.replace('_', ' ')}</span>

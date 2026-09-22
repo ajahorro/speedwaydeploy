@@ -12,40 +12,40 @@ const BookingAuditTrail = ({ logs = [] }) => {
   const getEventConfig = (type) => {
     const t = (type || '').toUpperCase();
     if (t.includes('PAYMENT') || t.includes('REFUND') || t.includes('VERIFIED')) {
-      return { color: '#10b981', icon: <CreditCard size={14} /> };
+      return { color: 'var(--status-success)', icon: <CreditCard size={14} /> };
     }
     if (t.includes('STAFF') || t.includes('ASSIGN')) {
       return { color: '#3b82f6', icon: <User size={14} /> };
     }
     if (t.includes('COMPLETED') || t.includes('SUCCESS')) {
-      return { color: '#10b981', icon: <CheckCircle2 size={14} /> };
+      return { color: 'var(--status-success)', icon: <CheckCircle2 size={14} /> };
     }
     return { color: 'var(--admin-text-secondary)', icon: <Clock size={14} /> };
   };
 
   const formatAuditDate = (dateStr) => {
     const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
-    }) + ' • ' + d.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }) + ' • ' + d.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
   return (
     <div style={{ position: 'relative', paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Timeline Connector Line */}
-      <div style={{ 
-        position: 'absolute', 
-        left: '0.45rem', 
-        top: '1rem', 
-        bottom: '1rem', 
-        width: '2px', 
+      <div style={{
+        position: 'absolute',
+        left: '0.45rem',
+        top: '1rem',
+        bottom: '1rem',
+        width: '2px',
         background: 'var(--admin-border)',
-        opacity: 0.5 
+        opacity: 0.5
       }}></div>
 
       {logs.map((log, i) => {
@@ -55,35 +55,35 @@ const BookingAuditTrail = ({ logs = [] }) => {
         return (
           <div key={i} style={{ position: 'relative' }}>
             {/* Timeline Node */}
-            <div style={{ 
-              position: 'absolute', 
-              left: '-1.45rem', 
-              top: '0.25rem', 
-              width: '10px', 
-              height: '10px', 
-              borderRadius: '50%', 
+            <div style={{
+              position: 'absolute',
+              left: '-1.45rem',
+              top: '0.25rem',
+              width: '10px',
+              height: '10px',
+              borderRadius: '50%',
               background: config.color,
               border: '2px solid var(--admin-bg)',
               zIndex: 2
             }}></div>
 
-            <div style={{ 
-              padding: '1.25rem', 
-              background: isRecent ? 'rgba(255,255,255,0.02)' : 'var(--admin-card)', 
-              border: `1px solid ${isRecent ? 'var(--admin-brand)' : 'var(--admin-border)'}`, 
+            <div style={{
+              padding: '1.25rem',
+              background: isRecent ? 'rgba(255,255,255,0.02)' : 'var(--admin-card)',
+              border: `1px solid ${isRecent ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
               borderRadius: 'var(--admin-radius-sm)',
               boxShadow: isRecent ? '0 4px 20px rgba(0,0,0,0.2)' : 'none'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <span style={{ color: config.color }}>{config.icon}</span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: '950', color: '#fff' }}>{formatLabel(log.event_type)}</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '950', color: 'var(--admin-text-on-brand)' }}>{formatLabel(log.event_type)}</span>
                   {isRecent && (
-                    <span style={{ 
-                      fontSize: '0.5rem', 
-                      fontWeight: '950', 
-                      background: 'var(--admin-brand)', 
-                      color: 'white', 
+                    <span style={{
+                      fontSize: '0.5rem',
+                      fontWeight: '950',
+                      background: 'var(--admin-brand)',
+                      color: 'var(--admin-text-on-brand)', 
                       padding: '0.1rem 0.4rem', 
                       borderRadius: '2px',
                       letterSpacing: '0.5px'

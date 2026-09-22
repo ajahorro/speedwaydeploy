@@ -10,6 +10,7 @@ import {
 import toast from 'react-hot-toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { logger } from '../../utils/logger';
+import ChangeDiffModal from '../../components/AuditLog/ChangeDiffModal';
 
 const AdminAuditLogs = () => {
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -20,7 +21,9 @@ const AdminAuditLogs = () => {
   const [filterType, setFilterType] = useState('All');
   const [selectedLog, setSelectedLog] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+  // Task B: [View Changes] Old-vs-New diff modal.
+  const [diffLog, setDiffLog] = useState(null);
+
   useEffect(() => {
     fetchLogs();
   }, []);
@@ -36,7 +39,7 @@ const AdminAuditLogs = () => {
         .limit(100);
 
       if (error) throw error;
-      
+
       const processed = (data || []).map(l => ({
         ...l,
         event_type: l.action_type,
@@ -81,18 +84,30 @@ const AdminAuditLogs = () => {
   };
 
   const filteredLogs = logs.filter(log => {
-    const matchesSearch = 
+    const matchesSearch =
       log.event_type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       log.profiles?.full_name?.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesFilter = filterType === 'All' || (log.event_type && log.event_type.includes(filterType));
-    
+
     return matchesSearch && matchesFilter;
   });
 
   const handleOpenDetail = (log) => {
     setSelectedLog(log);
     setIsModalOpen(true);
+  };
+
+  /**
+   * Task B: does this log carry a structured Old/New change payload?
+   * The Task B RPCs write metadata.old_values / metadata.new_values; reschedules
+   * write old_start/new_start etc. Anything with a real diff gets a View Changes
+   * affordance.
+   */
+  const hasChanges = (log) => {
+    const m = log.metadata || {};
+    if (m.old_values || m.new_values) return true;
+    return ['old_start', 'new_start'].some((k) => k in m);
   };
 
   return (
@@ -199,9 +214,27 @@ const AdminAuditLogs = () => {
                   </p>
                 </div>
 
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: '800' }}>{new Date(log.created_at).toLocaleDateString()}</div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)' }}>{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: '800' }}>{new Date(log.created_at).toLocaleDateString()}</div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)' }}>{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                  </div>
+                  {/* Task B: [View Changes] opens the Old-vs-New diff modal. */}
+                  {hasChanges(log) && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setDiffLog(log); }}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                        padding: '0.3rem 0.6rem', background: 'rgba(var(--admin-brand-rgb), 0.1)',
+                        color: 'var(--admin-brand)', border: '1px solid rgba(var(--admin-brand-rgb), 0.3)',
+                        borderRadius: 'var(--admin-radius-sm)', fontSize: '0.62rem', fontWeight: '900',
+                        textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer', minHeight: '1.9rem',
+                      }}
+                    >
+                      View Changes
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -213,6 +246,13 @@ const AdminAuditLogs = () => {
           </div>
         )}
       </div>
+
+      {/* Task B: side-by-side Old vs New change diff. */}
+      <ChangeDiffModal
+        open={Boolean(diffLog)}
+        log={diffLog}
+        onClose={() => setDiffLog(null)}
+      />
 
       {isModalOpen && selectedLog && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000, padding: '1.5rem' }}>
@@ -244,12 +284,12 @@ const AdminAuditLogs = () => {
               {selectedLog.booking_id && (
                 <button 
                   onClick={() => navigate(`/admin/bookings/${selectedLog.booking_id}`)}
-                  style={{ width: '100%', padding: '1rem', background: 'var(--admin-brand)', border: 'none', color: 'white', fontWeight: '900', borderRadius: 'var(--admin-radius-sm)', cursor: 'pointer', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                  style={{ width: '100%', padding: '1rem', background: 'var(--admin-brand)', border: 'none', color: 'var(--admin-text-primary)', fontWeight: '900', borderRadius: 'var(--admin-radius-sm)', cursor: 'pointer', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 >
                   <ExternalLink size={18} /> VIEW BOOKING DETAILS
                 </button>
               )}
-              <button onClick={() => setIsModalOpen(false)} style={{ width: '100%', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'white', fontWeight: '900', borderRadius: 'var(--admin-radius-sm)', cursor: 'pointer' }}>CLOSE DETAIL</button>
+              <button onClick={() => setIsModalOpen(false)} style={{ width: '100%', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', fontWeight: '900', borderRadius: 'var(--admin-radius-sm)', cursor: 'pointer' }}>CLOSE DETAIL</button>
             </div>
           </div>
         </div>

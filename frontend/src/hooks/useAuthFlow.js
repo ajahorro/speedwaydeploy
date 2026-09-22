@@ -38,14 +38,10 @@ export const useAuthFlow = () => {
       const { error } = await signInWithPassword(email, password);
       if (error) throw error;
       
-      toast.success('Successfully logged in!', {
-        style: { background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', backdropFilter: 'blur(12px)' }
-      });
+      toast.success('Successfully logged in!');
     } catch (error) {
       setLoginError(error.message || 'Login failed.');
-      toast.error(error.message || 'Login failed.', {
-        style: { background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', backdropFilter: 'blur(12px)' }
-      });
+      toast.error(error.message || 'Login failed.');
     } finally {
       setIsLoading(false);
     }
@@ -94,15 +90,11 @@ export const useAuthFlow = () => {
 
       setVerificationEmail(email);
 
-      toast.success('Registration successful! Check your inbox to activate your account.', {
-        style: { background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', backdropFilter: 'blur(12px)' }
-      });
+      toast.success('Registration successful! Check your inbox to activate your account.');
 
       setMode('AWAIT_LINK');
     } catch (error) {
-      toast.error(error.message || 'Registration failed.', {
-        style: { background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', backdropFilter: 'blur(12px)' }
-      });
+      toast.error(error.message || 'Registration failed.');
     } finally {
       setIsLoading(false);
     }
@@ -124,13 +116,9 @@ export const useAuthFlow = () => {
     try {
       const { error } = await supabase.auth.resend({ type: 'signup', email: target.toLowerCase() });
       if (error) throw error;
-      toast.success(`Activation link resent to ${target}.`, {
-        style: { background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', backdropFilter: 'blur(12px)' }
-      });
+      toast.success(`Activation link resent to ${target}.`);
     } catch (error) {
-      toast.error(error.message || 'Could not resend the activation link.', {
-        style: { background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', backdropFilter: 'blur(12px)' }
-      });
+      toast.error(error.message || 'Could not resend the activation link.');
     } finally {
       setIsLoading(false);
     }
@@ -151,14 +139,10 @@ export const useAuthFlow = () => {
 
 
       setVerificationEmail(email);
-      toast.success('If an account is associated with that email, a password reset link has been sent.', {
-        style: { background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', backdropFilter: 'blur(12px)' }
-      });
+      toast.success('If an account is associated with that email, a password reset link has been sent.');
       setMode('LOGIN');
     } catch (error) {
-      toast.error(error.message, {
-        style: { background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', backdropFilter: 'blur(12px)' }
-      });
+      toast.error(error.message);
     } finally {
       setIsLoading(false);
     }

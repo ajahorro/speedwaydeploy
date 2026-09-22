@@ -50,7 +50,7 @@ const ActiveBookingContainer = ({ booking, loading }) => {
         <button
           onClick={() => navigate('/customer/book')}
           className="admin-card-hover"
-          style={{ marginTop: '0.5rem', padding: '0.85rem 1.5rem', background: 'var(--admin-brand)', color: '#fff', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}
+          style={{ marginTop: '0.5rem', padding: '0.85rem 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}
         >
           + Book Appointment
         </button>
@@ -190,7 +190,7 @@ const ActiveBookingContainer = ({ booking, loading }) => {
           <button
             onClick={() => navigate(`/customer/bookings/${booking.id}`)}
             className="admin-card-hover"
-            style={{ flex: 1, padding: '0.85rem 1rem', background: 'var(--admin-brand)', color: '#fff', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}
+            style={{ flex: 1, padding: '0.85rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}
           >
             <FileText size={16} /> View Full Booking <ChevronRight size={16} />
           </button>

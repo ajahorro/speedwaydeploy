@@ -127,26 +127,26 @@ const StaffActiveJobs = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
         {tasks.length > 0 ? (
           tasks.map(task => (
-            <div key={task.id} style={{ background: '#15171A', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div key={task.id} style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div 
+                <div
                   onClick={() => navigate(`/staff/job/${task.id}`)}
                   style={{ display: 'flex', gap: '1rem', alignItems: 'center', cursor: 'pointer' }}
                 >
-                  <div style={{ width: '48px', height: '48px', borderRadius: '4px', background: '#0A0B0D', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E61E2A' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '4px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)' }}>
                     <Car size={24} />
                   </div>
                   <div>
                     <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase' }}>{task.brand} {task.model}</h3>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem' }}>
-                      <span style={{ background: '#E61E2A', color: 'white', padding: '0.15rem 0.45rem', borderRadius: '2px', fontSize: '0.65rem', fontWeight: '950', letterSpacing: '0.5px' }}>
+                      <span style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', padding: '0.15rem 0.45rem', borderRadius: '2px', fontSize: '0.65rem', fontWeight: '950', letterSpacing: '0.5px' }}>
                         {task.plate_number}
                       </span>
                     </div>
                   </div>
                 </div>
-                <div style={{ 
-                  fontSize: '0.6rem', fontWeight: '950', padding: '0.3rem 0.6rem', 
+                <div style={{
+                  fontSize: '0.6rem', fontWeight: '950', padding: '0.3rem 0.6rem',
                   borderRadius: '2px', background: task.status === 'IN_PROGRESS' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(255,255,255,0.05)',
                   color: task.status === 'IN_PROGRESS' ? '#f59e0b' : '#8E9196', border: '1px solid currentColor', textTransform: 'uppercase'
                 }}>
@@ -154,22 +154,22 @@ const StaffActiveJobs = () => {
                 </div>
               </div>
 
-              <div style={{ background: '#0A0B0D', padding: '1rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
+              <div style={{ background: 'var(--admin-bg)', padding: '1rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                   {task.services?.map((s, i) => (
-                    <span key={i} style={{ fontSize: '0.65rem', fontWeight: '900', color: 'white', background: '#15171A', padding: '0.25rem 0.5rem', borderRadius: '2px', border: '1px solid rgba(255,255,255,0.05)' }}>{s.service_name}</span>
+                    <span key={i} style={{ fontSize: '0.65rem', fontWeight: '900', color: 'var(--admin-text-primary)', background: 'var(--admin-card)', padding: '0.25rem 0.5rem', borderRadius: '2px', border: '1px solid var(--admin-border)' }}>{s.service_name}</span>
                   ))}
                 </div>
               </div>
 
               <div style={{ position: 'relative' }}>
-                <textarea 
+                <textarea
                   value={localNotes[task.id] || ''}
                   onChange={(e) => setLocalNotes({ ...localNotes, [task.id]: e.target.value })}
                   placeholder="Technical observations..."
-                  style={{ width: '100%', minHeight: '80px', background: '#0A0B0D', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '4px', padding: '1rem', color: 'white', fontSize: '0.85rem', outline: 'none', resize: 'none' }}
+                  style={{ width: '100%', minHeight: '80px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '1rem', color: 'var(--admin-text-primary)', fontSize: '0.85rem', outline: 'none', resize: 'none' }}
                 />
-                <button onClick={() => handleSaveNotes(task.id)} style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: '#E61E2A', border: 'none', borderRadius: '4px', padding: '0.4rem', cursor: 'pointer', color: 'white' }}>
+                <button onClick={() => handleSaveNotes(task.id)} style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '4px', padding: '0.4rem', cursor: 'pointer', color: 'var(--admin-text-primary)' }}>
                   <Save size={14} />
                 </button>
               </div>
@@ -181,7 +181,7 @@ const StaffActiveJobs = () => {
                   </button>
                 )}
                 {task.status?.toUpperCase() === 'IN_PROGRESS' && (
-                  <button onClick={() => requestUpdateStatus(task, 'COMPLETED')} style={{ flex: 1, padding: '0.85rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', textTransform: 'uppercase' }}>
+                  <button onClick={() => requestUpdateStatus(task, 'COMPLETED')} style={{ flex: 1, padding: '0.85rem', background: 'var(--status-success)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', textTransform: 'uppercase' }}>
                     <CheckCircle2 size={16} /> Mark Finished
                   </button>
                 )}

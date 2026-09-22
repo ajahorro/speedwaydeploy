@@ -1210,8 +1210,61 @@ app.post('/api/auth/request-email-change', async (req, res) => {
   }
 });
 
-app.post('/api/auth/confirm-email-change', async (req, res) => {
-  const { userId, otp } = req.body;
+/**
+ * 🔐 Task B: QR Change OTP dispatcher.
+ * The client has already parked the hashed OTP challenge in qr_change_otp via
+ * the start_qr_change_otp RPC. This endpoint emails the plaintext 6-digit code
+ * to the requesting admin's address (looked up from their bearer token, never
+ * trusted from the body).
+ */
+app.post('/api/emails/qr-change-otp', async (req, res) => {
+  const { otp } = req.body || {};
+  if (!otp || !/^\d{6}$/.test(String(otp))) {
+    return res.status(400).json({ success: false, error: 'A 6-digit code is required.' });
+  }
+
+  try {
+    // Resolve the caller from their access token — never trust a body email.
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token) return res.status(401).json({ success: false, error: 'Missing authentication.' });
+
+    const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
+    if (userErr || !userData?.user) {
+      return res.status(401).json({ success: false, error: 'Invalid session.' });
+    }
+    const adminEmail = userData.user.email;
+    if (!adminEmail) return res.status(400).json({ success: false, error: 'Administrator email unavailable.' });
+
+    if (resendClient) {
+      await resendClient.emails.send({
+        from: RESEND_FROM,
+        to: adminEmail,
+        subject: 'Speedway: QR Change Verification Code',
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; color: #333;">
+            <h2 style="color: #E61E2A;">SPEEDWAY SECURITY</h2>
+            <p>A request was made to change the Business Hub QR payment recipients.</p>
+            <p>Enter the following 6-digit code to authorize the change:</p>
+            <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; padding: 12px 18px; background: #f4f4f4; border-radius: 6px; display: inline-block;">
+              ${otp}
+            </div>
+            <p>The code expires in 10 minutes. If you did not request this, ignore this email and review your account.</p>
+          </div>`,
+      });
+    } else {
+      console.warn('⚠️ No RESEND_API_KEY found. QR OTP logged to terminal only.');
+    }
+
+    console.log(`🔑 [QR OTP] code for ${adminEmail}: ${otp}`);
+    return res.json({ success: true, message: 'Verification code sent.' });
+  } catch (err) {
+    console.error('❌ QR OTP dispatch error:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/auth/confirm-email-change', async (req, res) => {  const { userId, otp } = req.body;
 
   try {
     const { data: profile, error: fetchError } = await supabaseAdmin
@@ -2539,6 +2592,22 @@ app.post('/api/bookings/update-status', async (req, res) => {
         .eq('id', bookingId);
 
       if (updateError) throw updateError;
+
+      // Task B: when a booking completes, route any leftover excess_credit to
+      // the Refund Hub queue. Non-fatal: completion must not fail if this does.
+      if (targetMasterStatus === 'completed') {
+        try {
+          const { error: settleErr } = await supabaseAdmin.rpc('settle_overpayment_on_completion', { p_booking_id: bookingId });
+          if (settleErr) {
+            // The RPC only exists once the Task B migration is applied.
+            console.warn('⚠️ Overpayment settlement skipped:', settleErr.message);
+          } else {
+            console.log(`[TASK B] Overpayment settlement ran for booking ${bookingId}`);
+          }
+        } catch (settleEx) {
+          console.warn('⚠️ Overpayment settlement error (non-fatal):', settleEx.message);
+        }
+      }
 
       // 📧 DISPATCH CENTRALIZED EMAIL
       let remarks = '';

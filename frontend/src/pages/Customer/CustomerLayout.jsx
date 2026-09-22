@@ -277,7 +277,7 @@ const CustomerLayout = () => {
                   top: '-6px',
                   right: '-6px',
                   background: 'var(--admin-brand)',
-                  color: '#fff',
+                  color: 'var(--admin-text-on-brand)',
                   fontSize: '0.55rem',
                   fontWeight: '950',
                   minWidth: '16px',

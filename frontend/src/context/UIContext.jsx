@@ -1,11 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { X, CheckCircle, AlertTriangle, AlertCircle, Info, Loader } from 'lucide-react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { X, CheckCircle, AlertTriangle, AlertCircle, Info } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { toastChrome } from '../utils/toastChrome';
 
 const UIContext = createContext();
 
 export const UIProvider = ({ children }) => {
   const [modal, setModal] = useState(null); // { title, message, onConfirm, onCancel, confirmText, cancelText, type }
-  const [toasts, setToasts] = useState([]); // Array of { id, message, type }
 
   // Modal actions
   const openModal = useCallback((options) => {
@@ -30,61 +31,67 @@ export const UIProvider = ({ children }) => {
   }, [modal]);
 
   // Toast actions
+  //
+  // Batch 7 / Step 7.3 — TOAST CONSOLIDATION.
+  // This provider used to render its own bespoke toast stack (the old
+  // "Category B" renderer). That meant two independent toast engines coexisted:
+  // the context stack AND react-hot-toast — so some notifications were styled one
+  // way and some the other, and neither respected a single source of truth.
+  //
+  // `showToast` is now a thin, backwards-compatible adapter over react-hot-toast
+  // (the canonical engine, hosted by the single <Toaster/> in main.jsx). Every
+  // existing `showToast(msg, type)` / `showToast.success(msg)` call site keeps
+  // working unchanged, but now routes through the one real toast engine with
+  // the shared token chrome.
   const showToast = useCallback((message, type = 'success', options = {}) => {
-    const id = options.id || (Date.now() + Math.random().toString(36).substr(2, 9));
-    setToasts((prev) => {
-      const filtered = prev.filter((t) => t.id !== id);
-      return [...filtered, { id, message, type }];
-    });
-    
-    // Auto dismiss after 3 seconds unless it's a loading toast
-    if (type !== 'loading') {
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 3000);
+    const { id, ...rest } = options || {};
+    const opts = { ...toastChrome, ...rest };
+    if (id !== undefined) opts.id = id;
+
+    switch (type) {
+      case 'error':
+        return toast.error(message, opts);
+      case 'warning':
+        return toast(message, { ...opts, icon: '⚠️' });
+      case 'loading':
+        return toast.loading(message, opts);
+      case 'info':
+        return toast(message, { ...opts, icon: 'ℹ️' });
+      case 'success':
+      default:
+        return toast.success(message, opts);
     }
-
-    return id;
   }, []);
 
-  // Setup convenience helper methods on showToast
-  useEffect(() => {
-    showToast.success = (msg, opts) => showToast(msg, 'success', opts);
-    showToast.error = (msg, opts) => showToast(msg, 'error', opts);
-    showToast.warning = (msg, opts) => showToast(msg, 'warning', opts);
-    showToast.info = (msg, opts) => showToast(msg, 'info', opts);
-    showToast.loading = (msg, opts) => showToast(msg, 'loading', opts);
-    showToast.dismiss = (id) => {
-      if (id) {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }
-    };
-  }, [showToast]);
-
-  const removeToast = useCallback((id) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  // Convenience helpers, parity with the react-hot-toast API so callers can use
+  // either entry point interchangeably.
+  showToast.success = (msg, opts) => showToast(msg, 'success', opts);
+  showToast.error = (msg, opts) => showToast(msg, 'error', opts);
+  showToast.warning = (msg, opts) => showToast(msg, 'warning', opts);
+  showToast.info = (msg, opts) => showToast(msg, 'info', opts);
+  showToast.loading = (msg, opts) => showToast(msg, 'loading', opts);
+  showToast.dismiss = (id) => toast.dismiss(id);
 
   // Map types to colors and icons
   const getModalStyles = (type) => {
     switch (type) {
       case 'danger':
         return {
-          brandColor: '#ef4444',
-          icon: <AlertCircle size={28} color="#ef4444" />,
-          buttonBg: '#ef4444',
+          brandColor: 'var(--status-danger)',
+          icon: <AlertCircle size={28} color="var(--status-danger)" />,
+          buttonBg: 'var(--status-danger)',
         };
       case 'warning':
         return {
-          brandColor: '#f59e0b',
-          icon: <AlertTriangle size={28} color="#f59e0b" />,
-          buttonBg: '#f59e0b',
+          brandColor: 'var(--status-warning)',
+          icon: <AlertTriangle size={28} color="var(--status-warning)" />,
+          buttonBg: 'var(--status-warning)',
         };
       case 'success':
         return {
-          brandColor: '#10b981',
-          icon: <CheckCircle size={28} color="#10b981" />,
-          buttonBg: '#10b981',
+          brandColor: 'var(--status-success)',
+          icon: <CheckCircle size={28} color="var(--status-success)" />,
+          buttonBg: 'var(--status-success)',
         };
       default:
         return {
@@ -95,43 +102,8 @@ export const UIProvider = ({ children }) => {
     }
   };
 
-  const getToastStyles = (type) => {
-    switch (type) {
-      case 'success':
-        return {
-          bg: 'rgba(16, 185, 129, 0.1)',
-          border: '1px solid rgba(16, 185, 129, 0.25)',
-          icon: <CheckCircle size={16} color="#10b981" />,
-        };
-      case 'error':
-        return {
-          bg: 'rgba(239, 68, 68, 0.1)',
-          border: '1px solid rgba(239, 68, 68, 0.25)',
-          icon: <AlertCircle size={16} color="#ef4444" />,
-        };
-      case 'warning':
-        return {
-          bg: 'rgba(245, 158, 11, 0.1)',
-          border: '1px solid rgba(245, 158, 11, 0.25)',
-          icon: <AlertTriangle size={16} color="#f59e0b" />,
-        };
-      case 'loading':
-        return {
-          bg: 'rgba(255, 255, 255, 0.05)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          icon: <Loader size={16} color="#FFF" style={{ animation: 'spin 1.5s linear infinite' }} />,
-        };
-      default:
-        return {
-          bg: 'rgba(230, 30, 42, 0.1)',
-          border: '1px solid rgba(230, 30, 42, 0.25)',
-          icon: <Info size={16} color="var(--admin-brand, #E61E2A)" />,
-        };
-    }
-  };
-
   return (
-    <UIContext.Provider value={{ openModal, closeModal, showToast, modal, toasts }}>
+    <UIContext.Provider value={{ openModal, closeModal, showToast, modal }}>
       {children}
 
       {/* Category A: Blocking Center-Screen Modals */}
@@ -267,7 +239,7 @@ export const UIProvider = ({ children }) => {
                   borderRadius: '4px',
                   background: getModalStyles(modal.type).buttonBg,
                   border: 'none',
-                  color: '#fff',
+                  color: 'var(--admin-text-on-brand)',
                   fontWeight: '700',
                   fontSize: '0.8rem',
                   textTransform: 'uppercase',
@@ -291,65 +263,10 @@ export const UIProvider = ({ children }) => {
         </div>
       )}
 
-      {/* Category B: Non-Blocking Center-Screen Toasts */}
-      <div style={{
-        position: 'fixed',
-        top: '1.5rem',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 999999,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.5rem',
-        alignItems: 'center',
-        pointerEvents: 'none', // Allow clicking through empty space
-      }}>
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            style={{
-              pointerEvents: 'auto', // Re-enable clicks for the toast itself
-              background: '#15171A',
-              color: '#FFF',
-              padding: '0.75rem 1.25rem',
-              borderRadius: '50px',
-              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              maxWidth: '90vw',
-              minWidth: '280px',
-              fontSize: '0.85rem',
-              fontWeight: '600',
-              animation: 'toastSlideIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-              ...getToastStyles(t.type)
-            }}
-          >
-            {getToastStyles(t.type).icon}
-            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {t.message}
-            </span>
-            <button
-              onClick={() => removeToast(t.id)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'rgba(255, 255, 255, 0.4)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                padding: '0.1rem',
-                borderRadius: '50%',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = '#FFF'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.4)'; }}
-            >
-              <X size={14} />
-            </button>
-          </div>
-        ))}
-      </div>
+      {/* Toasts are NO LONGER rendered here. Batch 7 / Step 7.3 consolidated all
+          toast output onto react-hot-toast, hosted by the single <Toaster/> in
+          main.jsx (styled with the shared token chrome). The old bespoke stack
+          is gone so there is exactly one toast engine in the app. */}
 
       {/* Style Animations (Injected via style block) */}
       <style>{`
@@ -360,14 +277,6 @@ export const UIProvider = ({ children }) => {
         @keyframes modalSlideIn {
           from { transform: scale(0.9) translateY(20px); opacity: 0; }
           to { transform: scale(1) translateY(0); opacity: 1; }
-        }
-        @keyframes toastSlideIn {
-          from { transform: translateY(-20px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
         }
       `}</style>
     </UIContext.Provider>

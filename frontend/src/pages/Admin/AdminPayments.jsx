@@ -599,7 +599,7 @@ const AdminPayments = () => {
                         disabled={state.isScanning}
                         style={{
                           position: 'absolute', bottom: '1rem', right: '1rem',
-                          background: 'var(--admin-brand)', color: 'white', border: 'none',
+                          background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none',
                           padding: '0.6rem 1rem', borderRadius: '8px', fontWeight: '950',
                           fontSize: '0.65rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem',
                           boxShadow: '0 4px 15px rgba(0,0,0,0.5)', transition: 'all 0.2s',
@@ -617,10 +617,10 @@ const AdminPayments = () => {
                         border: '1px solid #10b981', borderRadius: '12px', display: 'flex', 
                         alignItems: 'center', gap: '0.75rem' 
                       }}>
-                        <CheckCircle size={18} color="#10b981" />
+                        <CheckCircle size={18} color="var(--status-success)" />
                         <div>
-                          <div style={{ fontSize: '0.6rem', fontWeight: '950', color: '#10b981', textTransform: 'uppercase' }}>AI Verification Success</div>
-                          <div style={{ fontSize: '0.75rem', fontWeight: '800', color: 'white' }}>MATCHED REF: {state.selectedItem.detected_ref}</div>
+                          <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--status-success)', textTransform: 'uppercase' }}>AI Verification Success</div>
+                          <div style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--admin-text-primary)' }}>MATCHED REF: {state.selectedItem.detected_ref}</div>
                         </div>
                       </div>
                     )}
@@ -630,9 +630,9 @@ const AdminPayments = () => {
                 <div style={{ marginTop: 'auto', display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
                   {state.selectedItem.status === 'FOR_VERIFICATION' && (
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
-                      <label style={{ position: 'absolute', marginTop: '-2rem', right: 0, fontSize: '0.62rem', color: '#f59e0b', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
-                      <button onClick={() => handleRejectPayment(state.selectedItem)} style={{ flex: 1, padding: '0.85rem', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px' }}>REJECT</button>
-                      <button onClick={() => handleVerifyPayment(state.selectedItem)} style={{ flex: 2, padding: '0.85rem', background: 'var(--admin-brand)', color: 'white', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px' }}>VERIFY PAID</button>
+                      <label style={{ position: 'absolute', marginTop: '-2rem', right: 0, fontSize: '0.62rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
+                      <button onClick={() => handleRejectPayment(state.selectedItem)} style={{ flex: 1, padding: '0.85rem', background: 'rgba(239,68,68,0.1)', color: 'var(--status-danger)', border: '1px solid #ef4444', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px' }}>REJECT</button>
+                      <button onClick={() => handleVerifyPayment(state.selectedItem)} style={{ flex: 2, padding: '0.85rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px' }}>VERIFY PAID</button>
                     </div>
                   )}
                   <button onClick={() => handleViewReceipt(state.selectedItem)} style={{ width: '100%', padding: '0.85rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
@@ -685,9 +685,9 @@ const AdminPayments = () => {
             <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
               {state.selectedItem.status === 'FOR_VERIFICATION' && (
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
-                  <button onClick={() => handleRejectPayment(state.selectedItem)} style={{ flex: 1, padding: '1rem', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: 'none', borderRadius: '0.75rem', fontWeight: '800', cursor: 'pointer' }}>REJECT</button>
-                  <label style={{ position: 'absolute', right: '1.5rem', marginTop: '-2.25rem', fontSize: '0.62rem', color: '#f59e0b', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
-                  <button onClick={() => handleVerifyPayment(state.selectedItem)} style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', color: 'white', border: 'none', borderRadius: '0.75rem', fontWeight: '900', cursor: 'pointer' }}>VERIFY PAID</button>
+                  <button onClick={() => handleRejectPayment(state.selectedItem)} style={{ flex: 1, padding: '1rem', background: 'rgba(239,68,68,0.1)', color: 'var(--status-danger)', border: 'none', borderRadius: '0.75rem', fontWeight: '800', cursor: 'pointer' }}>REJECT</button>
+                  <label style={{ position: 'absolute', right: '1.5rem', marginTop: '-2.25rem', fontSize: '0.62rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
+                  <button onClick={() => handleVerifyPayment(state.selectedItem)} style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '0.75rem', fontWeight: '900', cursor: 'pointer' }}>VERIFY PAID</button>
                 </div>
               )}
               <button onClick={() => handleViewReceipt(state.selectedItem)} style={{ width: '100%', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '0.75rem', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>

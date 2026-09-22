@@ -80,7 +80,53 @@ const checks = [
   ['B6  calendar rules-aware',        'frontend/src/components/BookingWizard/CustomCalendar.jsx', ["isDateBookable", "decision.reason", "blocked_slots", "aria-label"]],
   ['B6  slot date-gate feedback',     'frontend/src/components/BookingWizard/Step1Schedule.jsx', ["isDateBookable", "dateGate", "blocked_slots"]],
   ['B6  BusinessHub Schedule tab',    'frontend/src/pages/Admin/BusinessHub.jsx',     ["'schedule'", "Schedule Rules", "booking_lead_time_minutes", "max_advance_days", "closed_weekdays", "enforce_capacity", "toggleClosedWeekday"]],
-  ['B6  BusinessHub smart-save',      'frontend/src/pages/Admin/BusinessHub.jsx',     ["section === 'schedule'", "canSave('schedule')", "isDirty('schedule')"]]
+  ['B6  BusinessHub smart-save',      'frontend/src/pages/Admin/BusinessHub.jsx',     ["section === 'schedule'", "canSave('schedule')", "isDirty('schedule')"]],
+
+  // ── Batch 7 / Step 7.3: Toast consolidation + error-routing policy ───────
+  ['B7.3 shared toast chrome',       'frontend/src/utils/toastChrome.js',            ["TOAST_BASE_STYLE", "TOASTER_DEFAULTS", "var(--admin-card)", "var(--admin-text-primary)", "--status-danger", "375px-safe"]],
+  ['B7.3 Toaster uses shared chrome', 'frontend/src/main.jsx',                        ["TOASTER_DEFAULTS", "<Toaster"]],
+  ['B7.3 UIContext consolidated',     'frontend/src/context/UIContext.jsx',           ["react-hot-toast", "toastChrome", "toast.success", "toast.error", "toast.dismiss"]],
+  ['B7.3 legacy toast stack gone',    'frontend/src/context/UIContext.jsx',           ["Toasts are NO LONGER rendered here", "exactly one toast engine"]],
+  ['B7.3 error routing classifier',   'frontend/src/utils/errorRouting.js',           ["classifyScheduleError", "toCleanMessage", "PAST_DATE", "CAPACITY_EXCEEDED", "SLOT_UNAVAILABLE", "VALIDATION_UNAVAILABLE"]],
+  ['B7.3 read-error copy fixed',      'frontend/src/services/bookingService.js',      ["could not load your bookings", "[CustomerBookings]"]],
+  ['B7.3 promo fail-closed',          'frontend/src/components/AdminSchedule/PromoManager.jsx', ["FAIL-CLOSED", "promotions service is unreachable", "logger"]],
+  ['DELETED  ConfirmationToast gone', 'frontend/src/components/ConfirmationToast.jsx',  []],
+  ['DELETED  confirmationStyles gone','frontend/src/styles/confirmationStyles.js',      []],
+
+  // ── Batch 7 / Step 7.4: Global UI/UX polish (tokens + mobile) ────────────
+  ['B7.4 phantom tokens defined',     'frontend/src/index.css',                       ["--admin-success:", "--admin-success-rgb:", "--admin-warning:", "--admin-info:", "--admin-surface:", "--admin-radius-md:", "--admin-radius-lg:", "--admin-text-on-brand:", "--admin-text-on-status:"]],
+  ['B7.4 login overflow clipped',     'frontend/src/pages/Login.jsx',                 ["overflow: 'hidden'", "maxWidth: '100vw'"]],
+  ['B7.4 landing container fixed',    'frontend/src/pages/Landing.jsx',               [".container-wide { max-width: 1200px", "minmax(min(100%, 320px), 1fr)"]],
+  ['B7.4 login token (no --bg-primary)', 'frontend/src/pages/Login.jsx',              ["var(--admin-bg)"]],
+  ['B7.4 staff layout tokenized',     'frontend/src/pages/Staff/StaffLayout.jsx',     ["var(--admin-bg)", "var(--admin-card)", "var(--admin-text-primary)"]],
+  ['B7.4 modal styles tokenized',     'frontend/src/context/UIContext.jsx',           ["brandColor: 'var(--status-danger)'", "brandColor: 'var(--status-warning)'", "brandColor: 'var(--status-success)'"]],
+  ['B7.4 audit harness present',      'scratch/qa_full_audit.mjs',                    ["docScrollW", "overflow", "ROUTES", "auth-token"]],
+
+  // ── Batch 7 / Step 7.5: Final E2E audit harnesses ───────────────────────
+  ['B7.5 logic E2E harness',          'scratch/verify_75_logic.mjs',                  ["calculateBayUsage", "isSlotBookable", "sanitizeVehiclePlate", "SLOT_FULL"]],
+  ['B7.5 DB-state harness',           'scratch/verify_75_db.mjs',                     ["slot_has_capacity", "lock_schedule_day", "audit_logs", "RLS"]],
+  ['B7.5 suite1 lockout harness',     'scratch/verify_75_suite1.mjs',                 ["lockout", "speedway-theme", "Attempt"]],
+  ['B7.5 suite245 harness',           'scratch/verify_75_suite245.mjs',               ["hasViewChanges", "hasOtp", "hasConfidence"]],
+  ['B7.5 lockout 5-attempt contract', 'frontend/src/context/AuthContext.jsx',         ["failedAttempts >= 5", "LOGIN_LOCKOUT_MS", "Account locked for 20 minutes"]],
+
+  // ── Batch 7 / Step 7.5: Task B (QR security, OCR ledger, guards, audit diff) ─
+  ['B7.5 TaskB migration',            'supabase/migrations/20260926000001_task_b_qr_security_ocr_ledger.sql', ["qr_account_name", "qr_account_number", "fallback_receiver_name", "fallback_receiver_number", "active_qr_snapshot", "customer_credit_ledger", "apply_service_downpayment", "settle_overpayment_on_completion", "start_qr_change_otp", "verify_qr_change_otp", "All fields are required"]],
+  ['B7.5 TaskB QR service',           'frontend/src/services/qrSecurityService.js',    ["QR_FIELDS", "validateQrRecipients", "captureQrSnapshot", "requestQrChangeOtp", "verifyQrChangeOtp"]],
+  ['B7.5 TaskB credit ledger service','frontend/src/services/creditLedgerService.js',  ["computeNetCredit", "total - fee", "applyServiceDownpayment", "settleOverpaymentOnCompletion", "recordExcessCredit"]],
+  ['B7.5 TaskB OTP modal',            'frontend/src/components/Business/QrChangeOtpModal.jsx', ["All fields are required", "6-digit", "Send Code", "Verify & Save"]],
+  ['B7.5 TaskB audit diff modal',     'frontend/src/components/AuditLog/ChangeDiffModal.jsx', ["old_values", "new_values", "View Changes"]],
+  ['B7.5 TaskB audit log column',     'frontend/src/pages/Admin/AdminAuditLogs.jsx',  ["ChangeDiffModal", "View Changes", "hasChanges"]],
+  ['B7.5 TaskB business hub QR',      'frontend/src/pages/Admin/BusinessHub.jsx',     ["validateQrRecipients", "QrChangeOtpModal", "qr_account_name", "fallback_receiver_number", "Change QR", "useUnsavedChangesGuard"]],
+  ['B7.5 TaskB unsaved guard hook',   'frontend/src/hooks/useUnsavedChangesGuard.js', ["confirmNavigation", "beforeunload", "modalProps"]],
+  ['B7.5 TaskB sanitization',         'frontend/src/config/constants.js',             ["ALPHANUMERIC_PATTERN", "sanitizeAlphaNum", "isAlphaNum"]],
+  ['B7.5 TaskB checkout snapshot',    'frontend/src/components/BookingWizard/Step4ReviewPayment.jsx', ["captureQrSnapshot", "qrTarget", "QR_FALLBACK_NAME"]],
+  ['B7.5 TaskB QR fields in config',  'frontend/src/context/ConfigContext.jsx',       ["QR_ACCOUNT_NAME", "QR_FALLBACK_NAME", "QR_CONFIG_VERSION"]],
+  ['B7.5 TaskB backend OTP email',    'backend/server.js',                            ["/api/emails/qr-change-otp", "QR Change Verification Code"]],
+  ['B7.5 TaskB settle on complete',   'backend/server.js',                            ["settle_overpayment_on_completion"]],
+  ['B7.5 TaskB net credit payments',  'frontend/src/services/bookingService.js',      ["transferFee", "netCredit", "active_qr_snapshot", "recordExcessCredit"]],
+  ['B7.5 TaskB downpayment absorb',   'frontend/src/pages/Admin/AdminBookingDetails.jsx', ["applyServiceDownpayment", "creditUsed", "net shortfall"]],
+  ['B7.5 TaskB refresh guard',        'frontend/src/pages/Customer/CustomerBookAppointment.jsx', ["blockUnload", "You have unsaved booking changes"]],
+  ['B7.5 migration validator',        'backend/validate_all_migrations.cjs',          ["apply_service_downpayment", "settle_overpayment_on_completion", "qr_config_complete"]]
 ];
 
 let pass = 0;

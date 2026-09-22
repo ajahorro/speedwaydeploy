@@ -39,7 +39,7 @@ const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           flexShrink: 0
         }}>
-          <AlertTriangle size={20} color="#ef4444" />
+          <AlertTriangle size={20} color="var(--status-danger)" />
         </div>
         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase', color: 'var(--admin-text-primary)' }}>
           Confirm Deletion
@@ -71,10 +71,10 @@ const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
           onClick={onConfirm}
           style={{
             padding: '0.75rem 1.5rem',
-            background: '#ef4444',
+            background: 'var(--status-danger)',
             border: 'none',
             borderRadius: 'var(--admin-radius-sm)',
-            color: 'white',
+            color: 'var(--admin-text-primary)',
             fontWeight: '950',
             fontSize: '0.75rem',
             textTransform: 'uppercase',
@@ -346,7 +346,7 @@ const AdminNotifications = () => {
                       <span style={{ fontSize: '0.65rem', fontWeight: '950', color: notif.is_read ? 'var(--admin-text-secondary)' : 'var(--admin-brand)' }}>{notif.notification_type || notif.type}</span>
                       <span style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)' }}>{new Date(notif.created_at).toLocaleString()}</span>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'white' }}>{notif.title || 'Signal Received'}</p>
+                    <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>{notif.title || 'Signal Received'}</p>
                     <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>{notif.message}</p>
                   </div>
                 </div>

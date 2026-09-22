@@ -26,7 +26,7 @@ export const QRMagnifier = ({ qrUrl, accountName, accountNumber, standalone = fa
           <>
             <span style={{ position: 'relative', width: 'clamp(3.5rem, 18vw, 4.5rem)', height: 'clamp(3.5rem, 18vw, 4.5rem)', flexShrink: 0, display: 'grid', placeItems: 'center', overflow: 'hidden', borderRadius: 'var(--admin-radius)', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)' }}>
               <img src={qrUrl} alt="Payment QR thumbnail" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '0.25rem' }} />
-              <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#fff', background: 'rgba(0,0,0,0.4)' }}><Search size={18} /></span>
+              <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--admin-text-on-brand)', background: 'rgba(0,0,0,0.4)' }}><Search size={18} /></span>
             </span>
             <span style={{ minWidth: 0, overflow: 'hidden' }}>
               <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>{accountName}</strong>

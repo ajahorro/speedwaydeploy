@@ -16,7 +16,6 @@ import { segregateBookings } from '../../utils/schedulingUtils';
 import SegmentedTimePicker from '../../components/AdminSchedule/SegmentedTimePicker';
 import OccupancyShelf from '../../components/AdminSchedule/OccupancyShelf';
 import DetailTimeline from '../../components/AdminSchedule/DetailTimeline';
-import ConfirmationToast from '../../components/ConfirmationToast';
 import { AlertTriangle, Info } from 'lucide-react';
 
 import { useUI } from '../../context/UIContext';
@@ -907,7 +906,7 @@ const AdminSchedule = () => {
 
                 <button
                   onClick={handleCommitBlock}
-                  style={{ background: 'var(--admin-brand)', color: 'white', border: 'none', padding: '0.85rem 2rem', borderRadius: '4px', fontWeight: '950', fontSize: '0.75rem', textTransform: 'uppercase', cursor: 'pointer', letterSpacing: '1px' }}
+                  style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', padding: '0.85rem 2rem', borderRadius: '4px', fontWeight: '950', fontSize: '0.75rem', textTransform: 'uppercase', cursor: 'pointer', letterSpacing: '1px' }}
                 >
                   Commit Block
                 </button>
@@ -933,9 +932,9 @@ const AdminSchedule = () => {
                     borderRadius: '6px',
                     marginBottom: '1rem'
                   }}>
-                    <CheckCircle2 size={18} color="#10b981" style={{ flexShrink: 0 }} />
+                    <CheckCircle2 size={18} color="var(--status-success)" style={{ flexShrink: 0 }} />
                     <div style={{ flex: 1 }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '950', color: '#10b981', textTransform: 'uppercase', letterSpacing: '1px' }}>Zero Administrative Records</span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: '950', color: 'var(--status-success)', textTransform: 'uppercase', letterSpacing: '1px' }}>Zero Administrative Records</span>
                       <span style={{ fontSize: '0.7rem', color: 'var(--admin-text-secondary)', fontWeight: '600', marginLeft: '0.75rem' }}>This day is clear. No bookings or restrictions are scheduled.</span>
                     </div>
                     <button
@@ -1305,7 +1304,7 @@ const AdminSchedule = () => {
               title={!isConfirmUnlocked ? 'Enter name, discount value, valid dates, and bind at least 1 vehicle-service mapping to unlock' : undefined}
               style={{
                 background: isConfirmUnlocked ? '#059669' : '#374151',
-                color: '#fff',
+                color: 'var(--admin-text-on-brand)',
                 border: 'none',
                 borderRadius: '4px',
                 fontWeight: '900',
@@ -1490,7 +1489,7 @@ const AdminSchedule = () => {
                     style={{
                       border: '1px solid #ef4444',
                       background: 'transparent',
-                      color: '#ef4444',
+                      color: 'var(--status-danger)',
                       padding: '0.5rem 0.8rem',
                       borderRadius: '4px',
                       fontWeight: '900',

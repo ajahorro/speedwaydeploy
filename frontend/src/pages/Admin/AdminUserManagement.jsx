@@ -109,7 +109,7 @@ const AdminUserManagement = () => {
 
   const getRoleBadge = (role) => {
     switch (role) {
-      case 'ADMIN': return { color: '#ef4444', label: 'ADMINISTRATOR', icon: <Shield size={10} /> };
+      case 'ADMIN': return { color: 'var(--status-danger)', label: 'ADMINISTRATOR', icon: <Shield size={10} /> };
       case 'STAFF': return { color: '#3b82f6', label: 'STAFF', icon: <UserCog size={10} /> };
       default: return { color: 'var(--admin-text-secondary)', label: 'CUSTOMER', icon: <User size={10} /> };
     }
@@ -148,7 +148,7 @@ const AdminUserManagement = () => {
                 style={{ 
                   width: '100%', padding: '0.85rem 1.25rem 0.85rem 3.5rem', 
                   background: 'var(--admin-card)', border: '1px solid var(--admin-border)', 
-                  borderRadius: '4px', color: 'white', fontWeight: '700', outline: 'none'
+                  borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '700', outline: 'none'
                 }}
               />
             </div>
@@ -218,7 +218,7 @@ const AdminUserManagement = () => {
                     </div>
 
                     <div style={{ width: '100%' }}>
-                      <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1rem', fontWeight: '950', color: 'white', textTransform: 'uppercase' }}>{user.full_name}</h3>
+                      <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>{user.full_name}</h3>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.55rem', fontWeight: '950', color: roleBadge.color, background: `${roleBadge.color}11`, padding: '0.15rem 0.5rem', borderRadius: '2px', border: `1px solid ${roleBadge.color}33`, textTransform: 'uppercase' }}>
                         {roleBadge.icon} {roleBadge.label}
                       </div>
@@ -240,7 +240,7 @@ const AdminUserManagement = () => {
             ) : (
               <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '5rem', background: 'var(--admin-card)', borderRadius: '4px', border: '1px dashed var(--admin-border)' }}>
                 <Users size={64} style={{ color: 'var(--admin-text-secondary)', marginBottom: '1.5rem', opacity: 0.1 }} />
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '950', color: 'white', textTransform: 'uppercase' }}>No matching profiles found</h3>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>No matching profiles found</h3>
               </div>
             )}
           </div>
@@ -270,7 +270,7 @@ const AdminUserManagement = () => {
               </div>
               
               <div style={{ flex: 1 }}>
-                <h2 style={{ fontSize: '2rem', fontWeight: '950', color: 'white', margin: '0', textTransform: 'uppercase' }}>{selectedUser?.full_name}</h2>
+                <h2 style={{ fontSize: '2rem', fontWeight: '950', color: 'var(--admin-text-primary)', margin: '0', textTransform: 'uppercase' }}>{selectedUser?.full_name}</h2>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', marginTop: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '800' }}>
                     <Mail size={16} color="var(--admin-brand)" /> {selectedUser?.email}
@@ -303,7 +303,7 @@ const AdminUserManagement = () => {
                         minWidth: '140px', padding: '1rem', background: 'var(--admin-bg)', 
                         borderRadius: '4px', textAlign: 'center', border: '1px solid var(--admin-border)'
                       }}>
-                        <div style={{ fontSize: '1.75rem', fontWeight: '950', color: 'white' }}>
+                        <div style={{ fontSize: '1.75rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>
                           {new Date(booking.start_datetime).getDate()}
                         </div>
                         <div style={{ fontSize: '0.7rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
@@ -325,7 +325,7 @@ const AdminUserManagement = () => {
                         
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                           {booking.services.map((s, idx) => (
-                            <span key={idx} style={{ fontSize: '0.8rem', fontWeight: '900', color: 'white', background: 'var(--admin-bg)', padding: '0.35rem 0.75rem', borderRadius: '4px', border: '1px solid var(--admin-border)', textTransform: 'uppercase' }}>
+                            <span key={idx} style={{ fontSize: '0.8rem', fontWeight: '900', color: 'var(--admin-text-primary)', background: 'var(--admin-bg)', padding: '0.35rem 0.75rem', borderRadius: '4px', border: '1px solid var(--admin-border)', textTransform: 'uppercase' }}>
                               {s.service_name}
                             </span>
                           ))}
@@ -344,7 +344,7 @@ const AdminUserManagement = () => {
               ) : (
                 <div style={{ textAlign: 'center', padding: '4rem', background: 'var(--admin-card)', borderRadius: '4px', border: '1px dashed var(--admin-border)' }}>
                   <Calendar size={48} style={{ color: 'var(--admin-text-secondary)', marginBottom: '1.25rem', opacity: 0.1 }} />
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: '950', color: 'white', textTransform: 'uppercase' }}>No system records found</h3>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>No system records found</h3>
                 </div>
               )}
             </div>

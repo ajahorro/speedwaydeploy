@@ -259,7 +259,7 @@ const Landing = () => {
 
       {/* 3. ABOUT SECTION */}
       <section id="about" className="section-padding" style={{ background: '#0A0B0D' }}>
-        <div className="container-wide" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '4rem', alignItems: 'center' }}>
+        <div className="container-wide" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 'clamp(1.5rem, 5vw, 4rem)', alignItems: 'center' }}>
           <div>
             <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '2rem' }}>ABOUT US</h2>
             <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.6)', lineHeight: '1.8', marginBottom: '1.5rem' }}>
@@ -296,9 +296,9 @@ const Landing = () => {
           {Object.entries(SERVICES_DATA).map(([category, services], catIndex) => (
             <div key={category} style={{ marginBottom: '6rem' }}>
               {/* CATEGORY HEADER */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', marginBottom: '3rem' }}>
-                <h3 style={{ fontSize: '1.5rem', fontWeight: '950', textTransform: 'uppercase', whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.9)' }}>{category}</h3>
-                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(0.75rem, 2vw, 2rem)', marginBottom: '3rem', minWidth: 0 }}>
+                <h3 style={{ fontSize: 'clamp(1rem, 4vw, 1.5rem)', fontWeight: '950', textTransform: 'uppercase', color: 'rgba(255,255,255,0.9)', minWidth: 0 }}>{category}</h3>
+                <div style={{ flex: 1, minWidth: '1rem', height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
               </div>
 
               {/* SERVICES GRID */}
@@ -430,7 +430,7 @@ const Landing = () => {
 
       {/* 6. CONTACT SECTION */}
       <section id="contact" className="section-padding" style={{ background: '#0F1012' }}>
-        <div className="container-wide" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '6rem' }}>
+        <div className="container-wide" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 'clamp(1.5rem, 5vw, 6rem)' }}>
           <div>
             <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '2rem' }}>CONTACT US</h2>
             <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '3rem', lineHeight: '1.8' }}>Ready to give your car the Speedway treatment? Get in touch with us for quotes, appointments, or any inquiries.</p>
@@ -480,7 +480,7 @@ const Landing = () => {
       {/* GLOBAL RESPONSIVE & UTILITY STYLES */}
       <style>{`
         .section-padding { padding: clamp(4rem, 10vw, 8rem) clamp(1rem, 5vw, 4rem); }
-        .container-wide { maxWidth: 1200px; margin: 0 auto; }
+        .container-wide { max-width: 1200px; margin: 0 auto; width: 100%; }
         .nav-link:hover { color: #E61E2A !important; }
         
         @media (max-width: 768px) {

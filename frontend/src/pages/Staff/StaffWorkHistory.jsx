@@ -65,10 +65,10 @@ const StaffWorkHistory = () => {
     padding: '1rem 1.5rem',
     fontSize: '0.65rem',
     fontWeight: '950',
-    color: '#8E9196',
+    color: 'var(--admin-text-secondary)',
     textTransform: 'uppercase',
     letterSpacing: '1.5px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+    borderBottom: '1px solid var(--admin-border)',
     textAlign: 'left'
   };
 
@@ -76,41 +76,41 @@ const StaffWorkHistory = () => {
     padding: '1.25rem 1.5rem',
     fontSize: '0.85rem',
     fontWeight: '700',
-    color: 'white',
+    color: 'var(--admin-text-primary)',
     borderBottom: '1px solid rgba(255, 255, 255, 0.02)',
     verticalAlign: 'middle'
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
-      <PageHeader 
+      <PageHeader
         badge="AUDIT & ARCHIVE"
         title="Work History"
         subtitle="Review your completed detailing jobs and historical service performance."
       />
 
-      <div style={{ background: '#15171A', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '8px', overflow: 'hidden' }}>
         {/* Search Bar & Stats */}
-        <div style={{ 
-          padding: '1.5rem', 
-          borderBottom: '1px solid rgba(255, 255, 255, 0.05)', 
-          display: 'flex', 
+        <div style={{
+          padding: '1.5rem',
+          borderBottom: '1px solid var(--admin-border)',
+          display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
-          justifyContent: 'space-between', 
+          justifyContent: 'space-between',
           alignItems: isMobile ? 'flex-start' : 'center',
           gap: '1.25rem'
         }}>
           <div style={{ position: 'relative', width: isMobile ? '100%' : '300px' }}>
             <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#444' }} />
-            <input 
-              type="text" 
-              placeholder="Search by Plate or Model..." 
+            <input
+              type="text"
+              placeholder="Search by Plate or Model..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ width: '100%', background: '#0A0B0D', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '4px', padding: '0.75rem 1rem 0.75rem 2.5rem', color: 'white', fontSize: '0.85rem', outline: 'none' }}
+              style={{ width: '100%', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '0.75rem 1rem 0.75rem 2.5rem', color: 'var(--admin-text-primary)', fontSize: '0.85rem', outline: 'none' }}
             />
           </div>
-          <div style={{ fontSize: '0.65rem', fontWeight: '950', color: '#8E9196', textTransform: 'uppercase', letterSpacing: '1px' }}>
+          <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
             Total Records: {filteredHistory.length}
           </div>
         </div>
@@ -120,34 +120,34 @@ const StaffWorkHistory = () => {
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {filteredHistory.length > 0 ? (
               filteredHistory.map((item) => (
-                <div 
+                <div
                   key={item.id}
                   onClick={() => navigate(`/staff/job/${item.id}`)}
-                  style={{ 
-                    padding: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', 
+                  style={{
+                    padding: '1.5rem', borderBottom: '1px solid var(--admin-border)',
                     display: 'flex', flexDirection: 'column', gap: '1rem', cursor: 'pointer',
                     background: 'rgba(255,255,255,0.01)'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '4px', background: '#0A0B0D', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E61E2A' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '4px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)' }}>
                         <Car size={20} />
                       </div>
                       <div>
                         <div style={{ fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase' }}>{item.brand} {item.model}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
-                          <span style={{ background: '#E61E2A', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '2px', fontSize: '0.65rem', fontWeight: '950' }}>
+                          <span style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', padding: '0.1rem 0.4rem', borderRadius: '2px', fontSize: '0.65rem', fontWeight: '950' }}>
                             {item.plate_number}
                           </span>
-                          <span style={{ fontSize: '0.65rem', color: '#8E9196', fontWeight: '700' }}>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>
                             {new Date(item.finalized_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} | {new Date(item.finalized_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                       </div>
                     </div>
-                    <div style={{ 
-                      fontSize: '0.55rem', fontWeight: '950', padding: '0.2rem 0.5rem', 
+                    <div style={{
+                      fontSize: '0.55rem', fontWeight: '950', padding: '0.2rem 0.5rem',
                       borderRadius: '2px', background: item.booking_status === 'completed' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                       color: item.booking_status === 'completed' ? '#10b981' : '#ef4444', border: '1px solid currentColor', textTransform: 'uppercase'
                     }}>
@@ -156,7 +156,7 @@ const StaffWorkHistory = () => {
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                     {item.services?.slice(0, 3).map((s, i) => (
-                      <span key={i} style={{ fontSize: '0.6rem', color: '#8E9196', background: 'rgba(255,255,255,0.03)', padding: '0.2rem 0.5rem', borderRadius: '2px' }}>{s.service_name}</span>
+                      <span key={i} style={{ fontSize: '0.6rem', color: 'var(--admin-text-secondary)', background: 'rgba(255,255,255,0.03)', padding: '0.2rem 0.5rem', borderRadius: '2px' }}>{s.service_name}</span>
                     ))}
                     {item.services?.length > 3 && <span style={{ fontSize: '0.6rem', color: '#444' }}>+{item.services.length - 3} more</span>}
                   </div>
@@ -184,15 +184,15 @@ const StaffWorkHistory = () => {
             <tbody>
               {filteredHistory.length > 0 ? (
                 filteredHistory.map((item) => (
-                  <tr 
-                    key={item.id} 
-                    className="admin-card-hover" 
+                  <tr
+                    key={item.id}
+                    className="admin-card-hover"
                     style={{ transition: 'all 0.2s', cursor: 'pointer' }}
                     onClick={() => navigate(`/staff/job/${item.id}`)}
                   >
                     <td style={tableRowStyle}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '4px', background: '#0A0B0D', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E61E2A' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '4px', background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)' }}>
                           <Car size={18} />
                         </div>
                         <div>
@@ -202,7 +202,7 @@ const StaffWorkHistory = () => {
                       </div>
                     </td>
                     <td style={tableRowStyle}>
-                      <span style={{ background: '#0A0B0D', padding: '0.25rem 0.5rem', borderRadius: '2px', border: '1px solid rgba(255,255,255,0.05)', color: '#8E9196' }}>
+                      <span style={{ background: 'var(--admin-bg)', padding: '0.25rem 0.5rem', borderRadius: '2px', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)' }}>
                         {item.plate_number}
                       </span>
                     </td>
@@ -227,7 +227,7 @@ const StaffWorkHistory = () => {
                     </td>
                     <td style={tableRowStyle}>
                       {item.photo_proof_url ? (
-                        <a href={item.photo_proof_url} target="_blank" rel="noreferrer" style={{ color: '#E61E2A', fontSize: '0.75rem', textDecoration: 'underline' }}>
+                        <a href={item.photo_proof_url} target="_blank" rel="noreferrer" style={{ color: 'var(--admin-brand)', fontSize: '0.75rem', textDecoration: 'underline' }}>
                           View Image
                         </a>
                       ) : (

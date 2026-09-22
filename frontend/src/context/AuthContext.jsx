@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
 import toast from 'react-hot-toast';
+import { BACKEND_URL } from '../config/api';
 
 export const AuthContext = createContext({});
 
@@ -268,7 +269,7 @@ export const AuthProvider = ({ children }) => {
   const verifyPassword = async (password) => {
     if (!user) return { success: false, error: 'Not authenticated' };
     try {
-      const response = await fetch('http://localhost:3000/api/auth/verify-password', {
+      const response = await fetch(`${BACKEND_URL}/api/auth/verify-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, password })
@@ -282,7 +283,7 @@ export const AuthProvider = ({ children }) => {
   const requestEmailChange = async (newEmail) => {
     if (!user) return;
     try {
-      const response = await fetch('http://localhost:3000/api/auth/request-email-change', {
+      const response = await fetch(`${BACKEND_URL}/api/auth/request-email-change`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id, oldEmail: user.email, newEmail })
@@ -296,7 +297,7 @@ export const AuthProvider = ({ children }) => {
   const confirmEmailChange = async (otp) => {
     if (!user) return;
     try {
-      const response = await fetch('http://localhost:3000/api/auth/confirm-email-change', {
+      const response = await fetch(`${BACKEND_URL}/api/auth/confirm-email-change`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id, otp })
@@ -314,7 +315,7 @@ export const AuthProvider = ({ children }) => {
   const deactivateAccount = async () => {
     if (!user) return;
     try {
-      const response = await fetch('http://localhost:3000/api/auth/deactivate-account', {
+      const response = await fetch(`${BACKEND_URL}/api/auth/deactivate-account`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id })
@@ -351,7 +352,7 @@ export const AuthProvider = ({ children }) => {
     try {
       // 🛡️ REQ-AUTH-09: Use secure backend relay for administrative shift toggle
       // This bypasses RLS restrictions on the profiles table for staff.
-      const response = await fetch('http://localhost:3000/api/staff/toggle-shift', {
+      const response = await fetch(`${BACKEND_URL}/api/staff/toggle-shift`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: profile.id, newStatus })

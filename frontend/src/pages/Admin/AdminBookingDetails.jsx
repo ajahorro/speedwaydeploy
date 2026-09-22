@@ -15,6 +15,7 @@ import { calculateOccupancy, filterActiveBookings } from '../../utils/scheduling
 import { SHOP_CONFIG } from '../../config/constants';
 import { getStatusColor, isStaffOccupied } from '../../utils/bookingHelpers';
 import { calculateRequiredDownpayment, requiresDownpayment } from '../../utils/paymentUtils';
+import { applyServiceDownpayment } from '../../services/creditLedgerService';
 import toast from 'react-hot-toast';
 import BookingAuditTrail from '../../components/BookingAuditTrail';
 import BookingSummaryHeader from '../../components/BookingSummaryHeader';
@@ -32,6 +33,8 @@ import { sendStatusEmail, sendBookingConfirmationEmail, sendPaymentReceiptEmail,
 import { sendStaffAssignmentNotification } from '../../services/EmailService';
 import { getAvailableSlots } from '../../services/scheduleService';
 import { rescheduleBooking } from '../../services/bookingService';
+import ValidationModal from '../../components/ValidationModal';
+import { classifyScheduleError, toCleanMessage } from '../../utils/errorRouting';
 import { BACKEND_URL } from '../../config/api';
 
 const AdminBookingDetails = () => {
@@ -66,6 +69,9 @@ const AdminBookingDetails = () => {
   const [rescheduleSlots, setRescheduleSlots] = useState([]);
   const [rescheduleSlotsLoading, setRescheduleSlotsLoading] = useState(false);
   const [isRescheduling, setIsRescheduling] = useState(false);
+  // Batch 7 / Step 7.3: schedule conflicts (capacity/past-date/etc.) from the
+  // reschedule RPC route to <ValidationModal>; transient failures stay on toasts.
+  const [rescheduleIssue, setRescheduleIssue] = useState(null);
   // Batch 5: photo evidence drawer.
   const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false);
   const [undoNoShowModal, setUndoNoShowModal] = useState({
@@ -110,7 +116,7 @@ const AdminBookingDetails = () => {
     setLoading(true);
     try {
       logger.admin(`Syncing Booking: ${id}`);
-      
+
       // 1. Fetch main booking record
       const { data: bData, error: bError } = await supabase
         .from('bookings')
@@ -161,7 +167,7 @@ const AdminBookingDetails = () => {
           .from('booking_vehicle_services')
           .select('*')
           .in('booking_vehicle_id', vehicleIds);
-        
+
         vehiclesWithServices = vData.map(v => ({
           ...v,
           services: (sData || []).filter(s => s.booking_vehicle_id === v.id)
@@ -179,9 +185,9 @@ const AdminBookingDetails = () => {
           subtotal: Number(v.subtotal) > 0 ? Number(v.subtotal) : snapshotSubtotal
         };
       });
-      
+
       const calculatedTotal = processedVehicles.reduce((sum, v) => sum + v.subtotal, 0);
-      
+
       setBooking({
         ...bData,
         customer,
@@ -192,11 +198,11 @@ const AdminBookingDetails = () => {
 
       // SYNC AUDIT LOGS WITH DATA
       const { data: auditData } = await supabase.from('audit_logs').select('*').eq('booking_id', id).order('created_at', { ascending: false });
-      const logs = auditData ? auditData.map(log => ({ 
-        ...log, 
-        event_type: log.action_type, 
-        metadata: { details: log.details }, 
-        actor: { full_name: log.actor_name, role: log.actor_role } 
+      const logs = auditData ? auditData.map(log => ({
+        ...log,
+        event_type: log.action_type,
+        metadata: { details: log.details },
+        actor: { full_name: log.actor_name, role: log.actor_role }
       })) : [];
 
       setAuditLogs(logs);
@@ -204,11 +210,11 @@ const AdminBookingDetails = () => {
       if (bData.staff_id && ['scheduled', 'pending'].includes(String(bData.status || '').toLowerCase())) {
         await confirmBookingWhenReady();
       }
-    } catch (error) { 
+    } catch (error) {
       logger.error('Admin Sync Error', error);
-      toast.error('Data pipeline error. Check console.'); 
-    } finally { 
-      setLoading(false); 
+      toast.error('Data pipeline error. Check console.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -277,14 +283,14 @@ const AdminBookingDetails = () => {
 
   const fetchAuditLogs = async () => {
     const { data } = await supabase.from('audit_logs').select('*').eq('booking_id', id).order('created_at', { ascending: true });
-    
+
     // Virtual Creation Log if missing
     const hasCreation = data?.some(l => l.action_type === 'BOOKING_CREATED');
-    const logs = data ? data.map(log => ({ 
-      ...log, 
-      event_type: log.action_type, 
-      metadata: { details: log.details }, 
-      actor: { full_name: log.actor_name, role: log.actor_role } 
+    const logs = data ? data.map(log => ({
+      ...log,
+      event_type: log.action_type,
+      metadata: { details: log.details },
+      actor: { full_name: log.actor_name, role: log.actor_role }
     })) : [];
 
     if (!hasCreation && booking) {
@@ -362,35 +368,35 @@ const AdminBookingDetails = () => {
         fetchBookingDetails();
         return;
       }
-      
+
       // REQ-ADM-04: Determine if this is a post-service assignment
       const isPostService = booking.status === 'completed';
       const customerName = booking.customer?.full_name || booking.customer_name || 'Customer';
-      
-      const updatePayload = { 
-        staff_id: staffId, 
-        assigned_by: admin?.id, 
+
+      const updatePayload = {
+        staff_id: staffId,
+        assigned_by: admin?.id,
         assigned_at: new Date().toISOString(),
         customer_name: customerName,
         contact_number: booking.contact_number || booking.customer?.phone_number
       };
 
       const { error } = await supabase.from('bookings').update(updatePayload).eq('id', id);
-      
+
       if (error) throw error;
-      
+
       const staffMember = staffList.find(s => s.id === staffId);
       const staffName = staffMember?.full_name || 'Staff';
 
       // 1. Notify Staff in-app
       await notifyUser(
-        staffId, 
-        'New Fleet Assigned', 
-        `You have been assigned to lead the detailing session for ${customerName}.`, 
-        'TASK_ASSIGNED', 
+        staffId,
+        'New Fleet Assigned',
+        `You have been assigned to lead the detailing session for ${customerName}.`,
+        'TASK_ASSIGNED',
         `/staff/tasks`
       );
-      
+
       // 2. Dual Delivery — Dispatch direct 1-to-1 email alert to technician asynchronously
       if (staffMember?.email) {
         sendStaffAssignmentNotification(staffMember.email, {
@@ -408,15 +414,15 @@ const AdminBookingDetails = () => {
         action_type: isPostService ? 'POST_SERVICE_ASSIGNMENT' : 'STAFF_ASSIGNED',
         actor_name: admin?.email || 'Admin',
         actor_role: 'ADMIN',
-        details: isPostService 
-          ? `Post-service assignment: Linked technician ${staffName} to completed session for reporting.` 
+        details: isPostService
+          ? `Post-service assignment: Linked technician ${staffName} to completed session for reporting.`
           : `Assigned technician ${staffName} to lead this session.`
       });
 
       toast.success(isPostService ? 'Post-Service Assignment Recorded' : 'Technician Assigned Successfully', { id: toastId });
       await confirmBookingWhenReady();
       fetchBookingDetails(); fetchAuditLogs();
-    } catch (error) { 
+    } catch (error) {
       logger.error('CRITICAL ASSIGNMENT FAILURE:', error);
       toast.error('Assignment failed', { id: toastId });
     }
@@ -429,9 +435,9 @@ const AdminBookingDetails = () => {
       const verifiedAmount = Number(p.detected_amount || p.amount || 0);
       const { error } = await supabase.from('payments').update({ amount: verifiedAmount, status: 'PAID', notes: `${p.notes || 'PAYMENT_DIGITAL'} | PAYMENT_DIGITAL_VERIFIED | OCR_AMOUNT:${verifiedAmount}`, verified_by: verifier?.id, verified_at: new Date().toISOString() }).eq('id', p.id);
       if (error) throw error;
-      
+
       await notifyUser(booking.customer_id, 'Payment Verified', `Your payment of ₱${p.amount.toLocaleString()} has been approved. Thank you!`, 'PAYMENT_APPROVED', `/my-bookings/${id}`);
-      
+
       // 🚀 AUTOMATIC LIFECYCLE SYNC via Backend Propagator
       const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
       await fetch(`${BACKEND_URL}/api/bookings/update-status`, {
@@ -440,7 +446,7 @@ const AdminBookingDetails = () => {
         body: JSON.stringify({
           bookingId: id,
           unitId: vehicles[0]?.id, // Just trigger with the first unit to force a sync
-          newStatus: vehicles[0]?.status, 
+          newStatus: vehicles[0]?.status,
           actorName: verifier?.email || 'Admin',
           actorRole: 'ADMIN'
         })
@@ -462,9 +468,9 @@ const AdminBookingDetails = () => {
     try {
       const { error } = await supabase.from('payments').update({ status: 'REJECTED', rejection_reason: reason }).eq('id', p.id);
       if (error) throw error;
-      
+
       await notifyUser(booking.customer_id, 'Payment Rejected', `Reason: ${reason}. Please re-submit your receipt.`, 'PAYMENT_REJECTED', `/my-bookings/${id}`);
-      
+
       toast.success('Receipt rejected');
       fetchPayments(); fetchBookingDetails(); fetchAuditLogs();
     } catch (err) { toast.error('Rejection failed'); }
@@ -631,12 +637,12 @@ const AdminBookingDetails = () => {
 
   const handleRecordPayment = async () => {
     if (!paymentAmount || Number(paymentAmount) <= 0) return toast.error('Enter a valid amount');
-    
+
     // 🛡️ LEDGER HARD CAP (REQ-ADM-05)
     if (Number(paymentAmount) > balance) {
       return toast.error(`Excess payment detected. Maximum allowed: ₱${balance.toLocaleString()}`, {
         icon: '!',
-        style: { border: '2px solid #ef4444', background: '#15171A', color: '#fff' }
+        style: { border: '2px solid #ef4444', background: 'var(--admin-card)', color: 'var(--admin-text-on-brand)' }
       });
     }
 
@@ -644,7 +650,7 @@ const AdminBookingDetails = () => {
     const toastId = toast.loading('Recording manual payment...');
     try {
       const { data: { user: actor } } = await supabase.auth.getUser();
-      
+
       const { data: pData, error: pError } = await supabase.from('payments').insert({
         booking_id: id,
         amount: Number(paymentAmount),
@@ -811,7 +817,7 @@ const AdminBookingDetails = () => {
     }
   };
 
-  const handleSelectService = (vehicleId, service) => {
+  const handleSelectService = async (vehicleId, service) => {
     const vehicle = vehicles.find(item => item.id === vehicleId);
     const price = Number(service.prices[vehicle?.vehicle_type] || 0);
     if (!vehicle || price <= 0) return;
@@ -826,9 +832,32 @@ const AdminBookingDetails = () => {
       return;
     }
 
-    setPendingService({ vehicleId, service, price });
+    const downpayment = calculateRequiredDownpayment(price).amount;
+
+    // Task B: dynamic overpayment ledger. Auto-absorb available excess_credit
+    // against the downpayment D. If D <= excess_credit the prompt is zero; if
+    // D > excess_credit we prompt only for the net shortfall.
+    let requiredNow = downpayment;
+    let creditUsed = 0;
+    const customerId = booking?.customer_id;
+    if (customerId) {
+      try {
+        const result = await applyServiceDownpayment(customerId, id, downpayment);
+        requiredNow = Number(result?.shortfall ?? downpayment);
+        creditUsed = Number(result?.credit_used ?? 0);
+        if (creditUsed > 0) {
+          toast.success(`₱${creditUsed.toLocaleString()} of excess credit applied automatically.`);
+        }
+      } catch (creditErr) {
+        // Fail-closed to the full downpayment if the ledger is unavailable.
+        logger.warn('Excess-credit lookup failed; using full downpayment.', creditErr);
+        requiredNow = downpayment;
+      }
+    }
+
+    setPendingService({ vehicleId, service, price, downpayment, creditUsed, requiredNow });
     setServicePaymentType('Downpayment');
-    setServicePaymentAmount(String(calculateRequiredDownpayment(price).amount));
+    setServicePaymentAmount(String(requiredNow));
     setServicePaymentMethod('Cash');
     setServiceReferenceNumber('');
   };
@@ -864,7 +893,7 @@ const AdminBookingDetails = () => {
 
     const v = vehicles.find(item => item.id === vehicleId);
     const toastId = toast.loading(`Updating ${v?.brand || 'unit'} status...`);
-    
+
     const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
     try {
       const response = await fetch(`${BACKEND_URL}/api/bookings/update-status`, {
@@ -910,11 +939,11 @@ const AdminBookingDetails = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-      
+
       if (profile?.role !== 'ADMIN') {
         throw new Error('ACCESS DENIED: Administrator clearance required.');
       }
-      
+
       toast.dismiss(toastId);
       setReceiptModal(true);
     } catch (err) {
@@ -988,7 +1017,15 @@ const AdminBookingDetails = () => {
       fetchAuditLogs();
       fetchPayments();
     } catch (err) {
-      toast.error(err.message || 'Failed to reschedule appointment', { id: toastId });
+      const code = classifyScheduleError(err);
+      if (code) {
+        // Scheduling conflict → guided <ValidationModal>; the reschedule did not
+        // apply, so we keep the reschedule modal open behind it for a retry.
+        setRescheduleIssue({ code, message: toCleanMessage(err), date: rescheduleDate, time: rescheduleTime });
+        toast.dismiss(toastId);
+      } else {
+        toast.error(err.message || 'Failed to reschedule appointment', { id: toastId });
+      }
     } finally {
       setIsRescheduling(false);
     }
@@ -1018,7 +1055,7 @@ const AdminBookingDetails = () => {
     borderRadius: 'var(--admin-radius)',
     padding: '1.5rem',
     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)',
-    border: '1px solid rgba(255,255,255,0.05)'
+    border: '1px solid var(--admin-border)'
   };
 
   const labelStyle = {
@@ -1142,7 +1179,7 @@ const AdminBookingDetails = () => {
               onClick={handleOpenReschedule}
               style={{
                 background: 'var(--admin-brand)',
-                color: '#fff',
+                color: 'var(--admin-text-on-brand)',
                 border: 'none',
                 padding: '0.75rem 1.25rem',
                 borderRadius: 'var(--admin-radius-sm)',
@@ -1403,7 +1440,7 @@ const AdminBookingDetails = () => {
                 <button 
                   onClick={handleRecordPayment} 
                   disabled={submittingPayment}
-                  style={{ padding: '0 1.5rem', background: 'var(--admin-brand)', color: 'white', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: submittingPayment ? 0.5 : 1 }}
+                  style={{ padding: '0 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: submittingPayment ? 0.5 : 1 }}
                 >
                   {submittingPayment ? 'SAVING...' : 'RECORD PAYMENT'}
                 </button>
@@ -1650,8 +1687,8 @@ const AdminBookingDetails = () => {
                 {booking.payment_status === 'Flagged for Review' && (
                   <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     <div style={{ padding: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <ShieldAlert size={14} color="#ef4444" />
-                      <span style={{ fontSize: '0.65rem', fontWeight: '900', color: '#ef4444', textTransform: 'uppercase' }}>Financial Mismatch Detected</span>
+                      <ShieldAlert size={14} color="var(--status-danger)" />
+                      <span style={{ fontSize: '0.65rem', fontWeight: '900', color: 'var(--status-danger)', textTransform: 'uppercase' }}>Financial Mismatch Detected</span>
                     </div>
                     
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1692,7 +1729,7 @@ const AdminBookingDetails = () => {
 
                           fetchBookingDetails();
                         }}
-                        style={{ flex: 1, padding: '0.75rem', background: '#10b981', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.65rem', cursor: 'pointer' }}
+                        style={{ flex: 1, padding: '0.75rem', background: 'var(--status-success)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.65rem', cursor: 'pointer' }}
                       >
                         FORCE CONFIRM
                       </button>
@@ -1716,7 +1753,7 @@ const AdminBookingDetails = () => {
                           toast.error('Payment Rejected and Logged');
                           fetchBookingDetails();
                         }}
-                        style={{ flex: 1, padding: '0.75rem', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.65rem', cursor: 'pointer' }}
+                        style={{ flex: 1, padding: '0.75rem', background: 'var(--status-danger)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.65rem', cursor: 'pointer' }}
                       >
                         REJECT PAYMENT
                       </button>
@@ -1747,8 +1784,8 @@ const AdminBookingDetails = () => {
 
                     {p.status === 'FOR_VERIFICATION' ? (
                       <div style={{ display: 'flex', gap: '0.75rem' }}>
-                        <button onClick={() => handleVerifyPayment(p)} style={{ flex: 1, padding: '0.85rem', background: '#10b981', color: 'white', borderRadius: '6px', border: 'none', fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer' }}>APPROVE</button>
-                        <button onClick={() => handleRejectPayment(p)} style={{ flex: 1, padding: '0.85rem', background: '#ef4444', color: 'white', borderRadius: '6px', border: 'none', fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer' }}>REJECT</button>
+                        <button onClick={() => handleVerifyPayment(p)} style={{ flex: 1, padding: '0.85rem', background: 'var(--status-success)', color: 'var(--admin-text-primary)', borderRadius: '6px', border: 'none', fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer' }}>APPROVE</button>
+                        <button onClick={() => handleRejectPayment(p)} style={{ flex: 1, padding: '0.85rem', background: 'var(--status-danger)', color: 'var(--admin-text-primary)', borderRadius: '6px', border: 'none', fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer' }}>REJECT</button>
                       </div>
                     ) : (
                       <div style={{ 
@@ -1808,7 +1845,7 @@ const AdminBookingDetails = () => {
                 </p>
 
                 {undoNoShowModal.validationMessage && (
-                  <div style={{ marginTop: '0.75rem', padding: '0.7rem 0.8rem', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.18)', color: '#ef4444', fontSize: '0.75rem', fontWeight: '800' }}>
+                  <div style={{ marginTop: '0.75rem', padding: '0.7rem 0.8rem', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.18)', color: 'var(--status-danger)', fontSize: '0.75rem', fontWeight: '800' }}>
                     {undoNoShowModal.validationMessage}
                   </div>
                 )}
@@ -1818,7 +1855,7 @@ const AdminBookingDetails = () => {
                 <button onClick={() => setUndoNoShowModal({ open: false, validationMessage: '', isSubmitting: false })} style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: '10px', padding: '0.8rem 1.1rem', fontSize: '0.8rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer' }}>
                   Cancel
                 </button>
-                <button onClick={confirmUndoNoShow} disabled={undoNoShowModal.isSubmitting} style={{ background: 'var(--admin-brand)', color: '#fff', border: 'none', borderRadius: '10px', padding: '0.8rem 1.2rem', fontSize: '0.8rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.08em', cursor: undoNoShowModal.isSubmitting ? 'wait' : 'pointer', opacity: undoNoShowModal.isSubmitting ? 0.7 : 1 }}>
+                <button onClick={confirmUndoNoShow} disabled={undoNoShowModal.isSubmitting} style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '10px', padding: '0.8rem 1.2rem', fontSize: '0.8rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.08em', cursor: undoNoShowModal.isSubmitting ? 'wait' : 'pointer', opacity: undoNoShowModal.isSubmitting ? 0.7 : 1 }}>
                   {undoNoShowModal.isSubmitting ? 'Restoring...' : 'Confirm restore'}
                 </button>
               </div>
@@ -1904,7 +1941,13 @@ const AdminBookingDetails = () => {
                 </div>
               )}
               <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.65rem', lineHeight: 1.4, marginBottom: '1rem' }}>The amount may exceed the calculated downpayment, but cannot exceed the service price.</div>
-              <button type="button" onClick={submitServicePayment} disabled={isUpdatingDuration} style={{ width: '100%', padding: '0.85rem', background: 'var(--admin-brand)', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: '950', cursor: isUpdatingDuration ? 'wait' : 'pointer', opacity: isUpdatingDuration ? 0.6 : 1 }}>{isUpdatingDuration ? 'PROCESSING...' : 'CONFIRM PAYMENT & ADD SERVICE'}</button>
+              {/* Task B: show when excess_credit auto-covered part of the downpayment. */}
+              {pendingService.creditUsed > 0 && (
+                <div style={{ marginBottom: '1rem', padding: '0.7rem 0.9rem', background: 'rgba(var(--admin-success-rgb), 0.1)', border: '1px solid var(--status-success)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-success)', fontSize: '0.72rem', fontWeight: 800, lineHeight: 1.5 }}>
+                  ₱{Number(pendingService.creditUsed).toLocaleString()} of existing excess credit was applied. Paying only the net shortfall of ₱{Number(pendingService.requiredNow).toLocaleString()}.
+                </div>
+              )}
+              <button type="button" onClick={submitServicePayment} disabled={isUpdatingDuration} style={{ width: '100%', padding: '0.85rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '4px', fontWeight: '950', cursor: isUpdatingDuration ? 'wait' : 'pointer', opacity: isUpdatingDuration ? 0.6 : 1 }}>{isUpdatingDuration ? 'PROCESSING...' : 'CONFIRM PAYMENT & ADD SERVICE'}</button>
               <button type="button" onClick={() => { setPendingService(null); setServicePaymentAmount(''); setServicePaymentMethod('Cash'); setServiceReferenceNumber(''); }} disabled={isUpdatingDuration} style={{ width: '100%', marginTop: '0.5rem', padding: '0.7rem', background: 'transparent', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border)', borderRadius: '4px', fontWeight: '900', cursor: 'pointer' }}>CANCEL</button>
             </div>
           )}
@@ -1980,7 +2023,7 @@ const AdminBookingDetails = () => {
               ) : !rescheduleDate ? (
                 <div style={{ padding: '1rem', color: 'var(--admin-text-secondary)', textAlign: 'center', fontSize: '0.75rem', fontWeight: '700' }}>Please select a date above to check available slots.</div>
               ) : rescheduleSlots.length === 0 ? (
-                <div style={{ padding: '1rem', color: '#ef4444', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.78rem', fontWeight: '800', textAlign: 'center' }}>No available bay capacity for this date. Please select another date.</div>
+                <div style={{ padding: '1rem', color: 'var(--status-danger)', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.78rem', fontWeight: '800', textAlign: 'center' }}>No available bay capacity for this date. Please select another date.</div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.5rem', maxHeight: '180px', overflowY: 'auto', paddingRight: '0.25rem' }}>
                   {rescheduleSlots.map(slot => {
@@ -2005,7 +2048,7 @@ const AdminBookingDetails = () => {
               <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', marginTop: '0.3rem' }}>This reason will be recorded in the official audit trail and customer notifications.</div>
             </div>
 
-            <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: 'var(--admin-radius-sm)', padding: '0.75rem 1rem', marginBottom: '1.5rem', fontSize: '0.72rem', color: '#10b981', fontWeight: '700', lineHeight: 1.4 }}>
+            <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: 'var(--admin-radius-sm)', padding: '0.75rem 1rem', marginBottom: '1.5rem', fontSize: '0.72rem', color: 'var(--status-success)', fontWeight: '700', lineHeight: 1.4 }}>
               ✓ Existing payment records and balances are preserved. Assigned technician and bay allocations will reset to allow re-assignment for the new slot.
             </div>
 
@@ -2016,6 +2059,22 @@ const AdminBookingDetails = () => {
           </div>
         </div>
       )}
+
+      {/* Batch 7 / Step 7.3: reschedule schedule-conflicts surface as a guided
+          decision instead of a transient toast. */}
+      <ValidationModal
+        open={Boolean(rescheduleIssue)}
+        code={rescheduleIssue?.code}
+        message={rescheduleIssue?.message}
+        details={{ date: rescheduleIssue?.date, time: rescheduleIssue?.time }}
+        onClose={() => setRescheduleIssue(null)}
+        onPickAnotherTime={() => setRescheduleIssue(null)}
+        onSelectNextAvailable={() => {
+          setRescheduleIssue(null);
+          setRescheduleDate('');
+          setRescheduleTime('');
+        }}
+      />
 
       {receiptModal && (
         <OfficialReceipt

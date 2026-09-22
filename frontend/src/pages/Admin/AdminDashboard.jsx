@@ -110,7 +110,7 @@ const AdminDashboard = () => {
         const { data: profile } = booking.customer_id
           ? await supabase.from('profiles').select('full_name').eq('id', booking.customer_id).maybeSingle()
           : { data: null };
-        pItems.push({ id: item.id, type: 'PAYMENT', title: `Verification Needed: ₱${item.amount}`, sub: profile?.full_name || booking.customer_name || 'Unknown', color: '#f59e0b' });
+        pItems.push({ id: item.id, type: 'PAYMENT', title: `Verification Needed: ₱${item.amount}`, sub: profile?.full_name || booking.customer_name || 'Unknown', color: 'var(--status-warning)' });
       }
 
       const { data: rejectedRaw } = await supabase.from('payments').select('id, amount, booking_id').eq('status', 'REJECTED').limit(2);
@@ -120,7 +120,7 @@ const AdminDashboard = () => {
         const { data: profile } = booking.customer_id
           ? await supabase.from('profiles').select('full_name').eq('id', booking.customer_id).maybeSingle()
           : { data: null };
-        pItems.push({ id: item.id, type: 'ALERT', title: `Rejected Payment: ₱${item.amount}`, sub: profile?.full_name || booking.customer_name || 'Unknown', color: '#ef4444' });
+        pItems.push({ id: item.id, type: 'ALERT', title: `Rejected Payment: ₱${item.amount}`, sub: profile?.full_name || booking.customer_name || 'Unknown', color: 'var(--status-danger)' });
       }
 
       const { data: overdueRaw } = await supabase.from('bookings').select('id, customer_id, customer_name, start_datetime').eq('status', 'FLAGGED_NOSHOW').limit(2);
@@ -133,7 +133,7 @@ const AdminDashboard = () => {
           type: 'NO-SHOW',
           title: `No-Show: ${profile?.full_name || item.customer_name || 'Unknown'}`,
           sub: `Missed ${formatBookingDate(item.start_datetime)} at ${formatBookingTime(item.start_datetime)}`,
-          color: '#E61E2A'
+          color: 'var(--admin-brand)'
         });
       }
 
@@ -343,7 +343,7 @@ const AdminDashboard = () => {
             count={state.stats.pendingPayments}
             label="Pending Verifications"
             icon={CreditCard}
-            color="#f59e0b"
+            color="var(--status-warning)"
             bg="rgba(245, 158, 11, 0.1)"
             onClick={() => navigate('/admin/payments')}
           />
@@ -351,7 +351,7 @@ const AdminDashboard = () => {
             count={state.stats.flaggedBookings}
             label="Flagged for Review"
             icon={ShieldAlert}
-            color="#ef4444"
+            color="var(--status-danger)"
             bg="rgba(239, 68, 68, 0.1)"
             onClick={() => navigate('/admin/bookings?filter=FLAGGED_NOSHOW')}
           />
@@ -367,7 +367,7 @@ const AdminDashboard = () => {
             count={state.stats.overdueServices}
             label="No-Show Flagged"
             icon={AlertCircle}
-            color="#E61E2A"
+            color="var(--admin-brand)"
             bg="rgba(230, 30, 42, 0.1)"
             onClick={() => navigate('/admin/bookings?filter=overdue')}
           />
@@ -383,7 +383,7 @@ const AdminDashboard = () => {
             count={state.stats.releaseBay}
             label="Release Bay"
             icon={CheckCircle}
-            color="#10b981"
+            color="var(--status-success)"
             bg="rgba(16, 185, 129, 0.1)"
             onClick={() => navigate('/admin/bookings?filter=completed')}
           />

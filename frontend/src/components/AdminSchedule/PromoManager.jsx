@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { getServiceCatalog } from '../../data/servicesCatalog';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useUI } from '../../context/UIContext';
+import { logger } from '../../utils/logger';
 
 /**
  * PromoManager (System A)
@@ -306,34 +307,35 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
         body: JSON.stringify(nextRule)
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.promoRules) {
-          syncPromoRules(result.promoRules);
-        } else {
-          const nextRules = promoEditingId
-            ? promoRules.map(rule => rule.id === promoEditingId ? nextRule : rule)
-            : [nextRule, ...promoRules];
-          syncPromoRules(nextRules);
-        }
-      } else {
+      if (!response.ok) {
+        // Backend explicitly rejected the write (validation / auth).
         const errJson = await response.json().catch(() => ({}));
-        if (errJson.error) {
-          toast.error(errJson.error);
-          setPromoValidationError(errJson.error);
-          setPromoPublishing(false);
-          return;
-        }
+        const message = errJson.error || `The promotion could not be saved (HTTP ${response.status}).`;
+        toast.error(message);
+        setPromoValidationError(message);
+        setPromoPublishing(false);
+        return;
+      }
+
+      const result = await response.json();
+      if (result.promoRules) {
+        syncPromoRules(result.promoRules);
+      } else {
         const nextRules = promoEditingId
           ? promoRules.map(rule => rule.id === promoEditingId ? nextRule : rule)
           : [nextRule, ...promoRules];
         syncPromoRules(nextRules);
       }
-    } catch {
-      const nextRules = promoEditingId
-        ? promoRules.map(rule => rule.id === promoEditingId ? nextRule : rule)
-        : [nextRule, ...promoRules];
-      syncPromoRules(nextRules);
+    } catch (err) {
+      // FAIL-CLOSED: an unreachable backend must NOT be treated as success. The
+      // previous code optimistically synced the promo locally and then showed a
+      // success toast, so a promo that never persisted appeared saved.
+      logger.error('Promo publish failed (backend unreachable); blocking.', err);
+      const message = 'The promotions service is unreachable. Your promotion was not saved. Please try again.';
+      toast.error(message);
+      setPromoValidationError(message);
+      setPromoPublishing(false);
+      return;
     }
 
     toast.success(
@@ -744,7 +746,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
             title={!isConfirmUnlocked ? 'Enter name, discount value, valid dates, and bind at least 1 vehicle-service mapping to unlock' : undefined}
             style={{
               background: isConfirmUnlocked ? '#059669' : '#374151',
-              color: '#fff',
+              color: 'var(--admin-text-on-brand)',
               border: 'none',
               borderRadius: '4px',
               fontWeight: '900',
@@ -929,7 +931,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                   style={{
                     border: '1px solid #ef4444',
                     background: 'transparent',
-                    color: '#ef4444',
+                    color: 'var(--status-danger)',
                     padding: '0.5rem 0.8rem',
                     borderRadius: '4px',
                     fontWeight: '900',

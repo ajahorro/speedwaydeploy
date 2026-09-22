@@ -20,7 +20,7 @@ const SegmentedTimePicker = ({ value, onChange }) => {
     background: 'var(--admin-bg)',
     border: '1px solid var(--admin-border)',
     borderRadius: '4px',
-    color: 'white',
+    color: 'var(--admin-text-primary)',
     fontSize: '1rem',
     fontWeight: '950',
     cursor: 'pointer',

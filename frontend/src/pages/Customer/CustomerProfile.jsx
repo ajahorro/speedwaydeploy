@@ -221,7 +221,7 @@ const CustomerProfile = () => {
         {!isEditing && (
           <button 
             onClick={() => setIsEditing(true)}
-            style={{ padding: '0.65rem 1rem', background: 'var(--admin-brand)', color: '#fff', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '800', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{ padding: '0.65rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '800', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
             <Edit3 size={16} /> Edit Profile
           </button>
@@ -296,7 +296,7 @@ const CustomerProfile = () => {
                   </button>
                   <button 
                     type="submit" 
-                    style={{ flex: 1.5, padding: '0.75rem 1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: '800', cursor: 'pointer' }}
+                    style={{ flex: 1.5, padding: '0.75rem 1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '8px', color: 'var(--admin-text-on-brand)', fontWeight: '800', cursor: 'pointer' }}
                   >
                     Save Changes
                   </button>
@@ -371,12 +371,12 @@ const CustomerProfile = () => {
               </div>
               {/* Inline validation hints */}
               {passwordData.newPassword.length > 0 && passwordData.newPassword.length <= 4 && (
-                <div style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: '700', marginTop: '-0.5rem' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--status-warning)', fontWeight: '700', marginTop: '-0.5rem' }}>
                   ⚠ Password must be more than 4 characters
                 </div>
               )}
               {passwordData.confirmPassword.length > 0 && passwordData.newPassword !== passwordData.confirmPassword && (
-                <div style={{ fontSize: '0.72rem', color: '#ef4444', fontWeight: '700', marginTop: '-0.5rem' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--status-danger)', fontWeight: '700', marginTop: '-0.5rem' }}>
                   ✕ Passwords do not match
                 </div>
               )}
@@ -393,15 +393,15 @@ const CustomerProfile = () => {
           {/* Danger Zone */}
           <section style={{ ...cardStyle, border: '1px solid rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.02)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-              <AlertTriangle size={20} color="#ef4444" />
-              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#ef4444' }}>Account Actions</h2>
+              <AlertTriangle size={20} color="var(--status-danger)" />
+              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: 'var(--status-danger)' }}>Account Actions</h2>
             </div>
             <p style={{ margin: '0 0 1.5rem 0', color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '600', lineHeight: 1.5 }}>
               Account deactivation initiates a 15-day grace period. After 15 days, all data will be permanently purged from Speedway servers.
             </p>
             <button 
               onClick={() => setShowDeactivateModal(true)}
-              style={{ width: '100%', padding: '0.75rem 1rem', background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', borderRadius: '8px', fontWeight: '800', fontSize: '0.8rem', cursor: 'pointer' }}
+              style={{ width: '100%', padding: '0.75rem 1rem', background: 'transparent', border: '1px solid #ef4444', color: 'var(--status-danger)', borderRadius: '8px', fontWeight: '800', fontSize: '0.8rem', cursor: 'pointer' }}
             >
               Deactivate Account
             </button>
@@ -437,8 +437,8 @@ const CustomerProfile = () => {
             />
 
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button onClick={() => { setShowPassModal(false); setPasswordData({...passwordData, currentPassword: ''}); }} style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'white', fontWeight: '950', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={executeVerifiedAction} style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '8px', color: 'white', fontWeight: '950', cursor: 'pointer' }}>Verify & Save</button>
+              <button onClick={() => { setShowPassModal(false); setPasswordData({...passwordData, currentPassword: ''}); }} style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={executeVerifiedAction} style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>Verify & Save</button>
             </div>
           </div>
         </div>
@@ -468,7 +468,7 @@ const CustomerProfile = () => {
                     style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text' }} 
                   />
                 </div>
-                <button type="submit" disabled={isUpdating} style={{ padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '8px', color: 'white', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+                <button type="submit" disabled={isUpdating} style={{ padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
                   {isUpdating ? <Loader2 className="animate-spin" /> : <Send size={18} />}
                   Send Authorization Code
                 </button>
@@ -489,7 +489,7 @@ const CustomerProfile = () => {
                     style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text', textAlign: 'center', fontSize: '1.5rem', letterSpacing: '8px' }} 
                   />
                 </div>
-                <button type="submit" disabled={isUpdating} style={{ padding: '1rem', background: 'var(--admin-success)', border: 'none', borderRadius: '8px', color: 'white', fontWeight: '950', cursor: 'pointer' }}>
+                <button type="submit" disabled={isUpdating} style={{ padding: '1rem', background: 'var(--admin-success)', border: 'none', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>
                   {isUpdating ? <Loader2 className="animate-spin" /> : 'Confirm Change'}
                 </button>
                 <button type="button" onClick={() => setEmailData({...emailData, step: 1})} style={{ background: 'none', border: 'none', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: '800', cursor: 'pointer', textTransform: 'uppercase' }}>Didn't receive code? Try again</button>
@@ -504,15 +504,15 @@ const CustomerProfile = () => {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
           <div style={{ background: 'var(--admin-card)', border: '1px solid #ef4444', borderRadius: 'var(--admin-radius-lg)', width: '100%', maxWidth: '450px', padding: '2.5rem', textAlign: 'center' }}>
             <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
-              <AlertTriangle size={32} color="#ef4444" />
+              <AlertTriangle size={32} color="var(--status-danger)" />
             </div>
-            <h2 style={{ fontWeight: '800', color: '#ef4444' }}>Confirm Account Deactivation</h2>
+            <h2 style={{ fontWeight: '800', color: 'var(--status-danger)' }}>Confirm Account Deactivation</h2>
             <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '600', marginBottom: '2rem', lineHeight: 1.6 }}>
               This will log you out immediately. You will have 15 days to recover your account by logging back in. After that, all data is permanently purged.
             </p>
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button onClick={() => setShowDeactivateModal(false)} style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'white', fontWeight: '950', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleDeactivate} style={{ flex: 2, padding: '1rem', background: '#ef4444', border: 'none', borderRadius: '8px', color: 'white', fontWeight: '950', cursor: 'pointer' }}>Yes, Deactivate</button>
+              <button onClick={() => setShowDeactivateModal(false)} style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleDeactivate} style={{ flex: 2, padding: '1rem', background: 'var(--status-danger)', border: 'none', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>Yes, Deactivate</button>
             </div>
           </div>
         </div>

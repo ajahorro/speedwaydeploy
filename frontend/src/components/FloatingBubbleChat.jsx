@@ -97,9 +97,9 @@ const FloatingBubbleChat = () => {
     <div style={{ position: 'fixed', right: '1.25rem', bottom: '1.25rem', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', transform: `translate(${offset.x}px, ${offset.y}px)`, touchAction: 'none' }}>
       {isOpen && activeBookingId && (
         <div ref={chatRef} style={{ width: 'clamp(300px, 90vw, 420px)', height: 'clamp(400px, 78vh, 620px)', marginBottom: '0.75rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'var(--admin-brand)', color: '#fff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)' }}>
             <span style={{ fontWeight: '900', fontSize: '0.8rem' }}>Booking #{activeBookingId.slice(0, 8).toUpperCase()}</span>
-            <button onClick={closeChat} aria-label="Close support chat" style={{ background: 'none', border: 0, color: '#fff', cursor: 'pointer' }}><X size={18} /></button>
+            <button onClick={closeChat} aria-label="Close support chat" style={{ background: 'none', border: 0, color: 'var(--admin-text-on-brand)', cursor: 'pointer' }}><X size={18} /></button>
           </div>
           <div style={{ flex: 1, minHeight: 0 }}><BookingChat bookingId={activeBookingId} /></div>
         </div>
@@ -122,7 +122,7 @@ const FloatingBubbleChat = () => {
               <span style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--admin-text-primary)' }}>
                 {rolePrefix}/bookings/{threadId.slice(0, 8).toUpperCase()}
               </span>
-              <span style={{ minWidth: '20px', height: '20px', padding: '0 5px', borderRadius: '999px', background: 'var(--admin-brand)', color: '#fff', fontSize: '0.62rem', fontWeight: '900', display: 'grid', placeItems: 'center' }}>
+              <span style={{ minWidth: '20px', height: '20px', padding: '0 5px', borderRadius: '999px', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', fontSize: '0.62rem', fontWeight: '900', display: 'grid', placeItems: 'center' }}>
                 {threadUnread[threadId] > 99 ? '99+' : threadUnread[threadId]}
               </span>
             </button>
@@ -143,10 +143,10 @@ const FloatingBubbleChat = () => {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        style={{ width: '58px', height: '58px', border: 'none', borderRadius: '50%', background: 'var(--admin-brand)', color: '#fff', display: 'grid', placeItems: 'center', cursor: isDragging ? 'grabbing' : 'grab', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', position: 'relative' }}
+        style={{ width: '58px', height: '58px', border: 'none', borderRadius: '50%', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', display: 'grid', placeItems: 'center', cursor: isDragging ? 'grabbing' : 'grab', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', position: 'relative' }}
       >
         <MessageCircle size={26} />
-        {globalUnreadCount > 0 && !isOpen && <span style={{ position: 'absolute', top: '-4px', left: '-4px', minWidth: '21px', height: '21px', padding: '0 4px', borderRadius: '999px', background: '#ef4444', color: '#fff', border: '2px solid var(--admin-bg)', display: 'grid', placeItems: 'center', fontSize: '0.65rem', fontWeight: '900' }}>{globalUnreadCount > 99 ? '99+' : globalUnreadCount}</span>}
+        {globalUnreadCount > 0 && !isOpen && <span style={{ position: 'absolute', top: '-4px', left: '-4px', minWidth: '21px', height: '21px', padding: '0 4px', borderRadius: '999px', background: 'var(--status-danger)', color: 'var(--admin-text-on-status)', border: '2px solid var(--admin-bg)', display: 'grid', placeItems: 'center', fontSize: '0.65rem', fontWeight: '900' }}>{globalUnreadCount > 99 ? '99+' : globalUnreadCount}</span>}
       </button>
     </div>
   );

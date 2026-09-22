@@ -49,8 +49,8 @@ const StaffJobDetails = () => {
   if (!unit) return null;
 
   const cardStyle = {
-    background: '#15171A',
-    border: '1px solid rgba(255, 255, 255, 0.05)',
+    background: 'var(--admin-card)',
+    border: '1px solid var(--admin-border)',
     borderRadius: '8px',
     padding: '2rem',
     display: 'flex',
@@ -61,7 +61,7 @@ const StaffJobDetails = () => {
   const labelStyle = {
     fontSize: '0.65rem',
     fontWeight: '950',
-    color: '#8E9196',
+    color: 'var(--admin-text-secondary)',
     textTransform: 'uppercase',
     letterSpacing: '1.5px',
     marginBottom: '0.5rem'
@@ -70,16 +70,16 @@ const StaffJobDetails = () => {
   const dataStyle = {
     fontSize: '1rem',
     fontWeight: '700',
-    color: 'white'
+    color: 'var(--admin-text-primary)'
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      <button 
+      <button
         onClick={() => navigate(-1)}
-        style={{ 
-          display: 'flex', alignItems: 'center', gap: '0.5rem', 
-          background: 'none', border: 'none', color: '#8E9196', 
+        style={{
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+          background: 'none', border: 'none', color: 'var(--admin-text-secondary)',
           fontSize: '0.75rem', fontWeight: '950', cursor: 'pointer',
           textTransform: 'uppercase', letterSpacing: '1px', alignSelf: 'flex-start'
         }}
@@ -87,19 +87,19 @@ const StaffJobDetails = () => {
         <ChevronLeft size={16} /> Return to Queue
       </button>
 
-      <PageHeader 
+      <PageHeader
         badge={`UNIT ID: ${unit.id.slice(0, 8).toUpperCase()}`}
         title="Service Verification"
         subtitle="Reviewing technical specifications and operational timestamps for this unit."
       />
 
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '2rem' }}>
-        
+
         <div style={{ flex: 1.5, display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           {/* Vehicle Specifications */}
           <section style={cardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
-              <Car size={20} color="#E61E2A" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid var(--admin-border)', paddingBottom: '1rem' }}>
+              <Car size={20} color="var(--admin-brand)" />
               <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase' }}>Vehicle Specifications</h3>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
@@ -109,7 +109,7 @@ const StaffJobDetails = () => {
               </div>
               <div>
                 <div style={labelStyle}>Plate Number</div>
-                <div style={{ ...dataStyle, color: '#E61E2A' }}>{unit.plate_number}</div>
+                <div style={{ ...dataStyle, color: 'var(--admin-brand)' }}>{unit.plate_number}</div>
               </div>
               <div>
                 <div style={labelStyle}>Vehicle Type</div>
@@ -124,22 +124,22 @@ const StaffJobDetails = () => {
 
           {/* Service Package */}
           <section style={cardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
-              <ShieldCheck size={20} color="#10b981" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid var(--admin-border)', paddingBottom: '1rem' }}>
+              <ShieldCheck size={20} color="var(--status-success)" />
               <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase' }}>Assigned Detailing Services</h3>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
               {unit.services?.map((s, i) => (
-                <div key={i} style={{ flex: '1 1 200px', background: '#0A0B0D', padding: '1rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                  <div style={{ fontSize: '0.85rem', fontWeight: '900', color: 'white' }}>{s.service_name}</div>
+                <div key={i} style={{ flex: '1 1 200px', background: 'var(--admin-bg)', padding: '1rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                  <div style={{ fontSize: '0.85rem', fontWeight: '900', color: 'var(--admin-text-primary)' }}>{s.service_name}</div>
                   <div style={{ fontSize: '0.65rem', color: '#444', fontWeight: '700', marginTop: '0.25rem' }}>PROFESSIONAL GRADE</div>
                 </div>
               ))}
             </div>
             {unit.service_notes && (
-              <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '4px', borderLeft: '3px solid #E61E2A' }}>
+              <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--admin-bg)', borderRadius: '4px', borderLeft: '3px solid var(--admin-brand)' }}>
                 <div style={labelStyle}>Technical Observations</div>
-                <div style={{ fontSize: '0.85rem', color: '#8E9196', lineHeight: 1.5 }}>{unit.service_notes}</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>{unit.service_notes}</div>
               </div>
             )}
           </section>
@@ -148,8 +148,8 @@ const StaffJobDetails = () => {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           {/* Operational Timestamps */}
           <section style={cardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
-              <Clock size={20} color="#f59e0b" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid var(--admin-border)', paddingBottom: '1rem' }}>
+              <Clock size={20} color="var(--status-warning)" />
               <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase' }}>Operational Timestamps</h3>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -161,13 +161,13 @@ const StaffJobDetails = () => {
               </div>
               <div>
                 <div style={labelStyle}>Service Commencement</div>
-                <div style={{ ...dataStyle, fontSize: '0.9rem', color: unit.started_at ? '#10b981' : '#444' }}>
+                <div style={{ ...dataStyle, fontSize: '0.9rem', color: unit.started_at ? 'var(--status-success)' : 'var(--admin-text-secondary)' }}>
                   {unit.started_at ? new Date(unit.started_at).toLocaleString('en-US', { timeStyle: 'medium' }) : 'NOT RECORDED'}
                 </div>
               </div>
               <div>
                 <div style={labelStyle}>Final Completion</div>
-                <div style={{ ...dataStyle, fontSize: '0.9rem', color: unit.completed_at ? '#10b981' : '#444' }}>
+                <div style={{ ...dataStyle, fontSize: '0.9rem', color: unit.completed_at ? 'var(--status-success)' : 'var(--admin-text-secondary)' }}>
                   {unit.completed_at ? new Date(unit.completed_at).toLocaleString('en-US', { timeStyle: 'medium' }) : 'NOT RECORDED'}
                 </div>
               </div>
@@ -189,7 +189,7 @@ const StaffJobDetails = () => {
               }
               if (photos.length === 0) {
                 return (
-                  <div style={{ height: '150px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: '#0A0B0D', borderRadius: '4px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                  <div style={{ height: '150px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: 'var(--admin-bg)', borderRadius: '4px', border: '1px dashed rgba(255,255,255,0.1)' }}>
                     <Info size={24} color="#333" />
                     <div style={{ fontSize: '0.65rem', color: '#444', fontWeight: '950' }}>NO IMAGES UPLOADED</div>
                   </div>
@@ -199,17 +199,17 @@ const StaffJobDetails = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: photos.length === 1 ? '1fr' : 'repeat(2, 1fr)', gap: '0.5rem' }}>
                     {photos.map((url, i) => (
-                      <div key={i} style={{ position: 'relative', borderRadius: '4px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div key={i} style={{ position: 'relative', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--admin-border)' }}>
                         <img
                           src={url}
                           alt={`Service Evidence ${i + 1}`}
                           style={{ width: '100%', display: 'block', objectFit: 'cover', aspectRatio: photos.length === 1 ? '16/9' : '1' }}
                         />
-                        <div style={{ position: 'absolute', bottom: '4px', right: '4px', background: 'rgba(0,0,0,0.7)', color: 'white', fontSize: '0.5rem', fontWeight: '950', padding: '2px 6px', borderRadius: '2px' }}>#{i + 1}</div>
+                        <div style={{ position: 'absolute', bottom: '4px', right: '4px', background: 'rgba(0,0,0,0.7)', color: 'var(--admin-text-primary)', fontSize: '0.5rem', fontWeight: '950', padding: '2px 6px', borderRadius: '2px' }}>#{i + 1}</div>
                       </div>
                     ))}
                   </div>
-                  <div style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: '950', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  <div style={{ fontSize: '0.6rem', color: 'var(--status-success)', fontWeight: '950', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px' }}>
                     {photos.length} Photo{photos.length > 1 ? 's' : ''} on Record
                   </div>
                 </div>

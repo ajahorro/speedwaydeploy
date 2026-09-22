@@ -303,7 +303,7 @@ const AdminRefunds = () => {
                 <select 
                   value={state.refundReason}
                   onChange={(e) => setState(prev => ({ ...prev, refundReason: e.target.value }))}
-                  style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'white', fontSize: '0.8rem', fontWeight: '700', marginBottom: '1rem', appearance: 'none' }}
+                  style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '700', marginBottom: '1rem', appearance: 'none' }}
                 >
                   <option value="" disabled>Select Reason</option>
                   <option value="No-Show">No-Show</option>
@@ -320,7 +320,7 @@ const AdminRefunds = () => {
                   min={0}
                   value={state.refundAmount}
                   onChange={(e) => setState(prev => ({ ...prev, refundAmount: Number(e.target.value) }))}
-                  style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'white', fontSize: '1rem', fontWeight: '950' }}
+                  style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '1rem', fontWeight: '950' }}
                 />
               </div>
 
@@ -333,11 +333,11 @@ const AdminRefunds = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
                       <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '600' }}>Reference No:</span>
-                      <span style={{ color: 'white', fontWeight: '900', fontFamily: 'monospace' }}>{state.selectedItem.ocr_metadata.referenceNo}</span>
+                      <span style={{ color: 'var(--admin-text-primary)', fontWeight: '900', fontFamily: 'monospace' }}>{state.selectedItem.ocr_metadata.referenceNo}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
                       <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '600' }}>Extracted Amount:</span>
-                      <span style={{ color: 'white', fontWeight: '900' }}>₱{state.selectedItem.ocr_metadata.amount?.toLocaleString()}</span>
+                      <span style={{ color: 'var(--admin-text-primary)', fontWeight: '900' }}>₱{state.selectedItem.ocr_metadata.amount?.toLocaleString()}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
                       <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '600' }}>Verification Result:</span>
@@ -354,7 +354,7 @@ const AdminRefunds = () => {
                 </div>
                 <button 
                   onClick={() => navigate(`/admin/bookings/${state.selectedItem.id}`)}
-                  style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'white', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', marginBottom: '0.75rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                  style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', marginBottom: '0.75rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 >
                   <ExternalLink size={14} /> VIEW BOOKING DETAILS
                 </button>
@@ -363,7 +363,7 @@ const AdminRefunds = () => {
                   <button 
                     disabled={state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || state.refundAmount <= 0)}
                     onClick={() => setState(prev => ({ ...prev, confirmRefundItem: state.selectedItem }))} 
-                    style={{ width: '100%', padding: '0.85rem', background: 'var(--admin-brand)', color: 'white', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', opacity: state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || state.refundAmount <= 0) ? 0.5 : 1 }}
+                    style={{ width: '100%', padding: '0.85rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', opacity: state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || state.refundAmount <= 0) ? 0.5 : 1 }}
                   >
                     {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'RETRY REFUND EMAIL' : 'MARK AS REFUNDED'}
                   </button>
@@ -382,12 +382,12 @@ const AdminRefunds = () => {
       {state.confirmRefundItem && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)' }}>
           <div style={{ background: 'var(--admin-card)', padding: '2.5rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', maxWidth: '400px', width: '90%', textAlign: 'center' }}>
-            <AlertTriangle size={48} color="#ef4444" style={{ marginBottom: '1.5rem' }} />
+            <AlertTriangle size={48} color="var(--status-danger)" style={{ marginBottom: '1.5rem' }} />
             <h2 style={{ fontWeight: '950', fontSize: '1.25rem' }}>Confirm Refund?</h2>
             <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.9rem', marginBottom: '2rem' }}>Are you sure you want to revert ₱{state.refundAmount.toLocaleString()} back to the customer?</p>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={() => setState(prev => ({ ...prev, confirmRefundItem: null }))} style={{ flex: 1, padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '800' }}>CANCEL</button>
-              <button onClick={() => handleProcessRefund(state.confirmRefundItem)} style={{ flex: 1, padding: '1rem', background: '#ef4444', color: 'white', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900' }}>YES, REVERT ₱{state.refundAmount.toLocaleString()}</button>
+              <button onClick={() => handleProcessRefund(state.confirmRefundItem)} style={{ flex: 1, padding: '1rem', background: 'var(--status-danger)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900' }}>YES, REVERT ₱{state.refundAmount.toLocaleString()}</button>
             </div>
           </div>
         </div>

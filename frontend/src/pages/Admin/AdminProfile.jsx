@@ -201,7 +201,7 @@ const AdminProfile = () => {
                 </button>
                 <button 
                   onClick={() => handleUpdateClick('profile')}
-                  style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', color: 'white', border: 'none', borderRadius: '4px', fontWeight: '950', cursor: 'pointer' }}
+                  style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '4px', fontWeight: '950', cursor: 'pointer' }}
                 >
                   Authorize & Update
                 </button>
@@ -284,12 +284,12 @@ const AdminProfile = () => {
 
             {/* Inline validation hints */}
             {formData.newPassword.length > 0 && formData.newPassword.length <= 4 && (
-              <div style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: '700', marginTop: '-0.5rem' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--status-warning)', fontWeight: '700', marginTop: '-0.5rem' }}>
                 ⚠ Password must be more than 4 characters
               </div>
             )}
             {formData.confirmPassword.length > 0 && formData.newPassword !== formData.confirmPassword && (
-              <div style={{ fontSize: '0.72rem', color: '#ef4444', fontWeight: '700', marginTop: '-0.5rem' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--status-danger)', fontWeight: '700', marginTop: '-0.5rem' }}>
                 ✕ Passwords do not match
               </div>
             )}
@@ -347,7 +347,7 @@ const AdminProfile = () => {
 
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button type="button" onClick={() => setShowVerifyModal(false)} style={{ flex: 1, padding: '0.85rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>Cancel</button>
-              <button type="submit" style={{ flex: 2, padding: '0.85rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '4px', color: 'white', fontWeight: '950', cursor: 'pointer' }}>Verify & Proceed</button>
+              <button type="submit" style={{ flex: 2, padding: '0.85rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>Verify & Proceed</button>
             </div>
           </form>
         </div>

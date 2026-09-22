@@ -121,7 +121,7 @@ const StaffLayout = () => {
   };
 
   return (
-    <div style={{ display: 'flex', width: '100vw', height: '100vh', background: '#0A0B0D', color: 'white', fontFamily: 'Inter, system-ui, sans-serif', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', width: '100vw', height: '100vh', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', fontFamily: 'Inter, system-ui, sans-serif', overflow: 'hidden' }}>
 
       {/* Mobile Backdrop */}
       {isMobile && isSidebarOpen && (
@@ -134,8 +134,8 @@ const StaffLayout = () => {
       {/* Sidebar */}
       <aside style={{
         width: '280px',
-        background: '#15171A',
-        borderRight: '1px solid rgba(255, 255, 255, 0.05)',
+        background: 'var(--admin-card)',
+        borderRight: '1px solid var(--admin-border)',
         display: 'flex',
         flexDirection: 'column',
         position: isMobile ? 'fixed' : 'relative',
@@ -145,9 +145,9 @@ const StaffLayout = () => {
         transform: isMobile && !isSidebarOpen ? 'translateX(-100%)' : 'translateX(0)',
         transition: 'transform 0.3s ease'
       }}>
-        <div style={{ padding: '2rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+        <div style={{ padding: '2rem', borderBottom: '1px solid var(--admin-border)' }}>
           <h1 style={{ fontSize: '1.25rem', fontWeight: '950', margin: 0, fontStyle: 'italic', letterSpacing: '1px' }}>
-            SPEEDWAY<span style={{ color: '#E61E2A' }}>STAFF</span>
+            SPEEDWAY<span style={{ color: 'var(--admin-brand)' }}>STAFF</span>
           </h1>
           <p style={{ fontSize: '0.6rem', color: '#444', fontWeight: '900', marginTop: '0.4rem', textTransform: 'uppercase', letterSpacing: '2px' }}>
             Operational Detailing Portal
@@ -163,7 +163,7 @@ const StaffLayout = () => {
           ))}
         </nav>
 
-        <div style={{ padding: '1.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
+        <div style={{ padding: '1.5rem', borderTop: '1px solid var(--admin-border)' }}>
           {/* 🕹️ Primary Footer Action: Shift Lifecycle Controller */}
           <div style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <button
@@ -171,7 +171,7 @@ const StaffLayout = () => {
               style={{
                 width: '100%', padding: '0.85rem', borderRadius: '4px',
                 background: profile?.is_clocked_in ? '#333' : '#E61E2A',
-                border: 'none', color: 'white',
+                border: 'none', color: 'var(--admin-text-primary)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem',
                 cursor: 'pointer', transition: 'all 0.2s', fontWeight: '950',
                 textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.8rem'
@@ -182,13 +182,13 @@ const StaffLayout = () => {
             </button>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', background: '#0A0B0D', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.05)', marginBottom: '1rem' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '2px', background: '#E61E2A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '950' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', background: 'var(--admin-bg)', borderRadius: '4px', border: '1px solid var(--admin-border)', marginBottom: '1rem' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '2px', background: 'var(--admin-brand)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '950' }}>
               {profile?.full_name?.charAt(0) || 'T'}
             </div>
             <div style={{ flex: 1, overflow: 'hidden' }}>
               <div style={{ fontSize: '0.8rem', fontWeight: '950', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textTransform: 'uppercase' }}>{profile?.full_name}</div>
-              <div style={{ fontSize: '0.65rem', color: '#8E9196', fontWeight: '900', textTransform: 'uppercase' }}>Technician</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '900', textTransform: 'uppercase' }}>Technician</div>
             </div>
           </div>
 
@@ -200,7 +200,7 @@ const StaffLayout = () => {
               display: 'flex', alignItems: 'center', gap: '0.75rem',
               padding: '0.85rem 1rem', borderRadius: '4px',
               background: location.pathname === '/staff/settings' ? '#E61E2A' : 'transparent',
-              border: '1px solid rgba(255, 255, 255, 0.05)',
+              border: '1px solid var(--admin-border)',
               color: location.pathname === '/staff/settings' ? 'white' : '#8E9196',
               fontWeight: '800', fontSize: '0.85rem', textDecoration: 'none',
               textTransform: 'uppercase', letterSpacing: '0.5px',
@@ -215,7 +215,7 @@ const StaffLayout = () => {
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem',
               padding: '0.85rem', borderRadius: '4px', background: 'transparent',
-              border: '1px solid rgba(255, 255, 255, 0.05)', color: '#ef4444', fontWeight: '950',
+              border: '1px solid var(--admin-border)', color: 'var(--status-danger)', fontWeight: '950',
               fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s'
             }}
           >
@@ -225,20 +225,20 @@ const StaffLayout = () => {
       </aside>
 
       {/* Main Content */}
-      <main style={{ flex: 1, minWidth: 0, height: '100vh', overflowY: 'auto', position: 'relative', background: '#0A0B0D' }}>
+      <main style={{ flex: 1, minWidth: 0, height: '100vh', overflowY: 'auto', position: 'relative', background: 'var(--admin-bg)' }}>
         {/* Top Header */}
         <header style={{
           height: '70px', background: 'rgba(21, 23, 26, 0.8)', backdropFilter: 'blur(10px)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center',
+          borderBottom: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center',
           justifyContent: 'space-between', padding: '0 2rem', position: 'sticky', top: 0, zIndex: 30
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             {isMobile && (
-              <button onClick={() => setIsSidebarOpen(true)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>
+              <button onClick={() => setIsSidebarOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--admin-text-primary)', cursor: 'pointer' }}>
                 <Menu size={24} />
               </button>
             )}
-            <h2 style={{ fontSize: '0.9rem', fontWeight: '950', color: '#8E9196', textTransform: 'uppercase', letterSpacing: '2px' }}>
+            <h2 style={{ fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '2px' }}>
               Operational Overview
             </h2>
           </div>
@@ -261,13 +261,13 @@ const StaffLayout = () => {
 
             <button
               onClick={() => navigate('/staff/notifications')}
-              style={{ background: '#15171A', border: '1px solid rgba(255, 255, 255, 0.05)', color: '#8E9196', padding: '0.5rem', borderRadius: '4px', cursor: 'pointer', position: 'relative' }}
+              style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', padding: '0.5rem', borderRadius: '4px', cursor: 'pointer', position: 'relative' }}
             >
               <Bell size={18} />
               {unreadCount > 0 && (
                 <span style={{
                   position: 'absolute', top: '-4px', right: '-4px',
-                  background: '#E61E2A', color: 'white',
+                  background: 'var(--admin-brand)', color: 'var(--admin-text-primary)',
                   fontSize: '0.5rem', fontWeight: '950',
                   minWidth: '16px', height: '16px', padding: '0 3px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',

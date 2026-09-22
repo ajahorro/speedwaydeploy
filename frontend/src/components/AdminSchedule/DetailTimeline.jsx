@@ -40,7 +40,7 @@ const DetailTimeline = ({
           <Lock size={28} />
         </div>
         <div>
-          <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '950', color: 'white', textTransform: 'uppercase', letterSpacing: '1px' }}>
+          <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
             FULL DAY RESOURCE RESTRICTION
           </h3>
           <p style={{ margin: '0.5rem 0 0 0', color: COLORS.MUTED, fontSize: '0.85rem', fontWeight: '700' }}>
@@ -176,7 +176,7 @@ const DetailTimeline = ({
                       borderRadius: '3px',
                       border: `1px solid ${accentColor}`,
                       background: backgroundColor,
-                      color: '#fff',
+                      color: 'var(--admin-text-on-brand)',
                       fontSize: '0.52rem',
                       fontWeight: '950',
                       display: 'flex',

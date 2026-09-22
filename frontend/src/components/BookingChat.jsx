@@ -374,9 +374,9 @@ const BookingChat = ({ bookingId }) => {
                 <div style={{ fontSize: '0.6rem', fontWeight: '700', color: 'var(--admin-text-secondary)', marginTop: '0.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                   {msg.status === 'sending' && <span>Sending...</span>}
                   {msg.status === 'failed' && (
-                    <span style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <span style={{ color: 'var(--status-danger)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       Failed
-                      <button onClick={() => handleSend(msg)} style={{ background: 'none', border: 'none', color: '#ef4444', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: '0.6rem', fontWeight: 'bold' }}>Retry</button>
+                      <button onClick={() => handleSend(msg)} style={{ background: 'none', border: 'none', color: 'var(--status-danger)', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: '0.6rem', fontWeight: 'bold' }}>Retry</button>
                     </span>
                   )}
                   {msg.status !== 'sending' && msg.status !== 'failed' && <span>{timeFormat(msg.created_at)}</span>}
@@ -393,7 +393,7 @@ const BookingChat = ({ bookingId }) => {
 
       {/* Input Area */}
       <div style={{ position: 'relative', padding: '0.75rem 1rem', borderTop: '1px solid var(--admin-border)', display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--admin-card)' }}>
-        {error && <div role="alert" style={{ position: 'absolute', transform: 'translateY(-100%)', left: '1rem', right: '1rem', padding: '0.5rem 0.75rem', background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', borderRadius: '4px' }}><AlertCircle size={14} /> {error}</div>}
+        {error && <div role="alert" style={{ position: 'absolute', transform: 'translateY(-100%)', left: '1rem', right: '1rem', padding: '0.5rem 0.75rem', background: 'rgba(239, 68, 68, 0.12)', color: 'var(--status-danger)', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', borderRadius: '4px' }}><AlertCircle size={14} /> {error}</div>}
         {attachment && <div style={{ position: 'absolute', transform: 'translateY(-100%)', left: '1rem', right: '1rem', padding: '0.5rem 0.75rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span>{attachment.name} ({(attachment.size / 1024 / 1024).toFixed(2)} MB)</span><button type="button" onClick={() => setAttachment(null)} aria-label="Remove attachment" style={{ background: 'none', border: 0, color: 'inherit', cursor: 'pointer' }}><X size={14} /></button></div>}
         <input type="file" ref={fileRef} accept="image/*,.pdf" onChange={handleImageUpload} style={{ display: 'none' }} />
         <button 

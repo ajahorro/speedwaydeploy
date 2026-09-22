@@ -18,6 +18,8 @@ import QRMagnifier from '../../components/QRMagnifier';
 import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
 import { useConfig } from '../../context/ConfigContext';
 import CustomCalendar from '../../components/BookingWizard/CustomCalendar';
+import ValidationModal from '../../components/ValidationModal';
+import { classifyScheduleError, toCleanMessage } from '../../utils/errorRouting';
 import { getAvailableSlots, getBusinessHours } from '../../services/scheduleService';
 
 const CustomerBookingDetails = () => {
@@ -61,6 +63,10 @@ const CustomerBookingDetails = () => {
   const [rescheduleSlots, setRescheduleSlots] = useState([]);
   const [rescheduleSlotsLoading, setRescheduleSlotsLoading] = useState(false);
   const [businessHours, setBusinessHours] = useState(null);
+  // Batch 7 / Step 7.3: a schedule conflict (capacity/lead-time/past-date) is a
+  // DECISION the user must act on, so it routes to <ValidationModal>, not a
+  // toast. Transient/operational failures keep using toasts.
+  const [rescheduleIssue, setRescheduleIssue] = useState(null);
   // Batch 5: photo evidence drawer (customer sees only their own booking's photos via RLS).
   const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false);
 
@@ -152,7 +158,15 @@ const CustomerBookingDetails = () => {
       await refreshData();
       fetchAll();
     } catch (err) {
-      toast.error(err.message || 'Failed to reschedule appointment', { id: toastId });
+      const code = classifyScheduleError(err);
+      if (code) {
+        // Scheduling conflict → guided <ValidationModal> (fail-closed policy:
+        // the reschedule did NOT go through).
+        setRescheduleIssue({ code, message: toCleanMessage(err), date: rescheduleDate, time: rescheduleTime });
+        toast.dismiss(toastId);
+      } else {
+        toast.error(err.message || 'Failed to reschedule appointment', { id: toastId });
+      }
     } finally {
       setIsRescheduling(false);
     }
@@ -438,9 +452,9 @@ const CustomerBookingDetails = () => {
             border: '1px solid #ef4444', borderRadius: 'var(--admin-radius-sm)',
             display: 'flex', alignItems: 'center', gap: '1rem'
           }}>
-            <ShieldCheck color="#ef4444" size={24} />
+            <ShieldCheck color="var(--status-danger)" size={24} />
             <div>
-              <div style={{ fontWeight: '950', color: '#ef4444', fontSize: '0.9rem', textTransform: 'uppercase' }}>Financial Reversal Finalized</div>
+              <div style={{ fontWeight: '950', color: 'var(--status-danger)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Financial Reversal Finalized</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
                 A refund has been processed for this cancelled booking. Please check your financial provider for the reflected amount.
               </div>
@@ -594,7 +608,7 @@ const CustomerBookingDetails = () => {
                           {p.amount < 0 ? '-' : ''}₱{Math.abs(p.amount || 0).toLocaleString()}
                         </div>
                         {p.status === 'REJECTED' && p.rejection_reason && (
-                          <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', fontWeight: '700', color: '#ef4444', background: 'rgba(239,68,68,0.05)', padding: '0.5rem', borderRadius: '4px' }}>
+                          <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', fontWeight: '700', color: 'var(--status-danger)', background: 'rgba(239,68,68,0.05)', padding: '0.5rem', borderRadius: '4px' }}>
                             <AlertCircle size={12} style={{ marginRight: '0.25rem', verticalAlign: 'middle' }} /> {p.rejection_reason}
                           </div>
                         )}
@@ -710,7 +724,7 @@ const CustomerBookingDetails = () => {
           {/* ===== ACTIONS ===== */}
           {(['scheduled', 'confirmed'].includes(derivedStatus)) && (
             <div style={{ ...cardStyle, border: '1px solid rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.02)' }}>
-              <div style={{ ...labelStyle, color: '#ef4444' }}>Danger Zone</div>
+              <div style={{ ...labelStyle, color: 'var(--status-danger)' }}>Danger Zone</div>
               <p style={{ margin: '0.5rem 0 1rem 0', fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
                 {derivedStatus === 'scheduled'
                   ? "Need to cancel? You can cancel your appointment now."
@@ -756,7 +770,7 @@ const CustomerBookingDetails = () => {
                 {rescheduleSlotsLoading ? (
                   <div style={{ padding: '1rem', color: 'var(--admin-brand)', fontWeight: '900', textAlign: 'center' }}>Checking available bays...</div>
                 ) : rescheduleSlots.length === 0 ? (
-                  <div style={{ padding: '1rem', color: '#ef4444', background: 'rgba(239,68,68,.06)', border: '1px solid rgba(239,68,68,.25)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '800' }}>No available slots for this date. Choose another date.</div>
+                  <div style={{ padding: '1rem', color: 'var(--status-danger)', background: 'rgba(239,68,68,.06)', border: '1px solid rgba(239,68,68,.25)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '800' }}>No available slots for this date. Choose another date.</div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '.5rem', maxHeight: 'clamp(150px, 28vh, 240px)', overflowY: 'auto', paddingRight: '.25rem' }}>
                     {rescheduleSlots.map(slot => (
@@ -774,13 +788,29 @@ const CustomerBookingDetails = () => {
             </div>
           )}
 
+          {/* Batch 7 / Step 7.3: reschedule schedule-conflicts surface here as a
+              guided decision (pick another time/date) rather than a toast. */}
+          <ValidationModal
+            open={Boolean(rescheduleIssue)}
+            code={rescheduleIssue?.code}
+            message={rescheduleIssue?.message}
+            details={{ date: rescheduleIssue?.date, time: rescheduleIssue?.time }}
+            onClose={() => setRescheduleIssue(null)}
+            onPickAnotherTime={() => setRescheduleIssue(null)}
+            onSelectNextAvailable={() => {
+              setRescheduleIssue(null);
+              setRescheduleDate('');
+              setRescheduleTime('');
+            }}
+          />
+
           {/* CANCELLATION MODAL */}
           {showCancelModal && (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)' }}>
               <div style={{ background: 'var(--admin-card)', padding: '2.5rem', borderRadius: 'var(--admin-radius-lg)', border: '1px solid var(--admin-border)', maxWidth: '450px', width: '90%', position: 'relative' }}>
                 <button onClick={() => setShowCancelModal(false)} style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}><X size={20} /></button>
                 <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                  <AlertCircle size={40} color="#ef4444" style={{ marginBottom: '1rem' }} />
+                  <AlertCircle size={40} color="var(--status-danger)" style={{ marginBottom: '1rem' }} />
                   <h3 style={{ margin: 0, fontWeight: '950', fontSize: '1.25rem', color: 'var(--admin-text-primary)' }}>Confirm Cancellation?</h3>
                   <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.85rem', marginTop: '0.5rem', fontWeight: '600' }}>
                     Please provide a reason for cancelling this appointment.
@@ -803,9 +833,9 @@ const CustomerBookingDetails = () => {
                     style={{
                       flex: 1,
                       padding: '1rem',
-                      background: '#ef4444',
+                      background: 'var(--status-danger)',
                       border: 'none',
-                      color: 'white',
+                      color: 'var(--admin-text-primary)',
                       borderRadius: 'var(--admin-radius-sm)',
                       fontWeight: '900',
                       cursor: (!cancelReason.trim() || isCancelling) ? 'not-allowed' : 'pointer',

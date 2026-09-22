@@ -5,6 +5,9 @@ import { useConfig } from '../../context/ConfigContext';
 import { calculateBookingDiscountSummary } from '../../data/servicesCatalog';
 import { getRequiredDownpayment, requiresDownpayment } from '../../utils/paymentUtils';
 import QRMagnifier from '../QRMagnifier';
+import { captureQrSnapshot } from '../../services/qrSecurityService';
+import { computeNetCredit } from '../../services/creditLedgerService';
+import { logger } from '../../utils/logger';
 
 const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, onNext, onBack, onSubmit, isSubmitting, onCancel }) => {
   const { settings } = useConfig();
@@ -13,6 +16,42 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  // Task B: freeze the QR target for THIS checkout session.
+  // Captured once when the payment step mounts. A mid-update QR change by an
+  // admin afterwards cannot break this payment, because everything below reads
+  // from `qrTarget` (the snapshot), not the live settings.
+  const [qrTarget, setQrTarget] = useState(null);
+
+  useEffect(() => {
+    const existingBookingId = bookingData?.bookingId || bookingData?.id || null;
+    const snapshot = {
+      QR_ACCOUNT_NAME: settings.QR_ACCOUNT_NAME || settings.PAYMENT_ACCOUNT_NAME || '',
+      QR_ACCOUNT_NUMBER: settings.QR_ACCOUNT_NUMBER || settings.PAYMENT_ACCOUNT_NUMBER || '',
+      QR_FALLBACK_NAME: settings.QR_FALLBACK_NAME || '',
+      QR_FALLBACK_NUMBER: settings.QR_FALLBACK_NUMBER || '',
+      PAYMENT_QR_URL: settings.PAYMENT_QR_URL || null,
+      QR_CONFIG_VERSION: settings.QR_CONFIG_VERSION ?? 1,
+    };
+    setQrTarget(snapshot);
+
+    // Persist the snapshot onto the booking row when we already have one
+    // (reschedule / admin / draft). For a brand-new customer booking the row is
+    // written at submit time and the snapshot is stored then.
+    if (existingBookingId) {
+      captureQrSnapshot(existingBookingId, {
+        qr_account_name: snapshot.QR_ACCOUNT_NAME,
+        qr_account_number: snapshot.QR_ACCOUNT_NUMBER,
+        fallback_receiver_name: snapshot.QR_FALLBACK_NAME,
+        fallback_receiver_number: snapshot.QR_FALLBACK_NUMBER,
+        gcash_qr_url: snapshot.PAYMENT_QR_URL,
+        qr_config_version: snapshot.QR_CONFIG_VERSION,
+      }).catch((err) => logger.warn('QR snapshot capture skipped', err));
+    }
+    // Intentionally depends only on the booking id: the snapshot must NOT be
+    // refreshed by a live settings change mid-checkout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingData?.bookingId, bookingData?.id]);
 
   const labelStyle = {
     fontSize: '0.65rem',
@@ -337,7 +376,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                 </button>
               </div>
               {!canUseCash && (
-                <div style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: '800', marginTop: '0.5rem', textTransform: 'uppercase' }}>
+                <div style={{ fontSize: '0.65rem', color: 'var(--status-danger)', fontWeight: '800', marginTop: '0.5rem', textTransform: 'uppercase' }}>
                   * Cash option unavailable for bookings above ₱1,000
                 </div>
               )}
@@ -355,7 +394,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                   ].map(([value, label]) => <button key={value} type="button" disabled={value === 'Downpayment' && !canUseDownpayment} onClick={() => setBookingData(prev => ({ ...prev, payment: { ...prev.payment, type: value } }))} style={{ minHeight: '3rem', padding: '.65rem', background: bookingData.payment.type === value ? 'var(--admin-brand)' : 'var(--admin-card)', color: bookingData.payment.type === value ? '#fff' : 'var(--admin-text-primary)', border: `1px solid ${bookingData.payment.type === value ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', fontSize: '.72rem', cursor: value === 'Downpayment' && !canUseDownpayment ? 'not-allowed' : 'pointer', opacity: value === 'Downpayment' && !canUseDownpayment ? .4 : 1 }}>{label}</button>)}
                 </div>
                 {bookingData.payment.type === 'Manual' && <input type="text" inputMode="numeric" pattern="[0-9]*" value={bookingData.payment.manualAmount || ''} onChange={event => setBookingData(prev => ({ ...prev, payment: { ...prev.payment, manualAmount: event.target.value.replace(/\D/g, '') } }))} placeholder="Enter amount" aria-label="Manual payment amount" style={{ width: '100%', boxSizing: 'border-box', padding: '.85rem 1rem', background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-input-border)', borderRadius: '6px', fontWeight: '800' }} />}
-                {bookingData.payment.type === 'Manual' && manualAmount > grandTotal && <span style={{ color: '#ef4444', fontSize: '.7rem', fontWeight: '800' }}>Manual amount cannot be higher than the booking total.</span>}
+                {bookingData.payment.type === 'Manual' && manualAmount > grandTotal && <span style={{ color: 'var(--status-danger)', fontSize: '.7rem', fontWeight: '800' }}>Manual amount cannot be higher than the booking total.</span>}
               </div>
             )}
             </div>}
@@ -409,13 +448,21 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                   <div style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Scan to Pay</div>
                   {settings.loaded ? (
                     <>
-                      {settings.PAYMENT_QR_URL ? (
-                        <QRMagnifier qrUrl={settings.PAYMENT_QR_URL} accountName={settings.PAYMENT_ACCOUNT_NAME} accountNumber={settings.PAYMENT_ACCOUNT_NUMBER} />
+                      {qrTarget?.PAYMENT_QR_URL ? (
+                        <QRMagnifier qrUrl={qrTarget.PAYMENT_QR_URL} accountName={qrTarget.QR_ACCOUNT_NAME} accountNumber={qrTarget.QR_ACCOUNT_NUMBER} />
                       ) : (
                         <div style={{ width: '100%', maxWidth: '400px', height: '550px', margin: '1.5rem auto', background: 'var(--admin-card)', border: '1px dashed var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', borderRadius: 'var(--admin-radius-lg)' }}>No QR Configured</div>
                       )}
-                      <div style={{ fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>{settings.PAYMENT_ACCOUNT_NAME}</div>
-                      <div style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--admin-brand)', marginTop: '0.25rem' }}>{settings.PAYMENT_ACCOUNT_NUMBER}</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>{qrTarget?.QR_ACCOUNT_NAME}</div>
+                      <div style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--admin-brand)', marginTop: '0.25rem' }}>{qrTarget?.QR_ACCOUNT_NUMBER}</div>
+                      {/* Task B: show the fallback receiver so a cross-bank customer
+                          who cannot use the primary QR knows where to send funds. */}
+                      {qrTarget?.QR_FALLBACK_NAME ? (
+                        <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.9rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.72rem', fontWeight: 700, color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                          Fallback receiver: <strong style={{ color: 'var(--admin-text-primary)' }}>{qrTarget.QR_FALLBACK_NAME}</strong>
+                          {qrTarget.QR_FALLBACK_NUMBER ? <> &middot; {qrTarget.QR_FALLBACK_NUMBER}</> : null}
+                        </div>
+                      ) : null}
                     </>
                   ) : (
                     <div style={{ padding: '2rem', color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '600' }}>Loading business settings...</div>
@@ -477,7 +524,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                     <div style={{
                       background: 'var(--admin-card)',
                       borderRadius: 'var(--admin-radius-lg)',
-                      border: `1px solid ${isWarningReceipt ? '#f59e0b' : 'var(--admin-success)'}`,
+                      border: `1px solid ${isWarningReceipt ? 'var(--status-warning)' : 'var(--admin-success)'}`,
                       overflow: 'hidden',
                       animation: 'fadeIn 0.5s ease'
                     }}>
@@ -493,13 +540,13 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           <div style={{
                             width: '32px', height: '32px', borderRadius: '50%',
-                            background: isWarningReceipt ? '#f59e0b' : 'var(--admin-success)',
+                            background: isWarningReceipt ? 'var(--status-warning)' : 'var(--admin-success)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center'
                           }}>
                             {isWarningReceipt ? <AlertTriangle size={20} color="#fff" /> : <CheckCircle2 size={20} color="#fff" />}
                           </div>
                           <div>
-                            <div style={{ color: receiptDetails.status === 'REJECTED' || isDuplicateReceipt ? '#ef4444' : (receiptDetails.status === 'MISMATCHED' ? '#f59e0b' : 'var(--admin-success)'), fontWeight: '950', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                            <div style={{ color: receiptDetails.status === 'REJECTED' || isDuplicateReceipt ? 'var(--status-danger)' : (receiptDetails.status === 'MISMATCHED' ? 'var(--status-warning)' : 'var(--admin-success)'), fontWeight: '950', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
                               {isDuplicateReceipt ? 'Duplicate Receipt Detected' : (receiptDetails.status === 'REJECTED' ? 'Verification Failed' : (receiptDetails.status === 'MISMATCHED' ? 'Amount Discrepancy' : 'AI Audit Verified'))}
                             </div>
                             <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '800' }}>
@@ -518,7 +565,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                           borderRadius: 'var(--admin-radius-sm)',
                           border: `1px solid ${receiptDetails.status === 'REJECTED' ? 'rgba(239, 68, 68, 0.3)' : 'var(--admin-border)'}`,
                           fontSize: '0.8rem',
-                          color: receiptDetails.status === 'REJECTED' ? '#ef4444' : 'var(--admin-text-secondary)',
+                          color: receiptDetails.status === 'REJECTED' ? 'var(--status-danger)' : 'var(--admin-text-secondary)',
                           lineHeight: 1.5,
                           fontStyle: 'italic',
                           fontWeight: receiptDetails.status === 'REJECTED' ? '700' : 'normal'
@@ -557,16 +604,16 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                                 <div style={{ color: 'var(--admin-text-primary)', fontSize: '1.5rem', fontWeight: '950' }}>₱{Number(receiptDetails.requiredAmount || 0).toLocaleString()}</div>
                               </div>
                               <div>
-                                <div style={{ fontSize: '0.65rem', fontWeight: '900', color: receiptDetails.status === 'MISMATCHED' ? '#f59e0b' : 'var(--admin-success)', textTransform: 'uppercase' }}>Status</div>
-                                <div style={{ color: receiptDetails.status === 'MISMATCHED' ? '#f59e0b' : 'var(--admin-success)', fontSize: '0.85rem', fontWeight: '950', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <div style={{ fontSize: '0.65rem', fontWeight: '900', color: receiptDetails.status === 'MISMATCHED' ? 'var(--status-warning)' : 'var(--admin-success)', textTransform: 'uppercase' }}>Status</div>
+                                <div style={{ color: receiptDetails.status === 'MISMATCHED' ? 'var(--status-warning)' : 'var(--admin-success)', fontSize: '0.85rem', fontWeight: '950', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                   {receiptDetails.status} {receiptDetails.status === 'MATCHED' ? <CheckCircle2 size={16} /> : <ShieldAlert size={16} />}
                                 </div>
                               </div>
                             </div>
                           </>
                         ) : (
-                          <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed #ef4444', textAlign: 'center' }}>
-                            <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '800', color: '#ef4444' }}>
+                          <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed var(--status-danger)', textAlign: 'center' }}>
+                            <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '800', color: 'var(--status-danger)' }}>
                               AI analysis inconclusive. You may proceed, and our staff will manually verify this receipt before your appointment.
                             </p>
                           </div>
@@ -574,21 +621,21 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
                         {/* Soft Note for Mismatches */}
                         {isDuplicateReceipt && (
-                          <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed #ef4444', textAlign: 'center' }}>
-                            <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '800', color: '#ef4444' }}>
+                          <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed var(--status-danger)', textAlign: 'center' }}>
+                            <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '800', color: 'var(--status-danger)' }}>
                               This receipt cannot be submitted. Upload a payment proof with a new transaction reference number.
                             </p>
                           </div>
                         )}
                         {isUnderpaidReceipt ? (
-                          <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed #ef4444', textAlign: 'center' }}>
-                            <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '800', color: '#ef4444' }}>
+                          <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed var(--status-danger)', textAlign: 'center' }}>
+                            <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '800', color: 'var(--status-danger)' }}>
                               This receipt cannot be submitted. The detected amount of ₱{Number(receiptDetails.amount || 0).toLocaleString()} is below the required downpayment of ₱{downpaymentAmount.toLocaleString()}.
                             </p>
                           </div>
                         ) : receiptDetails.status === 'MISMATCHED' && (
-                          <div style={{ padding: '1rem', background: 'rgba(245, 158, 11, 0.05)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed #f59e0b', textAlign: 'center' }}>
-                            <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '800', color: '#f59e0b' }}>
+                          <div style={{ padding: '1rem', background: 'rgba(245, 158, 11, 0.05)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed var(--status-warning)', textAlign: 'center' }}>
+                            <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '800', color: 'var(--status-warning)' }}>
                               NOTE: Our staff will perform a final manual audit of this amount. You may proceed with your booking.
                             </p>
                           </div>
@@ -609,8 +656,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
               <div style={{ background: 'rgba(var(--admin-warning-rgb), 0.1)', border: '1px solid rgba(var(--admin-warning-rgb), 0.3)', padding: '1.5rem', borderRadius: 'var(--admin-radius-md)', color: 'var(--admin-warning)', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
                 <ShieldAlert size={24} style={{ flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: '1rem', fontWeight: '900', marginBottom: '0.5rem', color: '#f59e0b' }}>On-Site Cash Payment</div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: '600', lineHeight: 1.5, color: '#d97706' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: '900', marginBottom: '0.5rem', color: 'var(--status-warning)' }}>On-Site Cash Payment</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: '600', lineHeight: 1.5, color: 'var(--status-warning)' }}>
                     By selecting Cash, your booking will be marked as PENDING. Your slot is not fully secured until you arrive at the shop. We recommend arriving 15 minutes early.
                   </div>
                 </div>
@@ -648,7 +695,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                   <p>6. This placeholder agreement is subject to future legal review and may be updated without notice.</p>
                 </div>
                 <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid var(--admin-border)', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button type="button" onClick={() => setShowTermsModal(false)} style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', color: '#fff', fontWeight: 900, cursor: 'pointer' }}>Close</button>
+                  <button type="button" onClick={() => setShowTermsModal(false)} style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-on-brand)', fontWeight: 900, cursor: 'pointer' }}>Close</button>
                 </div>
               </div>
             </div>
@@ -669,17 +716,17 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         </button>
 
         {onCancel && (
-          <button 
-            type="button" 
-            onClick={onCancel} 
-            style={{ 
-              background: 'transparent', 
-              border: '1px solid #ef4444', 
-              color: '#ef4444', 
-              padding: '1rem 2rem', 
-              borderRadius: 'var(--admin-radius-md)', 
-              fontWeight: '950', 
-              cursor: 'pointer', 
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--status-danger)',
+              color: 'var(--status-danger)',
+              padding: '1rem 2rem',
+              borderRadius: 'var(--admin-radius-md)',
+              fontWeight: '950',
+              cursor: 'pointer',
               textTransform: 'uppercase',
               letterSpacing: '1px'
             }}
@@ -733,7 +780,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
               <button
                 onClick={handleConfirmSubmit}
                 disabled={isSubmitting}
-                style={{ flex: 1, padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-md)', fontWeight: '900', color: '#fff', cursor: isSubmitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', opacity: isSubmitting ? 0.7 : 1 }}
+                style={{ flex: 1, padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-md)', fontWeight: '900', color: 'var(--admin-text-on-brand)', cursor: isSubmitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', opacity: isSubmitting ? 0.7 : 1 }}
               >
                 {isSubmitting ? (
                   <>

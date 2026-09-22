@@ -7,12 +7,21 @@ import {
 import { useConfig } from '../../context/ConfigContext';
 import { supabase } from '../../lib/supabase';
 import PromoManager from '../../components/AdminSchedule/PromoManager';
+import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
+import { validateQrRecipients } from '../../services/qrSecurityService';
+import { sanitizeAlphaNum } from '../../config/constants';
+import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
+import LeaveGuardModal from '../../components/LeaveGuardModal';
 
 const TAB_KEYS = ['profile', 'hours', 'schedule', 'services', 'promos'];
 
 // The fields each section owns (mirrors handleSaveSection's UPDATE payload).
 const SECTION_FIELDS = {
-  profile: ['business_name', 'contact_number', 'email_address', 'business_address', 'payment_account_name', 'payment_account_number'],
+  profile: [
+    'business_name', 'contact_number', 'email_address', 'business_address',
+    // Task B: the four MANDATORY QR recipient fields.
+    'qr_account_name', 'qr_account_number', 'fallback_receiver_name', 'fallback_receiver_number',
+  ],
   hours: ['opening_hour', 'closing_hour', 'slots_per_hour', 'max_vehicles_per_staff'],
   schedule: ['booking_lead_time_minutes', 'max_advance_days', 'closed_weekdays', 'enforce_capacity'],
   services: ['custom_services']
@@ -194,9 +203,13 @@ export default function BusinessHub() {
     business_address: '',
     opening_hour: '',
     closing_hour: '',
-    payment_account_number: '',
-    payment_account_name: '',
-    payment_qr_url: '',
+    // Task B: QR recipient fields replace the legacy single-payment pair.
+    qr_account_name: '',
+    qr_account_number: '',
+    fallback_receiver_name: '',
+    fallback_receiver_number: '',
+    qr_config_version: 1,
+    qr_config_complete: false,
     slots_per_hour: 2,
     max_vehicles_per_staff: 1,
     booking_lead_time_minutes: 120,
@@ -207,6 +220,9 @@ export default function BusinessHub() {
   });
   const [pristine, setPristine] = useState(null);
   const [recordId, setRecordId] = useState(null);
+  // Task B: the QR change modal owns its own OTP flow. Saving the profile does
+  // NOT commit QR changes — those go through the verified [Change QR] path only.
+  const [showQrModal, setShowQrModal] = useState(false);
 
   useEffect(() => {
     fetchBusinessConfig();
@@ -229,9 +245,12 @@ export default function BusinessHub() {
           business_address: data.business_address || '',
           opening_hour: data.opening_hour || '',
           closing_hour: data.closing_hour || '',
-          payment_account_number: data.payment_account_number || '',
-          payment_account_name: data.payment_account_name || '',
-          payment_qr_url: data.payment_qr_url || '',
+          qr_account_name: data.qr_account_name || '',
+          qr_account_number: data.qr_account_number || '',
+          fallback_receiver_name: data.fallback_receiver_name || '',
+          fallback_receiver_number: data.fallback_receiver_number || '',
+          qr_config_version: data.qr_config_version ?? 1,
+          qr_config_complete: data.qr_config_complete === true,
           slots_per_hour: data.slots_per_hour ?? 2,
           max_vehicles_per_staff: data.max_vehicles_per_staff ?? 1,
           booking_lead_time_minutes: data.booking_lead_time_minutes ?? 120,
@@ -255,13 +274,24 @@ export default function BusinessHub() {
     }
   };
 
+  // Task B: block tab switches / navigation while a section has unsaved edits.
+  const anyDirty = ['profile', 'hours', 'schedule', 'services'].some((s) => isDirty(s));
+  const leaveGuard = useUnsavedChangesGuard(anyDirty);
+
   const handleTabChange = (tabKey) => {
-    setSearchParams({ tab: tabKey });
-    setMessage({ type: '', text: '' });
+    // Guard the in-app navigation; only switch when the guard approves.
+    leaveGuard.confirmNavigation(() => setSearchParams({ tab: tabKey }));
   };
 
   const handleInputChange = (field, value) => {
-    setBusinessForm((prev) => ({ ...prev, [field]: value }));
+    // Task B: strict alphanumeric guard on every free-text config field. Numeric
+    // and boolean fields bypass it (they are parsed separately below).
+    const TEXT_FIELDS = [
+      'business_name', 'contact_number', 'email_address', 'business_address',
+      'qr_account_name', 'qr_account_number', 'fallback_receiver_name', 'fallback_receiver_number',
+    ];
+    const nextValue = TEXT_FIELDS.includes(field) ? sanitizeAlphaNum(value) : value;
+    setBusinessForm((prev) => ({ ...prev, [field]: nextValue }));
     setMessage((prev) => (prev.text ? { type: '', text: '' } : prev));
   };
 
@@ -287,7 +317,9 @@ export default function BusinessHub() {
 
   const sectionValid = (section) => {
     if (section === 'profile') {
-      return Boolean(String(businessForm.business_name || '').trim());
+      // Task B: profile requires a business name AND a complete QR recipient set.
+      const qr = validateQrRecipients(businessForm);
+      return Boolean(String(businessForm.business_name || '').trim()) && qr.ok;
     }
     if (section === 'hours') {
       const slots = Number(businessForm.slots_per_hour);
@@ -352,9 +384,12 @@ export default function BusinessHub() {
           business_address: businessForm.business_address,
           opening_hour: businessForm.opening_hour,
           closing_hour: businessForm.closing_hour,
-          payment_account_number: businessForm.payment_account_number,
-          payment_account_name: businessForm.payment_account_name,
-          payment_qr_url: businessForm.payment_qr_url,
+          // Task B: persist the four mandatory QR recipient fields.
+          qr_account_name: businessForm.qr_account_name,
+          qr_account_number: businessForm.qr_account_number,
+          fallback_receiver_name: businessForm.fallback_receiver_name,
+          fallback_receiver_number: businessForm.fallback_receiver_number,
+          qr_config_complete: validateQrRecipients(businessForm).ok,
           slots_per_hour: Number(businessForm.slots_per_hour),
           max_vehicles_per_staff: Number(businessForm.max_vehicles_per_staff),
           booking_lead_time_minutes: Number(businessForm.booking_lead_time_minutes),
@@ -585,24 +620,71 @@ export default function BusinessHub() {
 
             <SectionHeading style={{ paddingTop: '0.5rem' }}>Payment &amp; Settlement Details</SectionHeading>
             <div style={gridStyle}>
-              <Field label="Payment Account Name">
+              <Field label="QR Account Name" required>
                 <input
                   type="text"
-                  value={businessForm.payment_account_name}
-                  onChange={(e) => handleInputChange('payment_account_name', e.target.value)}
+                  value={businessForm.qr_account_name}
+                  onChange={(e) => handleInputChange('qr_account_name', e.target.value)}
                   style={inputStyle}
-                  placeholder="Account holder"
+                  placeholder="Primary recipient name"
                 />
               </Field>
-              <Field label="Payment Account / GCash Number">
+              <Field label="QR Account Number" required>
                 <input
                   type="text"
-                  value={businessForm.payment_account_number}
-                  onChange={(e) => handleInputChange('payment_account_number', e.target.value)}
+                  value={businessForm.qr_account_number}
+                  onChange={(e) => handleInputChange('qr_account_number', e.target.value)}
                   style={inputStyle}
-                  placeholder="e.g. 0912 345 6789"
+                  placeholder="Primary recipient number"
                 />
               </Field>
+              <Field label="Fallback Receiver Name" required>
+                <input
+                  type="text"
+                  value={businessForm.fallback_receiver_name}
+                  onChange={(e) => handleInputChange('fallback_receiver_name', e.target.value)}
+                  style={inputStyle}
+                  placeholder="Fallback recipient name"
+                />
+              </Field>
+              <Field label="Fallback Receiver Number" required>
+                <input
+                  type="text"
+                  value={businessForm.fallback_receiver_number}
+                  onChange={(e) => handleInputChange('fallback_receiver_number', e.target.value)}
+                  style={inputStyle}
+                  placeholder="Fallback recipient number"
+                />
+              </Field>
+            </div>
+
+            {/* Task B: all four fields are mandatory. Show the exact gaps
+                inline so the operator is never left guessing why Save is off. */}
+            {(() => {
+              const qr = validateQrRecipients(businessForm);
+              if (qr.ok) return null;
+              const parts = [];
+              if (qr.missing.length) parts.push(`missing: ${qr.missing.join(', ')}`);
+              if (qr.invalid.length) parts.push(`invalid characters: ${qr.invalid.join(', ')}`);
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', padding: '0.7rem 0.9rem', background: 'rgba(var(--admin-brand-rgb), 0.08)', border: '1px solid var(--status-danger)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-danger)', fontSize: '0.78rem', fontWeight: 800 }}>
+                  <AlertCircle size={16} /> All fields are required — {parts.join('; ')}
+                </div>
+              );
+            })()}
+
+            {/* Task B: changing the QR requires the OTP-verified flow. */}
+            <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', padding: '0.9rem 1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--admin-text-secondary)', minWidth: 0 }}>
+                QR configuration is version <strong style={{ color: 'var(--admin-text-primary)' }}>v{businessForm.qr_config_version || 1}</strong>. Changing it requires email OTP verification.
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQrModal(true)}
+                style={{ minHeight: '2.5rem', padding: '0.65rem 1.1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: 950, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer', flexShrink: 0 }}
+              >
+                Change QR
+              </button>
             </div>
 
             <SaveBar
@@ -844,7 +926,7 @@ export default function BusinessHub() {
                 <button
                   type="button"
                   onClick={addOrUpdateService}
-                  style={{ ...buttonBase, background: 'var(--admin-brand)', color: '#fff', border: '1px solid var(--admin-brand)' }}
+                  style={{ ...buttonBase, background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: '1px solid var(--admin-brand)' }}
                 >
                   {editingServiceId ? 'Update Service' : (<><Plus size={15} /> Add Service</>)}
                 </button>
@@ -889,7 +971,7 @@ export default function BusinessHub() {
                       <button
                         type="button"
                         onClick={() => archiveService(service.id)}
-                        style={{ ...ghostButton, color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+                        style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
                       >
                         <Trash2 size={13} /> Archive
                       </button>
@@ -952,6 +1034,22 @@ export default function BusinessHub() {
           </div>
         )}
       </div>
+
+      {/* Task B: QR change is gated behind a 6-digit email OTP. */}
+      <QrChangeOtpModal
+        open={showQrModal}
+        currentConfig={businessForm}
+        onClose={() => setShowQrModal(false)}
+        onCommitted={() => { fetchBusinessConfig(); }}
+      />
+
+      {/* Task B: block navigation while there are unsaved edits. */}
+      <LeaveGuardModal
+        open={leaveGuard.modalProps.open}
+        message={leaveGuard.modalProps.message}
+        onStay={leaveGuard.modalProps.onStay}
+        onLeave={leaveGuard.modalProps.onLeave}
+      />
     </div>
   );
 }

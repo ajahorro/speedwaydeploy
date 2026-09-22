@@ -209,7 +209,7 @@ const AdminAccountsManagement = () => {
           <button 
             onClick={() => setIsModalOpen(true)}
             style={{ 
-              padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', color: 'white', 
+              padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', 
               border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', 
               fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' 
             }}
@@ -246,7 +246,7 @@ const AdminAccountsManagement = () => {
                   <div style={{ fontSize: '0.9rem', fontWeight: '950', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     {member.full_name}
                     {isDefaultAdmin(member) && (
-                      <span style={{ fontSize: '0.55rem', background: 'var(--admin-brand)', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '2px' }}>DEFAULT ADMIN</span>
+                      <span style={{ fontSize: '0.55rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', padding: '0.1rem 0.4rem', borderRadius: '2px' }}>DEFAULT ADMIN</span>
                     )}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '700' }}>
@@ -259,7 +259,7 @@ const AdminAccountsManagement = () => {
                     onClick={() => handleDeactivate(member)}
                     style={{ 
                       padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)', 
-                      background: 'rgba(239, 68, 68, 0.05)', color: '#ef4444', 
+                      background: 'rgba(239, 68, 68, 0.05)', color: 'var(--status-danger)', 
                       fontSize: '0.65rem', fontWeight: '950', border: '1px solid rgba(239, 68, 68, 0.2)',
                       cursor: 'pointer', textTransform: 'uppercase'
                     }}
@@ -325,7 +325,7 @@ const AdminAccountsManagement = () => {
                 type="submit"
                 disabled={isSubmitting}
                 style={{ 
-                  padding: '1rem', background: 'var(--admin-brand)', color: 'white', 
+                  padding: '1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', 
                   border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', 
                   fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', 
                   justifyContent: 'center', gap: '0.75rem', marginTop: '1rem', textTransform: 'uppercase'

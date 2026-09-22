@@ -462,7 +462,7 @@ const AdminSettings = () => {
                 <button
                   type="button"
                   onClick={() => setShowNewServiceForm(prev => !prev)}
-                  style={{ background: 'var(--admin-brand)', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em' }}
+                  style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '4px', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em' }}
                 >
                   {showNewServiceForm ? 'Close' : '+ Create New Service'}
                 </button>
@@ -498,7 +498,7 @@ const AdminSettings = () => {
                     <input type="text" placeholder="Service name" value={newService.name} onChange={(e) => setNewService({ ...newService, name: e.target.value })} style={inputStyle} />
                     <input type="number" min="0" placeholder="Price" value={newService.price} onChange={(e) => setNewService({ ...newService, price: e.target.value })} style={inputStyle} />
                     <input type="number" min="15" step="15" placeholder="Minutes" value={newService.durationMinutes} onChange={(e) => setNewService({ ...newService, durationMinutes: e.target.value })} style={inputStyle} />
-                    <button type="button" onClick={addCustomService} style={{ background: 'var(--admin-brand)', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: '950', cursor: 'pointer' }}>{editingServiceId ? 'Update' : 'Add'}</button>
+                    <button type="button" onClick={addCustomService} style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '4px', fontWeight: '950', cursor: 'pointer' }}>{editingServiceId ? 'Update' : 'Add'}</button>
                   </div>
                   <textarea placeholder="Service details / description" value={newService.description} onChange={(e) => setNewService({ ...newService, description: e.target.value })} style={{ ...inputStyle, minHeight: '70px', resize: 'vertical' }} />
                 </div>
@@ -549,7 +549,7 @@ const AdminSettings = () => {
                                 })}
                                 <div key={`${service.id}-actions`} style={{ padding: '0.8rem 0.5rem', borderTop: '1px solid var(--admin-border)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.4rem' }}>
                                   <button type="button" onClick={() => editCustomService({ ...service, price: service.pricing.Sedan?.price || 0, durationMinutes: service.pricing.Sedan?.duration || 60 })} style={{ border: '1px solid var(--admin-border)', background: 'transparent', color: 'var(--admin-text-primary)', padding: '0.35rem 0.45rem', borderRadius: '4px', fontWeight: '900', cursor: 'pointer', fontSize: '0.56rem' }}>✏️</button>
-                                  <button type="button" onClick={() => removeCustomService(service.id)} style={{ border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', padding: '0.35rem 0.45rem', borderRadius: '4px', fontWeight: '900', cursor: 'pointer', fontSize: '0.56rem' }}>🗑️</button>
+                                  <button type="button" onClick={() => removeCustomService(service.id)} style={{ border: '1px solid #ef4444', background: 'transparent', color: 'var(--status-danger)', padding: '0.35rem 0.45rem', borderRadius: '4px', fontWeight: '900', cursor: 'pointer', fontSize: '0.56rem' }}>🗑️</button>
                                 </div>
                               </>
                             ))}
@@ -595,7 +595,7 @@ const AdminSettings = () => {
               disabled={loading}
               style={{ 
                 marginTop: '1rem', padding: '0.85rem', background: 'var(--admin-brand)', 
-                color: 'white', borderRadius: '4px', fontSize: '0.75rem', 
+                color: 'var(--admin-text-primary)', borderRadius: '4px', fontSize: '0.75rem', 
                 fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase'
               }}
             >
@@ -638,11 +638,11 @@ const AdminSettings = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', background: 'var(--admin-bg)', padding: '1.5rem', borderRadius: '4px', border: '1px dashed var(--admin-border)' }}>
                 <img src={settings.payment_qr_url} alt="Payment QR" style={{ maxWidth: '200px', height: 'auto', borderRadius: '4px' }} />
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <label style={{ padding: '0.6rem 1.25rem', background: 'var(--admin-brand)', color: 'white', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase' }}>
+                  <label style={{ padding: '0.6rem 1.25rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase' }}>
                     REPLACE
                     <input type="file" onChange={handleQRUpload} style={{ display: 'none' }} accept="image/*" />
                   </label>
-                  <button onClick={removeQR} style={{ padding: '0.6rem 1.25rem', background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase' }}>
+                  <button onClick={removeQR} style={{ padding: '0.6rem 1.25rem', background: 'transparent', border: '1px solid #ef4444', color: 'var(--status-danger)', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase' }}>
                     REMOVE
                   </button>
                 </div>

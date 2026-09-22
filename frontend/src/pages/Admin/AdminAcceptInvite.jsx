@@ -94,12 +94,12 @@ const AdminAcceptInvite = () => {
     return (
       <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
         <div style={{ maxWidth: '400px', width: '100%', background: '#111', border: '1px solid #222', borderRadius: '1rem', padding: '2rem', textAlign: 'center' }}>
-          <AlertCircle style={{ width: '4rem', height: '4rem', color: '#ef4444', margin: '0 auto 1rem' }} />
-          <h2 style={{ fontSize: '1.5rem', fontWeight: '900', color: 'white', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Invitation Error</h2>
+          <AlertCircle style={{ width: '4rem', height: '4rem', color: 'var(--status-danger)', margin: '0 auto 1rem' }} />
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '900', color: 'var(--admin-text-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Invitation Error</h2>
           <p style={{ color: '#888', marginBottom: '1.5rem', fontSize: '0.9rem' }}>{error}</p>
           <button 
             onClick={() => navigate('/login')}
-            style={{ width: '100%', background: '#A91B18', color: 'white', padding: '1rem', borderRadius: '0.75rem', fontWeight: '900', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}
+            style={{ width: '100%', background: '#A91B18', color: 'var(--admin-text-primary)', padding: '1rem', borderRadius: '0.75rem', fontWeight: '900', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}
           >
             Go to Login
           </button>
@@ -114,7 +114,7 @@ const AdminAcceptInvite = () => {
     border: '1px solid #262626',
     borderRadius: '0.75rem',
     padding: '0.75rem 1rem 0.75rem 2.75rem',
-    color: 'white',
+    color: 'var(--admin-text-primary)',
     outline: 'none',
     fontSize: '0.9rem',
     fontWeight: '600'
@@ -135,7 +135,7 @@ const AdminAcceptInvite = () => {
       <div style={{ maxWidth: '450px', width: '100%' }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-          <h1 style={{ fontSize: '2rem', fontWeight: '950', color: 'white', margin: 0, tracking: '-0.05em', fontStyle: 'italic', textTransform: 'uppercase' }}>
+          <h1 style={{ fontSize: '2rem', fontWeight: '950', color: 'var(--admin-text-primary)', margin: 0, tracking: '-0.05em', fontStyle: 'italic', textTransform: 'uppercase' }}>
             SPEEDWAY<span style={{ color: '#A91B18' }}>AUTOXMOTO</span>
           </h1>
           <p style={{ color: '#555', marginTop: '0.5rem', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '2px' }}>
@@ -145,9 +145,9 @@ const AdminAcceptInvite = () => {
 
         <div style={{ background: '#111', border: '1px solid #222', borderRadius: '1.5rem', padding: '2.5rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
           <div style={{ marginBottom: '2rem' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: '900', color: 'white', margin: '0 0 0.5rem' }}>Welcome aboard!</h2>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: '900', color: 'var(--admin-text-primary)', margin: '0 0 0.5rem' }}>Welcome aboard!</h2>
             <p style={{ fontSize: '0.85rem', color: '#666', margin: 0 }}>
-              You're joining as <strong style={{ color: 'white' }}>{inviteData?.role}</strong> for <br/>
+              You're joining as <strong style={{ color: 'var(--admin-text-primary)' }}>{inviteData?.role}</strong> for <br/>
               <span style={{ color: '#A91B18', fontWeight: '700' }}>{inviteData?.email}</span>
             </p>
           </div>
@@ -220,7 +220,7 @@ const AdminAcceptInvite = () => {
               style={{ 
                 width: '100%', 
                 background: '#A91B18', 
-                color: 'white', 
+                color: 'var(--admin-text-primary)', 
                 padding: '1.25rem', 
                 borderRadius: '1rem', 
                 fontWeight: '900', 

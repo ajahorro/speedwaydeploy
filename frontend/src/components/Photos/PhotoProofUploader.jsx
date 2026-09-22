@@ -184,7 +184,7 @@ const PhotoProofUploader = ({
             gap: '0.5rem',
             cursor: uploading ? 'not-allowed' : 'pointer',
             background: uploading ? 'var(--admin-border)' : 'var(--admin-brand)',
-            color: '#fff',
+            color: 'var(--admin-text-on-brand)',
             border: 'none',
             borderRadius: 'var(--admin-radius)',
             padding: '0.55rem 1rem',
@@ -256,7 +256,7 @@ const PhotoProofUploader = ({
                   title="Imported from legacy records"
                   style={{
                     position: 'absolute', top: 4, left: 4, fontSize: '0.5rem', fontWeight: 900,
-                    background: 'rgba(0,0,0,0.65)', color: '#fff', padding: '0.1rem 0.3rem',
+                    background: 'rgba(0,0,0,0.65)', color: 'var(--admin-text-on-brand)', padding: '0.1rem 0.3rem',
                     borderRadius: 'var(--admin-radius-sm)', letterSpacing: '0.05em'
                   }}
                 >
@@ -271,7 +271,7 @@ const PhotoProofUploader = ({
                   position: 'absolute', top: 4, right: 4, width: 22, height: 22,
                   display: 'grid', placeItems: 'center', border: 'none',
                   borderRadius: 'var(--admin-radius-sm)', cursor: 'pointer',
-                  background: 'rgba(0,0,0,0.6)', color: '#fff'
+                  background: 'rgba(0,0,0,0.6)', color: 'var(--admin-text-on-brand)'
                 }}
               >
                 <Trash2 size={12} />
@@ -316,7 +316,7 @@ const PhotoProofUploader = ({
             }}
           />
           {lightbox.caption && (
-            <div style={{ color: '#fff', fontSize: '0.75rem', marginTop: '0.5rem', textAlign: 'center' }}>
+            <div style={{ color: 'var(--admin-text-on-brand)', fontSize: '0.75rem', marginTop: '0.5rem', textAlign: 'center' }}>
               {lightbox.caption}
               {isAbsoluteUrl(lightbox.storage_path) ? ' (legacy record)' : ''}
             </div>

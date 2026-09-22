@@ -278,7 +278,7 @@ const AdminSalesReport = () => {
           subtitle="Comprehensive breakdown of shop revenue and sales performance."
           onRefresh={() => fetchSalesData(state.period)}
         >
-          <button onClick={() => window.print()} style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', color: 'white', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8rem' }}><Printer size={16} /> PRINT REPORT</button>
+          <button onClick={() => window.print()} style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8rem' }}><Printer size={16} /> PRINT REPORT</button>
         </PageHeader>
 
         <div style={{ display: 'flex', background: 'var(--admin-card)', padding: '0.4rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', width: 'fit-content' }}>
@@ -305,7 +305,7 @@ const AdminSalesReport = () => {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
-          <div style={{ ...cardStyle, background: 'linear-gradient(135deg, var(--admin-brand), #7c1210)', color: 'white' }}>
+          <div style={{ ...cardStyle, background: 'linear-gradient(135deg, var(--admin-brand), #7c1210)', color: 'var(--admin-text-primary)' }}>
             <div style={{ opacity: 0.8, fontSize: '0.7rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Gross Revenue ({state.period === 'yearly' ? new Date().getFullYear() : state.period})</div>
             <div style={{ fontSize: '2.5rem', fontWeight: '950' }}>₱{state.aggregates.grossRevenue.toLocaleString()}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem', fontSize: '0.85rem', fontWeight: '800' }}>
@@ -316,7 +316,7 @@ const AdminSalesReport = () => {
           <div style={cardStyle}>
             <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Net Revenue (Verified)</div>
             <div style={{ fontSize: '2rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>₱{state.aggregates.netRevenue.toLocaleString()}</div>
-            <div style={{ fontSize: '0.8rem', color: '#ef4444', fontWeight: '800', marginTop: '1rem' }}>- ₱{state.aggregates.refundedAmount.toLocaleString()} in refunds</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--status-danger)', fontWeight: '800', marginTop: '1rem' }}>- ₱{state.aggregates.refundedAmount.toLocaleString()} in refunds</div>
           </div>
 
           <div style={cardStyle}>
