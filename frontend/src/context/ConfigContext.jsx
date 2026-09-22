@@ -12,6 +12,13 @@ export const ConfigProvider = ({ children }) => {
     OPENING_HOUR: SHOP_CONFIG.OPENING_HOUR,
     CLOSING_HOUR: SHOP_CONFIG.CLOSING_HOUR,
     BUSINESS_NAME: 'SPEEDWAY STUDIO',
+    // Tier 2.7: public-facing business identity (Business Hub = single source of
+    // truth). Landing renders these so hub edits reflect on the website.
+    BUSINESS_CONTACT_NUMBER: '',
+    BUSINESS_EMAIL: '',
+    BUSINESS_ADDRESS: '',
+    // Tier 2.8: admin-editable FAQ entries shared with the landing page.
+    FAQS: [],
     PAYMENT_ACCOUNT_NAME: 'SPEEDWAY STUDIO',
     PAYMENT_ACCOUNT_NUMBER: '0912 345 6789',
     PAYMENT_QR_URL: null,
@@ -55,12 +62,25 @@ export const ConfigProvider = ({ children }) => {
       if (error) throw error;
 
       if (data) {
+        // Tier 2.9: keep the shared service-catalog cache in lock-step with the
+        // persisted catalog so admin edits (Business Hub "Service Catalog") reach
+        // the public landing page and the booking wizard on every device, not
+        // only the browser that made the edit.
+        if (Array.isArray(data.custom_services)) {
+          try {
+            localStorage.setItem('speedway_custom_services', JSON.stringify(data.custom_services));
+          } catch { /* ignore quota / private-mode errors */ }
+        }
         setSettings({
           MAX_BAYS: data.slots_per_hour || SHOP_CONFIG.MAX_BAYS,
           MAX_VEHICLES_PER_STAFF: Number(data.max_vehicles_per_staff) || 4,
           OPENING_HOUR: parseHour(data.opening_hour, SHOP_CONFIG.OPENING_HOUR),
           CLOSING_HOUR: parseHour(data.closing_hour, SHOP_CONFIG.CLOSING_HOUR),
           BUSINESS_NAME: data.business_name || 'SPEEDWAY STUDIO',
+          BUSINESS_CONTACT_NUMBER: data.contact_number || '',
+          BUSINESS_EMAIL: data.email_address || '',
+          BUSINESS_ADDRESS: data.business_address || '',
+          FAQS: Array.isArray(data.faqs) ? data.faqs : [],
           // Task B: the mandated QR recipients are the source of truth. Legacy
           // payment_account_* / gcash_* keys remain as fallbacks so older rows
           // still render a QR during the migration window.

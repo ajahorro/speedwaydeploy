@@ -30,10 +30,10 @@ export default async function run(page /*, ui */) {
   // Start the task (PENDING -> IN_PROGRESS).
   const startBtn = page.getByRole('button', { name: /start service/i }).first();
   if (await startBtn.count()) {
-    await startBtn.click().catch(() => {});
+    await startBtn.click().catch(() => { });
     await page.waitForTimeout(1800);
     const confirm = page.getByRole('button', { name: /start( without intake photo)?$/i }).last();
-    if (await confirm.count()) await confirm.click().catch(() => {});
+    if (await confirm.count()) await confirm.click().catch(() => { });
     await page.waitForTimeout(4500);
   }
 

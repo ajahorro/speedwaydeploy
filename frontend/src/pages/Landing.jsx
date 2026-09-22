@@ -16,51 +16,8 @@ import {
 import Login from './Login';
 import logo from '../assets/logo.png';
 import { useAuth } from '../hooks/useAuth';
-
-const SERVICES_DATA = {
-  "Exclusive Packages": [
-    { name: "Showroom Shine (Pkg 1)", desc: "The ultimate refresh: VIP wash, engine wash, tire mags detailing, and hand glass watermarks removal.", prices: { Sedan: "2,500", SUV: "3,500" } },
-    { name: "Ultimate Protection (Pkg 2)", desc: "Machine polish for swirl removal, paint protection wax, and BTZ interior disinfection.", prices: { Sedan: "3,500", SUV: "4,500" } },
-  ],
-  "Premium Car Wash": [
-    { name: "Regular Wash", desc: "Professional exterior cleaning using high-quality automotive soap and microfiber drying.", prices: { Sedan: "150", SUV: "180", "Van/L300": "300" } },
-    { name: "Supreme Wash", desc: "Advanced wash including high-gloss treatment, degreaser, and protective wax.", prices: { Sedan: "500", SUV: "600", "Van/L300": "800" } },
-  ],
-  "Specialized Exterior Care": [
-    { name: "Spot Removal", desc: "Targeted removal of localized stains and blemishes from the paint surface.", prices: { Sedan: "1,000", SUV: "1,500", "Van/L300": "2,000" } },
-    { name: "Acid Rain Removal (Hand)", desc: "Manual removal of water spots and acid rain marks to restore surface clarity.", prices: { Sedan: "600", SUV: "800", "Van/L300": "1,000" } },
-    { name: "Acid Rain Removal (Machine)", desc: "Machine-buffed treatment for deep water spot and acid rain mark removal.", prices: { Sedan: "1,000", SUV: "1,500", "Van/L300": "2,000" } },
-    { name: "Engine Wash", desc: "Safe and thorough cleaning of the engine bay to remove accumulated grease and dirt.", prices: { Sedan: "500", SUV: "800", "Van/L300": "1,000" } },
-    { name: "Headlight Polish", desc: "Restores yellowed or hazy headlights to original factory clarity.", prices: { Sedan: "800", SUV: "1,000", "Van/L300": "1,300" } },
-    { name: "Asphalt Removal", desc: "Removes road tar and asphalt splatters without affecting the paint finish.", prices: { Sedan: "700", SUV: "900", "Van/L300": "1,200" } },
-    { name: "Buff Wax (Machine)", desc: "Machine-applied premium wax for an ultra-smooth and protective finish.", prices: { Sedan: "1,000", SUV: "1,500", "Van/L300": "2,500" } },
-    { name: "Mags Detailing", desc: "Deep cleaning and polishing of wheels and rims to remove brake dust and oxidation.", prices: { Sedan: "1,200", SUV: "2,000", "Van/L300": "2,800" } },
-  ],
-  "Interior & Cabin Care": [
-    { name: "Interior Detailing", desc: "Deep extraction, shampooing, and disinfection of all interior cabin surfaces.", prices: { Sedan: "4,500", SUV: "5,500", "Van/L300": "6,500" } },
-    { name: "Back to Zero", desc: "Ozone treatment and antibacterial fogging to eliminate odors and germs.", prices: { Sedan: "350", SUV: "400", "Van/L300": "600" } },
-    { name: "Seat Cover In/Out", desc: "Professional removal, cleaning, and reinstallation of vehicle seat covers.", prices: { Sedan: "500", SUV: "800", "Van/L300": "1,200" } },
-    { name: "Ceiling Cleaning", desc: "Careful removal of stains and dust from the vehicle's interior headliner.", prices: { Sedan: "700", SUV: "1,000", "Van/L300": "1,300" } },
-  ],
-  "Professional Detailing": [
-    { name: "Ceramic Coating", desc: "Premium 3-step exterior detailing followed by long-term ceramic protection.", prices: { Sedan: "10,000", SUV: "13,000", "Van/L300": "16,000" } },
-    { name: "Exterior Detailing (3 Step)", desc: "Complete 3-step process: cutting cream, polishing, and high-gloss finishing.", prices: { Sedan: "5,000", SUV: "6,000", "Van/L300": "7,000" } },
-    { name: "1st Step Cutting", desc: "Intensive swirl and deep scratch removal process only.", prices: { Sedan: "2,500", SUV: "3,000", "Van/L300": "3,500" } },
-    { name: "Glass Detailing", desc: "Machine buffing for the windshield only to ensure perfect optical clarity.", prices: { Sedan: "3,500", SUV: "4,500", "Van/L300": "6,000" } },
-  ],
-  "Motorcycle Specialist": [
-    { name: "Moto Wash", desc: "Professional cleaning tailored specifically for motorcycle components.", prices: { Regular: "120", Bigbike: "150" } },
-    { name: "Moto VIP", desc: "Includes wash, high-gloss treatment, degreaser, and protective wax.", prices: { Regular: "250", Bigbike: "350" } },
-    { name: "Moto Detail", desc: "Full restoration of all visible motorcycle parts and surfaces.", prices: { Regular: "2,500", Bigbike: "3,000" } },
-    { name: "Moto Ceramic Coating", desc: "Hydrophobic ceramic shield for paint, plastics, and metal parts.", prices: { Regular: "3,500", Bigbike: "5,500" } },
-    { name: "Moto 3-Step Detailing", desc: "Comprehensive cutting, polishing, and finishing for bike paintwork.", prices: { Regular: "2,500", Bigbike: "3,500" } },
-  ],
-  "Add-on Treatments": [
-    { name: "Waxx Add-on", desc: "Extra layer of protective wax for an enhanced reflective shine.", prices: { Sedan: "200", SUV: "300", "Van/L300": "400" } },
-    { name: "Highgloss Add-on", desc: "Intense gloss enhancer for that wet-look finish.", prices: { Sedan: "200", SUV: "300", "Van/L300": "400" } },
-    { name: "Degreaser Add-on", desc: "Heavy-duty degreasing for underchassis or specific dirty areas.", prices: { Sedan: "200", SUV: "300", "Van/L300": "400" } },
-  ]
-};
+import { useConfig } from '../context/ConfigContext';
+import { getServiceCatalog } from '../data/servicesCatalog';
 
 const Landing = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -68,7 +25,49 @@ const Landing = () => {
   const [openService, setOpenService] = useState(null);
   const [scrolled, setScrolled] = useState(false);
   const { user, profile, signOut, isInitialized, loading: authLoading } = useAuth();
+  const { settings } = useConfig();
   const navigate = useNavigate();
+
+  // Tier 2.7 / 2.8 / 2.9 — the landing page reflects the Business Hub config.
+  // Business name / contact / address come from `settings`; the service catalog
+  // is the same source the booking wizard uses (standard + custom services).
+  const businessName = settings?.BUSINESS_NAME || 'SPEEDWAY STUDIO';
+
+  const [catalog, setCatalog] = useState(() => getServiceCatalog());
+  useEffect(() => {
+    const refreshCatalog = () => setCatalog(getServiceCatalog());
+    refreshCatalog();
+    window.addEventListener('storage', refreshCatalog);
+    return () => window.removeEventListener('storage', refreshCatalog);
+  }, [settings?.BUSINESS_NAME]);
+
+  // Tier 2.8 — admin FAQs when present, otherwise a built-in starter set so the
+  // section never renders empty. Answers only show when the admin supplies them.
+  const faqItems = (Array.isArray(settings?.FAQS) ? settings.FAQS : [])
+    .filter((f) => f && String(f.question || '').trim())
+    .slice()
+    .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
+    .map((f) => ({ question: String(f.question).trim(), answer: String(f.answer || '').trim() }));
+  const displayFaqs = faqItems.length > 0 ? faqItems : [
+    { question: 'How long does ceramic coating last?', answer: '' },
+    { question: 'What is the booking process?', answer: '' },
+    { question: 'Do you offer mobile services?', answer: '' },
+    { question: 'What payment methods do you accept?', answer: '' },
+    { question: 'Do I need to leave my car overnight?', answer: '' }
+  ];
+
+  const formatPrice = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num.toLocaleString() : String(value ?? '');
+  };
+
+  // Tier 2.7 — surface the contact cards from config, falling back to the
+  // current public details when the hub leaves a field blank.
+  const contactItems = [
+    { icon: MapPin, label: 'Address', val: settings?.BUSINESS_ADDRESS || '39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal' },
+    { icon: Phone, label: 'Phone', val: settings?.BUSINESS_CONTACT_NUMBER || 'Not provided' },
+    { icon: Mail, label: 'Email', val: settings?.BUSINESS_EMAIL || 'Not provided' }
+  ];
 
   const handleAuthAction = () => {
     // 🛡️ SECURITY GUARD: Never trigger auth actions while system is still synchronizing
@@ -293,7 +292,7 @@ const Landing = () => {
             <div style={{ width: '80px', height: '4px', background: '#E61E2A', margin: '0 auto' }}></div>
           </div>
 
-          {Object.entries(SERVICES_DATA).map(([category, services], catIndex) => (
+          {Object.entries(catalog).map(([category, services], catIndex) => (
             <div key={category} style={{ marginBottom: '6rem' }}>
               {/* CATEGORY HEADER */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(0.75rem, 2vw, 2rem)', marginBottom: '3rem', minWidth: 0 }}>
@@ -352,7 +351,7 @@ const Landing = () => {
                             {Object.entries(service.prices).map(([type, price]) => (
                               <div key={type} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                 <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>{type}</span>
-                                <span style={{ fontSize: '0.9rem', fontWeight: '950', color: 'white' }}>₱{price}</span>
+                                <span style={{ fontSize: '0.9rem', fontWeight: '950', color: 'white' }}>₱{formatPrice(price)}</span>
                               </div>
                             ))}
                           </div>
@@ -372,13 +371,7 @@ const Landing = () => {
         <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 1rem' }}>
           <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '4rem', textAlign: 'center' }}>FAQ</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {[
-              "How long does ceramic coating last?",
-              "What is the booking process?",
-              "Do you offer mobile services?",
-              "What payment methods do you accept?",
-              "Do I need to leave my car overnight?"
-            ].map((q, i) => (
+            {displayFaqs.map((faq, i) => (
               <div
                 key={i}
                 className="admin-card-hover"
@@ -393,7 +386,7 @@ const Landing = () => {
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: '800', fontSize: '0.9rem' }}>{q}</span>
+                  <span style={{ fontWeight: '800', fontSize: '0.9rem' }}>{faq.question}</span>
                   <ChevronRight
                     size={20}
                     style={{
@@ -404,24 +397,27 @@ const Landing = () => {
                   />
                 </div>
 
-                {/* SMOOTH EXPANDABLE ANSWER */}
-                <div style={{
-                  maxHeight: openFaq === i ? '200px' : '0',
-                  overflow: 'hidden',
-                  transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                  opacity: openFaq === i ? 1 : 0,
-                  marginTop: openFaq === i ? '1rem' : '0'
-                }}>
-                  <p style={{
-                    fontSize: '0.85rem',
-                    color: 'rgba(255,255,255,0.5)',
-                    lineHeight: '1.6',
-                    paddingTop: '0.5rem',
-                    borderTop: '1px solid rgba(255,255,255,0.05)'
+                {/* SMOOTH EXPANDABLE ANSWER — only rendered when the admin has
+                    supplied an answer; otherwise the row simply toggles closed. */}
+                {faq.answer && (
+                  <div style={{
+                    maxHeight: openFaq === i ? '400px' : '0',
+                    overflow: 'hidden',
+                    transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                    opacity: openFaq === i ? 1 : 0,
+                    marginTop: openFaq === i ? '1rem' : '0'
                   }}>
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-                  </p>
-                </div>
+                    <p style={{
+                      fontSize: '0.85rem',
+                      color: 'rgba(255,255,255,0.5)',
+                      lineHeight: '1.6',
+                      paddingTop: '0.5rem',
+                      borderTop: '1px solid rgba(255,255,255,0.05)'
+                    }}>
+                      {faq.answer}
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -435,7 +431,7 @@ const Landing = () => {
             <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '2rem' }}>CONTACT US</h2>
             <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '3rem', lineHeight: '1.8' }}>Ready to give your car the Speedway treatment? Get in touch with us for quotes, appointments, or any inquiries.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-              {[{ icon: MapPin, label: "Address", val: "39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal" }, { icon: Phone, label: "Phone", val: "+1 (555) SPEEDWAY" }, { icon: Mail, label: "Email", val: "studio@speedway.com" }].map((item, i) => (
+              {contactItems.map((item, i) => (
                 <div key={i} style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', padding: '1rem', background: '#15171A', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
                   <div style={{ width: '50px', height: '50px', background: '#0A0B0D', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.05)' }}><item.icon size={20} style={{ color: '#E61E2A' }} /></div>
                   <div>
@@ -463,7 +459,7 @@ const Landing = () => {
       <footer style={{ padding: '4rem 2rem', background: '#0A0B0D', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '2rem' }}>
           <div>
-            <div style={{ fontWeight: '950', fontSize: '1.2rem', letterSpacing: '-1px', fontStyle: 'italic', color: '#E61E2A' }}>SPEEDWAY</div>
+            <div style={{ fontWeight: '950', fontSize: '1.2rem', letterSpacing: '-1px', fontStyle: 'italic', color: '#E61E2A', textTransform: 'uppercase' }}>{businessName}</div>
             <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', marginTop: '0.5rem' }}>© 2024 SPEEDWAY AUTOXMOTO. ALL RIGHTS RESERVED.</div>
           </div>
           <div style={{ display: 'flex', gap: '2rem' }}>

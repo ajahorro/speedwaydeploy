@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { showConfirmation } from '../../utils/logoutConfirm';
+import { useConfirmation } from '../../utils/logoutConfirm';
 import { logger } from '../../utils/logger';
 import { useAuth } from '../../hooks/useAuth';
 import { BACKEND_URL } from '../../config/api';
@@ -18,14 +18,17 @@ import { BACKEND_URL } from '../../config/api';
 const AdminAccountsManagement = () => {
   const isMobile = useMediaQuery('(max-width: 1024px)');
   const { profile: currentUserProfile, user: currentUser } = useAuth();
-  
+  // Wire the confirmation modal through the UI context — the standalone
+  // showConfirmation export is a no-op without an openModal function.
+  const { showConfirmation } = useConfirmation();
+
   const [accounts, setAccounts] = useState([]);
   const [defaultAdminId, setDefaultAdminId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('STAFF'); // STAFF or ADMIN
-  
+
   // Invitation Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({
@@ -90,6 +93,21 @@ const AdminAccountsManagement = () => {
       let result = {};
       try { result = raw ? JSON.parse(raw) : {}; } catch { result = {}; }
 
+      // 🛡️ Duplicate email is an expected rejection, not a system failure:
+      // explain it in a blocking modal (spec: no email is sent, so nothing
+      // should look like a success). The backend answers 409 EMAIL_ALREADY_EXISTS.
+      if (response.status === 409 || result.code === 'EMAIL_ALREADY_EXISTS') {
+        toast.dismiss(toastId);
+        showConfirmation({
+          title: 'Email Already Exists',
+          message: `${inviteForm.email.trim().toLowerCase()} is already registered on the platform. No new account was created and no invitation email was sent. Use a different email address, or manage the existing account from the directory above.`,
+          confirmLabel: 'Understood',
+          cancelLabel: 'Close',
+          variant: 'warning'
+        });
+        return;
+      }
+
       if (!response.ok) throw new Error(result.error || `Failed to create invitation (HTTP ${response.status}).`);
 
       if (result.emailDelivered === false) {
@@ -129,8 +147,8 @@ const AdminAccountsManagement = () => {
     showConfirmation({
       title: 'Revoke Access?',
       message: `Are you sure you want to deactivate ${member.full_name?.toUpperCase()}? They will be reverted to a CUSTOMER account.`,
-      icon: ShieldAlert,
       confirmLabel: 'Deactivate',
+      cancelLabel: 'Cancel',
       onConfirm: async () => {
         setIsSubmitting(true);
         try {

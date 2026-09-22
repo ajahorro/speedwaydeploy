@@ -47,23 +47,6 @@ const AdminUserManagement = () => {
     }
   };
 
-  const handleUpdateRole = async (userId, newRole) => {
-    const toastId = toast.loading(`Updating role to ${newRole}...`);
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ role: newRole })
-        .eq('id', userId);
-
-      if (error) throw error;
-      
-      toast.success(`Role updated to ${newRole}`, { id: toastId });
-      setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
-    } catch (err) {
-      toast.error('Failed to update role', { id: toastId });
-    }
-  };
-
   const handleSeeHistory = async (user) => {
     setSelectedUser(user);
     setView('history');

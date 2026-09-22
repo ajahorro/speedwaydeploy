@@ -128,10 +128,6 @@ const AdminLayout = () => {
     }
   ];
 
-  const bottomLinks = [
-    { name: 'Settings', path: '/admin/settings', icon: Settings },
-  ];
-
   const BlurGlow = ({ top, left, right, bottom, size, color }) => (
     <div style={{
       position: 'absolute',

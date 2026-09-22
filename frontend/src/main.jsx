@@ -27,7 +27,6 @@ import BusinessHub from './pages/Admin/BusinessHub';
 import AdminNotifications from './pages/Admin/AdminNotifications';
 import AdminProfile from './pages/Admin/AdminProfile';
 import AdminAcceptInvite from './pages/Admin/AdminAcceptInvite';
-import AdminSlotManagement from './pages/Admin/AdminSlotManagement';
 import AdminWalkInForm from './pages/Admin/AdminWalkInWizard';
 import StaffLayout from './pages/Staff/StaffLayout';
 import StaffDashboard from './pages/Staff/StaffDashboard';
@@ -130,7 +129,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route path="users" element={<AdminUserManagement />} />
                   <Route path="settings" element={<AdminSettings />} />
                   <Route path="notifications" element={<AdminNotifications />} />
-                  <Route path="slots" element={<Navigate to="/admin/schedule" replace />} />
                   <Route path="profile" element={<AdminProfile />} />
                   <Route path="*" element={<div style={{ padding: '2rem' }}>Module under development</div>} />
                 </Route>

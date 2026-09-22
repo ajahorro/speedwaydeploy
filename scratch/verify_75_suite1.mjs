@@ -30,9 +30,9 @@ export default async function run(page, ui) {
       out.attempts.push({ attempt: i, note: 'password field gone (already locked/redirected)' });
       break;
     }
-    await email.fill(badEmail).catch(() => {});
-    await pass.fill('definitely-wrong-password').catch(() => {});
-    await page.getByRole('button', { name: /login|sign in/i }).first().click().catch(() => {});
+    await email.fill(badEmail).catch(() => { });
+    await pass.fill('definitely-wrong-password').catch(() => { });
+    await page.getByRole('button', { name: /login|sign in/i }).first().click().catch(() => { });
     await page.waitForTimeout(1800);
 
     // Read any inline error text the form renders.

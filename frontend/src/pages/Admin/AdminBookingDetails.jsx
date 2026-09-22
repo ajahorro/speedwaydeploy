@@ -534,7 +534,7 @@ const AdminBookingDetails = () => {
       onConfirm: async () => {
         const toastId = toast.loading('Recording No-Show cancellation...');
         try {
-          const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/bookings/admin-cancel`, {
+          const response = await fetch(`${BACKEND_URL}/api/bookings/admin-cancel`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ bookingId: id, reason: 'No-Show' })

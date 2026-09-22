@@ -76,10 +76,10 @@ const report = (source, value) => {
  * @returns {() => void} uninstall function
  */
 export const installGlobalErrorReporter = () => {
-  if (typeof window === 'undefined') return () => {};
+  if (typeof window === 'undefined') return () => { };
 
   // Guard against double-install (React StrictMode double-invokes effects).
-  if (window.__speedwayErrorReporterInstalled) return () => {};
+  if (window.__speedwayErrorReporterInstalled) return () => { };
   window.__speedwayErrorReporterInstalled = true;
 
   const onRejection = (event) => {

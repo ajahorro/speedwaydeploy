@@ -31,7 +31,7 @@ await check('business_config: 4 QR recipient fields + version', async () => {
   const r = await rest(admin, 'business_config?select=qr_account_name,qr_account_number,fallback_receiver_name,fallback_receiver_number,qr_config_version,qr_config_complete&limit=1');
   if (!r.ok) throw new Error(JSON.stringify(r.body));
   const row = r.body[0] || {};
-  for (const k of ['qr_account_name','qr_account_number','fallback_receiver_name','fallback_receiver_number','qr_config_version','qr_config_complete']) {
+  for (const k of ['qr_account_name', 'qr_account_number', 'fallback_receiver_name', 'fallback_receiver_number', 'qr_config_version', 'qr_config_complete']) {
     if (!(k in row)) throw new Error(`missing ${k}`);
   }
   return `v${row.qr_config_version}`;

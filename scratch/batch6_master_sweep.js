@@ -16,10 +16,10 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const suites = [
   ['Migration @ PGlite (real Postgres)', ['scratch/pglite_batch6.js'], 'node'],
-  ['Pure rules engine (unit)',           ['scratch/test_batch6_rules.mjs'], 'node'],
-  ['Server validator (unit)',            ['scratch/test_batch6_validation.mjs'], 'node'],
-  ['Endpoints over HTTP (integration)',  ['scratch/test_batch6_http.cjs'], 'node'],
-  ['Static ledger (B1-B6 regression)',   ['scratch/verify_batches.js'], 'node'],
+  ['Pure rules engine (unit)', ['scratch/test_batch6_rules.mjs'], 'node'],
+  ['Server validator (unit)', ['scratch/test_batch6_validation.mjs'], 'node'],
+  ['Endpoints over HTTP (integration)', ['scratch/test_batch6_http.cjs'], 'node'],
+  ['Static ledger (B1-B6 regression)', ['scratch/verify_batches.js'], 'node'],
 ];
 
 const run = (args) => spawnSync('node', args, { cwd: root, encoding: 'utf8' });

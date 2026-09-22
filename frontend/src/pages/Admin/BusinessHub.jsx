@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Building, Clock, Wrench, Tag, Save, AlertCircle, CheckCircle,
-  Plus, X, Trash2, ArchiveRestore, CalendarClock
+  Plus, X, Trash2, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { useConfig } from '../../context/ConfigContext';
 import { supabase } from '../../lib/supabase';
@@ -14,7 +14,7 @@ import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
 import { BACKEND_URL } from '../../config/api';
 
-const TAB_KEYS = ['profile', 'hours', 'schedule', 'services', 'promos'];
+const TAB_KEYS = ['profile', 'hours', 'schedule', 'services', 'faqs', 'promos'];
 
 // The fields each section owns (mirrors handleSaveSection's UPDATE payload).
 const SECTION_FIELDS = {
@@ -25,7 +25,8 @@ const SECTION_FIELDS = {
   ],
   hours: ['opening_hour', 'closing_hour', 'slots_per_hour', 'max_vehicles_per_staff'],
   schedule: ['booking_lead_time_minutes', 'max_advance_days', 'closed_weekdays', 'enforce_capacity'],
-  services: ['custom_services']
+  services: ['custom_services'],
+  faqs: ['faqs']
 };
 
 // JS weekday order (0=Sun..6=Sat) — matches Date.getDay() and the
@@ -41,6 +42,10 @@ const WEEKDAYS = [
 ];
 
 const EMPTY_NEW_SERVICE = { name: '', price: '', description: '', durationMinutes: '60' };
+
+// Tier 2.8: FAQ editor row seed. FAQs persist to business_config.faqs and render
+// on the public landing page in array order.
+const EMPTY_NEW_FAQ = { question: '', answer: '' };
 
 // Section 3.2: convert a stored business-hours string into the 24h "HH:MM" value
 // a <input type="time"> expects. Handles the legacy "08:00 AM" display format and
@@ -212,6 +217,9 @@ export default function BusinessHub() {
   const [newService, setNewService] = useState(EMPTY_NEW_SERVICE);
   const [editingServiceId, setEditingServiceId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
+  // Tier 2.8: FAQ catalog editor state (add / edit / delete / reorder).
+  const [faqForm, setFaqForm] = useState(EMPTY_NEW_FAQ);
+  const [editingFaqId, setEditingFaqId] = useState(null);
   // Section 3.1: Delete confirmation. The service pending deletion is held here so
   // that choosing "Keep Editing" (Decline) simply clears it and leaves the form
   // and any in-progress edit untouched.
@@ -238,7 +246,8 @@ export default function BusinessHub() {
     max_advance_days: 30,
     closed_weekdays: [],
     enforce_capacity: true,
-    custom_services: []
+    custom_services: [],
+    faqs: []
   });
   const [pristine, setPristine] = useState(null);
   const [recordId, setRecordId] = useState(null);
@@ -279,7 +288,8 @@ export default function BusinessHub() {
           max_advance_days: data.max_advance_days ?? 30,
           closed_weekdays: Array.isArray(data.closed_weekdays) ? data.closed_weekdays : [],
           enforce_capacity: data.enforce_capacity !== false,
-          custom_services: Array.isArray(data.custom_services) ? data.custom_services : []
+          custom_services: Array.isArray(data.custom_services) ? data.custom_services : [],
+          faqs: Array.isArray(data.faqs) ? data.faqs : []
         };
         setBusinessForm(merged);
         setPristine(merged);
@@ -341,7 +351,7 @@ export default function BusinessHub() {
   // Task B: block tab switches / navigation while a section has unsaved edits.
   // Declared here so it sits AFTER `isDirty` — the hook is called unconditionally
   // on every render, preserving hook order.
-  const anyDirty = ['profile', 'hours', 'schedule', 'services'].some((s) => isDirty(s));
+  const anyDirty = ['profile', 'hours', 'schedule', 'services', 'faqs'].some((s) => isDirty(s));
   const leaveGuard = useUnsavedChangesGuard(anyDirty, { message: 'You have unsaved changes. Are you sure you want to leave? Your changes will be lost.' });
 
   const sectionValid = (section) => {
@@ -377,6 +387,10 @@ export default function BusinessHub() {
     if (section === 'services') {
       // Valid so long as no in-progress editor has a blank name.
       return !(newService.name.trim() === '' && (newService.price !== '' || newService.description !== ''));
+    }
+    if (section === 'faqs') {
+      // Valid so long as no in-progress FAQ editor has text but no question.
+      return !(faqForm.question.trim() === '' && faqForm.answer.trim() !== '');
     }
     return true;
   };
@@ -427,7 +441,8 @@ export default function BusinessHub() {
           max_advance_days: Number(businessForm.max_advance_days),
           closed_weekdays: businessForm.closed_weekdays || [],
           enforce_capacity: Boolean(businessForm.enforce_capacity),
-          custom_services: businessForm.custom_services
+          custom_services: businessForm.custom_services,
+          faqs: businessForm.faqs
         })
         .eq('id', id);
 
@@ -563,6 +578,60 @@ export default function BusinessHub() {
     setMessage({ type: 'success', text: 'Service restored.' });
   };
 
+  // ---- FAQ catalog helpers (Tab 4) — Tier 2.8 ----
+  // FAQs live in business_config.faqs as an ordered array and render on the
+  // public landing page. Order in this list is the display order.
+  const setFaqs = (next) => {
+    const ordered = next.map((f, i) => ({ ...f, order: i }));
+    setBusinessForm((prev) => ({ ...prev, faqs: ordered }));
+    setMessage((prev) => (prev.text ? { type: '', text: '' } : prev));
+  };
+
+  const addOrUpdateFaq = () => {
+    const question = faqForm.question.trim();
+    if (!question) {
+      setMessage({ type: 'error', text: 'FAQ question is required.' });
+      return;
+    }
+    const item = {
+      id: editingFaqId || `faq_${Date.now()}`,
+      question,
+      answer: faqForm.answer.trim(),
+      order: 0
+    };
+    const next = editingFaqId
+      ? businessForm.faqs.map((f) => (f.id === editingFaqId ? { ...f, ...item } : f))
+      : [...businessForm.faqs, item];
+    setFaqs(next);
+    setFaqForm(EMPTY_NEW_FAQ);
+    setEditingFaqId(null);
+    setMessage({ type: 'success', text: `${editingFaqId ? 'FAQ updated' : 'FAQ added'}. Remember to save changes.` });
+  };
+
+  const editFaq = (faq) => {
+    setEditingFaqId(faq.id);
+    setFaqForm({ question: faq.question || '', answer: faq.answer || '' });
+  };
+
+  const removeFaq = (id) => {
+    setFaqs(businessForm.faqs.filter((f) => f.id !== id));
+    if (editingFaqId === id) {
+      setEditingFaqId(null);
+      setFaqForm(EMPTY_NEW_FAQ);
+    }
+    setMessage({ type: 'success', text: 'FAQ removed. Remember to save changes.' });
+  };
+
+  const moveFaq = (id, direction) => {
+    const list = [...businessForm.faqs];
+    const index = list.findIndex((f) => f.id === id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= list.length) return;
+    [list[index], list[target]] = [list[target], list[index]];
+    setFaqs(list);
+    setMessage({ type: 'success', text: 'FAQ order updated. Remember to save changes.' });
+  };
+
   const activeServices = useMemo(
     () => businessForm.custom_services.filter((s) => !s.archived),
     [businessForm.custom_services]
@@ -577,6 +646,7 @@ export default function BusinessHub() {
     { id: 'hours', label: 'Hours & Capacity', icon: Clock },
     { id: 'schedule', label: 'Schedule Rules', icon: CalendarClock },
     { id: 'services', label: 'Service Catalog', icon: Wrench },
+    { id: 'faqs', label: 'FAQ', icon: HelpCircle },
     { id: 'promos', label: 'Promo Management', icon: Tag }
   ];
 
@@ -1111,7 +1181,112 @@ export default function BusinessHub() {
           </form>
         )}
 
-        {/* Tab 4: Promo & Package Rules */}
+        {/* Tab 4: FAQ Management (Tier 2.8) */}
+        {currentTab === 'faqs' && (
+          <form onSubmit={handleSaveSection} style={cardStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.75rem', gap: '1rem', flexWrap: 'wrap' }}>
+              <h2 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 950, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Frequently Asked Questions
+              </h2>
+              <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--admin-text-secondary)' }}>
+                {businessForm.faqs.length} {businessForm.faqs.length === 1 ? 'entry' : 'entries'}
+              </span>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: 600, lineHeight: 1.6 }}>
+              These questions and answers are published on the public landing page in the order below. Leave the list empty to show the built-in starter questions instead.
+            </p>
+
+            {/* Add / edit FAQ row */}
+            <div style={{ ...insetPanelStyle, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <input
+                type="text"
+                placeholder="Question"
+                value={faqForm.question}
+                onChange={(e) => setFaqForm({ ...faqForm, question: e.target.value })}
+                style={inputStyle}
+              />
+              <textarea
+                placeholder="Answer"
+                rows={3}
+                value={faqForm.answer}
+                onChange={(e) => setFaqForm({ ...faqForm, answer: e.target.value })}
+                style={{ ...inputStyle, minHeight: '80px', resize: 'vertical', fontFamily: 'inherit' }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={addOrUpdateFaq}
+                  style={{ ...buttonBase, background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: '1px solid var(--admin-brand)' }}
+                >
+                  {editingFaqId ? 'Update FAQ' : (<><Plus size={15} /> Add FAQ</>)}
+                </button>
+                {editingFaqId && (
+                  <button
+                    type="button"
+                    onClick={() => { setEditingFaqId(null); setFaqForm(EMPTY_NEW_FAQ); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', padding: 0 }}
+                  >
+                    <X size={14} /> Cancel edit
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* FAQ list (ordered) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {businessForm.faqs.length > 0 ? (
+                businessForm.faqs.map((faq, index) => (
+                  <div
+                    key={faq.id}
+                    style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', background: 'var(--admin-bg)', flexWrap: 'wrap' }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 900, color: 'var(--admin-text-primary)' }}>{faq.question}</p>
+                      {faq.answer && (
+                        <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: 700, whiteSpace: 'pre-wrap' }}>{faq.answer}</p>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                      <button type="button" onClick={() => moveFaq(faq.id, -1)} disabled={index === 0} title="Move up" style={{ ...ghostButton, opacity: index === 0 ? 0.4 : 1, cursor: index === 0 ? 'not-allowed' : 'pointer' }}>
+                        <ChevronUp size={13} />
+                      </button>
+                      <button type="button" onClick={() => moveFaq(faq.id, 1)} disabled={index === businessForm.faqs.length - 1} title="Move down" style={{ ...ghostButton, opacity: index === businessForm.faqs.length - 1 ? 0.4 : 1, cursor: index === businessForm.faqs.length - 1 ? 'not-allowed' : 'pointer' }}>
+                        <ChevronDown size={13} />
+                      </button>
+                      <button type="button" onClick={() => editFaq(faq)} style={ghostButton}>
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeFaq(faq.id)}
+                        style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+                      >
+                        <Trash2 size={13} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ ...insetPanelStyle, fontSize: '0.74rem', color: 'var(--admin-text-secondary)', fontWeight: 600 }}>
+                  No custom FAQs configured. The landing page shows its built-in starter questions.
+                </div>
+              )}
+            </div>
+
+            {!sectionValid('faqs') && (
+              <Hint>Enter a question before saving an FAQ entry.</Hint>
+            )}
+
+            <SaveBar
+              canSave={canSave('faqs')}
+              saving={saving}
+              dirty={isDirty('faqs')}
+              label="Save FAQ Changes"
+            />
+          </form>
+        )}
+
+        {/* Tab 5: Promo & Package Rules */}
         {currentTab === 'promos' && (
           <div style={{ ...cardStyle, display: 'block' }}>
             <PromoManager isMobile={false} />

@@ -194,7 +194,7 @@ const AdminProfile = () => {
             {isEditing && (
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <button 
-                  onClick={() => { setIsEditing(false); setFormData({...formData, firstName: profile.first_name, lastName: profile.last_name}); }}
+                  onClick={() => { setIsEditing(false); setFormData({ ...formData, firstName: profile?.first_name ?? '', lastName: profile?.last_name ?? '' }); }}
                   style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '4px', fontWeight: '950', cursor: 'pointer' }}
                 >
                   Cancel

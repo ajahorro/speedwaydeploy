@@ -29,7 +29,7 @@ const check = (label, ok, detail = '') => {
 
   // 2. Columns present as designed.
   const { data: sample } = await supabase.from('service_photos').select('*').limit(0);
-  const expectedCols = ['id','booking_id','booking_vehicle_id','phase','storage_path','caption','uploaded_by','uploaded_at','source','archived_at','retention_exempt'];
+  const expectedCols = ['id', 'booking_id', 'booking_vehicle_id', 'phase', 'storage_path', 'caption', 'uploaded_by', 'uploaded_at', 'source', 'archived_at', 'retention_exempt'];
   // PostgREST returns no columns for limit(0); probe by selecting them explicitly.
   const { error: colErr } = await supabase.from('service_photos').select(expectedCols.join(',')).limit(1);
   check('service_photos columns present', !colErr, colErr ? colErr.message : `${expectedCols.length} columns`);
