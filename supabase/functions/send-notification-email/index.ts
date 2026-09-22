@@ -8,7 +8,7 @@ const corsHeaders = {
 }
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
-const resendFrom = Deno.env.get('RESEND_FROM') || 'Speedway <notifications@speedway-autoxmoto.com>'
+const resendFrom = Deno.env.get('RESEND_FROM') || 'Speedway <notifications@speedway-autoxmoto.xyz>'
 const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
 const escapeHtml = (value: unknown) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;')
 
