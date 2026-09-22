@@ -311,7 +311,7 @@ begin
    where admin_id = auth.uid() and consumed = false;
 
   insert into public.qr_change_otp (admin_id, otp_hash, payload, expires_at)
-  values (auth.uid(), p_otp_hash, p_payload, now() + interval '10 minutes')
+  values (auth.uid(), p_otp_hash, p_payload, now() + interval '5 minutes')
   returning id into v_id;
 
   return v_id;

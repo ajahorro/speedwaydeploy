@@ -13,6 +13,8 @@ import ValidationModal from '../../components/ValidationModal';
 import { validateSlot } from '../../services/scheduleValidationService';
 import { calculateBayUsage, calculateTotalDuration } from '../../utils/schedulingUtils';
 import { SERVICES_DATA } from '../../data/servicesCatalog';
+import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
+import LeaveGuardModal from '../../components/LeaveGuardModal';
 
 // Utility for Data Integrity: Find service in catalog by name and get current price
 const getCatalogServiceByName = (name, type) => {
@@ -48,10 +50,15 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubTaskActive, setIsSubTaskActive] = useState(false); // Tracks nested views (like Adding a Vehicle)
   const [hasDraftChanges, setHasDraftChanges] = useState(false);
-  const [pendingLeave, setPendingLeave] = useState(null);
   const [customerDetailsLocked, setCustomerDetailsLocked] = useState(false);
   // Batch 6: structured schedule-restriction failure surfaced via <ValidationModal>.
   const [validationIssue, setValidationIssue] = useState(null);
+
+  // Section 3.1: shared unsaved-changes guard. Covers in-app navigation and the
+  // browser refresh/tab-close prompt in one place, matching Business Hub.
+  const leaveGuard = useUnsavedChangesGuard(hasDraftChanges && !isSubmitted, {
+    message: 'You have unsaved changes. Are you sure you want to leave? Your changes will be lost.'
+  });
 
   // REBOOKING LOGIC: Pull from sessionStorage for persistence
   const rebookDataRaw = sessionStorage.getItem('speedway_rebook_data');
@@ -109,32 +116,25 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
   };
 
   const requestLeave = action => {
+    // Section 3.1: delegate to the shared unsaved-changes guard so the walk-in
+    // and create-booking surfaces behave identically to Business Hub.
     if (!hasDraftChanges || isSubmitted) {
-      action();
+      action?.();
       return;
     }
-    setPendingLeave(() => action);
+    leaveGuard.confirmNavigation(action);
   };
 
   // NOTE: Draft persistence to localStorage is intentionally omitted.
   // Booking data lives only in React memory; a page reload always produces a clean slate.
 
-  // Session purge on page unload / tab close + unsaved-refresh guard.
+  // Session purge on page unload / tab close. The unsaved-changes refresh/close
+  // prompt itself is now owned by useUnsavedChangesGuard; this effect keeps only
+  // the session-storage cleanup and the internal SPA link interception.
   React.useEffect(() => {
     const purgeSessionStorage = () => {
       sessionStorage.removeItem('speedway_rebook_data');
     };
-    // Task B: block browser refresh / tab close while there are unsaved edits.
-    // The custom STAY/LEAVE modal covers in-app navigation; this native prompt
-    // covers the browser-level refresh and tab close, which cannot be cancelled
-    // except via beforeunload.
-    const blockUnload = (event) => {
-      if (!hasDraftChanges || isSubmitted) return undefined;
-      event.preventDefault();
-      event.returnValue = 'You have unsaved booking changes. Leave without saving?';
-      return event.returnValue;
-    };
-    window.addEventListener('beforeunload', blockUnload);
     window.addEventListener('beforeunload', purgeSessionStorage);
     window.addEventListener('pagehide', purgeSessionStorage);
     // Internal SPA navigation guard — show custom modal before navigating away.
@@ -149,7 +149,6 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
     };
     document.addEventListener('click', handleNavigationClick, true);
     return () => {
-      window.removeEventListener('beforeunload', blockUnload);
       window.removeEventListener('beforeunload', purgeSessionStorage);
       window.removeEventListener('pagehide', purgeSessionStorage);
       document.removeEventListener('click', handleNavigationClick, true);
@@ -373,16 +372,15 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
         )}
         {currentStep === 4 && <Step4ReviewPayment bookingData={bookingData} setBookingData={updateBookingData} adminMode={adminMode} onSubmit={handleSubmit} onBack={prevStep} isSubmitting={isSubmitting} onCancel={handleCancelBooking} />}
       </div>
-      {pendingLeave && <div role="dialog" aria-modal="true" aria-labelledby="leave-booking-title" style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: 'rgba(0, 0, 0, .72)', backdropFilter: 'blur(6px)' }}>
-        <div style={{ width: 'min(100%, 420px)', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', padding: 'clamp(1.25rem, 5vw, 2rem)', boxShadow: '0 24px 70px rgba(0, 0, 0, .45)' }}>
-          <h2 id="leave-booking-title" style={{ margin: 0, fontSize: '1.15rem', fontWeight: '950' }}>Leave booking page?</h2>
-          <p style={{ margin: '.75rem 0 1.25rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>Your unsaved booking changes will be lost.</p>
-          <div style={{ display: 'flex', gap: '.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-            <button type="button" onClick={() => setPendingLeave(null)} style={{ minWidth: '110px', padding: '.75rem 1rem', background: 'transparent', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer' }}>STAY</button>
-            <button type="button" onClick={() => { const action = pendingLeave; setPendingLeave(null); setHasDraftChanges(false); action?.(); }} style={{ minWidth: '110px', padding: '.75rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer' }}>LEAVE</button>
-          </div>
-        </div>
-      </div>}
+
+      {/* Section 3.1: shared unsaved-changes prompt. Staying keeps the wizard
+          exactly as it is; leaving discards the draft. */}
+      <LeaveGuardModal
+        open={leaveGuard.modalProps.open}
+        message={leaveGuard.modalProps.message}
+        onStay={leaveGuard.modalProps.onStay}
+        onLeave={() => { setHasDraftChanges(false); leaveGuard.modalProps.onLeave(); }}
+      />
 
       {/* Batch 6: guided schedule-restriction feedback (replaces raw toasts). */}
       <ValidationModal

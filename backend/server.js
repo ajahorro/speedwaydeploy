@@ -9,7 +9,7 @@ require('dotenv').config();
 const { normalizeStatus, shouldRestoreGraceWindow } = require('./noShowRestoreLogic');
 const { validateBookingRequest } = require('./services/scheduleValidation');
 const { Resend } = require('resend');
-const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEmail, sendAccountInviteEmail } = require('./services/emailService');
+const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEmail, sendAccountInviteEmail, sendAdminInviteEmail, sendInviteAccountEmail, sendEmergencyRecoveryEmail, sendQrChangeOtpEmail } = require('./services/emailService');
 const { processReceiptOCR } = require('./services/ocrService');
 const resendClient = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const RESEND_FROM = process.env.RESEND_FROM || 'Speedway AutoxMoto <bookings@yourdomain.com>';
@@ -885,6 +885,42 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // Check for mismatch (handling minor precision differences)
     const isAmountMatch = Math.abs(extractedAmount - requiredAmount) < 1.0;
 
+    // 🛡️ Section 2.1–2.3: DATE-MATCH ENFORCEMENT.
+    // The receipt's transaction date must be TODAY. A stale or future-dated
+    // receipt is not proof of this booking's payment, so it is flagged for review
+    // even when the amount matches. We compare calendar days in local time and
+    // tolerate the many text shapes an OCR pass can return (ISO, 'MM/DD/YYYY',
+    // 'DD/MM/YYYY', 'Month D, YYYY').
+    const parseReceiptDate = (value) => {
+      if (!value) return null;
+      const str = String(value).trim();
+      const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+      const slash = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+      if (slash) {
+        let [, a, b, y] = slash.map(Number);
+        if (y < 100) y += 2000;
+        // Ambiguous MM/DD vs DD/MM: if the first value exceeds 12 it is the day.
+        const month = a > 12 ? b : a;
+        const day = a > 12 ? a : b;
+        const d = new Date(y, month - 1, day);
+        return Number.isNaN(d.getTime()) ? null : d;
+      }
+      const parsed = new Date(str);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+    const receiptDate = parseReceiptDate(extractedData.date);
+    const today = new Date();
+    const isDateToday = Boolean(
+      receiptDate &&
+      receiptDate.getFullYear() === today.getFullYear() &&
+      receiptDate.getMonth() === today.getMonth() &&
+      receiptDate.getDate() === today.getDate()
+    );
+    // A receipt with no readable date cannot be date-verified and is treated as
+    // not matching, so it lands in the review queue rather than auto-confirming.
+    const isDateMatch = isDateToday;
+
     // A payment reference is single-use. Check this before accepting the
     // receipt so the same transfer cannot be attached to another booking.
     let isDuplicate = false;
@@ -906,14 +942,14 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       isDuplicate = Boolean(existingPayment);
     }
 
-    // Duplicates are rejected immediately; amount or receipt-validity issues
-    // remain available for staff review rather than being silently accepted.
+    // Duplicates are rejected immediately; amount, receipt-validity, OR date
+    // issues remain available for staff review rather than being silently accepted.
     const finalStatus = isDuplicate
       ? 'REJECTED_DUPLICATE'
-      : (!isAmountMatch || !extractedData.isReceipt ? 'Flagged for Review' : 'Confirmed');
+      : (!isAmountMatch || !isDateMatch || !extractedData.isReceipt ? 'Flagged for Review' : 'Confirmed');
 
     console.log(`🔍 [AUDIT] Comparison: Extracted ₱${extractedAmount} vs Required ₱${requiredAmount}`);
-    console.log(`📊 [AUDIT] Result: amountMatch=${isAmountMatch}; duplicate=${isDuplicate} -> Status: ${finalStatus}`);
+    console.log(`📊 [AUDIT] Result: amountMatch=${isAmountMatch}; dateMatch=${isDateMatch}; duplicate=${isDuplicate} -> Status: ${finalStatus}`);
 
     // Persist booking and payment OCR data atomically after the booking exists.
     if (bookingId && bookingId !== 'PENDING' && typeof supabaseAdmin !== 'undefined') {
@@ -934,6 +970,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           ...extractedData,
           requiredAmount,
           isAmountMatch,
+          isDateMatch,
           isDuplicate,
           auditedAt: new Date().toISOString()
         }
@@ -954,7 +991,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           action_type: 'AI_VERIFICATION_COMPLETE',
           actor_name: 'AI_AUDITOR',
           actor_role: 'SYSTEM',
-          details: `AI extraction complete. Reference: ${referenceNo || 'N/A'}. Amount: ₱${extractedAmount}. Amount match: ${isAmountMatch}. Duplicate: ${isDuplicate}.`
+          details: `AI extraction complete. Reference: ${referenceNo || 'N/A'}. Amount: ₱${extractedAmount}. Amount match: ${isAmountMatch}. Date match: ${isDateMatch}. Duplicate: ${isDuplicate}.`
         });
       } catch (logErr) {
         console.warn('⚠️ Audit logging failed, but booking was updated.');
@@ -967,6 +1004,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       success: true,
       status: finalStatus,
       isAmountMatch,
+      isDateMatch,
       // Retain the old property until all existing frontend consumers have
       // migrated to isAmountMatch.
       isMatch: isAmountMatch,
@@ -1236,27 +1274,17 @@ app.post('/api/emails/qr-change-otp', async (req, res) => {
     const adminEmail = userData.user.email;
     if (!adminEmail) return res.status(400).json({ success: false, error: 'Administrator email unavailable.' });
 
-    if (resendClient) {
-      await resendClient.emails.send({
-        from: RESEND_FROM,
-        to: adminEmail,
-        subject: 'Speedway: QR Change Verification Code',
-        html: `
-          <div style="font-family: sans-serif; padding: 20px; color: #333;">
-            <h2 style="color: #E61E2A;">SPEEDWAY SECURITY</h2>
-            <p>A request was made to change the Business Hub QR payment recipients.</p>
-            <p>Enter the following 6-digit code to authorize the change:</p>
-            <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; padding: 12px 18px; background: #f4f4f4; border-radius: 6px; display: inline-block;">
-              ${otp}
-            </div>
-            <p>The code expires in 10 minutes. If you did not request this, ignore this email and review your account.</p>
-          </div>`,
-      });
-    } else {
-      console.warn('⚠️ No RESEND_API_KEY found. QR OTP logged to terminal only.');
+    // Task 3.3: capture the request metadata surfaced in the branded email.
+    const forwardedFor = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const requestIp = forwardedFor || req.ip || req.socket?.remoteAddress || 'Unavailable';
+    const requestedAt = new Date().toISOString();
+
+    const emailResult = await sendQrChangeOtpEmail({ recipientEmail: adminEmail, otp, requestedAt, requestIp });
+    if (!emailResult.success) {
+      console.warn('⚠️ QR OTP email delivery failed; code logged to terminal only.');
     }
 
-    console.log(`🔑 [QR OTP] code for ${adminEmail}: ${otp}`);
+    console.log(`🔑 [QR OTP] code for ${adminEmail} (ip ${requestIp}): ${otp}`);
     return res.json({ success: true, message: 'Verification code sent.' });
   } catch (err) {
     console.error('❌ QR OTP dispatch error:', err.message);
@@ -1323,6 +1351,366 @@ app.get('/api/admin/profiles', async (req, res) => {
     return res.json({ success: true, data, defaultAdminId: DEFAULT_ADMIN_ID });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Section 1.1: Admin-driven account invitation ──────────────────────────────
+// Generates a temporary password, creates the auth user + profile atomically
+// (guarded by the create_invited_account RPC which blocks duplicates across BOTH
+// auth.users and profiles), and delivers the credentials via the branded Resend
+// relay so the email matches the dark-mode Speedway shell.
+const generateTemporaryPassword = () => {
+  // URL-safe, human-transcribable temporary password. Satisfies Supabase's
+  // default minimum length and avoids ambiguous characters (0/O, 1/l).
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const bytes = crypto.randomBytes(14);
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 1) out += alphabet[bytes[i] % alphabet.length];
+  return `${out}#7`;
+};
+
+app.post('/api/admin/invite-account', async (req, res) => {
+  const { email, firstName, lastName, role, forcePasswordChange = true } = req.body || {};
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const normalizedRole = typeof role === 'string' ? role.trim().toUpperCase() : '';
+  console.log(`🎟️ [INVITE] Admin-driven invite for ${normalizedEmail} (${normalizedRole})`);
+
+  if (!supabaseAdmin) return res.status(503).json({ success: false, error: 'Invitation service unavailable.' });
+  if (!normalizedEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail)) {
+    return res.status(400).json({ success: false, error: 'A valid email address is required.' });
+  }
+  if (!['STAFF', 'ADMIN'].includes(normalizedRole)) {
+    return res.status(400).json({ success: false, error: 'Role must be STAFF or ADMIN.' });
+  }
+  // Field-type sanitisation (Section 2.5, option b): names are plain text.
+  const safeFirst = String(firstName || '').replace(/[^a-zA-Z0-9\s'-]/g, '').trim();
+  const safeLast = String(lastName || '').replace(/[^a-zA-Z0-9\s'-]/g, '').trim();
+
+  try {
+    // 1. Duplicate guard across auth.users AND profiles.
+    //
+    //    Preferred path: the atomic, SECURITY DEFINER `create_invited_account` RPC
+    //    (migration 20260927000001). It serialises concurrent invites and raises
+    //    EMAIL_ALREADY_EXISTS (SQLSTATE 23505) when the address is taken.
+    //
+    //    Fallback path: if that migration has NOT been applied, a call to the RPC
+    //    returns PGRST202 ("could not find the function"). Previously that threw
+    //    and aborted the whole invite with a 500 — so no account, no email, and a
+    //    console full of errors. We now fall back to a direct, non-atomic check so
+    //    invitations still work; the atomic RPC is used automatically once the
+    //    migration is applied (no code change needed).
+    let mustChangePassword = forcePasswordChange !== false;
+
+    const { data: claim, error: claimError } = await supabaseAdmin.rpc('create_invited_account', {
+      p_email: normalizedEmail,
+      p_first_name: safeFirst,
+      p_last_name: safeLast,
+      p_role: normalizedRole,
+      p_must_change_password: forcePasswordChange !== false
+    });
+
+    if (claimError) {
+      const code = String(claimError.code || '');
+      const msg = String(claimError.message || '');
+      const rpcMissing = code === 'PGRST202' || code === '42883' || /could not find the function/i.test(msg);
+
+      if (code === '23505' || msg.includes('EMAIL_ALREADY_EXISTS') || msg.includes('duplicate key')) {
+        return res.status(409).json({
+          success: false,
+          code: 'EMAIL_ALREADY_EXISTS',
+          error: 'An account with this email address already exists in the system.'
+        });
+      }
+      if (msg.includes('Only administrators')) {
+        return res.status(403).json({ success: false, error: 'Only administrators may invite accounts.' });
+      }
+
+      if (rpcMissing) {
+        // Fallback duplicate check. `auth.users` is not reachable from here without
+        // the SECURITY DEFINER function, so we check the two sources we CAN read:
+        // profiles.email, and the auth admin API via a filtered listUsers lookup.
+        console.warn('⚠️ [INVITE] create_invited_account RPC missing — using fallback duplicate check.');
+
+        const { data: existingProfile } = await supabaseAdmin
+          .from('profiles')
+          .select('id')
+          .ilike('email', normalizedEmail)
+          .maybeSingle();
+
+        let authExists = false;
+        try {
+          const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+          const target = normalizedEmail.toLowerCase();
+          authExists = Boolean((list?.users || []).some((u) => (u.email || '').toLowerCase() === target));
+        } catch (lookupErr) {
+          console.warn('⚠️ [INVITE] auth.users duplicate lookup unavailable:', lookupErr.message);
+        }
+
+        if (existingProfile || authExists) {
+          return res.status(409).json({
+            success: false,
+            code: 'EMAIL_ALREADY_EXISTS',
+            error: 'An account with this email address already exists in the system.'
+          });
+        }
+      } else {
+        throw claimError;
+      }
+    }
+
+    mustChangePassword = claim?.must_change_password !== false;
+    const temporaryPassword = generateTemporaryPassword();
+
+    // 2. Create the auth user with the temporary password, pre-confirmed so the
+    //    invitee can sign in immediately without a separate verification email.
+    const { data: userData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: normalizedEmail,
+      password: temporaryPassword,
+      email_confirm: true,
+      user_metadata: {
+        first_name: safeFirst,
+        last_name: safeLast,
+        role: normalizedRole,
+        must_change_password: mustChangePassword
+      }
+    });
+    if (authError) {
+      // If the auth layer lost the race (rare, since the RPC serialised it), the
+      // duplicate message is still mapped to the exact UX copy rather than a 500.
+      if (/already|registered|exists/i.test(authError.message || '')) {
+        return res.status(409).json({
+          success: false,
+          code: 'EMAIL_ALREADY_EXISTS',
+          error: 'An account with this email address already exists in the system.'
+        });
+      }
+      throw authError;
+    }
+
+    const userId = userData.user.id;
+    const fullName = `${safeFirst || 'Team'} ${safeLast || 'Member'}`.trim();
+
+    // 3. Upsert the profile row with the first-login flag.
+    //
+    //    The lockout/first-login columns (must_change_password,
+    //    failed_login_attempts, locked_until) are added by migration
+    //    20260927000001. If that migration is not applied, including those keys
+    //    makes PostgREST reject the whole upsert (PGRST204) and the invite dies.
+    //    We therefore write the core columns first and layer the optional ones in
+    //    only if the schema exposes them — so invitations succeed either way.
+    const coreProfile = {
+      id: userId,
+      email: normalizedEmail,
+      first_name: safeFirst || null,
+      last_name: safeLast || null,
+      full_name: fullName,
+      role: normalizedRole,
+      is_active: true,
+      updated_at: new Date().toISOString()
+    };
+    const extendedProfile = {
+      ...coreProfile,
+      must_change_password: mustChangePassword,
+      failed_login_attempts: 0,
+      locked_until: null
+    };
+
+    let profileError = null;
+    {
+      const attempt = await supabaseAdmin.from('profiles').upsert(extendedProfile);
+      profileError = attempt.error;
+      const optionalMissing = profileError && (
+        profileError.code === 'PGRST204' ||
+        /must_change_password|failed_login_attempts|locked_until/i.test(profileError.message || '')
+      );
+      if (optionalMissing) {
+        console.warn('⚠️ [INVITE] Lockout/first-login columns missing — writing core profile fields only.');
+        const fallback = await supabaseAdmin.from('profiles').upsert(coreProfile);
+        profileError = fallback.error;
+        // Without the flag we cannot force a first-login reset; surface that
+        // honestly rather than pretending the account is fully provisioned.
+        mustChangePassword = false;
+      }
+    }
+    if (profileError) throw profileError;
+
+    // 4. Deliver the temporary credentials through the branded Resend relay.
+    const loginLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    const emailResult = await sendInviteAccountEmail({
+      recipientEmail: normalizedEmail,
+      firstName: safeFirst,
+      lastName: safeLast,
+      role: normalizedRole,
+      temporaryPassword,
+      loginLink
+    });
+
+    // 5. Audit trail. A failed email is surfaced but does not roll back the
+    //    account — the admin can re-share the temporary password from the UI.
+    await supabaseAdmin.from('audit_logs').insert({
+      actor_name: 'ADMIN',
+      actor_role: 'ADMIN',
+      action_type: 'INVITE_ACCOUNT',
+      details: `Invited ${fullName} (${normalizedEmail}) as ${normalizedRole}. Force password change: ${mustChangePassword}. Email delivered: ${!!emailResult?.success}.`
+    }).then(() => {}).catch(() => {});
+
+    if (!emailResult?.success) {
+      console.warn(`⚠️ [INVITE] Account created but email failed for ${normalizedEmail}`);
+      return res.json({
+        success: true,
+        emailDelivered: false,
+        warning: 'Account created but the invitation email could not be delivered. Please share the temporary password manually.',
+        account: { id: userId, email: normalizedEmail, role: normalizedRole, fullName },
+        temporaryPassword
+      });
+    }
+
+    return res.json({
+      success: true,
+      emailDelivered: true,
+      account: { id: userId, email: normalizedEmail, role: normalizedRole, fullName }
+    });
+  } catch (err) {
+    console.error(`❌ [INVITE] Failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: err.message || 'Failed to create invitation.' });
+  }
+});
+
+// ─── Section 1.2: Emergency Account Recovery (email OTP) ───────────────────────
+// Unlocks a DB-locked account after the owner proves control of the address with
+// a single-use 6-digit code, then issues a password-reset link so they can set a
+// fresh password. Only a SHA-256 hash of the OTP is stored.
+const generateRecoveryOtp = () => String(Math.floor(100000 + Math.random() * 900000));
+
+app.post('/api/auth/emergency-recovery/request', async (req, res) => {
+  const { email } = req.body || {};
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const neutral = { success: true, message: 'If an account is associated with that email, a recovery code has been sent.' };
+  if (!supabaseAdmin || !normalizedEmail) return res.json(neutral);
+  console.log(`🆘 [RECOVERY] Emergency recovery requested for ${normalizedEmail}`);
+
+  try {
+    const { data: users, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (usersError) throw usersError;
+    const account = users.users.find(item => item.email?.toLowerCase() === normalizedEmail && !item.deleted_at);
+
+    // Never reveal whether the account exists. Only dispatch on a real match.
+    if (account?.email) {
+      const otp = generateRecoveryOtp();
+      const otpHash = hashConfirmationToken(otp);
+      // Supersede any outstanding challenge for this user.
+      await supabaseAdmin.from('account_recovery_otps').delete().eq('user_id', account.id).is('consumed_at', null);
+      const { error: insertError } = await supabaseAdmin.from('account_recovery_otps').insert({
+        user_id: account.id,
+        email: account.email,
+        otp_hash: otpHash,
+        attempts: 0,
+        expires_at: new Date(Date.now() + PASSWORD_CONFIRMATION_TTL_MS).toISOString()
+      });
+      if (insertError) throw insertError;
+      const emailResult = await sendEmergencyRecoveryEmail({ recipientEmail: account.email, otp });
+      if (!emailResult.success) console.warn(`⚠️ [RECOVERY] OTP email failed for ${account.email}`);
+      console.log(`🔑 [RECOVERY] OTP issued for ${account.email} (expires in 15 min)`);
+    }
+
+    return res.json(neutral);
+  } catch (err) {
+    console.error(`❌ [RECOVERY] Request failed: ${err.message}`);
+    // Still neutral: an error must not become an oracle for account existence.
+    return res.json(neutral);
+  }
+});
+
+app.post('/api/auth/emergency-recovery/verify', async (req, res) => {
+  const { email, otp, newPassword } = req.body || {};
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  if (!supabaseAdmin) return res.status(503).json({ success: false, error: 'Recovery service unavailable.' });
+  if (!normalizedEmail || !otp || !/^\d{6}$/.test(String(otp))) {
+    return res.status(400).json({ success: false, error: 'A valid email and 6-digit recovery code are required.' });
+  }
+  if (typeof newPassword !== 'string' || newPassword.length < 6) {
+    return res.status(400).json({ success: false, error: 'A new password of at least 6 characters is required.' });
+  }
+
+  try {
+    await supabaseAdmin.from('account_recovery_otps').delete().lte('expires_at', new Date().toISOString());
+    const { data: challenge, error: lookupError } = await supabaseAdmin
+      .from('account_recovery_otps')
+      .select('*')
+      .eq('email', normalizedEmail)
+      .eq('otp_hash', hashConfirmationToken(String(otp)))
+      .is('consumed_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!challenge) return res.status(400).json({ success: false, error: 'The recovery code is incorrect or has expired.' });
+
+    // Claim the challenge atomically so it can never be replayed.
+    const { data: claimed, error: claimError } = await supabaseAdmin
+      .from('account_recovery_otps')
+      .update({ consumed_at: new Date().toISOString() })
+      .eq('id', challenge.id)
+      .is('consumed_at', null)
+      .select('id')
+      .maybeSingle();
+    if (claimError) throw claimError;
+    if (!claimed) return res.status(400).json({ success: false, error: 'The recovery code is incorrect or has expired.' });
+
+    // 1. Apply the new password directly (the caller has proven ownership).
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(challenge.user_id, { password: newPassword });
+    if (updateError) throw updateError;
+
+    // 2. Clear the DB lock and the first-login flag so the user can sign in.
+    await supabaseAdmin.rpc('clear_login_lock', { p_email: normalizedEmail });
+    await supabaseAdmin.from('profiles').update({ must_change_password: false, updated_at: new Date().toISOString() }).eq('id', challenge.user_id);
+
+    await supabaseAdmin.from('audit_logs').insert({
+      actor_name: 'SYSTEM',
+      actor_role: 'SYSTEM',
+      action_type: 'EMERGENCY_RECOVERY',
+      details: `Emergency account recovery completed for ${normalizedEmail}. Lock cleared and password reset.`
+    }).then(() => {}).catch(() => {});
+
+    return res.json({ success: true, message: 'Account recovered. You can now sign in with your new password.' });
+  } catch (err) {
+    console.error(`❌ [RECOVERY] Verify failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Unable to complete account recovery.' });
+  }
+});
+
+/**
+ * Section 3.1: Service catalog usage check.
+ * Returns, for each requested service name, how many booking_vehicle_services
+ * rows reference it. The Service Catalog uses this to decide between a hard
+ * delete (never used by a booking) and a soft-archive fallback (tied to a past
+ * or active booking, so the historical record must be preserved).
+ */
+app.post('/api/admin/services/usage', async (req, res) => {
+  const { names } = req.body || {};
+  if (!supabaseAdmin) return res.status(503).json({ success: false, error: 'Service unavailable.' });
+  const requested = Array.isArray(names)
+    ? names.map((n) => String(n || '').trim()).filter(Boolean)
+    : [];
+  if (requested.length === 0) return res.json({ success: true, usage: {} });
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('booking_vehicle_services')
+      .select('service_name')
+      .in('service_name', requested);
+    if (error) throw error;
+
+    const usage = {};
+    requested.forEach((name) => { usage[name] = 0; });
+    (data || []).forEach((row) => {
+      const key = String(row.service_name || '').trim();
+      if (key in usage) usage[key] += 1;
+    });
+
+    return res.json({ success: true, usage });
+  } catch (err) {
+    console.error(`❌ [SERVICES] Usage check failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not verify service usage.' });
   }
 });
 
@@ -1664,13 +2052,21 @@ app.post('/api/staff/toggle-shift', async (req, res) => {
       throw updateError;
     }
 
-    // Record shift event in Audit Log
-    await supabaseAdmin.from('audit_logs').insert({
-      actor_name: updatedProfile?.email || updatedProfile?.full_name || 'Staff',
-      actor_role: 'STAFF',
-      details: `Technician ${updatedProfile?.full_name || userId} ${newStatus ? 'CLOCKED IN (ON DUTY)' : 'CLOCKED OUT (OFF DUTY)'}.`,
-      created_at: new Date().toISOString()
-    });
+    // Record shift event in Audit Log. Wrapped so an audit-log failure (e.g. a
+    // NOT NULL/RLS hiccup) can NEVER fail the clock action itself — the shift
+    // state change above is the source of truth.
+    try {
+      const { error: auditError } = await supabaseAdmin.from('audit_logs').insert({
+        action_type: newStatus ? 'STAFF_CLOCK_IN' : 'STAFF_CLOCK_OUT',
+        actor_name: updatedProfile?.email || updatedProfile?.full_name || 'Staff',
+        actor_role: 'STAFF',
+        details: `Technician ${updatedProfile?.full_name || userId} ${newStatus ? 'CLOCKED IN (ON DUTY)' : 'CLOCKED OUT (OFF DUTY)'}.`,
+        created_at: new Date().toISOString()
+      });
+      if (auditError) console.warn('⚠️ Shift audit log failed (non-fatal):', auditError.message);
+    } catch (auditEx) {
+      console.warn('⚠️ Shift audit log error (non-fatal):', auditEx.message);
+    }
 
     return res.json({ success: true, profile: updatedProfile });
   } catch (err) {
@@ -2745,57 +3141,12 @@ app.post('/api/debug/fix-account', async (req, res) => {
   }
 });
 
-app.post('/api/staff/toggle-shift', async (req, res) => {
-  const { userId, newStatus } = req.body;
-  console.log(`⏱️ [SHIFT SYSTEM] TOGGLING SHIFT: User ${userId} -> ${newStatus ? 'IN' : 'OUT'}`);
-
-  try {
-    if (!supabaseAdmin) throw new Error('Supabase Admin not initialized');
-
-    // 1. Update Profile (Bypass RLS)
-    const { data: profile, error: pError } = await supabaseAdmin
-      .from('profiles')
-      .update({ is_clocked_in: newStatus })
-      .eq('id', userId)
-      .select()
-      .single();
-
-    if (pError) throw pError;
-
-    // 2. Manage Shift Record
-    if (newStatus) {
-      // Clock In: Create new active shift
-      const { error: sError } = await supabaseAdmin
-        .from('staff_shifts')
-        .insert({ staff_id: userId, status: 'active' });
-      if (sError) console.warn('⚠️ Shift record creation warning:', sError.message);
-    } else {
-      // Clock Out: Close active shifts
-      const { error: sError } = await supabaseAdmin
-        .from('staff_shifts')
-        .update({
-          status: 'completed',
-          clock_out: new Date().toISOString()
-        })
-        .eq('staff_id', userId)
-        .eq('status', 'active');
-      if (sError) console.warn('⚠️ Shift record update warning:', sError.message);
-    }
-
-    // 3. Log to Audit
-    await supabaseAdmin.from('audit_logs').insert({
-      action_type: newStatus ? 'STAFF_CLOCK_IN' : 'STAFF_CLOCK_OUT',
-      actor_name: profile.full_name || 'Staff',
-      actor_role: 'STAFF',
-      details: `Shift status changed to ${newStatus ? 'ON DUTY' : 'OFF DUTY'}`
-    });
-
-    return res.json({ success: true, profile });
-  } catch (err) {
-    console.error('❌ Shift Toggle Error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
+// NOTE: the canonical shift-toggle handler is defined earlier in this file
+// (POST /api/staff/toggle-shift, near the other /api/staff routes). A duplicate
+// definition previously lived here; Express only ever executes the FIRST match,
+// so this second copy was dead code — and it was inconsistent (it wrote to a
+// staff_shifts table the primary handler does not, and it never set
+// clock_in_timestamp). Removed to keep a single source of truth.
 
 // 🔒 Schedule Block Management Endpoints (Bypassing RLS 403 Forbidden)
 app.post('/api/admin/blocked-slots', async (req, res) => {

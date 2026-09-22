@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock, AlertCircle } from 'lucide-react';
 import StyledInput from './StyledInput';
+import { sanitizeEmail } from '../../config/constants';
 
 const LoginForm = ({ onLogin, onSwitchMode, isLoading, error, onClearError, initialEmail = '', onEmailChange }) => {
   const [email, setEmail] = useState(initialEmail || '');
@@ -37,7 +38,7 @@ const LoginForm = ({ onLogin, onSwitchMode, isLoading, error, onClearError, init
             <span>{error}</span>
           </div>
         )}
-        <StyledInput icon={Mail} type="email" placeholder="Email Address" required value={email} onChange={e => { setEmail(e.target.value); onEmailChange?.(e.target.value); onClearError?.(); }} autoComplete="email" />
+        <StyledInput icon={Mail} type="email" placeholder="Email Address" required value={email} onChange={e => { const v = sanitizeEmail(e.target.value); setEmail(v); onEmailChange?.(v); onClearError?.(); }} autoComplete="email" />
       </div>
       <div style={{ position: 'relative', marginBottom: '1.25rem' }}>
         <StyledInput icon={Lock} type="password" placeholder="Password" required value={password} onChange={e => { setPassword(e.target.value); onClearError?.(); }} autoComplete="current-password" />
@@ -50,6 +51,8 @@ const LoginForm = ({ onLogin, onSwitchMode, isLoading, error, onClearError, init
           Don't have an account? <span onClick={() => onSwitchMode('REGISTER')} style={{ color: 'var(--admin-brand)', cursor: 'pointer', fontWeight: '900' }}>Register</span>
         </p>
         <span onClick={() => onSwitchMode('RECOVER', email)} style={{ color: 'var(--admin-text-secondary)', cursor: 'pointer', fontWeight: '700', opacity: 0.6 }}>Forgot Password?</span>
+        {/* Section 1.2: reach the email-OTP unlock flow without waiting out the lock. */}
+        <span onClick={() => onSwitchMode('RECOVER_OTP', email)} style={{ color: 'var(--admin-text-secondary)', cursor: 'pointer', fontWeight: '700', opacity: 0.6 }}>Account locked? Recover it</span>
       </div>
     </form>
   );

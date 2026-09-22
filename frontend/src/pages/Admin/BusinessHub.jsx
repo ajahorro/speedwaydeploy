@@ -12,6 +12,7 @@ import { validateQrRecipients } from '../../services/qrSecurityService';
 import { sanitizeAlphaNum } from '../../config/constants';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
+import { BACKEND_URL } from '../../config/api';
 
 const TAB_KEYS = ['profile', 'hours', 'schedule', 'services', 'promos'];
 
@@ -40,6 +41,23 @@ const WEEKDAYS = [
 ];
 
 const EMPTY_NEW_SERVICE = { name: '', price: '', description: '', durationMinutes: '60' };
+
+// Section 3.2: convert a stored business-hours string into the 24h "HH:MM" value
+// a <input type="time"> expects. Handles the legacy "08:00 AM" display format and
+// already-24h "17:00" values alike, defaulting to 08:00 / 18:00 when unset.
+const formatTimeForInput = (value, fallback = '08:00') => {
+  if (!value) return fallback;
+  const str = String(value).trim();
+  const upper = str.toUpperCase();
+  if (!upper.includes('AM') && !upper.includes('PM')) return str.slice(0, 5);
+  const [time, modifier] = upper.split(' ');
+  let [h, m] = time.split(':');
+  h = parseInt(h, 10);
+  if (Number.isNaN(h)) return fallback;
+  if (modifier === 'PM' && h < 12) h += 12;
+  if (modifier === 'AM' && h === 12) h = 0;
+  return `${String(h).padStart(2, '0')}:${String(m || '00').padStart(2, '0')}`;
+};
 
 // ---- Shared presentation (matches the admin theme's inline-style pattern) ----
 const cardStyle = {
@@ -194,6 +212,10 @@ export default function BusinessHub() {
   const [newService, setNewService] = useState(EMPTY_NEW_SERVICE);
   const [editingServiceId, setEditingServiceId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
+  // Section 3.1: Delete confirmation. The service pending deletion is held here so
+  // that choosing "Keep Editing" (Decline) simply clears it and leaves the form
+  // and any in-progress edit untouched.
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   // Live form state + a pristine snapshot used for dirty detection.
   const [businessForm, setBusinessForm] = useState({
@@ -275,8 +297,9 @@ export default function BusinessHub() {
   };
 
   // Task B: block tab switches / navigation while a section has unsaved edits.
-  const anyDirty = ['profile', 'hours', 'schedule', 'services'].some((s) => isDirty(s));
-  const leaveGuard = useUnsavedChangesGuard(anyDirty);
+  // NOTE: computed further below, AFTER `isDirty` is defined. Referencing the
+  // `isDirty` const here (above its declaration) would hit its temporal dead
+  // zone and crash the whole page on first render.
 
   const handleTabChange = (tabKey) => {
     // Guard the in-app navigation; only switch when the guard approves.
@@ -315,6 +338,12 @@ export default function BusinessHub() {
     return fields.some((f) => JSON.stringify(businessForm[f]) !== JSON.stringify(pristine[f]));
   };
 
+  // Task B: block tab switches / navigation while a section has unsaved edits.
+  // Declared here so it sits AFTER `isDirty` — the hook is called unconditionally
+  // on every render, preserving hook order.
+  const anyDirty = ['profile', 'hours', 'schedule', 'services'].some((s) => isDirty(s));
+  const leaveGuard = useUnsavedChangesGuard(anyDirty, { message: 'You have unsaved changes. Are you sure you want to leave? Your changes will be lost.' });
+
   const sectionValid = (section) => {
     if (section === 'profile') {
       // Task B: profile requires a business name AND a complete QR recipient set.
@@ -326,7 +355,9 @@ export default function BusinessHub() {
       const maxUnits = Number(businessForm.max_vehicles_per_staff);
       const opening = String(businessForm.opening_hour || '').trim();
       const closing = String(businessForm.closing_hour || '').trim();
-      return opening.length > 0 && closing.length > 0 && slots >= 1 && maxUnits >= 1;
+      // Closing must be strictly after opening so the shop never opens "backwards".
+      const ordered = opening.length > 0 && closing.length > 0 && closing > opening;
+      return ordered && slots >= 1 && maxUnits >= 1;
     }
     if (section === 'schedule') {
       // Mirror the DB CHECK constraints from migration 20260925000001 so an
@@ -467,6 +498,61 @@ export default function BusinessHub() {
     );
     persistCustomServices(next);
     setMessage({ type: 'success', text: 'Service archived. Historical bookings are preserved.' });
+  };
+
+  // ---- Section 3.1: Delete with soft-archive fallback ----
+  // Opening the confirm does NOT touch the service list, so a Decline/"Keep
+  // Editing" reliably preserves whatever the admin was doing (including an
+  // in-progress edit in the form above).
+  const requestDeleteService = (service) => setPendingDelete(service);
+  const cancelDeleteService = () => setPendingDelete(null);
+
+  const confirmDeleteService = async () => {
+    const service = pendingDelete;
+    if (!service) return;
+    setPendingDelete(null);
+
+    // A service tied to ANY booking (past or active) must never be hard-deleted:
+    // the booking history references it by name. Ask the backend how many bookings
+    // use it and fall back to soft-archiving when the count is non-zero.
+    let inUse = false;
+    let referenceCount = 0;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/services/usage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ names: [service.name] })
+      });
+      const result = await res.json();
+      if (result?.success) {
+        referenceCount = Number(result.usage?.[service.name] || 0);
+        inUse = referenceCount > 0;
+      }
+    } catch {
+      // If the check itself fails we take the safe path and archive rather than
+      // risk orphaning a booking's historical service name.
+      inUse = true;
+    }
+
+    if (inUse) {
+      const next = businessForm.custom_services.map((s) =>
+        s.id === service.id ? { ...s, archived: true, archivedAt: new Date().toISOString() } : s
+      );
+      persistCustomServices(next);
+      setMessage({
+        type: 'success',
+        text: `"${service.name}" is linked to ${referenceCount || 'existing'} booking(s), so it was archived instead of deleted to preserve booking history.`
+      });
+    } else {
+      const next = businessForm.custom_services.filter((s) => s.id !== service.id);
+      persistCustomServices(next);
+      // If the row being deleted was open in the editor, drop the stale edit.
+      if (editingServiceId === service.id) {
+        setEditingServiceId(null);
+        setNewService(EMPTY_NEW_SERVICE);
+      }
+      setMessage({ type: 'success', text: `Service "${service.name}" deleted. Remember to save changes.` });
+    }
   };
 
   const restoreService = (id) => {
@@ -701,21 +787,19 @@ export default function BusinessHub() {
           <form onSubmit={handleSaveSection} style={cardStyle}>
             <SectionHeading>Operating Schedule &amp; Daily Capacity</SectionHeading>
             <div style={gridStyle}>
-              <Field label="Opening Hour" required>
+              <Field label="Opening Time" required>
                 <input
-                  type="text"
-                  value={businessForm.opening_hour}
+                  type="time"
+                  value={formatTimeForInput(businessForm.opening_hour)}
                   onChange={(e) => handleInputChange('opening_hour', e.target.value)}
-                  placeholder="e.g. 08:00 AM"
                   style={inputStyle}
                 />
               </Field>
-              <Field label="Closing Hour" required>
+              <Field label="Closing Time" required>
                 <input
-                  type="text"
-                  value={businessForm.closing_hour}
+                  type="time"
+                  value={formatTimeForInput(businessForm.closing_hour)}
                   onChange={(e) => handleInputChange('closing_hour', e.target.value)}
-                  placeholder="e.g. 05:00 PM"
                   style={inputStyle}
                 />
               </Field>
@@ -741,7 +825,7 @@ export default function BusinessHub() {
               </Field>
             </div>
             {!sectionValid('hours') && (
-              <Hint>Opening/closing hours are required and capacities must be at least 1.</Hint>
+              <Hint>Opening and closing times are required, closing must be after opening, and capacities must be at least 1.</Hint>
             )}
 
             <SaveBar
@@ -970,10 +1054,10 @@ export default function BusinessHub() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => archiveService(service.id)}
+                        onClick={() => requestDeleteService(service)}
                         style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
                       >
-                        <Trash2 size={13} /> Archive
+                        <Trash2 size={13} /> Delete
                       </button>
                     </div>
                   </div>
@@ -1050,6 +1134,35 @@ export default function BusinessHub() {
         onStay={leaveGuard.modalProps.onStay}
         onLeave={leaveGuard.modalProps.onLeave}
       />
+
+      {/* Section 3.1: Delete confirmation. "Keep Editing" (Decline) preserves the
+          form exactly as it was — the pending service is simply cleared. */}
+      {pendingDelete && (
+        <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex: 100000, background: 'var(--modal-overlay)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg, var(--admin-radius))', boxShadow: 'var(--modal-shadow)', width: '100%', maxWidth: '440px', padding: '1.5rem' }}>
+            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 950, color: 'var(--admin-text-primary)' }}>Delete Service?</h3>
+            <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem', fontWeight: 600, color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+              You are about to delete <strong style={{ color: 'var(--admin-text-primary)' }}>{pendingDelete.name}</strong>. If it is linked to any past or active booking it will be archived instead, so booking history is preserved.
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={cancelDeleteService}
+                style={{ flex: '1 1 130px', minHeight: '2.75rem', padding: '0.85rem 1rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', fontWeight: 950, fontSize: '0.78rem', textTransform: 'uppercase', cursor: 'pointer' }}
+              >
+                Keep Editing
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteService}
+                style={{ flex: '1 1 130px', minHeight: '2.75rem', padding: '0.85rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: 950, fontSize: '0.78rem', textTransform: 'uppercase', cursor: 'pointer' }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

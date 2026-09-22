@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { Mail, Lock, User, Phone, Loader2, AlertCircle } from 'lucide-react';
 import StyledInput from './StyledInput';
+import { sanitizeByFieldType } from '../../config/constants';
+
+// Task 2.5: per-field allowlist so each input keeps only its legitimate chars.
+const FIELD_TYPE = { firstName: 'text', lastName: 'text', email: 'email', phone: 'phone' };
 
 const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '' }) => {
   const [formData, setFormData] = useState({
@@ -24,8 +28,9 @@ const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '' }
   };
 
   const updateField = (field, value) => {
-    if (field === 'firstName' || field === 'lastName') value = value.replace(/[^a-zA-Z ]/g, '').replace(/\s+/g, ' ');
-    if (field === 'phone') value = value.replace(/\D/g, '').slice(0, 15);
+    // Email / names / phone use their context-aware allowlist; passwords are
+    // left untouched (they may legitimately contain any character).
+    if (FIELD_TYPE[field]) value = sanitizeByFieldType(value, FIELD_TYPE[field]);
     setFormData(prev => ({ ...prev, [field]: value }));
     if (error) setError('');
   };

@@ -72,6 +72,59 @@ export const sanitizeAlphaNum = (value = '') =>
 export const isAlphaNum = (value = '') =>
   ALPHANUMERIC_PATTERN.test(String(value).trim());
 
+// ─── Task 2.5: CONTEXT-AWARE FIELD-TYPE SANITIZATION (Option b) ─────────────
+// Strict alphanumeric is the default for free text, plates, model names and
+// general fields. Specialized inputs use a field-appropriate allowlist so
+// legitimate characters survive (email punctuation, currency decimals, address
+// hyphens/commas). Every sanitizer strips `<`/`>`/`"`/`'`/`/` first, so an
+// injected HTML tag or script payload can never reach the DB through ANY field.
+const stripDangerous = (value = '') => String(value).replace(/[<>"'`]/g, '');
+
+export const sanitizeEmail = (value = '') =>
+  stripDangerous(value).replace(/[^a-zA-Z0-9@._+-]/g, '').replace(/\.{2,}/g, '.');
+
+export const sanitizeCurrency = (value = '') => {
+  // Digits and at most one decimal point; normalizes a leading dot.
+  const cleaned = stripDangerous(value).replace(/[^0-9.]/g, '');
+  const [whole, ...rest] = cleaned.split('.');
+  return rest.length ? `${whole}.${rest.join('')}` : whole;
+};
+
+export const sanitizeAddress = (value = '') =>
+  stripDangerous(value).replace(/[^a-zA-Z0-9\s,.\-/#]/g, '').replace(/\s+/g, ' ');
+
+export const sanitizePhone = (value = '') => stripDangerous(value).replace(/\D/g, '').slice(0, 15);
+
+// Same alphanumeric policy as sanitizeAlphaNum but named for field-type clarity.
+export const sanitizeText = (value = '') => sanitizeAlphaNum(value);
+
+// Canonical field-type → sanitizer map. Anything not listed falls back to the
+// strict alphanumeric guard, which is the safe default.
+export const FIELD_SANITIZERS = Object.freeze({
+  text: sanitizeText,
+  alphaNum: sanitizeAlphaNum,
+  plate: sanitizeVehiclePlate,
+  model: sanitizeVehicleText,
+  email: sanitizeEmail,
+  currency: sanitizeCurrency,
+  address: sanitizeAddress,
+  phone: sanitizePhone,
+});
+
+/**
+ * sanitizeByFieldType — the single entry point for context-aware cleaning.
+ * @param {string} value
+ * @param {string} fieldType one of FIELD_SANITIZERS keys (defaults to 'alphaNum')
+ */
+export const sanitizeByFieldType = (value = '', fieldType = 'alphaNum') => {
+  const sanitizer = FIELD_SANITIZERS[fieldType] || sanitizeAlphaNum;
+  return sanitizer(value);
+};
+
+// Security guard: does a raw string contain any HTML tag / script injection?
+export const containsUnsafeHtml = (value = '') =>
+  /<[^>]*>|javascript:|<\/?script|on\w+\s*=/i.test(String(value));
+
 // ─── Task B: PAYMENT FEE + OVERPAYMENT CONSTANTS ────────────────────────────
 // Cross-bank / e-wallet transfer fee defense. GoTyme and other cross-bank
 // transfers deduct a fee before the amount lands, so the CREDITED figure is

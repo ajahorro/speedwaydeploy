@@ -1,17 +1,21 @@
 import React, { useCallback, useEffect } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import {
-  ClipboardList, CheckCircle2, User, LogOut,
-  Menu, X, Bell, LayoutDashboard, History, Settings, Clock
+  ClipboardList,
+  Menu, Bell, History, Clock
 } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { supabase } from '../../lib/supabase';
 import { useUI } from '../../context/UIContext';
 import { useAuth } from '../../hooks/useAuth';
+import { useTheme } from '../../context/ThemeContext';
+import ThemeToggle from '../../components/ThemeToggle';
+import HeaderProfileDropdown from '../../components/common/HeaderProfileDropdown';
 import { confirmLogout } from '../../utils/logoutConfirm';
 
 const StaffLayout = () => {
-  const { openModal, closeModal } = useUI(); const { user, profile, signOut, logout, fetchProfile, setProfile, toggleShift } = useAuth();
+  const { openModal, closeModal } = useUI(); const { user, profile, signOut, fetchProfile, setProfile, toggleShift } = useAuth();
+  const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -63,12 +67,14 @@ const StaffLayout = () => {
   const menuItems = [
     { icon: ClipboardList, label: 'My Jobs', path: '/staff' },
     { icon: History, label: 'Work History', path: '/staff/history' },
-    { icon: User, label: 'My Profile', path: '/staff/profile' },
+    { icon: Clock, label: 'Duty & Shift', path: '/staff/duty' },
   ];
 
   const handleToggleShift = async () => {
-    if (!profile?.id) return;
-    const isClockingOut = profile.is_clocked_in;
+    // Defensive: bail out cleanly when the profile is not yet loaded or the
+    // toggle implementation is unavailable — never reach the API without an id.
+    if (!profile?.id || typeof toggleShift !== 'function') return;
+    const isClockingOut = Boolean(profile.is_clocked_in);
 
     if (isClockingOut) {
       openModal({
@@ -77,6 +83,7 @@ const StaffLayout = () => {
         confirmText: "Clock Out",
         type: "danger",
         onConfirm: async () => {
+          if (!profile?.id || typeof toggleShift !== 'function') return;
           await toggleShift(false);
         }
       });
@@ -109,8 +116,8 @@ const StaffLayout = () => {
       gap: '0.75rem',
       padding: '0.85rem 1.25rem',
       borderRadius: '4px',
-      color: isActive ? 'white' : '#8E9196',
-      background: isActive ? '#E61E2A' : 'transparent',
+      color: isActive ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)',
+      background: isActive ? 'var(--admin-brand)' : 'transparent',
       textDecoration: 'none',
       fontWeight: '800',
       fontSize: '0.85rem',
@@ -121,13 +128,13 @@ const StaffLayout = () => {
   };
 
   return (
-    <div style={{ display: 'flex', width: '100vw', height: '100vh', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', fontFamily: 'Inter, system-ui, sans-serif', overflow: 'hidden' }}>
+    <div className="admin-theme" data-theme={resolvedTheme} style={{ display: 'flex', width: '100vw', height: '100vh', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', fontFamily: 'Inter, system-ui, sans-serif', overflow: 'hidden' }}>
 
       {/* Mobile Backdrop */}
       {isMobile && isSidebarOpen && (
         <div
           onClick={() => setIsSidebarOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 40, backdropFilter: 'blur(4px)' }}
+          style={{ position: 'fixed', inset: 0, background: 'var(--modal-overlay)', zIndex: 40, backdropFilter: 'blur(4px)' }}
         />
       )}
 
@@ -149,7 +156,7 @@ const StaffLayout = () => {
           <h1 style={{ fontSize: '1.25rem', fontWeight: '950', margin: 0, fontStyle: 'italic', letterSpacing: '1px' }}>
             SPEEDWAY<span style={{ color: 'var(--admin-brand)' }}>STAFF</span>
           </h1>
-          <p style={{ fontSize: '0.6rem', color: '#444', fontWeight: '900', marginTop: '0.4rem', textTransform: 'uppercase', letterSpacing: '2px' }}>
+          <p style={{ fontSize: '0.6rem', color: 'var(--admin-text-secondary)', fontWeight: '900', marginTop: '0.4rem', textTransform: 'uppercase', letterSpacing: '2px' }}>
             Operational Detailing Portal
           </p>
         </div>
@@ -163,64 +170,15 @@ const StaffLayout = () => {
           ))}
         </nav>
 
+        {/* Clean footer: profile, Settings and Logout now live in the header
+            dropdown; the clock action lives on the Duty & Shift page. */}
         <div style={{ padding: '1.5rem', borderTop: '1px solid var(--admin-border)' }}>
-          {/* 🕹️ Primary Footer Action: Shift Lifecycle Controller */}
-          <div style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <button
-              onClick={handleToggleShift}
-              style={{
-                width: '100%', padding: '0.85rem', borderRadius: '4px',
-                background: profile?.is_clocked_in ? '#333' : '#E61E2A',
-                border: 'none', color: 'var(--admin-text-primary)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem',
-                cursor: 'pointer', transition: 'all 0.2s', fontWeight: '950',
-                textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.8rem'
-              }}
-            >
-              {profile?.is_clocked_in ? <LogOut size={16} /> : <Clock size={16} />}
-              {profile?.is_clocked_in ? 'CLOCK OUT' : 'CLOCK IN'}
-            </button>
+          <div style={{ fontSize: '0.6rem', fontWeight: '800', color: 'var(--admin-text-secondary)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+            Signed in as
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', background: 'var(--admin-bg)', borderRadius: '4px', border: '1px solid var(--admin-border)', marginBottom: '1rem' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '2px', background: 'var(--admin-brand)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '950' }}>
-              {profile?.full_name?.charAt(0) || 'T'}
-            </div>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: '950', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textTransform: 'uppercase' }}>{profile?.full_name}</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '900', textTransform: 'uppercase' }}>Technician</div>
-            </div>
+          <div style={{ fontSize: '0.8rem', fontWeight: '900', color: 'var(--admin-text-primary)', marginTop: '0.35rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {profile?.full_name || 'Technician'}
           </div>
-
-          <Link
-            to="/staff/settings"
-            className="admin-card-hover"
-            onClick={() => isMobile && setIsSidebarOpen(false)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '0.75rem',
-              padding: '0.85rem 1rem', borderRadius: '4px',
-              background: location.pathname === '/staff/settings' ? '#E61E2A' : 'transparent',
-              border: '1px solid var(--admin-border)',
-              color: location.pathname === '/staff/settings' ? 'white' : '#8E9196',
-              fontWeight: '800', fontSize: '0.85rem', textDecoration: 'none',
-              textTransform: 'uppercase', letterSpacing: '0.5px',
-              marginBottom: '0.5rem', transition: 'all 0.2s'
-            }}
-          >
-            <Settings size={18} /> SETTINGS
-          </Link>
-
-          <button
-            onClick={handleLogout}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem',
-              padding: '0.85rem', borderRadius: '4px', background: 'transparent',
-              border: '1px solid var(--admin-border)', color: 'var(--status-danger)', fontWeight: '950',
-              fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s'
-            }}
-          >
-            <LogOut size={18} /> LOGOUT
-          </button>
         </div>
       </aside>
 
@@ -228,36 +186,47 @@ const StaffLayout = () => {
       <main style={{ flex: 1, minWidth: 0, height: '100vh', overflowY: 'auto', position: 'relative', background: 'var(--admin-bg)' }}>
         {/* Top Header */}
         <header style={{
-          height: '70px', background: 'rgba(21, 23, 26, 0.8)', backdropFilter: 'blur(10px)',
+          height: '70px', background: 'var(--admin-card)', backdropFilter: 'blur(10px)',
           borderBottom: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', padding: '0 2rem', position: 'sticky', top: 0, zIndex: 30
+          justifyContent: 'space-between', gap: '0.75rem',
+          padding: isMobile ? '0 0.85rem' : '0 2rem', position: 'sticky', top: 0, zIndex: 30,
+          // 375px guard: never allow the header to scroll horizontally.
+          overflowX: 'hidden', maxWidth: '100%'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flexShrink: 1 }}>
             {isMobile && (
-              <button onClick={() => setIsSidebarOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--admin-text-primary)', cursor: 'pointer' }}>
+              <button onClick={() => setIsSidebarOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--admin-text-primary)', cursor: 'pointer', flexShrink: 0, padding: 0 }}>
                 <Menu size={24} />
               </button>
             )}
-            <h2 style={{ fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '2px' }}>
-              Operational Overview
-            </h2>
+            {/* Hidden on mobile so the header stays within 375px. */}
+            {!isMobile && (
+              <h2 style={{ fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '2px', whiteSpace: 'nowrap' }}>
+                Operational Overview
+              </h2>
+            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.6rem' : '1.25rem', flexWrap: 'nowrap', overflowX: 'hidden', flexShrink: 0 }}>
             {/* 🟢 Header Status Badge */}
             <div style={{
-              padding: '0.4rem 0.85rem', background: 'rgba(255,255,255,0.03)',
-              borderRadius: '100px', border: '1px solid rgba(255,255,255,0.08)',
-              display: 'flex', alignItems: 'center', gap: '0.6rem'
+              padding: isMobile ? '0.35rem 0.6rem' : '0.4rem 0.85rem', background: 'var(--admin-input-bg)',
+              borderRadius: '100px', border: '1px solid var(--admin-border)',
+              display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0
             }}>
               <div style={{
                 width: '6px', height: '6px', borderRadius: '50%',
-                background: profile?.is_clocked_in ? '#10b981' : '#ef4444',
-                boxShadow: profile?.is_clocked_in ? '0 0 10px #10b981' : 'none'
+                background: profile?.is_clocked_in ? 'var(--status-success)' : 'var(--status-danger)',
+                boxShadow: profile?.is_clocked_in ? '0 0 10px var(--status-success)' : 'none'
               }}></div>
-              <span style={{ fontSize: '0.65rem', fontWeight: '950', color: profile?.is_clocked_in ? '#10b981' : '#ef4444', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                {profile?.is_clocked_in ? 'ON DUTY' : 'OFF DUTY'}
-              </span>
+              {!isMobile && (
+                <span style={{ fontSize: '0.65rem', fontWeight: '950', color: profile?.is_clocked_in ? 'var(--status-success)' : 'var(--status-danger)', textTransform: 'uppercase', letterSpacing: '1px', whiteSpace: 'nowrap' }}>
+                  {profile?.is_clocked_in ? 'ON DUTY' : 'OFF DUTY'}
+                </span>
+              )}
             </div>
+
+            {/* Section 1.3: tri-state theme selector, mirroring the Admin shell. */}
+            <ThemeToggle variant="icon" />
 
             <button
               onClick={() => navigate('/staff/notifications')}
@@ -271,10 +240,20 @@ const StaffLayout = () => {
                   fontSize: '0.5rem', fontWeight: '950',
                   minWidth: '16px', height: '16px', padding: '0 3px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  borderRadius: '2px', border: '1.5px solid #15171A'
+                  borderRadius: '2px', border: '1.5px solid var(--admin-card)'
                 }}>{unreadCount > 99 ? '99+' : unreadCount}</span>
               )}
             </button>
+
+            {/* Shared identity menu — one component for every role portal. */}
+            <HeaderProfileDropdown
+              user={user}
+              profile={profile}
+              roleTitle="Staff Member"
+              profilePath="/staff/profile"
+              settingsPath="/staff/settings"
+              onLogoutClick={handleLogout}
+            />
           </div>
         </header>
 

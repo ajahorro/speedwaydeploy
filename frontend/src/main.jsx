@@ -35,6 +35,7 @@ import StaffActiveJobs from './pages/Staff/StaffActiveJobs';
 import StaffWorkHistory from './pages/Staff/StaffWorkHistory';
 import StaffJobDetails from './pages/Staff/StaffJobDetails';
 import StaffProfile from './pages/Staff/StaffProfile';
+import StaffDuty from './pages/Staff/StaffDuty';
 import StaffNotifications from './pages/Staff/StaffNotifications';
 import StaffSettings from './pages/Staff/StaffSettings';
 import Landing from './pages/Landing';
@@ -146,6 +147,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route index element={<StaffDashboard />} />
                   <Route path="tasks" element={<StaffActiveJobs />} />
                   <Route path="history" element={<StaffWorkHistory />} />
+                  <Route path="duty" element={<StaffDuty />} />
                   <Route path="job/:id" element={<StaffJobDetails />} />
                   <Route path="profile" element={<StaffProfile />} />
                   <Route path="notifications" element={<StaffNotifications />} />

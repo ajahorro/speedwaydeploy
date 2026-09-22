@@ -9,6 +9,7 @@ const AuthHeader = ({ mode, email }) => {
       case 'LOGIN': return 'WELCOME BACK';
       case 'REGISTER': return 'CREATE YOUR ACCOUNT';
       case 'RECOVER': return 'REQUEST A RESET LINK';
+      case 'RECOVER_OTP': return 'EMERGENCY ACCOUNT RECOVERY';
       case 'VERIFY':
       case 'RECOVER_VERIFY': return 'VERIFY YOUR ACCOUNT';
       case 'AWAIT_LINK': return 'CHECK YOUR EMAIL';

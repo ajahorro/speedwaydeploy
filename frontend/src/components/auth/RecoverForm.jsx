@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail } from 'lucide-react';
 import StyledInput from './StyledInput';
+import { sanitizeEmail } from '../../config/constants';
 
 const RecoverForm = ({ onRecover, onSwitchMode, isLoading, initialEmail = '' }) => {
   // Prefilled from the login form so the user never retypes their address.
@@ -34,7 +35,7 @@ const RecoverForm = ({ onRecover, onSwitchMode, isLoading, initialEmail = '' }) 
         Enter your email address to receive a <br />password reset link.
       </p>
       <div style={{ marginBottom: '1.5rem' }}>
-        <StyledInput icon={Mail} type="email" placeholder="Email Address" required value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" autoFocus />
+        <StyledInput icon={Mail} type="email" placeholder="Email Address" required value={email} onChange={e => setEmail(sanitizeEmail(e.target.value))} autoComplete="email" autoFocus />
       </div>
       <button type="submit" disabled={isLoading} style={buttonStyle}>
         {isLoading ? 'Sending...' : 'Send Recovery Link'}

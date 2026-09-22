@@ -101,10 +101,14 @@ export const fetchActivePromos = async () => {
   return getPromoRules();
 };
 
-const isPromoActiveForNow = (rule) => {
+const isPromoActiveForNow = (rule, atDate = null) => {
   if (!rule || rule.active === false) return false;
 
-  const now = new Date();
+  // Section 4 — Eligibility Rule: promo validity is evaluated against the
+  // BOOKING CREATION DATE, not the current system clock. A booking made while a
+  // promo was live keeps that promo even if its window later closes (and vice
+  // versa). Callers that pass no date fall back to now for preview contexts.
+  const now = atDate ? new Date(atDate) : new Date();
   const rawFrom = rule.validFrom || rule.valid_from;
   const rawUntil = rule.validUntil || rule.valid_until;
   const validFrom = rawFrom ? new Date(rawFrom) : null;
@@ -116,14 +120,14 @@ const isPromoActiveForNow = (rule) => {
   return true;
 };
 
-export const getApplicablePromoRules = ({ vehicleType, serviceName }) => {
+export const getApplicablePromoRules = ({ vehicleType, serviceName, atDate = null }) => {
   const targetVehicleType = String(vehicleType || '').trim();
   const targetServiceName = String(serviceName || '').trim();
 
   if (!targetVehicleType || !targetServiceName) return [];
 
   return getPromoRules().filter(rule => {
-    if (!isPromoActiveForNow(rule)) return false;
+    if (!isPromoActiveForNow(rule, atDate)) return false;
 
     // 1. Dynamic Vehicle-to-Service Binding Matrix Evaluation
     if (rule.vehicleServiceMatrix && typeof rule.vehicleServiceMatrix === 'object') {
@@ -160,9 +164,9 @@ export const getApplicablePromoRules = ({ vehicleType, serviceName }) => {
   });
 };
 
-export const getEffectivePriceForService = (basePrice, vehicleType, serviceName) => {
+export const getEffectivePriceForService = (basePrice, vehicleType, serviceName, atDate = null) => {
   let adjustedPrice = Number(basePrice || 0);
-  const rules = getApplicablePromoRules({ vehicleType, serviceName });
+  const rules = getApplicablePromoRules({ vehicleType, serviceName, atDate });
 
   rules.forEach(rule => {
     if (rule.type === 'percentage') {
@@ -197,7 +201,7 @@ export const getBestPromoForService = (vehicleType, serviceName, basePrice = 0) 
   };
 };
 
-export const calculateBookingDiscountSummary = (vehicles = []) => {
+export const calculateBookingDiscountSummary = (vehicles = [], atDate = null) => {
   let originalTotal = 0;
   let discountedTotal = 0;
 
@@ -205,7 +209,7 @@ export const calculateBookingDiscountSummary = (vehicles = []) => {
     (vehicle.services || []).forEach(service => {
       const basePrice = Number(service.price || service.basePrice || 0);
       originalTotal += basePrice;
-      discountedTotal += getEffectivePriceForService(basePrice, vehicle.type, service.name || service.service_name);
+      discountedTotal += getEffectivePriceForService(basePrice, vehicle.type, service.name || service.service_name, atDate);
     });
   });
 

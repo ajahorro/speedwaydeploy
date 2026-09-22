@@ -98,6 +98,28 @@ const ChangeDiffModal = ({ open, log, onClose }) => {
 
         {/* Body */}
         <div style={{ padding: '1.5rem' }}>
+          {/* Task 3.5: identity + timestamp context for the change. */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem', padding: '0.85rem 1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+              <span style={{ fontSize: '0.62rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Admin Email</span>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--admin-text-primary)', textAlign: 'right', overflowWrap: 'anywhere' }}>{log.actor_email || log.profiles?.email || log.admin_email || 'System'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+              <span style={{ fontSize: '0.62rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>User ID</span>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--admin-text-primary)', textAlign: 'right', overflowWrap: 'anywhere', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{log.actor_id || log.user_id || '—'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+              <span style={{ fontSize: '0.62rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Timestamp</span>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--admin-text-primary)', textAlign: 'right' }}>{log.created_at ? new Date(log.created_at).toLocaleString() : '—'}</span>
+            </div>
+            {flatKeys.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+                <span style={{ fontSize: '0.62rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Field(s) Changed</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--admin-text-primary)', textAlign: 'right', overflowWrap: 'anywhere' }}>{flatKeys.map(prettyLabel).join(', ')}</span>
+              </div>
+            )}
+          </div>
+
           {flatKeys.length === 0 ? (
             <div style={{ padding: '1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: 600, textAlign: 'center' }}>
               This entry has no field-level changes recorded.

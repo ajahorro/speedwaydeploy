@@ -5,7 +5,7 @@ import {
   LayoutDashboard, PlusCircle, ClipboardList, CreditCard,
   Car, Bell, Settings, LogOut, Menu, X
 } from 'lucide-react';
-import ProfileHeader from '../../components/ProfileHeader';
+import HeaderProfileDropdown from '../../components/common/HeaderProfileDropdown';
 import NotificationPopover from '../../components/NotificationPopover';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../context/ThemeContext';
@@ -16,7 +16,7 @@ import CustomerSearch from '../../components/CustomerSearch';
 
 const CustomerLayout = () => {
   const { openModal, closeModal } = useUI(); const { resolvedTheme } = useTheme();
-  const { user, profile, signOut, logout } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -304,14 +304,15 @@ const CustomerLayout = () => {
               </div>
             )}
             <div style={{ width: '1px', height: '20px', background: 'var(--admin-border)', opacity: 0.5 }}></div>
-            <div
-              onClick={() => navigate('/customer/profile')}
-              style={{ cursor: 'pointer', transition: 'all 0.2s', opacity: location.pathname === '/customer/profile' ? 1 : 0.8 }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-              onMouseLeave={(e) => { if (location.pathname !== '/customer/profile') e.currentTarget.style.opacity = '0.8'; }}
-            >
-              <ProfileHeader />
-            </div>
+            {/* Shared identity menu — replaces the legacy static profile chip. */}
+            <HeaderProfileDropdown
+              user={user}
+              profile={profile}
+              roleTitle="Customer"
+              profilePath="/customer/profile"
+              settingsPath="/customer/settings"
+              onLogoutClick={handleLogout}
+            />
           </div>
         </header>
 

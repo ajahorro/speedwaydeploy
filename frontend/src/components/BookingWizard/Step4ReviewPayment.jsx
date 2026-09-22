@@ -7,6 +7,7 @@ import { getRequiredDownpayment, requiresDownpayment } from '../../utils/payment
 import QRMagnifier from '../QRMagnifier';
 import { captureQrSnapshot } from '../../services/qrSecurityService';
 import { computeNetCredit } from '../../services/creditLedgerService';
+import { sanitizeCurrency } from '../../config/constants';
 import { logger } from '../../utils/logger';
 
 const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, onNext, onBack, onSubmit, isSubmitting, onCancel }) => {
@@ -63,7 +64,11 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
     display: 'block'
   };
   const vehicles = bookingData.vehicles || [];
-  const promoSummary = calculateBookingDiscountSummary(vehicles);
+  // Section 4: evaluate promo eligibility against the booking's creation date,
+  // never the live clock, so the quoted discount matches the rule set in force
+  // when the booking was made.
+  const promoReferenceDate = bookingData.createdAt || bookingData.created_at || bookingData.submittedAt || null;
+  const promoSummary = calculateBookingDiscountSummary(vehicles, promoReferenceDate);
   const grandTotal = promoSummary.discountedTotal;
 
   // Removed local fetchConfig - now using useConfig hook for global settings
@@ -137,6 +142,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
         // 🛡️ THESIS FLOW: Use the Authoritative Backend Status
         const isAmountMatched = result.isAmountMatch ?? result.isMatch;
+        const isDateMatched = result.isDateMatch !== false; // fail-open only when the field is absent (manual mode)
         const isDuplicate = Boolean(result.isDuplicate);
 
         setScanStep('FINALIZING AUDIT...');
@@ -147,14 +153,17 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           amount: extractedData.amount,
           requiredAmount: targetAmount,
           date: extractedData.date,
-          status: isDuplicate ? 'DUPLICATE_DETECTED' : (isAmountMatched ? 'MATCHED' : 'MISMATCHED'),
+          status: isDuplicate ? 'DUPLICATE_DETECTED' : (!isDateMatched ? 'DATE_MISMATCH' : (isAmountMatched ? 'MATCHED' : 'MISMATCHED')),
           isDuplicate,
+          isDateMatch: isDateMatched,
           isManualReview: Boolean(result.isManualReview),
           recipient: extractedData.recipient || 'N/A',
           recipientMatch: extractedData.isReceipt,
           description: isDuplicate
             ? 'This reference number has already been used for another booking. Please upload the correct proof of payment.'
-            : (extractedData.description || 'No additional receipt notes were extracted.')
+            : (!isDateMatched
+              ? 'The payment date on this receipt is not today. Please upload a receipt dated today.'
+              : (extractedData.description || 'No additional receipt notes were extracted.'))
         };
 
         setReceiptDetails(resultObj);
@@ -180,6 +189,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
   const isGcash = bookingData.payment.method === 'GCash';
   const isDuplicateReceipt = Boolean(receiptDetails?.isDuplicate);
+  const isDatedWrong = receiptDetails?.isDateMatch === false;
   const downpaymentAmount = getRequiredDownpayment(grandTotal);
   const isUnderpaidReceipt = Boolean(
     !adminMode &&
@@ -189,7 +199,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
     Number.isFinite(Number(receiptDetails.amount)) &&
     Number(receiptDetails.amount) < downpaymentAmount
   );
-  const isWarningReceipt = isDuplicateReceipt || ['REJECTED', 'MISMATCHED'].includes(receiptDetails?.status);
+  const isWarningReceipt = isDuplicateReceipt || isDatedWrong || ['REJECTED', 'MISMATCHED'].includes(receiptDetails?.status);
   const hasReceiptNotes = Boolean(receiptDetails?.description && receiptDetails.description !== 'No additional receipt notes were extracted.');
   const manualAmount = Number(bookingData.payment.manualAmount || 0);
   // TIGHTENED LOGIC: must have terms AND (either Cash OR GCash with Proof)
@@ -198,7 +208,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
     ['Downpayment', 'Full', 'Manual'].includes(bookingData.payment.type) &&
     (bookingData.payment.type !== 'Manual' || (manualAmount > 0 && manualAmount <= grandTotal))
   );
-  const isValid = (adminMode || termsAccepted) && !receiptDetails?.isDuplicate && !isUnderpaidReceipt && adminPaymentValid && (
+  const isValid = (adminMode || termsAccepted) && !receiptDetails?.isDuplicate && !isDatedWrong && !isUnderpaidReceipt && adminPaymentValid && (
     adminMode || !isGcash || (bookingData.payment.proofOfPayment !== null && !isUploading)
   );
 
@@ -393,7 +403,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                     ['Manual', 'Manual Amount']
                   ].map(([value, label]) => <button key={value} type="button" disabled={value === 'Downpayment' && !canUseDownpayment} onClick={() => setBookingData(prev => ({ ...prev, payment: { ...prev.payment, type: value } }))} style={{ minHeight: '3rem', padding: '.65rem', background: bookingData.payment.type === value ? 'var(--admin-brand)' : 'var(--admin-card)', color: bookingData.payment.type === value ? '#fff' : 'var(--admin-text-primary)', border: `1px solid ${bookingData.payment.type === value ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', fontSize: '.72rem', cursor: value === 'Downpayment' && !canUseDownpayment ? 'not-allowed' : 'pointer', opacity: value === 'Downpayment' && !canUseDownpayment ? .4 : 1 }}>{label}</button>)}
                 </div>
-                {bookingData.payment.type === 'Manual' && <input type="text" inputMode="numeric" pattern="[0-9]*" value={bookingData.payment.manualAmount || ''} onChange={event => setBookingData(prev => ({ ...prev, payment: { ...prev.payment, manualAmount: event.target.value.replace(/\D/g, '') } }))} placeholder="Enter amount" aria-label="Manual payment amount" style={{ width: '100%', boxSizing: 'border-box', padding: '.85rem 1rem', background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-input-border)', borderRadius: '6px', fontWeight: '800' }} />}
+                {bookingData.payment.type === 'Manual' && <input type="text" inputMode="decimal" pattern="[0-9.]*" value={bookingData.payment.manualAmount || ''} onChange={event => setBookingData(prev => ({ ...prev, payment: { ...prev.payment, manualAmount: sanitizeCurrency(event.target.value) } }))} placeholder="Enter amount" aria-label="Manual payment amount" style={{ width: '100%', boxSizing: 'border-box', padding: '.85rem 1rem', background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-input-border)', borderRadius: '6px', fontWeight: '800' }} />}
                 {bookingData.payment.type === 'Manual' && manualAmount > grandTotal && <span style={{ color: 'var(--status-danger)', fontSize: '.7rem', fontWeight: '800' }}>Manual amount cannot be higher than the booking total.</span>}
               </div>
             )}
@@ -546,11 +556,11 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                             {isWarningReceipt ? <AlertTriangle size={20} color="#fff" /> : <CheckCircle2 size={20} color="#fff" />}
                           </div>
                           <div>
-                            <div style={{ color: receiptDetails.status === 'REJECTED' || isDuplicateReceipt ? 'var(--status-danger)' : (receiptDetails.status === 'MISMATCHED' ? 'var(--status-warning)' : 'var(--admin-success)'), fontWeight: '950', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                              {isDuplicateReceipt ? 'Duplicate Receipt Detected' : (receiptDetails.status === 'REJECTED' ? 'Verification Failed' : (receiptDetails.status === 'MISMATCHED' ? 'Amount Discrepancy' : 'AI Audit Verified'))}
+                            <div style={{ color: receiptDetails.status === 'REJECTED' || isDuplicateReceipt ? 'var(--status-danger)' : ((receiptDetails.status === 'MISMATCHED' || isDatedWrong) ? 'var(--status-warning)' : 'var(--admin-success)'), fontWeight: '950', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                              {isDuplicateReceipt ? 'Duplicate Receipt Detected' : (receiptDetails.status === 'REJECTED' ? 'Verification Failed' : (isDatedWrong ? 'Receipt Date Mismatch' : (receiptDetails.status === 'MISMATCHED' ? 'Amount Discrepancy' : 'AI Audit Verified')))}
                             </div>
                             <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '800' }}>
-                              {isDuplicateReceipt ? 'SYSTEM ALERT: REFERENCE ALREADY USED' : (receiptDetails.status === 'REJECTED' ? 'SYSTEM ALERT: INVALID FORMAT' : (receiptDetails.status === 'MISMATCHED' ? 'WARNING: PRICE MISMATCH' : 'SECURITY SIGNATURE: GEMINI OCR'))}
+                              {isDuplicateReceipt ? 'SYSTEM ALERT: REFERENCE ALREADY USED' : (receiptDetails.status === 'REJECTED' ? 'SYSTEM ALERT: INVALID FORMAT' : (isDatedWrong ? 'WARNING: RECEIPT NOT DATED TODAY' : (receiptDetails.status === 'MISMATCHED' ? 'WARNING: PRICE MISMATCH' : 'SECURITY SIGNATURE: GEMINI OCR')))}
                             </div>
                           </div>
                         </div>

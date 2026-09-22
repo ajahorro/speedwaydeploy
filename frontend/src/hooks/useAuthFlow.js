@@ -8,7 +8,7 @@ export const useAuthFlow = () => {
   const navigate = useNavigate();
   const { user, profile, signInWithPassword, requestPasswordReset } = useAuth();
   
-  const [mode, setMode] = useState('LOGIN'); // LOGIN, REGISTER, VERIFY, AWAIT_LINK, RECOVER, RECOVER_VERIFY, RESET
+  const [mode, setMode] = useState('LOGIN'); // LOGIN, REGISTER, VERIFY, AWAIT_LINK, RECOVER, RECOVER_OTP, RECOVER_VERIFY, RESET
   const [isLoading, setIsLoading] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -37,7 +37,7 @@ export const useAuthFlow = () => {
     try {
       const { error } = await signInWithPassword(email, password);
       if (error) throw error;
-      
+
       toast.success('Successfully logged in!');
     } catch (error) {
       setLoginError(error.message || 'Login failed.');
@@ -148,6 +148,79 @@ export const useAuthFlow = () => {
     }
   };
 
+  /**
+   * Section 1.2 — Emergency Account Recovery.
+   *
+   * Two-step, email-OTP flow for a user whose account is DB-locked after five
+   * failed attempts. requestEmergencyRecovery() emails a single-use 6-digit code;
+   * completeEmergencyRecovery() verifies it AND sets the new password in one call.
+   * On success the backend clears the DB lock and the first-login flag, so the
+   * caller just returns to the login screen. Messages are deliberately neutral on
+   * the request step so the flow cannot be used to enumerate accounts.
+   */
+  const requestEmergencyRecovery = async (email) => {
+    const target = (email || '').trim().toLowerCase();
+    if (!target) {
+      toast.error('Enter the email address on the locked account.');
+      return false;
+    }
+    setIsLoading(true);
+    try {
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const res = await fetch(`${BACKEND_URL}/api/auth/emergency-recovery/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: target })
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || 'Recovery request failed');
+      setVerificationEmail(target);
+      toast.success('If an account is associated with that email, a recovery code has been sent.');
+      setMode('RECOVER_OTP');
+      return true;
+    } catch (error) {
+      toast.error(error.message || 'Could not start account recovery.');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const completeEmergencyRecovery = async (otp, newPassword) => {
+    const target = (verificationEmail || '').trim().toLowerCase();
+    if (!target) {
+      toast.error('Your recovery session expired. Please start again.');
+      return false;
+    }
+    if (!/^\d{6}$/.test(String(otp || ''))) {
+      toast.error('Enter the 6-digit recovery code from your email.');
+      return false;
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      toast.error('Your new password must be at least 6 characters long.');
+      return false;
+    }
+    setIsLoading(true);
+    try {
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const res = await fetch(`${BACKEND_URL}/api/auth/emergency-recovery/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: target, otp: String(otp), newPassword })
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.error || 'Recovery failed');
+      toast.success('Account recovered! You can now sign in with your new password.');
+      setMode('LOGIN');
+      return true;
+    } catch (error) {
+      toast.error(error.message || 'Unable to complete account recovery.');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     mode,
     setMode,
@@ -157,6 +230,8 @@ export const useAuthFlow = () => {
     startRegister,
     resendConfirmation,
     recoverPassword,
+    requestEmergencyRecovery,
+    completeEmergencyRecovery,
     loginError,
     clearLoginError: () => setLoginError(''),
   };

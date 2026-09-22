@@ -31,7 +31,8 @@ const AdminAccountsManagement = () => {
   const [inviteForm, setInviteForm] = useState({
     email: '',
     firstName: '',
-    lastName: ''
+    lastName: '',
+    forcePasswordChange: true
   });
 
   const fetchAccounts = useCallback(async () => {
@@ -67,30 +68,48 @@ const AdminAccountsManagement = () => {
     }
 
     setIsSubmitting(true);
-    const toastId = toast.loading(`Generating invitation for ${inviteForm.email}...`);
-    
+    const toastId = toast.loading(`Creating ${activeTab} account for ${inviteForm.email}...`);
+
     try {
-      logger.admin(`Generating ${activeTab} invitation for: ${inviteForm.email}`);
-      
-      const response = await fetch(`${BACKEND_URL}/admin/generate-invite`, {
+      logger.admin(`Inviting ${activeTab}: ${inviteForm.email}`);
+
+      const response = await fetch(`${BACKEND_URL}/api/admin/invite-account`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: inviteForm.email,
-          role: activeTab // Uses the active tab (ADMIN/STAFF) as the role
+          email: inviteForm.email.trim().toLowerCase(),
+          firstName: inviteForm.firstName.trim(),
+          lastName: inviteForm.lastName.trim(),
+          role: activeTab, // Uses the active tab (ADMIN/STAFF) as the role
+          forcePasswordChange: inviteForm.forcePasswordChange
         })
       });
 
-      const result = await response.json();
+      // Parse defensively — a dead/restarting backend can return an empty body.
+      const raw = await response.text();
+      let result = {};
+      try { result = raw ? JSON.parse(raw) : {}; } catch { result = {}; }
 
-      if (!response.ok) throw new Error(result.error || 'Failed to generate invitation');
+      if (!response.ok) throw new Error(result.error || `Failed to create invitation (HTTP ${response.status}).`);
 
-      toast.success('Invitation link generated and sent!', { id: toastId });
+      if (result.emailDelivered === false) {
+        // Account exists but the email bounced — surface the temporary password so
+        // the admin can hand it over manually rather than leaving the user stranded.
+        toast.success(
+          result.temporaryPassword
+            ? `Account created. Email failed — share this temp password: ${result.temporaryPassword}`
+            : 'Account created, but the invitation email could not be delivered.',
+          { id: toastId, duration: 12000 }
+        );
+      } else {
+        toast.success('Invitation sent! The user will set their own password on first login.', { id: toastId });
+      }
       setIsModalOpen(false);
-      setInviteForm({ email: '', firstName: '', lastName: '' }); // keep names empty
+      setInviteForm({ email: '', firstName: '', lastName: '', forcePasswordChange: true });
+      fetchAccounts();
     } catch (err) {
       logger.error('Invitation Error', err);
-      toast.error(`Failed to send invitation: ${err.message}`, { id: toastId });
+      toast.error(err.message || 'Failed to send invitation', { id: toastId });
     } finally {
       setIsSubmitting(false);
     }
@@ -294,7 +313,7 @@ const AdminAccountsManagement = () => {
             </div>
 
             <p style={{ fontSize: '0.8rem', color: 'var(--admin-text-secondary)', marginBottom: '1.5rem', fontWeight: '700' }}>
-              Send a secure invitation link. The user will receive an email to confirm their identity and set their password.
+              Create the account and email the user a temporary password. They will be prompted to set their own password on first sign-in.
             </p>
 
             <form onSubmit={handleSendInvite} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -313,10 +332,53 @@ const AdminAccountsManagement = () => {
                 </div>
               </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>First Name</label>
+                  <div style={{ position: 'relative' }}>
+                    <User size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
+                    <input
+                      type="text"
+                      placeholder="e.g. Juan"
+                      value={inviteForm.firstName}
+                      onChange={(e) => setInviteForm({...inviteForm, firstName: e.target.value.replace(/[^a-zA-Z0-9\s'-]/g, '')})}
+                      style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', outline: 'none', fontWeight: '700' }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Last Name</label>
+                  <div style={{ position: 'relative' }}>
+                    <User size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
+                    <input
+                      type="text"
+                      placeholder="e.g. Dela Cruz"
+                      value={inviteForm.lastName}
+                      onChange={(e) => setInviteForm({...inviteForm, lastName: e.target.value.replace(/[^a-zA-Z0-9\s'-]/g, '')})}
+                      style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', outline: 'none', fontWeight: '700' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 1.1: first-login password reset. Checked by default so an
+                  invited account cannot be used until the owner sets a real password. */}
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)' }}>
+                <input
+                  type="checkbox"
+                  checked={inviteForm.forcePasswordChange}
+                  onChange={(e) => setInviteForm({...inviteForm, forcePasswordChange: e.target.checked})}
+                  style={{ marginTop: '0.15rem', width: '16px', height: '16px', accentColor: 'var(--admin-brand)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--admin-text-primary)', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Force user to change password on first login</strong>
+                  The invited user must set a new password before they can access any part of the platform.
+                </span>
+              </label>
+
               <div style={{ padding: '1rem', background: 'rgba(169, 27, 24, 0.1)', borderRadius: 'var(--admin-radius-sm)', border: '1px solid rgba(169, 27, 24, 0.2)' }}>
                 <p style={{ fontSize: '0.7rem', color: 'var(--admin-text-secondary)', margin: 0, fontWeight: '700' }}>
-                  The user will be invited as <strong style={{ color: 'var(--admin-brand)' }}>{activeTab}</strong>. 
-                  They will provide their name and password when they accept the invitation.
+                  The user will be invited as <strong style={{ color: 'var(--admin-brand)' }}>{activeTab}</strong>. A temporary password will be emailed to them.
                 </p>
               </div>
 

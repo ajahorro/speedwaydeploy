@@ -42,10 +42,13 @@ const StaffDashboard = () => {
 
     const rawClockIn = profile.clock_in_timestamp || profile.updated_at;
     const startTime = rawClockIn ? new Date(rawClockIn).getTime() : Date.now();
+    // Cap at 24h so a missed clock-out can never show a runaway duration like
+    // 37:56:54; the ceiling signals the shift needs attention.
+    const MAX_SHIFT_SECONDS = 24 * 60 * 60;
 
     const updateTimer = () => {
       const now = Date.now();
-      const diffSecs = Math.max(0, Math.floor((now - startTime) / 1000));
+      const diffSecs = Math.min(Math.max(0, Math.floor((now - startTime) / 1000)), MAX_SHIFT_SECONDS);
       const hrs = String(Math.floor(diffSecs / 3600)).padStart(2, '0');
       const mins = String(Math.floor((diffSecs % 3600) / 60)).padStart(2, '0');
       const secs = String(diffSecs % 60).padStart(2, '0');
@@ -246,7 +249,7 @@ const StaffDashboard = () => {
     }
   };
 
-  if (loading) return <LoadingState message="Synchronizing your daily task hub..." />;
+  if (loading) return <LoadingState message="Loading your assignments..." />;
 
   const badgeStyle = (status) => {
     const s = status?.toUpperCase();
@@ -257,8 +260,8 @@ const StaffDashboard = () => {
       borderRadius: '4px',
       textTransform: 'uppercase',
       border: '1px solid currentColor',
-      background: s === 'COMPLETED' ? 'rgba(16, 185, 129, 0.1)' : (s === 'IN_PROGRESS' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(255,255,255,0.05)'),
-      color: s === 'COMPLETED' ? '#10b981' : (s === 'IN_PROGRESS' ? '#f59e0b' : '#8E9196'),
+      background: s === 'COMPLETED' ? 'rgba(16, 185, 129, 0.1)' : (s === 'IN_PROGRESS' ? 'rgba(245, 158, 11, 0.1)' : 'var(--admin-input-bg)'),
+      color: s === 'COMPLETED' ? 'var(--status-success)' : (s === 'IN_PROGRESS' ? 'var(--status-warning)' : 'var(--admin-text-secondary)'),
       letterSpacing: '1px'
     };
   };
@@ -269,31 +272,31 @@ const StaffDashboard = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2rem' }}>
-        <PageHeader 
-          badge="OPERATIONAL HUB"
-          title="Daily Task Queue"
-          subtitle={`Ready for duty, ${profile?.full_name?.split(' ')[0]}. Manage your assigned vehicle jobs below.`}
+        <PageHeader
+          badge="Today"
+          title="Active Assignments"
+          subtitle={`Ready for duty, ${profile?.full_name?.split(' ')[0]}. Vehicles assigned to you for detailing today.`}
         />
-        
+
         <div style={{ background: 'var(--admin-card)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--admin-border)', minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+          <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <TrendingUp size={14} color="var(--status-success)" /> SHIFT ACTIVITY SNAPSHOT
+              <TrendingUp size={14} color="var(--status-success)" /> Shift Tracker
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ textAlign: 'center', flex: 1 }}>
-              <div style={{ fontSize: '1.1rem', fontWeight: '950', color: stats.active > 0 ? '#f59e0b' : '#8E9196', textTransform: 'uppercase' }}>
-                {stats.active > 0 ? `${stats.active} IN PROGRESS` : 'NO ACTIVE JOB'}
+              <div style={{ fontSize: '1.1rem', fontWeight: '950', color: stats.active > 0 ? 'var(--status-warning)' : 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>
+                {stats.active > 0 ? `${stats.active} In Progress` : 'No active job'}
               </div>
-              <div style={{ fontSize: '0.55rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>ACTIVE JOB</div>
+              <div style={{ fontSize: '0.55rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>Active Job</div>
             </div>
-            <div style={{ width: '1px', height: '30px', background: 'rgba(255,255,255,0.05)' }}></div>
+            <div style={{ width: '1px', height: '30px', background: 'var(--admin-border)' }}></div>
             <div style={{ textAlign: 'center', flex: 1 }}>
-              <div style={{ fontSize: '1.1rem', fontWeight: '950', color: profile?.is_clocked_in ? '#10b981' : '#E61E2A', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '1.1rem', fontWeight: '950', color: profile?.is_clocked_in ? 'var(--status-success)' : 'var(--admin-brand)', textTransform: 'uppercase' }}>
                 {shiftTimer}
               </div>
-              <div style={{ fontSize: '0.55rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>ACTIVE SHIFT</div>
+              <div style={{ fontSize: '0.55rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>Current Shift</div>
             </div>
           </div>
         </div>
@@ -304,14 +307,14 @@ const StaffDashboard = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
             <ClipboardList size={20} color="var(--admin-brand)" />
             <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-              Pending Job Queue
+              Active Assignments
             </h3>
           </div>
 
           {tasks.length > 0 ? (
             tasks.map((task) => (
               <div key={task.id} style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.2s', opacity: task.status === 'COMPLETED' ? 0.7 : 1 }}>
-                <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)' }}>
+                <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--admin-bg)' }}>
                   <div
                     onClick={() => navigate(`/staff/job/${task.id}`)}
                     style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }}
@@ -321,7 +324,7 @@ const StaffDashboard = () => {
                     </div>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <span style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-brand)', background: 'rgba(230, 30, 42, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '2px', letterSpacing: '1px' }}>JOB #{task.id.slice(0, 8).toUpperCase()}</span>
+                        <span style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-brand)', background: 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.1)', padding: '0.2rem 0.5rem', borderRadius: '2px', letterSpacing: '1px' }}>JOB #{task.id.slice(0, 8).toUpperCase()}</span>
                         <span style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>• Plate: {task.plate_number || 'N/A'}</span>
                       </div>
                       <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{task.brand} {task.model}</h3>
@@ -329,15 +332,15 @@ const StaffDashboard = () => {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={badgeStyle(task.status)}>{task.status?.toUpperCase()}</div>
-                    <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: '900', marginTop: '0.5rem', textTransform: 'uppercase' }}>
+                    <div style={{ fontSize: '0.6rem', color: 'var(--admin-text-secondary)', fontWeight: '900', marginTop: '0.5rem', textTransform: 'uppercase' }}>
                       Sch: {new Date(task.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
                 </div>
 
                 <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  <div style={{ background: 'var(--admin-bg)', borderRadius: '6px', padding: '1.25rem', border: '1px solid rgba(255,255,255,0.03)' }}>
-                    <div style={{ fontSize: '0.6rem', fontWeight: '950', color: '#444', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.75rem' }}>Service Breakdown</div>
+                  <div style={{ background: 'var(--admin-bg)', borderRadius: '6px', padding: '1.25rem', border: '1px solid var(--admin-border)' }}>
+                    <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.75rem' }}>Service Breakdown</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
                       {task.services?.map((s, idx) => (
                         <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--admin-card)', padding: '0.4rem 0.8rem', borderRadius: '4px', border: '1px solid var(--admin-border)' }}>
@@ -351,7 +354,7 @@ const StaffDashboard = () => {
                   {task.status?.toUpperCase() !== 'PENDING' && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                       <div style={{ position: 'relative' }}>
-                        <div style={{ fontSize: '0.6rem', fontWeight: '950', color: '#444', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Detailing Observations</div>
+                        <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Detailing Observations</div>
                         <textarea
                           placeholder="Document service steps or vehicle conditions..."
                           value={localNotes[task.id] || ''}
@@ -365,7 +368,7 @@ const StaffDashboard = () => {
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div style={{ fontSize: '0.6rem', fontWeight: '950', color: '#444', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Service Evidence</div>
+                        <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Service Evidence</div>
                         <p style={{ margin: '0 0 0.5rem', fontSize: '0.62rem', color: 'var(--admin-text-secondary)', fontWeight: '700', lineHeight: 1.5 }}>
                           Intake photos are recommended (a warning is logged if skipped). At least one completion photo is required to finish.
                         </p>
@@ -398,7 +401,7 @@ const StaffDashboard = () => {
                         {(photoCounts[task.id]?.before || 0) < 1 && (
                           <IntakeWarningBadge tone="warning" compact>No intake photo — recommended</IntakeWarningBadge>
                         )}
-                        <button onClick={() => requestStartTask(task)} disabled={!canStartTask(task)} style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canStartTask(task) ? '#E61E2A' : 'var(--admin-border)', color: canStartTask(task) ? 'white' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', cursor: canStartTask(task) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        <button onClick={() => requestStartTask(task)} disabled={!canStartTask(task)} style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canStartTask(task) ? 'var(--admin-brand)' : 'var(--admin-border)', color: canStartTask(task) ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', cursor: canStartTask(task) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
                           <Play size={18} /> START SERVICE
                         </button>
                       </>
@@ -426,7 +429,7 @@ const StaffDashboard = () => {
                                       : 'Add at least 1 completion (after) photo to finish.')
                                   : 'Mark this job as finished.'
                             }
-                            style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canComplete ? '#10b981' : (missingAfter && isAdmin ? 'var(--status-warning)' : 'var(--admin-border)'), color: canComplete || (missingAfter && isAdmin) ? 'white' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', cursor: !profile?.is_clocked_in || (missingAfter && !isAdmin) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}
+                            style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canComplete ? 'var(--status-success)' : (missingAfter && isAdmin ? 'var(--status-warning)' : 'var(--admin-border)'), color: canComplete || (missingAfter && isAdmin) ? 'white' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', cursor: !profile?.is_clocked_in || (missingAfter && !isAdmin) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}
                           >
                             <CheckCircle2 size={18} /> {missingAfter && isAdmin ? 'OVERRIDE & FINISH' : 'MARK AS FINISHED'}
                           </button>
@@ -438,10 +441,10 @@ const StaffDashboard = () => {
               </div>
             ))
           ) : (
-            <div style={{ background: 'var(--admin-card)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '8px', textAlign: 'center', padding: '5rem 2rem' }}>
-              <ClipboardList size={48} style={{ margin: '0 auto 1.5rem', opacity: 0.1 }} />
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '950', color: '#444' }}>No tasks assigned yet</h3>
-              <p style={{ color: '#333', fontSize: '0.75rem', fontWeight: '700', marginTop: '0.5rem' }}>Your daily queue is empty. Refresh later for new assignments.</p>
+            <div style={{ background: 'var(--admin-card)', border: '1px dashed var(--admin-border)', borderRadius: '8px', textAlign: 'center', padding: '2rem 1.5rem', minHeight: '180px', maxHeight: '220px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <ClipboardList size={36} style={{ marginBottom: '1rem', opacity: 0.25, color: 'var(--admin-text-secondary)' }} />
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: 'var(--admin-text-primary)' }}>No active assignments</h3>
+              <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: '600', marginTop: '0.4rem' }}>Vehicles assigned to you will appear here.</p>
             </div>
           )}
         </div>
@@ -449,16 +452,16 @@ const StaffDashboard = () => {
         <div style={{ width: isMobile ? '100%' : '320px', display: 'flex', flexDirection: 'column', gap: '2rem', position: 'sticky', top: '100px' }}>
           {/* System Broadcasts & Announcements */}
           <div style={{ background: 'var(--admin-card)', borderRadius: '8px', border: '1px solid var(--admin-border)', overflow: 'hidden' }}>
-            <div style={{ padding: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <Bell size={18} color="var(--admin-brand)" />
               <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                System Broadcasts & Announcements
+                Shop Bulletins
               </h3>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {broadcasts.length > 0 ? (
                 broadcasts.map(b => (
-                  <div key={b.id} style={{ padding: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                  <div key={b.id} style={{ padding: '1.25rem', borderBottom: '1px solid var(--admin-border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', alignItems: 'center' }}>
                       <div style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--admin-text-primary)' }}>{b.title || 'Announcement'}</div>
                       <div style={{ fontSize: '0.55rem', fontWeight: '900', color: 'var(--admin-text-secondary)' }}>
@@ -477,10 +480,10 @@ const StaffDashboard = () => {
           </div>
 
           {!profile?.is_clocked_in && (
-            <div style={{ padding: '1.25rem', background: 'rgba(230, 30, 42, 0.05)', border: '1px solid rgba(230, 30, 42, 0.1)', borderRadius: '8px', textAlign: 'center' }}>
+            <div style={{ padding: '1.25rem', background: 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.05)', border: '1px solid rgba(var(--admin-brand-rgb, 169, 27, 24), 0.15)', borderRadius: '8px', textAlign: 'center' }}>
               <Clock size={24} color="var(--admin-brand)" style={{ margin: '0 auto 0.75rem' }} />
-              <div style={{ fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Attendance Missing</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Clock in from the sidebar to enable service controls.</div>
+              <div style={{ fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Not Clocked In</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Open Duty &amp; Shift to clock in and enable service controls.</div>
             </div>
           )}
         </div>

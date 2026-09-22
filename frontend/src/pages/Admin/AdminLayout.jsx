@@ -4,12 +4,12 @@ import { supabase } from '../../lib/supabase';
 import {
   LayoutDashboard, Building2, ClipboardList, CheckSquare, Calendar, UserPlus,
   Bell, Undo, BarChart2, History, Users, User,
-  Settings, LogOut, Menu, X, ShieldAlert
+  Settings, LogOut, Menu, X
 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import { useAuth } from '../../hooks/useAuth';
 import { confirmLogout } from '../../utils/logoutConfirm';
-import ProfileHeader from '../../components/ProfileHeader';
+import HeaderProfileDropdown from '../../components/common/HeaderProfileDropdown';
 import AdminSearch from '../../components/AdminSearch';
 import NotificationPopover from '../../components/NotificationPopover';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -364,14 +364,15 @@ const AdminLayout = () => {
               </div>
             )}
             <div style={{ width: '1px', height: '20px', background: 'var(--admin-border)', opacity: 0.5 }}></div>
-            <div
-              onClick={() => navigate('/admin/profile')}
-              style={{ cursor: 'pointer', transition: 'all 0.2s', opacity: location.pathname === '/admin/profile' ? 1 : 0.8 }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-              onMouseLeave={(e) => { if (location.pathname !== '/admin/profile') e.currentTarget.style.opacity = '0.8'; }}
-            >
-              <ProfileHeader />
-            </div>
+            {/* Shared identity menu — replaces the legacy static profile chip. */}
+            <HeaderProfileDropdown
+              user={user}
+              profile={profile}
+              roleTitle="Administrator"
+              profilePath="/admin/profile"
+              settingsPath="/admin/settings"
+              onLogoutClick={handleLogout}
+            />
           </div>
         </header>
 

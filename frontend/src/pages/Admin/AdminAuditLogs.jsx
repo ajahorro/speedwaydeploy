@@ -3,9 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import PageHeader from '../../components/PageHeader';
 import { 
-  Search, Filter, Calendar, Database, ArrowRight, 
-  RefreshCcw, X, ChevronRight, User, Clock, 
-  ExternalLink, ShieldCheck, AlertCircle
+  Search, Filter, Database, X, ExternalLink
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -40,9 +38,25 @@ const AdminAuditLogs = () => {
 
       if (error) throw error;
 
-      const processed = (data || []).map(l => ({
+      const rows = data || [];
+
+      // Task 3.5: audit_logs stores actor_id/actor_name but not an email, so
+      // resolve the email for every distinct actor up front — one query, then a
+      // map lookup per row.
+      const actorIds = Array.from(new Set(rows.map((l) => l.actor_id).filter(Boolean)));
+      let emailById = {};
+      if (actorIds.length) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .in('id', actorIds);
+        emailById = (profiles || []).reduce((acc, p) => { acc[p.id] = p.email; return acc; }, {});
+      }
+
+      const processed = rows.map(l => ({
         ...l,
         event_type: l.action_type,
+        actor_email: emailById[l.actor_id] || null,
         profiles: l.profiles || { full_name: l.actor_name || 'System', role: l.actor_role || 'SYSTEM' }
       }));
 
@@ -54,12 +68,6 @@ const AdminAuditLogs = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getEventIcon = (type) => {
-    if (type.includes('CREATE')) return <Calendar size={18} />;
-    if (type.includes('DELETE') || type.includes('CANCEL')) return <AlertCircle size={18} />;
-    return <Database size={18} />;
   };
 
   const getBadgeColor = (type) => {
@@ -108,6 +116,21 @@ const AdminAuditLogs = () => {
     const m = log.metadata || {};
     if (m.old_values || m.new_values) return true;
     return ['old_start', 'new_start'].some((k) => k in m);
+  };
+
+  /**
+   * Task 3.5: a compact, human label for what the entry changed — the column
+   * names are never dumped into the table cell (the raw values live in the modal).
+   */
+  const getFieldChanged = (log) => {
+    const m = log.metadata || {};
+    const keys = Array.from(new Set([
+      ...Object.keys(m.old_values || {}),
+      ...Object.keys(m.new_values || {}),
+    ])).filter((k) => !k.startsWith('old_'));
+    if (keys.length) return keys.map((k) => k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())).join(', ');
+    if ('old_start' in m || 'new_start' in m) return 'Scheduled Time';
+    return (log.event_type || log.action_type || '').replace(/_/g, ' ');
   };
 
   return (
@@ -166,81 +189,79 @@ const AdminAuditLogs = () => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      {/* Task 3.5: strict 4-column audit table. Raw old/new values are NOT rendered
+          here — only a [View Changes] affordance into ChangeDiffModal. */}
+      <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', overflow: 'hidden' }}>
         {loading ? (
-          [1,2,3,4,5].map(i => (
-            <div key={i} style={{ height: '80px', background: 'var(--admin-bg)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)' }} className="animate-pulse"></div>
-          ))
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem' }}>
+            {[1,2,3,4,5].map(i => (
+              <div key={i} style={{ height: '54px', background: 'var(--admin-bg)', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }} className="animate-pulse"></div>
+            ))}
+          </div>
         ) : filteredLogs.length > 0 ? (
-          filteredLogs.map((log) => {
-            const badge = getBadgeColor(log.event_type);
-            return (
-              <div 
-                key={log.id}
-                onClick={() => handleOpenDetail(log)}
-                style={{ 
-                  background: 'var(--admin-card)', 
-                  border: '1px solid var(--admin-border)', 
-                  borderRadius: 'var(--admin-radius)', 
-                  padding: isMobile ? '1rem' : '1.25rem 1.5rem',
-                  display: 'flex', gap: isMobile ? '0.75rem' : '1.5rem',
-                  alignItems: 'center', cursor: 'pointer', color: 'var(--admin-text-primary)'
-                }}
-              >
-                <div style={{ 
-                  width: isMobile ? '36px' : '44px', height: isMobile ? '36px' : '44px', 
-                  background: 'var(--admin-bg)', borderRadius: 'var(--admin-radius-sm)', 
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: 'var(--admin-brand)', border: '1px solid var(--admin-border)'
-                }}>
-                  {getEventIcon(log.event_type || '')}
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
-                    <span style={{ 
-                      padding: '0.2rem 0.5rem', background: badge.bg, color: badge.text, 
-                      borderRadius: 'var(--admin-radius-sm)', fontSize: '0.6rem', 
-                      fontWeight: '800', textTransform: 'uppercase'
-                    }}>
-                      {(log.event_type || '').replace(/_/g, ' ')}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
-                      by <span style={{ fontWeight: '800', color: 'var(--admin-text-primary)' }}>{log.profiles?.full_name?.split(' ')[0] || 'System'}</span>
-                    </span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: isMobile ? '0.85rem' : '0.95rem', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {formatDescription(log)}
-                  </p>
-                </div>
-
-                <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', fontWeight: '800' }}>{new Date(log.created_at).toLocaleDateString()}</div>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)' }}>{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                  </div>
-                  {/* Task B: [View Changes] opens the Old-vs-New diff modal. */}
-                  {hasChanges(log) && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setDiffLog(log); }}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                        padding: '0.3rem 0.6rem', background: 'rgba(var(--admin-brand-rgb), 0.1)',
-                        color: 'var(--admin-brand)', border: '1px solid rgba(var(--admin-brand-rgb), 0.3)',
-                        borderRadius: 'var(--admin-radius-sm)', fontSize: '0.62rem', fontWeight: '900',
-                        textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer', minHeight: '1.9rem',
-                      }}
-                    >
-                      View Changes
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? '600px' : '100%' }}>
+              <thead>
+                <tr style={{ background: 'var(--admin-bg)' }}>
+                  {['Date & Time', 'Admin Email', 'Field Changed', 'Changes Made'].map((heading) => (
+                    <th key={heading} style={{ textAlign: 'left', padding: '0.85rem 1rem', fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-secondary)', borderBottom: '1px solid var(--admin-border)', whiteSpace: 'nowrap' }}>
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLogs.map((log) => (
+                  <tr
+                    key={log.id}
+                    onClick={() => handleOpenDetail(log)}
+                    style={{ cursor: 'pointer', borderBottom: '1px solid var(--admin-border)' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--admin-bg)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <td style={{ padding: '0.85rem 1rem', verticalAlign: 'top' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--admin-text-primary)', whiteSpace: 'nowrap' }}>{new Date(log.created_at).toLocaleDateString()}</div>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: 600 }}>{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    </td>
+                    <td style={{ padding: '0.85rem 1rem', verticalAlign: 'top' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>
+                        {log.actor_email || '—'}
+                      </div>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                        {log.profiles?.full_name || 'System'} · {log.profiles?.role || 'SYSTEM'}
+                      </div>
+                    </td>
+                    <td style={{ padding: '0.85rem 1rem', verticalAlign: 'top' }}>
+                      <span style={{ display: 'inline-block', padding: '0.2rem 0.5rem', background: getBadgeColor(log.event_type).bg, color: getBadgeColor(log.event_type).text, borderRadius: 'var(--admin-radius-sm)', fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase' }}>
+                        {getFieldChanged(log)}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.85rem 1rem', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
+                      {hasChanges(log) ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setDiffLog(log); }}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                            padding: '0.35rem 0.7rem', background: 'rgba(var(--admin-brand-rgb), 0.1)',
+                            color: 'var(--admin-brand)', border: '1px solid rgba(var(--admin-brand-rgb), 0.3)',
+                            borderRadius: 'var(--admin-radius-sm)', fontSize: '0.62rem', fontWeight: 900,
+                            textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer', minHeight: '1.9rem',
+                          }}
+                        >
+                          View Changes
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: 600 }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
-          <div style={{ textAlign: 'center', padding: '4rem 1rem', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)' }}>
+          <div style={{ textAlign: 'center', padding: '4rem 1rem', color: 'var(--admin-text-secondary)' }}>
             <Database size={40} style={{ marginBottom: '1rem', opacity: 0.3 }} />
             <p style={{ fontWeight: '700', fontSize: '0.9rem' }}>No logs found</p>
           </div>

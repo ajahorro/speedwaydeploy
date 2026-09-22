@@ -6,9 +6,54 @@ import { BACKEND_URL } from '../config/api';
 
 export const AuthContext = createContext({});
 
+/**
+ * Section 1.2 capability probe.
+ *
+ * The DB-backed login lockout is implemented by three SQL functions
+ * (check_login_lock / register_failed_login / clear_login_lock) added in
+ * migration 20260927000001. When that migration has NOT been applied to the
+ * connected database, every `supabase.rpc(...)` call to them resolves to a
+ * PostgREST 404 (PGRST202) — the surrounding try/catch keeps login working, but
+ * the browser console fills with red 404s on every sign-in.
+ *
+ * Rather than swallow them, we probe ONCE per page load and, if the functions
+ * are absent, skip the calls entirely. The feature turns on automatically the
+ * moment the migration is applied — no code change, no rebuild.
+ */
+let lockoutAvailabilityPromise = null;
+
+/**
+ * Resolves to true when the lockout RPCs are callable, false when the migration
+ * is not applied. Probed once per session and shared by every caller.
+ *
+ * Detection uses a single check_login_lock call as the sentinel; PostgREST
+ * reports a missing function as PGRST202, which the client returns (not throws).
+ * The result is memoized so at most ONE probe request is made per page load —
+ * repeated logins add no traffic. Once migration 20260927000001 is applied the
+ * call succeeds and the feature switches on with no code change.
+ */
+const isMissingRpcError = (error) =>
+  error?.code === 'PGRST202' ||
+  error?.code === '42883' ||
+  /could not find the function/i.test(error?.message || '');
+
+const probeLockoutSupport = () => {
+  if (!lockoutAvailabilityPromise) {
+    lockoutAvailabilityPromise = supabase
+      .rpc('check_login_lock', { p_email: '__capability_probe__@speedway.local' })
+      .then(({ error }) => {
+        if (error && isMissingRpcError(error)) {
+          logger.warn('Login lockout RPCs absent — migration 20260927000001 not applied. Feature disabled.');
+          return false;
+        }
+        return true;
+      })
+      .catch(() => false);
+  }
+  return lockoutAvailabilityPromise;
+};
+
 export const AuthProvider = ({ children }) => {
-  const LOGIN_ATTEMPT_KEY = 'speedway-login-attempts';
-  const LOGIN_LOCKOUT_MS = 20 * 60 * 1000;
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -158,37 +203,31 @@ export const AuthProvider = ({ children }) => {
       };
     }
 
-    let attempts = {};
-    try {
-      attempts = JSON.parse(localStorage.getItem(LOGIN_ATTEMPT_KEY) || '{}');
-    } catch {
-      localStorage.removeItem(LOGIN_ATTEMPT_KEY);
-    }
-    const current = attempts[normalizedEmail];
-    if (current?.lockedUntil && current.lockedUntil > Date.now()) {
-      const minutes = Math.ceil((current.lockedUntil - Date.now()) / 60000);
-      return { data: { user: null }, error: new Error(`Account temporarily locked. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`) };
-    }
-
-    const recordFailure = (authError) => {
-      let latestAttempts = {};
+    // ── Section 1.2: DB-backed lockout ────────────────────────────────────────
+    // The lock lives in the DB (profiles.locked_until, evaluated as NOW() <
+    // locked_until), NOT in localStorage. Refreshing or reopening the browser
+    // therefore cannot clear it. We check BEFORE submitting credentials so a
+    // locked user never burns an auth round-trip.
+    //
+    // Skipped entirely when the lockout RPCs are not deployed, so an un-migrated
+    // database does not spray 404s into the console on every login.
+    const lockoutAvailable = await probeLockoutSupport();
+    if (lockoutAvailable) {
       try {
-        latestAttempts = JSON.parse(localStorage.getItem(LOGIN_ATTEMPT_KEY) || '{}');
-      } catch {
-        localStorage.removeItem(LOGIN_ATTEMPT_KEY);
+        const { data: lockState } = await supabase.rpc('check_login_lock', { p_email: normalizedEmail });
+        if (lockState?.locked) {
+          const minutes = lockState.minutes_left ?? Math.ceil((lockState.seconds_left || 0) / 60);
+          return {
+            data: { user: null },
+            error: new Error(`Account temporarily locked. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`)
+          };
+        }
+      } catch (lockCheckError) {
+        // A failed pre-check must not block a legitimate sign-in; the server-side
+        // auth attempt below still enforces everything that matters.
+        logger.warn('Lockout pre-check unavailable', lockCheckError);
       }
-      const latest = latestAttempts[normalizedEmail];
-      const failedAttempts = (latest?.failedAttempts || 0) + 1;
-      const isLocked = failedAttempts >= 5;
-      latestAttempts[normalizedEmail] = isLocked
-        ? { failedAttempts: 0, lockedUntil: Date.now() + LOGIN_LOCKOUT_MS }
-        : { failedAttempts, lockedUntil: null };
-      localStorage.setItem(LOGIN_ATTEMPT_KEY, JSON.stringify(latestAttempts));
-
-      return isLocked
-        ? new Error('Too many failed login attempts. Account locked for 20 minutes.')
-        : new Error(`Invalid login credentials. Attempt ${failedAttempts} of 5.`);
-    };
+    }
 
     try {
       logger.auth('Submitting login credentials', {
@@ -198,8 +237,15 @@ export const AuthProvider = ({ children }) => {
       const result = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
       if (result.error) throw result.error;
 
-      delete attempts[normalizedEmail];
-      localStorage.setItem(LOGIN_ATTEMPT_KEY, JSON.stringify(attempts));
+      // Success: clear the DB lock and counter so the next session starts clean.
+      if (lockoutAvailable) {
+        try {
+          await supabase.rpc('clear_login_lock', { p_email: normalizedEmail });
+        } catch (clearError) {
+          logger.warn('Could not clear login lock after success', clearError);
+        }
+      }
+
       if (result.data?.user) {
         fetchProfile(result.data.user.id, 'MANUAL_LOGIN');
       }
@@ -211,9 +257,28 @@ export const AuthProvider = ({ children }) => {
         code: authError?.code,
         message: authError?.message
       });
+
+      // Record the failure in the DB. At 5 consecutive failures the RPC sets
+      // locked_until = now() + 20 minutes and reports the lock back to us.
+      let failureError = new Error('Invalid login credentials.');
+      if (lockoutAvailable) {
+        try {
+          const { data: lockState } = await supabase.rpc('register_failed_login', { p_email: normalizedEmail });
+          if (lockState?.locked) {
+            const minutes = lockState.minutes_left ?? 20;
+            failureError = new Error(`Too many failed login attempts. Account locked for ${minutes} minutes.`);
+          } else if (typeof lockState?.attempts_remaining === 'number') {
+            const used = 5 - lockState.attempts_remaining;
+            failureError = new Error(`Invalid login credentials. Attempt ${used} of 5.`);
+          }
+        } catch (recordError) {
+          logger.warn('Failed to register login failure', recordError);
+        }
+      }
+
       return {
         data: { user: null },
-        error: recordFailure(authError)
+        error: failureError
       };
     }
   };
@@ -346,7 +411,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const toggleShift = async (newStatus) => {
-    if (!profile?.id) return;
+    if (!profile?.id) {
+      toast.error('Your profile is still loading. Please try again in a moment.');
+      return { success: false, error: 'Profile not loaded' };
+    }
     const toastId = toast.loading(newStatus ? 'Clocking in...' : 'Clocking out...');
 
     try {
@@ -358,10 +426,20 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ userId: profile.id, newStatus })
       });
 
-      const result = await response.json();
+      // Read defensively: a backend that is down, crashed mid-request, or behind a
+      // proxy can return an empty or non-JSON body. Parsing that unconditionally
+      // previously surfaced as an opaque "Unexpected end of JSON input" instead of
+      // a usable message.
+      const raw = await response.text();
+      let result = {};
+      try {
+        result = raw ? JSON.parse(raw) : {};
+      } catch {
+        result = {};
+      }
 
-      if (!result.success) {
-        throw new Error(result.error || 'Backend shift toggle failed');
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || `Shift toggle failed (HTTP ${response.status}).`);
       }
 
       // Immediately sync local state from the backend's source of truth
@@ -379,7 +457,13 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (err) {
       logger.error('Shift Toggle Relay Error', err);
-      toast.error('Failed to update shift status. System relay unavailable.', { id: toastId });
+      // Prefer the concrete server/client reason; fall back to the relay message.
+      const detail = err?.message && err.message !== 'Failed to fetch'
+        ? err.message
+        : (err?.message === 'Failed to fetch'
+            ? 'System relay unreachable — is the backend server running?'
+            : 'System relay unavailable.');
+      toast.error(newStatus ? `Could not clock in. ${detail}` : `Could not clock out. ${detail}`, { id: toastId });
       return { success: false, error: err.message };
     }
   };

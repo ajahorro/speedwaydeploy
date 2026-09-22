@@ -4,6 +4,7 @@ import AuthHeader from '../components/auth/AuthHeader';
 import LoginForm from '../components/auth/LoginForm';
 import RegisterForm from '../components/auth/RegisterForm';
 import RecoverForm from '../components/auth/RecoverForm';
+import EmergencyRecoveryForm from '../components/auth/EmergencyRecoveryForm';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { X, Mail } from 'lucide-react';
 
@@ -18,6 +19,8 @@ const Login = ({ isModal = false, onClose }) => {
     startRegister,
     resendConfirmation,
     recoverPassword,
+    requestEmergencyRecovery,
+    completeEmergencyRecovery,
     loginError,
     clearLoginError
   } = useAuthFlow();
@@ -50,6 +53,8 @@ const Login = ({ isModal = false, onClose }) => {
         return <RegisterForm onRegister={startRegister} onSwitchMode={switchMode} isLoading={isLoading} initialEmail={prefillEmail} />;
       case 'RECOVER':
         return <RecoverForm onRecover={recoverPassword} onSwitchMode={switchMode} isLoading={isLoading} initialEmail={prefillEmail} />;
+      case 'RECOVER_OTP':
+        return <EmergencyRecoveryForm onRequest={requestEmergencyRecovery} onComplete={completeEmergencyRecovery} onSwitchMode={switchMode} isLoading={isLoading} initialEmail={prefillEmail} />;
       // ACE-16: account activation is link-based, so no 6-digit VERIFY step and
       // no in-page RESET step exist. Password resets are completed on the
       // dedicated /password-confirmation page reached from the email link.

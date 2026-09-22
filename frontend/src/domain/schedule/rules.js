@@ -91,6 +91,17 @@ export const normalizeConfig = (config) => {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
   };
+  // Business hours may arrive as an hour number (7), a 24h string ('07:00'), or
+  // the legacy 12h display string ('07:00 AM'). Accept all three so an admin
+  // time-picker value feeds the capacity/open-window math instead of silently
+  // collapsing to the default hour.
+  const hour = (value, fallback) => {
+    if (value == null || value === '') return fallback;
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+    const minutes = parseTimeToMinutes(value);
+    return minutes == null ? fallback : Math.floor(minutes / 60);
+  };
   const weekdays = Array.isArray(cfg.closed_weekdays)
     ? cfg.closed_weekdays.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)
     : [];
@@ -101,8 +112,8 @@ export const normalizeConfig = (config) => {
     enforce_capacity: cfg.enforce_capacity !== false, // default ON unless explicitly false
     slots_per_hour: Math.max(1, int(cfg.slots_per_hour, SCHEDULE_DEFAULTS.slots_per_hour)),
     max_vehicles_per_staff: Math.max(1, int(cfg.max_vehicles_per_staff, SCHEDULE_DEFAULTS.max_vehicles_per_staff)),
-    opening_hour: int(cfg.opening_hour, SCHEDULE_DEFAULTS.opening_hour),
-    closing_hour: int(cfg.closing_hour, SCHEDULE_DEFAULTS.closing_hour),
+    opening_hour: hour(cfg.opening_hour, SCHEDULE_DEFAULTS.opening_hour),
+    closing_hour: hour(cfg.closing_hour, SCHEDULE_DEFAULTS.closing_hour),
   };
 };
 

@@ -44,7 +44,11 @@ export const createBooking = async (customerId, bookingData) => {
   // fixed package rate instead of the itemised standalone sum. Reusing the
   // shared summary guarantees the persisted total cannot drift from the
   // amount the customer reviewed in Step 4.
-  const pricingSummary = calculateBookingDiscountSummary(vehicles);
+  //
+  // Section 4: promo eligibility is evaluated against the booking CREATION DATE
+  // (this submit moment), not a later system time, so the persisted total
+  // reflects the rule set in force when the booking was actually created.
+  const pricingSummary = calculateBookingDiscountSummary(vehicles, new Date().toISOString());
   const totalAmount = pricingSummary.discountedTotal;
   const packagePlan = (pricingSummary.appliedPackages || []).map((entry) => ({
     package_id: entry.packageId,

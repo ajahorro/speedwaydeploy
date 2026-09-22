@@ -50,8 +50,11 @@ const send = async ({ to, subject, html, attachments }) => {
       ...(attachments?.length ? { attachments } : {})
     });
     if (error) {
-      console.error('[Email] Resend rejected message:', error.message || error);
-      return { success: false, error };
+      const detail = error.statusCode === 401 || /invalid.*api.?key/i.test(error.message || '')
+        ? 'RESEND_API_KEY is invalid or expired — copies of invitation/receipt emails cannot be delivered until it is rotated.'
+        : (error.message || JSON.stringify(error));
+      console.error(`[Email] Resend rejected message: ${detail}`);
+      return { success: false, error: detail };
     }
     console.log(`[Email] Sent successfully: ${data?.id || subject}`);
     return { success: true, data };
@@ -130,6 +133,109 @@ const sendAccountInviteEmail = async ({ customerEmail, customerName, inviteLink 
   })
 });
 
+const sendAdminInviteEmail = async ({ recipientEmail, firstName, lastName, role, defaultPassword, loginLink }) => send({
+  to: recipientEmail,
+  subject: `[ACTION REQUIRED] Your Speedway ${role} account is ready`,
+  html: buildEmailShell({
+    title: 'Your Account Is Ready',
+    eyebrow: 'SPEEDWAY TEAM ACCESS',
+    bodyHtml: `
+      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi <strong>${escapeHtml(`${firstName || ''} ${lastName || ''}`.trim() || 'there')}</strong>,</p>
+      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">An account has been created for you on the Speedway Auto Detail Studio platform with the role <strong>${escapeHtml(role)}</strong>.</p>
+      <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Email Address</p>
+      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-family: 'Courier New', Courier, monospace; font-size: 15px; color: #111827; font-weight: 700;">${escapeHtml(recipientEmail)}</div>
+      <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Temporary Password</p>
+      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; font-family: 'Courier New', Courier, monospace; font-size: 20px; letter-spacing: 2px; color: #a91b18; font-weight: 900;">${escapeHtml(defaultPassword)}</div>
+      <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.6;">For your security you will be required to set a new password the first time you sign in. Your temporary password cannot be used to access the platform beyond that first login.</p>
+    `,
+    ctaLink: loginLink,
+    ctaLabel: 'Sign In & Set Password',
+    footerNote: 'If you were not expecting this invitation, please contact the studio administrator immediately.'
+  })
+});
+
+const sendInviteAccountEmail = async ({ recipientEmail, firstName, lastName, role, temporaryPassword, loginLink }) => send({
+  to: recipientEmail,
+  subject: `[ACTION REQUIRED] Your Speedway ${role} invitation`,
+  html: buildEmailShell({
+    title: 'You Have Been Invited',
+    eyebrow: 'SPEEDWAY TEAM ACCESS',
+    bodyHtml: `
+      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi <strong>${escapeHtml(`${firstName || ''} ${lastName || ''}`.trim() || 'there')}</strong>,</p>
+      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">An administrator has created a <strong>${escapeHtml(role)}</strong> account for you on the Speedway Auto Detail Studio platform. Use the temporary credentials below to sign in for the first time.</p>
+      <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Email Address</p>
+      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-family: 'Courier New', Courier, monospace; font-size: 15px; color: #111827; font-weight: 700;">${escapeHtml(recipientEmail)}</div>
+      <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Temporary Password</p>
+      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; font-family: 'Courier New', Courier, monospace; font-size: 20px; letter-spacing: 2px; color: #a91b18; font-weight: 900;">${escapeHtml(temporaryPassword)}</div>
+      <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.6;">For your security, you will be required to set a new password on your first sign-in. Your temporary password cannot be used to access the platform beyond that first login.</p>
+    `,
+    ctaLink: loginLink,
+    ctaLabel: 'Sign In & Set Password',
+    footerNote: 'If you were not expecting this invitation, please contact the studio administrator immediately.'
+  })
+});
+
+const sendEmergencyRecoveryEmail = async ({ recipientEmail, otp }) => send({
+  to: recipientEmail,
+  subject: 'Speedway Account Recovery Code',
+  html: buildEmailShell({
+    title: 'Account Recovery',
+    eyebrow: 'ACCOUNT SECURITY',
+    bodyHtml: `
+      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">We received a request to unlock your Speedway account.</p>
+      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">Enter the recovery code below to unlock your account and reset your password:</p>
+      <div style="font-size: 32px; font-weight: 900; letter-spacing: 8px; padding: 16px 20px; background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; color: #111827; display: inline-block; margin-bottom: 16px;">${escapeHtml(otp)}</div>
+      <p style="margin: 0; font-size: 13px; color: #6b7280; line-height: 1.6;">This code expires in 15 minutes and can only be used once. If you did not request this, you can safely ignore this email — your account remains locked and secure.</p>
+    `,
+    footerNote: 'Speedway Detail Studio | Account Security'
+  })
+});
+
+// ── Task 3.3: QR Change security-verification email ────────────────────────
+// Branded HTML shell wrapping a dark (#111827) banner, an explicit metadata
+// block (timestamp / admin email / request IP), a prominent 28px monospace OTP
+// container, and an explicit 5-minute expiry + security-warning footer.
+const sendQrChangeOtpEmail = async ({ recipientEmail, otp, requestedAt, requestIp }) => {
+  const timestamp = requestedAt ? new Date(requestedAt).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'long' }) : new Date().toLocaleString();
+  const metaRow = (label, value) => `
+    <tr>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; white-space: nowrap; vertical-align: top;">${escapeHtml(label)}</td>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 700; color: #111827; word-break: break-word;">${escapeHtml(value)}</td>
+    </tr>`;
+  return send({
+    to: recipientEmail,
+    subject: 'Speedway: QR Change Verification Code',
+    html: buildEmailShell({
+      title: 'Verify Your Request',
+      eyebrow: 'SPEEDWAY SECURITY',
+      bodyHtml: `
+        <div style="background: #111827; border-radius: 12px; padding: 16px 20px; margin-bottom: 18px; text-align: center;">
+          <div style="font-size: 18px; font-weight: 900; letter-spacing: 4px; color: #f9fafb; text-transform: uppercase;">SPEEDWAY</div>
+          <div style="font-size: 10px; letter-spacing: 2px; color: #9ca3af; margin-top: 6px; text-transform: uppercase;">AutoxMoto Detail Studio</div>
+        </div>
+        <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">A request was made to change the <strong>Business Hub QR payment recipients</strong>.</p>
+        <p style="margin: 0 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280;">Request Details</p>
+        <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; margin-bottom: 18px;">
+          <tbody>
+            ${metaRow('Timestamp', timestamp)}
+            ${metaRow('Admin Email', recipientEmail)}
+            ${metaRow('Request IP Address', requestIp || 'Unavailable')}
+          </tbody>
+        </table>
+        <p style="margin: 0 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; text-align: center;">Your Verification Code</p>
+        <div style="text-align: center; margin-bottom: 16px;">
+          <div style="display: inline-block; font-family: 'Courier New', Courier, monospace; font-size: 28px; font-weight: 900; letter-spacing: 10px; padding: 16px 24px; background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; color: #111827;">${escapeHtml(otp)}</div>
+        </div>
+        <p style="margin: 0 0 16px; font-size: 14px; color: #374151; line-height: 1.7; text-align: center;">Enter this 6-digit code to authorize the change. <strong style="color: #a91b18;">This code expires in 5 minutes</strong> and can only be used once.</p>
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 14px 16px;">
+          <p style="margin: 0; font-size: 13px; color: #991b1b; line-height: 1.6; font-weight: 600;">Security warning: If you did not request this change, do not share this code with anyone. Review your account immediately and contact the studio administrator.</p>
+        </div>
+      `,
+      footerNote: 'Speedway Detail Studio | Security Verification'
+    })
+  });
+};
+
 const sendStatusUpdateEmail = async ({ customerEmail, customerName, bookingId, status, scheduledAt }) => send({
   to: customerEmail,
   subject: `Booking Update #${bookingId} - Speedway AutoxMoto`,
@@ -159,5 +265,9 @@ module.exports = {
   sendBookingConfirmationEmail,
   sendPasswordResetEmail,
   sendAccountInviteEmail,
+  sendAdminInviteEmail,
+  sendInviteAccountEmail,
+  sendEmergencyRecoveryEmail,
+  sendQrChangeOtpEmail,
   sendStatusUpdateEmail
 };

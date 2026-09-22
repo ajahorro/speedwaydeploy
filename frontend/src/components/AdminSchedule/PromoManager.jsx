@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tag, Layers, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { Tag, Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getServiceCatalog } from '../../data/servicesCatalog';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -112,7 +112,6 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
   const [promoDraft, setPromoDraft] = useState(defaultPromoDraft);
   const [promoValidationError, setPromoValidationError] = useState('');
   const [promoPublishing, setPromoPublishing] = useState(false);
-  const [promoEditingId, setPromoEditingId] = useState(null);
   const [activeVehiclePopover, setActiveVehiclePopover] = useState(null);
 
   // Continuous promotion state evaluation ticker based on system/server time
@@ -165,7 +164,6 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
 
   const resetPromoDraft = () => {
     setPromoDraft(defaultPromoDraft);
-    setPromoEditingId(null);
     setPromoValidationError('');
     setActiveVehiclePopover(null);
   };
@@ -236,26 +234,8 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
   );
 
   const handleCommitPromo = async () => {
-    // Intercept and reject any direct API put/patch edit requests originating from client side for active or expired promo IDs
-    if (promoEditingId) {
-      const existing = promoRules.find(r => r.id === promoEditingId);
-      if (existing) {
-        const existingStatus = getPromoStatus(existing);
-        if (existingStatus === 'ONGOING PROMO') {
-          const msg = 'Active promotions cannot be edited while ongoing. Deactivate or wait for expiry.';
-          setPromoValidationError(msg);
-          toast.error(msg);
-          return;
-        }
-        if (existingStatus === 'EXPIRED') {
-          const msg = 'Expired promotions cannot transition back into an editable state.';
-          setPromoValidationError(msg);
-          toast.error(msg);
-          return;
-        }
-      }
-    }
-
+    // Section 4 — Immutable Promo Action Rule: only CREATE is supported here.
+    // Editing is removed entirely, so there is no edit-intercept path to run.
     if (!promoDraft.name.trim()) {
       setPromoValidationError('Please enter a promo name.');
       return;
@@ -285,7 +265,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
     setPromoValidationError('');
 
     const nextRule = {
-      id: promoEditingId || `promo-${Date.now()}`,
+      id: `promo-${Date.now()}`,
       name: promoDraft.name.trim(),
       mode: promoDraft.mode || 'standard',
       type: promoDraft.mode === 'package' ? 'fixed_package' : promoDraft.type,
@@ -321,10 +301,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       if (result.promoRules) {
         syncPromoRules(result.promoRules);
       } else {
-        const nextRules = promoEditingId
-          ? promoRules.map(rule => rule.id === promoEditingId ? nextRule : rule)
-          : [nextRule, ...promoRules];
-        syncPromoRules(nextRules);
+        syncPromoRules([nextRule, ...promoRules]);
       }
     } catch (err) {
       // FAIL-CLOSED: an unreachable backend must NOT be treated as success. The
@@ -339,52 +316,12 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
     }
 
     toast.success(
-      promoEditingId
-        ? `Promo "${nextRule.name}" updated successfully!`
-        : promoDraft.mode === 'package'
-          ? `Package Promo "${nextRule.name}" confirmed successfully!`
-          : `Promo "${nextRule.name}" created successfully!`
+      promoDraft.mode === 'package'
+        ? `Package Promo "${nextRule.name}" confirmed successfully!`
+        : `Promo "${nextRule.name}" created successfully!`
     );
     resetPromoDraft();
     setPromoPublishing(false);
-  };
-
-  const handleEditPromo = (rule) => {
-    const status = getPromoStatus(rule);
-    // Immutability Enforcement: Active and expired promotions cannot be edited
-    if (status === 'ONGOING PROMO') {
-      toast.error('Active promotions cannot be edited while ongoing. Deactivate or wait for expiry.');
-      return;
-    }
-    if (status === 'EXPIRED') {
-      toast.error('Expired promotions cannot transition back into an editable state.');
-      return;
-    }
-    setPromoEditingId(rule.id);
-
-    // Reconstruct vehicleServiceMatrix if legacy format
-    let matrix = rule.vehicleServiceMatrix;
-    if (!matrix || typeof matrix !== 'object' || !Object.keys(matrix).length) {
-      matrix = {};
-      const vTypes = Array.isArray(rule.vehicleTypes) && rule.vehicleTypes.length ? rule.vehicleTypes : ['Sedan'];
-      const sMatches = Array.isArray(rule.serviceMatches) ? rule.serviceMatches : [];
-      vTypes.forEach(v => {
-        matrix[v] = [...sMatches];
-      });
-    }
-
-    setPromoDraft({
-      name: rule.name || '',
-      mode: rule.mode || (rule.type === 'fixed_package' ? 'package' : 'standard'),
-      type: rule.type || 'percentage',
-      value: rule.value || 0,
-      validFrom: rule.validFrom || '',
-      validUntil: rule.neverExpires ? '' : (rule.validUntil || ''),
-      vehicleServiceMatrix: matrix,
-      neverExpires: Boolean(rule.neverExpires)
-    });
-    setPromoValidationError('');
-    setActiveVehiclePopover(Object.keys(matrix)[0] || null);
   };
 
   const handleRemovePromo = (promoId) => {
@@ -398,9 +335,6 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       cancelText: 'Cancel',
       type: 'danger',
       onConfirm: () => {
-        if (promoEditingId === promoId) {
-          resetPromoDraft();
-        }
         const nextRules = promoRules.filter(rule => rule.id !== promoId);
         syncPromoRules(nextRules);
         toast.success(`Promo "${target.name}" removed.`);
@@ -415,11 +349,14 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
         <h4 style={{ margin: 0, fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1px' }}>Promo Management</h4>
       </div>
 
-      {/* Compact Promotion Engine Panel */}
-      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '1.25rem', marginBottom: '1.5rem', fontFamily: 'inherit' }}>
+      {/* Compact Promotion Engine Panel.
+          Section 4 — z-index layering: the panel becomes a positioned stacking
+          context that lifts above the campaign cards/tables below whenever a
+          vehicle-service dropdown is open, so selects never render behind them. */}
+      <div style={{ position: 'relative', zIndex: activeVehiclePopover ? 40 : 'auto', background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '1.25rem', marginBottom: '1.5rem', fontFamily: 'inherit' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div style={{ fontSize: '15px', fontWeight: '900', color: 'var(--admin-text-primary)' }}>
-            {promoEditingId ? 'Edit Promo Rule' : 'Promotion Engine & Dynamic Binding'}
+            Promotion Engine &amp; Dynamic Binding
           </div>
 
           {/* Top-Level Workflow Mode Switcher */}
@@ -441,7 +378,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                 borderRadius: '4px',
                 border: 'none',
                 background: promoDraft.mode !== 'package' ? 'var(--admin-brand)' : 'transparent',
-                color: promoDraft.mode !== 'package' ? '#fff' : 'var(--admin-text-secondary)',
+                color: promoDraft.mode !== 'package' ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)',
                 fontWeight: '800',
                 fontSize: '12px',
                 cursor: 'pointer',
@@ -468,7 +405,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                 borderRadius: '4px',
                 border: 'none',
                 background: promoDraft.mode === 'package' ? 'var(--admin-brand)' : 'transparent',
-                color: promoDraft.mode === 'package' ? '#fff' : 'var(--admin-text-secondary)',
+                color: promoDraft.mode === 'package' ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)',
                 fontWeight: '800',
                 fontSize: '12px',
                 cursor: 'pointer',
@@ -481,7 +418,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
           </div>
         </div>
 
-        {/* Compact 3-Column Responsive Grid */}
+        {/* Responsive grid: single column on small screens, 3 columns up top. */}
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1.3fr', gap: '1rem', alignItems: 'start' }}>
           {/* Column 1: Basic Details */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
@@ -573,7 +510,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                   border: '1px solid var(--admin-border)',
                   borderRadius: '4px',
                   padding: '0 0.65rem',
-                  background: promoDraft.neverExpires ? 'rgba(255,255,255,0.03)' : 'var(--admin-bg)',
+                  background: promoDraft.neverExpires ? 'var(--admin-input-bg)' : 'var(--admin-bg)',
                   color: promoDraft.neverExpires ? 'var(--admin-text-secondary)' : 'var(--admin-text-primary)',
                   boxSizing: 'border-box',
                   width: '100%',
@@ -592,7 +529,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
               </span>
             </div>
 
-            <div style={{ maxHeight: '260px', overflowY: 'auto', paddingRight: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div style={{ maxHeight: '260px', overflowY: activeVehiclePopover ? 'visible' : 'auto', paddingRight: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {promoVehicleOptions.map(vehicle => {
                 const isVehicleSelected = Boolean(promoDraft.vehicleServiceMatrix?.[vehicle]);
                 const boundServices = promoDraft.vehicleServiceMatrix?.[vehicle] || [];
@@ -603,8 +540,10 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                   <div
                     key={vehicle}
                     style={{
+                      position: 'relative',
+                      zIndex: isPopoverOpen ? 50 : 'auto',
                       border: isVehicleSelected ? '1px solid var(--admin-brand)' : '1px solid var(--admin-border)',
-                      background: isVehicleSelected ? 'rgba(230, 30, 42, 0.03)' : 'var(--admin-bg)',
+                      background: isVehicleSelected ? 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.04)' : 'var(--admin-bg)',
                       borderRadius: '4px',
                       padding: '0.5rem 0.65rem',
                       transition: 'all 0.15s ease'
@@ -646,7 +585,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
 
                     {/* Inline Service Popover Panel / Nested Accordion */}
                     {isVehicleSelected && isPopoverOpen && (
-                      <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed var(--admin-border)', background: 'rgba(0,0,0,0.15)', borderRadius: '4px', padding: '0.5rem' }}>
+                      <div style={{ position: 'relative', zIndex: 60, marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed var(--admin-border)', background: 'var(--admin-input-bg)', borderRadius: '4px', padding: '0.5rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                           <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>
                             Available Services for {vehicle}
@@ -686,7 +625,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                                   cursor: 'pointer',
                                   padding: '0.2rem 0.25rem',
                                   borderRadius: '3px',
-                                  background: isBound ? 'rgba(255,255,255,0.04)' : 'transparent'
+                                  background: isBound ? 'var(--admin-input-bg)' : 'transparent'
                                 }}
                               >
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -714,38 +653,20 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
         </div>
 
         {promoValidationError && (
-          <div style={{ color: '#fca5a5', fontSize: '12px', fontWeight: '700', marginTop: '0.5rem' }}>
+          <div style={{ color: 'var(--status-danger)', fontSize: '12px', fontWeight: '700', marginTop: '0.5rem' }}>
             {promoValidationError}
           </div>
         )}
 
         {/* Actions & Confirmation Lock Engine */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid var(--admin-border)' }}>
-          {promoEditingId && (
-            <button
-              type="button"
-              onClick={resetPromoDraft}
-              style={{
-                background: 'transparent',
-                border: '1px solid var(--admin-border)',
-                color: 'var(--admin-text-secondary)',
-                borderRadius: '4px',
-                fontWeight: '800',
-                padding: '0.5rem 1rem',
-                fontSize: '12px',
-                cursor: 'pointer'
-              }}
-            >
-              Cancel Edit
-            </button>
-          )}
           <button
             type="button"
             disabled={!isConfirmUnlocked || promoPublishing}
             onClick={handleCommitPromo}
             title={!isConfirmUnlocked ? 'Enter name, discount value, valid dates, and bind at least 1 vehicle-service mapping to unlock' : undefined}
             style={{
-              background: isConfirmUnlocked ? '#059669' : '#374151',
+              background: isConfirmUnlocked ? 'var(--status-success)' : 'var(--admin-border)',
               color: 'var(--admin-text-on-brand)',
               border: 'none',
               borderRadius: '4px',
@@ -758,11 +679,11 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
               minWidth: '180px',
               opacity: isConfirmUnlocked ? 1 : 0.5,
               pointerEvents: isConfirmUnlocked ? 'auto' : 'none',
-              boxShadow: isConfirmUnlocked ? '0 0 0 1px rgba(5,150,105,0.4)' : 'none',
+              boxShadow: isConfirmUnlocked ? '0 0 0 1px rgba(16,150,105,0.4)' : 'none',
               transition: 'all 0.15s ease'
             }}
           >
-            {promoPublishing ? 'Publishing...' : (promoEditingId ? 'Save Changes' : promoDraft.mode === 'package' ? 'Confirm Package' : 'Create Promo Rule')}
+            {promoPublishing ? 'Publishing...' : (promoDraft.mode === 'package' ? 'Confirm Package' : 'Create Promo Rule')}
           </button>
         </div>
       </div>
@@ -777,7 +698,6 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
         {promoRules.map(rule => {
           const status = getPromoStatus(rule);
           const isOngoing = status === 'ONGOING PROMO';
-          const isExpired = status === 'EXPIRED';
 
           return (
             <div
@@ -789,11 +709,10 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                 gap: '0.75rem',
                 background: 'var(--admin-bg)',
                 border: isOngoing
-                  ? '1px solid rgba(16, 185, 129, 0.4)'
+                  ? '1px solid var(--status-success-border, rgba(16, 185, 129, 0.4))'
                   : '1px solid var(--admin-border)',
                 borderRadius: '4px',
                 padding: '0.9rem 1rem',
-                boxShadow: rule.id === promoEditingId ? '0 0 0 2px rgba(230,30,42,0.18)' : 'none',
                 animation: 'promoCardPulse 0.7s ease',
                 fontFamily: 'inherit'
               }}
@@ -815,9 +734,9 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                       fontWeight: '950',
                       letterSpacing: '0.06em',
                       textTransform: 'uppercase',
-                      color: isOngoing ? '#10b981' : status === 'UPCOMING' ? '#3b82f6' : '#94a3b8',
-                      background: isOngoing ? 'rgba(16, 185, 129, 0.12)' : status === 'UPCOMING' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-                      border: `1px solid ${isOngoing ? 'rgba(16, 185, 129, 0.35)' : status === 'UPCOMING' ? 'rgba(59, 130, 246, 0.35)' : 'rgba(148, 163, 184, 0.3)'}`
+                      color: isOngoing ? 'var(--status-success)' : status === 'UPCOMING' ? '#3b82f6' : 'var(--admin-text-secondary)',
+                      background: isOngoing ? 'var(--status-success-soft, rgba(16, 185, 129, 0.12))' : status === 'UPCOMING' ? 'rgba(59, 130, 246, 0.12)' : 'var(--admin-input-bg)',
+                      border: `1px solid ${isOngoing ? 'var(--status-success-border, rgba(16, 185, 129, 0.35))' : status === 'UPCOMING' ? 'rgba(59, 130, 246, 0.35)' : 'var(--admin-border)'}`
                     }}
                   >
                     <span
@@ -825,7 +744,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                         width: '6px',
                         height: '6px',
                         borderRadius: '50%',
-                        background: isOngoing ? '#10b981' : status === 'UPCOMING' ? '#3b82f6' : '#94a3b8'
+                        background: isOngoing ? 'var(--status-success)' : status === 'UPCOMING' ? '#3b82f6' : 'var(--admin-text-secondary)'
                       }}
                     />
                     {status}
@@ -833,7 +752,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                 </div>
 
                 <div style={{ color: 'var(--admin-text-secondary)', fontSize: 'clamp(0.76rem, 0.5vw + 0.64rem, 0.9rem)', marginTop: '0.25rem' }}>
-                  <span style={{ fontWeight: '800', color: rule.mode === 'package' ? '#818cf8' : '#10b981', marginRight: '0.5rem' }}>
+                  <span style={{ fontWeight: '800', color: rule.mode === 'package' ? '#818cf8' : 'var(--status-success)', marginRight: '0.5rem' }}>
                     {rule.mode === 'package' ? `[PACKAGE: ₱${Number(rule.value || 0).toLocaleString()}]` : rule.type === 'percentage' ? `[${rule.value}% OFF]` : `[₱${Number(rule.value || 0).toLocaleString()} OFF]`}
                   </span>
                   · {rule.vehicleServiceMatrix
@@ -846,90 +765,15 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
               </div>
 
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                {isOngoing ? (
-                  <span
-                    title="Active promotions cannot be edited while ongoing. Deactivate or wait for expiry."
-                    style={{ display: 'inline-block', cursor: 'not-allowed' }}
-                  >
-                    <button
-                      type="button"
-                      disabled
-                      tabIndex={-1}
-                      title="Active promotions cannot be edited while ongoing. Deactivate or wait for expiry."
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        color: 'var(--admin-text-secondary)',
-                        padding: '0.5rem 0.8rem',
-                        borderRadius: '4px',
-                        fontWeight: '900',
-                        fontSize: 'clamp(0.68rem, 0.35vw + 0.58rem, 0.8rem)',
-                        cursor: 'not-allowed',
-                        opacity: 0.45,
-                        pointerEvents: 'none'
-                      }}
-                    >
-                      <Lock size={12} />
-                      Edit
-                    </button>
-                  </span>
-                ) : isExpired ? (
-                  <span
-                    title="Expired promotions cannot transition back into an editable state."
-                    style={{ display: 'inline-block', cursor: 'not-allowed' }}
-                  >
-                    <button
-                      type="button"
-                      disabled
-                      tabIndex={-1}
-                      title="Expired promotions cannot transition back into an editable state."
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        color: 'var(--admin-text-secondary)',
-                        padding: '0.5rem 0.8rem',
-                        borderRadius: '4px',
-                        fontWeight: '900',
-                        fontSize: 'clamp(0.68rem, 0.35vw + 0.58rem, 0.8rem)',
-                        cursor: 'not-allowed',
-                        opacity: 0.45,
-                        pointerEvents: 'none'
-                      }}
-                    >
-                      <Lock size={12} />
-                      Edit
-                    </button>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleEditPromo(rule)}
-                    style={{
-                      border: '1px solid var(--admin-border)',
-                      background: 'transparent',
-                      color: 'var(--admin-text-primary)',
-                      padding: '0.5rem 0.8rem',
-                      borderRadius: '4px',
-                      fontWeight: '900',
-                      cursor: 'pointer',
-                      fontSize: 'clamp(0.68rem, 0.35vw + 0.58rem, 0.8rem)'
-                    }}
-                  >
-                    Edit
-                  </button>
-                )}
-
+                {/* Section 4 — Immutable Promo Action Rule: promotions are CREATE or
+                    DELETE only. The Edit action is removed entirely so a historical
+                    financial record can never be mutated after the fact. To change a
+                    promotion, delete it and create a new one. */}
                 <button
                   type="button"
                   onClick={() => handleRemovePromo(rule.id)}
                   style={{
-                    border: '1px solid #ef4444',
+                    border: '1px solid var(--status-danger)',
                     background: 'transparent',
                     color: 'var(--status-danger)',
                     padding: '0.5rem 0.8rem',
