@@ -15,6 +15,7 @@ import FloatingBubbleChat from '../../components/FloatingBubbleChat';
 import BookingSummaryHeader from '../../components/BookingSummaryHeader';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import QRMagnifier from '../../components/QRMagnifier';
+import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
 import { useConfig } from '../../context/ConfigContext';
 import CustomCalendar from '../../components/BookingWizard/CustomCalendar';
 import { getAvailableSlots, getBusinessHours } from '../../services/scheduleService';
@@ -60,6 +61,8 @@ const CustomerBookingDetails = () => {
   const [rescheduleSlots, setRescheduleSlots] = useState([]);
   const [rescheduleSlotsLoading, setRescheduleSlotsLoading] = useState(false);
   const [businessHours, setBusinessHours] = useState(null);
+  // Batch 5: photo evidence drawer (customer sees only their own booking's photos via RLS).
+  const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false);
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val);
 
@@ -512,14 +515,28 @@ const CustomerBookingDetails = () => {
 
                 {(v.service_notes || v.photo_proof_url) && (
                   <div style={{ display: 'flex', gap: '1.5rem' }}>
-                    {v.photo_proof_url && (
-                      <div
-                        onClick={() => window.open(v.photo_proof_url, '_blank')}
-                        style={{ width: '80px', height: '80px', borderRadius: '8px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', overflow: 'hidden', cursor: 'zoom-in', flexShrink: 0 }}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
+                      {v.photo_proof_url && (
+                        <div
+                          onClick={() => window.open(v.photo_proof_url, '_blank')}
+                          style={{ width: '80px', height: '80px', borderRadius: '8px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', overflow: 'hidden', cursor: 'zoom-in' }}
+                        >
+                          <img src={v.photo_proof_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Service Evidence" />
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setPhotoGalleryOpen(true)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
+                          padding: '0.4rem 0.6rem', background: 'transparent', color: 'var(--admin-brand)',
+                          border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)',
+                          fontSize: '0.62rem', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer'
+                        }}
                       >
-                        <img src={v.photo_proof_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Service Evidence" />
-                      </div>
-                    )}
+                        View Service Photos
+                      </button>
+                    </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ ...labelStyle, color: 'var(--admin-brand)', marginBottom: '0.4rem' }}>Technician Detailing Notes</div>
                       <div style={{ fontSize: '0.85rem', color: 'var(--admin-text-secondary)', fontWeight: '600', fontStyle: 'italic', lineHeight: 1.5 }}>
@@ -813,6 +830,13 @@ const CustomerBookingDetails = () => {
           mode="modal"
         />
       )}
+
+      {/* Batch 5: customer photo evidence drawer (RLS scopes to their booking). */}
+      <PhotoProofGallery
+        bookingId={booking?.id || id}
+        open={photoGalleryOpen}
+        onClose={() => setPhotoGalleryOpen(false)}
+      />
 
       <style>{`
         @media print {

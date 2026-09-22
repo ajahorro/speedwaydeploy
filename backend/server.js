@@ -2443,6 +2443,39 @@ app.post('/api/bookings/update-status', async (req, res) => {
       if (Number(masterBooking.total_amount || 0) > 0 && totalPaidBeforeCompletion < Number(masterBooking.total_amount)) {
         return res.status(409).json({ success: false, error: 'Final payment is required before completing the service.' });
       }
+
+      // 🛡️ Batch 5: Photo-proof gate. A unit cannot be finalized without at
+      // least one post-service ('after') QA photo. The DB is the source of
+      // truth; this server-side check means the rule cannot be bypassed by a
+      // direct API call that skips the client UI.
+      //
+      // Admin override: an ADMIN actor may complete without a photo only when a
+      // non-empty `overrideReason` is supplied. The override is written to the
+      // audit log below so it is never silent.
+      const { photoOverrideReason, overrideReason } = req.body;
+      const overrideText = String(photoOverrideReason || overrideReason || '').trim();
+      const isAdmin = String(actor.profile.role).toUpperCase() === 'ADMIN';
+
+      const { count: afterPhotoCount, error: photoCountError } = await supabaseAdmin
+        .from('service_photos')
+        .select('id', { count: 'exact', head: true })
+        .eq('booking_vehicle_id', unitId)
+        .eq('phase', 'after');
+
+      if (photoCountError) throw photoCountError;
+
+      if (!afterPhotoCount || afterPhotoCount < 1) {
+        if (!(isAdmin && overrideText)) {
+          return res.status(409).json({
+            success: false,
+            error: 'At least 1 completion (after) photo is required before this unit can be marked complete.',
+            code: 'PHOTO_PROOF_REQUIRED',
+            adminOverrideSupported: true
+          });
+        }
+        // Record the override on the request so the audit-log step can include it.
+        req._photoOverride = { reason: overrideText, actorId: actor.profile.id };
+      }
     }
 
     // 1. Update the specific vehicle unit
@@ -2536,6 +2569,18 @@ app.post('/api/bookings/update-status', async (req, res) => {
       actor_role: actorRole || 'STAFF',
       details: `Unit ${unitId} updated to ${newStatus}. Master status: ${targetMasterStatus || 'unchanged'}`
     });
+
+    // 🛡️ Batch 5: Record any COMPLETED-without-photo admin override as its own
+    // audit entry so it is separately queryable and never silent.
+    if (req._photoOverride) {
+      await supabaseAdmin.from('audit_logs').insert({
+        booking_id: bookingId,
+        action_type: 'PHOTO_PROOF_OVERRIDE',
+        actor_name: actorName || 'Admin',
+        actor_role: actorRole || 'ADMIN',
+        details: `Admin override: unit ${unitId} completed without a required after-photo. Reason: ${req._photoOverride.reason}`
+      });
+    }
 
     return res.json({
       success: true,

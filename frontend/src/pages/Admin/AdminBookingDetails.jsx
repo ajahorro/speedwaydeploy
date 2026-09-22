@@ -25,6 +25,7 @@ import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
 import FloatingBubbleChat from '../../components/FloatingBubbleChat';
 import OfficialReceipt from '../../components/OfficialReceipt';
+import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
 import { logger } from '../../utils/logger';
 
 import { sendStatusEmail, sendBookingConfirmationEmail, sendPaymentReceiptEmail, sendNotificationEmail } from '../../services/notificationService';
@@ -65,6 +66,8 @@ const AdminBookingDetails = () => {
   const [rescheduleSlots, setRescheduleSlots] = useState([]);
   const [rescheduleSlotsLoading, setRescheduleSlotsLoading] = useState(false);
   const [isRescheduling, setIsRescheduling] = useState(false);
+  // Batch 5: photo evidence drawer.
+  const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false);
   const [undoNoShowModal, setUndoNoShowModal] = useState({
     open: false,
     validationMessage: '',
@@ -1526,14 +1529,29 @@ const AdminBookingDetails = () => {
 
                       {(v.service_notes || v.photo_proof_url) && (
                         <div style={{ display: 'flex', gap: '1.5rem' }}>
-                          {v.photo_proof_url && (
-                            <div 
-                              onClick={() => window.open(v.photo_proof_url, '_blank')}
-                              style={{ width: '80px', height: '80px', borderRadius: '4px', background: 'black', border: '1px solid var(--admin-border)', overflow: 'hidden', cursor: 'zoom-in', flexShrink: 0 }}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
+                            {v.photo_proof_url && (
+                              <div
+                                onClick={() => window.open(v.photo_proof_url, '_blank')}
+                                style={{ width: '80px', height: '80px', borderRadius: '4px', background: 'black', border: '1px solid var(--admin-border)', overflow: 'hidden', cursor: 'zoom-in' }}
+                              >
+                                <img src={v.photo_proof_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Service Evidence" />
+                              </div>
+                            )}
+                            {/* Batch 5: full before/after evidence gallery (signed URLs). */}
+                            <button
+                              type="button"
+                              onClick={() => setPhotoGalleryOpen(true)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
+                                padding: '0.4rem 0.6rem', background: 'transparent', color: 'var(--admin-brand)',
+                                border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)',
+                                fontSize: '0.62rem', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer'
+                              }}
                             >
-                              <img src={v.photo_proof_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Service Evidence" />
-                            </div>
-                          )}
+                              <ImageIcon size={12} /> View Evidence
+                            </button>
+                          </div>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.4rem' }}>Technical Documentation</div>
                             <div style={{ fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: '600', fontStyle: 'italic', lineHeight: 1.4 }}>
@@ -2005,6 +2023,13 @@ const AdminBookingDetails = () => {
           onClose={() => { setReceiptModal(false); setSelectedPayment(null); }}
         />
       )}
+
+      {/* Batch 5: photo evidence drawer (before/after, signed URLs). */}
+      <PhotoProofGallery
+        bookingId={booking?.id || id}
+        open={photoGalleryOpen}
+        onClose={() => setPhotoGalleryOpen(false)}
+      />
 
       <style>{`
         .no-spinner {
