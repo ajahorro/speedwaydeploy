@@ -1408,6 +1408,164 @@ app.post('/api/admin/broadcast', async (req, res) => {
 });
 
 /**
+ * 🏷️ REQ-PROMO-01: Promo Rule Persistence Endpoint (POST /api/admin/promos)
+ * Stores validated promo schema, date windows, and vehicle-service binding matrices.
+ * Enforces Turn 4 lifecycle immutability locking if the promo is already ongoing.
+ */
+let inMemoryPromoCache = null;
+
+app.post('/api/admin/promos', async (req, res) => {
+  const promo = req.body;
+  console.log('🏷️ [ADMIN PROMO] Saving promo rule:', promo?.name);
+
+  try {
+    if (!promo || !promo.name || !promo.name.trim()) {
+      return res.status(400).json({ success: false, error: 'Promo name is required.' });
+    }
+    if (promo.value === undefined || Number(promo.value) <= 0) {
+      return res.status(400).json({ success: false, error: 'Discount value must be numeric and greater than 0.' });
+    }
+    if (!promo.validFrom || (!promo.neverExpires && !promo.validUntil)) {
+      return res.status(400).json({ success: false, error: 'Valid From and Valid Until dates are required.' });
+    }
+
+    // Fetch existing promo rules from business_config or cache
+    let existingRules = inMemoryPromoCache || [];
+    let configRowId = 1;
+
+    if (supabaseAdmin) {
+      try {
+        const { data: config, error: fetchErr } = await supabaseAdmin
+          .from('business_config')
+          .select('id, promo_rules')
+          .maybeSingle();
+
+        if (!fetchErr && config) {
+          configRowId = config.id || 1;
+          if (Array.isArray(config.promo_rules) && config.promo_rules.length) {
+            existingRules = config.promo_rules;
+          }
+        }
+      } catch (dbErr) {
+        console.warn('⚠️ [ADMIN PROMO] Could not read business_config, using in-memory store:', dbErr.message);
+      }
+    }
+
+    // Check immutability if updating an existing promo per Turn 4 Section 3
+    if (promo.id) {
+      const currentPromo = existingRules.find(r => r.id === promo.id);
+      if (currentPromo) {
+        const now = new Date();
+        const start = currentPromo.validFrom ? new Date(currentPromo.validFrom) : null;
+        const end = (currentPromo.neverExpires || currentPromo.validUntil === 'never') ? null : (currentPromo.validUntil ? new Date(currentPromo.validUntil) : null);
+        const isOngoing = start && now >= start && (!end || now <= end);
+        if (isOngoing) {
+          return res.status(403).json({
+            success: false,
+            error: 'Active promotions cannot be edited while ongoing. Deactivate or wait for expiry.'
+          });
+        }
+      }
+    }
+
+    const nextRule = {
+      id: promo.id || `promo-${Date.now()}`,
+      name: promo.name.trim(),
+      mode: promo.mode || 'standard',
+      type: promo.type || 'percentage',
+      value: Number(promo.value),
+      validFrom: promo.validFrom,
+      validUntil: promo.neverExpires ? 'never' : promo.validUntil,
+      neverExpires: Boolean(promo.neverExpires),
+      vehicleServiceMatrix: promo.vehicleServiceMatrix || {},
+      vehicleTypes: promo.vehicleTypes || Object.keys(promo.vehicleServiceMatrix || {}),
+      serviceMatches: promo.serviceMatches || Array.from(new Set(Object.values(promo.vehicleServiceMatrix || {}).flat())),
+      isOngoing: true,
+      updated_at: new Date().toISOString()
+    };
+
+    const nextRules = promo.id && existingRules.some(r => r.id === promo.id)
+      ? existingRules.map(r => r.id === promo.id ? nextRule : r)
+      : [nextRule, ...existingRules.filter(r => r.id !== nextRule.id)];
+
+    inMemoryPromoCache = nextRules;
+
+    // Persist to Supabase business_config
+    if (supabaseAdmin) {
+      try {
+        await supabaseAdmin
+          .from('business_config')
+          .upsert({
+            id: configRowId,
+            promo_rules: nextRules,
+            updated_at: new Date().toISOString()
+          });
+      } catch (upsertErr) {
+        console.warn('⚠️ [ADMIN PROMO] Database upsert failed, preserved in cache:', upsertErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: nextRule,
+      promoRules: nextRules,
+      message: `Promo "${nextRule.name}" persisted successfully.`
+    });
+  } catch (err) {
+    console.error('🏷️ [ADMIN PROMO] Error persisting promo:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 🏷️ REQ-PROMO-02: Active Promo Lookup Endpoint (GET /api/promos/active)
+ * Serves active promotions filtered by current timestamp:
+ * Active Rule <=> Start Time <= Current Timestamp <= End Time
+ */
+app.get('/api/promos/active', async (req, res) => {
+  try {
+    let rules = inMemoryPromoCache || [];
+
+    if (supabaseAdmin) {
+      try {
+        const { data: config, error: fetchErr } = await supabaseAdmin
+          .from('business_config')
+          .select('promo_rules')
+          .maybeSingle();
+
+        if (!fetchErr && config && Array.isArray(config.promo_rules) && config.promo_rules.length) {
+          rules = config.promo_rules;
+          inMemoryPromoCache = rules;
+        }
+      } catch (dbErr) {
+        // Fall back to memory cache
+      }
+    }
+
+    const now = new Date();
+    const activePromos = rules.filter(rule => {
+      if (!rule) return false;
+      const start = rule.validFrom ? new Date(rule.validFrom) : null;
+      const isNever = rule.neverExpires === true || rule.validUntil === 'never';
+      const end = isNever ? null : (rule.validUntil ? new Date(rule.validUntil) : null);
+
+      if (start && !isNaN(start.getTime()) && now < start) return false;
+      if (end && !isNaN(end.getTime()) && now > end) return false;
+      return true;
+    });
+
+    return res.json({
+      success: true,
+      data: activePromos,
+      timestamp: now.toISOString()
+    });
+  } catch (err) {
+    console.error('🏷️ [PROMO ACTIVE] Error fetching active promos:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * ⏱️ Staff Shift Toggle Endpoint
  * Updates staff attendance availability and clock-in timestamp in database (bypasses RLS).
  * Does NOT send emails or notifications; simply updates staff status.

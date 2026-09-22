@@ -83,21 +83,6 @@ body:has(.app-modal-backdrop) aside {
   pointer-events: none !important;
 }
 
-/* ── Promo Creation Engine: responsive 3 -> 2 -> 1 column grid ────────────
-   The inline style supplies the desktop 3-column layout; these breakpoints
-   collapse it cleanly for 1366x768 / 1024x768 without horizontal overflow. */
-@media (max-width: 1366px) {
-  .promo-field-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-}
-
-@media (max-width: 1024px) {
-  .promo-field-grid {
-    grid-template-columns: 1fr !important;
-  }
-}
-
 * {
   box-sizing: border-box;
   margin: 0;

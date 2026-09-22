@@ -37,7 +37,10 @@ const checks = [
   ['B4  dead VERIFY/RESET removed',   'frontend/src/pages/Login.jsx',                 ["resendConfirmation"]],
   ['B4  reset link -> /password-confirmation', 'frontend/src/pages/Login.jsx',        ["/password-confirmation"]],
   ['RESTORED BusinessHub.jsx',        'frontend/src/pages/Admin/BusinessHub.jsx',     ["BusinessHub"]],
-  ['INTACT   standardPromo.js',       'frontend/src/domain/promo/standardPromo.js',   ["validateStandardPromo", "applyStandardDiscount"]],
+  ['SYS-A    servicesCatalog API',    'frontend/src/data/servicesCatalog.js',         ["fetchActivePromos", "getBestPromoForService"]],
+  ['SYS-A    AdminSchedule promo API','frontend/src/pages/Admin/AdminSchedule.jsx',   ["/api/admin/promos"]],
+  ['DELETED  standardPromo.js gone',  'frontend/src/domain/promo/standardPromo.js',   []],
+  ['DELETED  promoService.js gone',   'frontend/src/services/promoService.js',        []],
   ['DELETED  ResetForm.jsx gone',     'frontend/src/components/auth/ResetForm.jsx',   []],
   ['DELETED  VerifyForm.jsx gone',    'frontend/src/components/auth/VerifyForm.jsx',  []]
 ];
