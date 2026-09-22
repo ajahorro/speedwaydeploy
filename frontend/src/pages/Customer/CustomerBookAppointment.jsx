@@ -9,6 +9,9 @@ import Step2Services from '../../components/BookingWizard/Step2Services';
 import Step3FleetEditing from '../../components/BookingWizard/Step3FleetEditing';
 import Step4ReviewPayment from '../../components/BookingWizard/Step4ReviewPayment';
 import BookingSuccess from '../../components/BookingWizard/BookingSuccess';
+import ValidationModal from '../../components/ValidationModal';
+import { validateSlot } from '../../services/scheduleValidationService';
+import { calculateBayUsage, calculateTotalDuration } from '../../utils/schedulingUtils';
 import { SERVICES_DATA } from '../../data/servicesCatalog';
 
 // Utility for Data Integrity: Find service in catalog by name and get current price
@@ -47,6 +50,8 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
   const [hasDraftChanges, setHasDraftChanges] = useState(false);
   const [pendingLeave, setPendingLeave] = useState(null);
   const [customerDetailsLocked, setCustomerDetailsLocked] = useState(false);
+  // Batch 6: structured schedule-restriction failure surfaced via <ValidationModal>.
+  const [validationIssue, setValidationIssue] = useState(null);
 
   // REBOOKING LOGIC: Pull from sessionStorage for persistence
   const rebookDataRaw = sessionStorage.getItem('speedway_rebook_data');
@@ -167,6 +172,30 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
       if (adminMode && !bookingData.adminCustomerReady) {
         throw new Error('Complete the customer first name, last name, email, and phone before continuing.');
       }
+
+      // Batch 6: server-side schedule rules. This is the authoritative gate —
+      // the same pure rules module powers the calendar, but the server also
+      // sees live capacity and admin blocks the client may have missed. On a
+      // rejection we surface a guided <ValidationModal> instead of a raw toast.
+      const requestedBays = Math.max(1, calculateBayUsage(bookingData.vehicles || []));
+      const durationMinutes = Math.max(60, calculateTotalDuration(bookingData.vehicles || []));
+      const slotCheck = await validateSlot({
+        date: bookingData.date,
+        time: bookingData.time,
+        requestedBays,
+        durationMinutes,
+        excludeBookingId: isRescheduling ? prefillData?.id : undefined,
+      });
+
+      if (!slotCheck.valid) {
+        setValidationIssue({
+          code: slotCheck.code,
+          message: slotCheck.message,
+          details: slotCheck.details,
+        });
+        return; // Do not create the booking.
+      }
+
       if (isRescheduling && prefillData?.id) {
         await rescheduleBooking(prefillData.id, bookingData);
         sessionStorage.removeItem('speedway_rebook_data');
@@ -221,6 +250,21 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
       setHasDraftChanges(false);
       navigate(adminMode ? '/admin' : '/customer/dashboard');
     });
+  };
+
+  // Batch 6: ValidationModal actions. Both route the user back to the schedule
+  // step so they can choose again; "next available date" also clears the stale
+  // date/time so the calendar opens on a fresh day. (The authoritative greying
+  // of unavailable days arrives in Step 6.4.)
+  const handleValidationPickAnotherTime = () => {
+    setValidationIssue(null);
+    setCurrentStep(2);
+  };
+
+  const handleValidationNextAvailableDate = () => {
+    setValidationIssue(null);
+    updateBookingData((prev) => ({ ...prev, date: '', time: '' }));
+    setCurrentStep(2);
   };
 
   if (isSubmitted) {
@@ -331,6 +375,17 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
           </div>
         </div>
       </div>}
+
+      {/* Batch 6: guided schedule-restriction feedback (replaces raw toasts). */}
+      <ValidationModal
+        open={Boolean(validationIssue)}
+        code={validationIssue?.code}
+        message={validationIssue?.message}
+        details={validationIssue?.details}
+        onClose={() => setValidationIssue(null)}
+        onPickAnotherTime={handleValidationPickAnotherTime}
+        onSelectNextAvailable={handleValidationNextAvailableDate}
+      />
     </div>
   );
 };

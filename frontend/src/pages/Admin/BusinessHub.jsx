@@ -2,20 +2,33 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Building, Clock, Wrench, Tag, Save, AlertCircle, CheckCircle,
-  Plus, X, Trash2, ArchiveRestore
+  Plus, X, Trash2, ArchiveRestore, CalendarClock
 } from 'lucide-react';
 import { useConfig } from '../../context/ConfigContext';
 import { supabase } from '../../lib/supabase';
 import PromoManager from '../../components/AdminSchedule/PromoManager';
 
-const TAB_KEYS = ['profile', 'hours', 'services', 'promos'];
+const TAB_KEYS = ['profile', 'hours', 'schedule', 'services', 'promos'];
 
 // The fields each section owns (mirrors handleSaveSection's UPDATE payload).
 const SECTION_FIELDS = {
   profile: ['business_name', 'contact_number', 'email_address', 'business_address', 'payment_account_name', 'payment_account_number'],
   hours: ['opening_hour', 'closing_hour', 'slots_per_hour', 'max_vehicles_per_staff'],
+  schedule: ['booking_lead_time_minutes', 'max_advance_days', 'closed_weekdays', 'enforce_capacity'],
   services: ['custom_services']
 };
+
+// JS weekday order (0=Sun..6=Sat) — matches Date.getDay() and the
+// closed_weekdays int[] column added in migration 20260925000001.
+const WEEKDAYS = [
+  { value: 0, short: 'Sun', long: 'Sunday' },
+  { value: 1, short: 'Mon', long: 'Monday' },
+  { value: 2, short: 'Tue', long: 'Tuesday' },
+  { value: 3, short: 'Wed', long: 'Wednesday' },
+  { value: 4, short: 'Thu', long: 'Thursday' },
+  { value: 5, short: 'Fri', long: 'Friday' },
+  { value: 6, short: 'Sat', long: 'Saturday' }
+];
 
 const EMPTY_NEW_SERVICE = { name: '', price: '', description: '', durationMinutes: '60' };
 
@@ -186,6 +199,10 @@ export default function BusinessHub() {
     payment_qr_url: '',
     slots_per_hour: 2,
     max_vehicles_per_staff: 1,
+    booking_lead_time_minutes: 120,
+    max_advance_days: 30,
+    closed_weekdays: [],
+    enforce_capacity: true,
     custom_services: []
   });
   const [pristine, setPristine] = useState(null);
@@ -217,6 +234,10 @@ export default function BusinessHub() {
           payment_qr_url: data.payment_qr_url || '',
           slots_per_hour: data.slots_per_hour ?? 2,
           max_vehicles_per_staff: data.max_vehicles_per_staff ?? 1,
+          booking_lead_time_minutes: data.booking_lead_time_minutes ?? 120,
+          max_advance_days: data.max_advance_days ?? 30,
+          closed_weekdays: Array.isArray(data.closed_weekdays) ? data.closed_weekdays : [],
+          enforce_capacity: data.enforce_capacity !== false,
           custom_services: Array.isArray(data.custom_services) ? data.custom_services : []
         };
         setBusinessForm(merged);
@@ -244,6 +265,19 @@ export default function BusinessHub() {
     setMessage((prev) => (prev.text ? { type: '', text: '' } : prev));
   };
 
+  // Toggle a weekday in/out of the closed_weekdays array (kept sorted for a
+  // stable dirty comparison).
+  const toggleClosedWeekday = (day) => {
+    setBusinessForm((prev) => {
+      const current = prev.closed_weekdays || [];
+      const next = current.includes(day)
+        ? current.filter((d) => d !== day)
+        : [...current, day].sort((a, b) => a - b);
+      return { ...prev, closed_weekdays: next };
+    });
+    setMessage((prev) => (prev.text ? { type: '', text: '' } : prev));
+  };
+
   // ---- Dirty / validity helpers ----
   const isDirty = (section) => {
     if (!pristine) return false;
@@ -261,6 +295,21 @@ export default function BusinessHub() {
       const opening = String(businessForm.opening_hour || '').trim();
       const closing = String(businessForm.closing_hour || '').trim();
       return opening.length > 0 && closing.length > 0 && slots >= 1 && maxUnits >= 1;
+    }
+    if (section === 'schedule') {
+      // Mirror the DB CHECK constraints from migration 20260925000001 so an
+      // invalid value can never be saved: lead time 0..43200, advance 1..365,
+      // every closed weekday within 0..6.
+      const lead = Number(businessForm.booking_lead_time_minutes);
+      const advance = Number(businessForm.max_advance_days);
+      const weekdaysValid = (businessForm.closed_weekdays || []).every(
+        (d) => Number.isInteger(d) && d >= 0 && d <= 6
+      );
+      return (
+        Number.isFinite(lead) && lead >= 0 && lead <= 43200 &&
+        Number.isFinite(advance) && advance >= 1 && advance <= 365 &&
+        weekdaysValid
+      );
     }
     if (section === 'services') {
       // Valid so long as no in-progress editor has a blank name.
@@ -308,6 +357,10 @@ export default function BusinessHub() {
           payment_qr_url: businessForm.payment_qr_url,
           slots_per_hour: Number(businessForm.slots_per_hour),
           max_vehicles_per_staff: Number(businessForm.max_vehicles_per_staff),
+          booking_lead_time_minutes: Number(businessForm.booking_lead_time_minutes),
+          max_advance_days: Number(businessForm.max_advance_days),
+          closed_weekdays: businessForm.closed_weekdays || [],
+          enforce_capacity: Boolean(businessForm.enforce_capacity),
           custom_services: businessForm.custom_services
         })
         .eq('id', id);
@@ -401,6 +454,7 @@ export default function BusinessHub() {
   const tabs = [
     { id: 'profile', label: 'Business Profile', icon: Building },
     { id: 'hours', label: 'Hours & Capacity', icon: Clock },
+    { id: 'schedule', label: 'Schedule Rules', icon: CalendarClock },
     { id: 'services', label: 'Service Catalog', icon: Wrench },
     { id: 'promos', label: 'Promo Management', icon: Tag }
   ];
@@ -613,6 +667,134 @@ export default function BusinessHub() {
               saving={saving}
               dirty={isDirty('hours')}
               label="Save Schedule Changes"
+            />
+          </form>
+        )}
+
+        {/* Tab 3: Schedule Rules (Batch 6 — booking restrictions) */}
+        {currentTab === 'schedule' && (
+          <form onSubmit={handleSaveSection} style={cardStyle}>
+            <SectionHeading>Booking Window &amp; Lead Time</SectionHeading>
+            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: 600, lineHeight: 1.6 }}>
+              These rules are enforced on the customer calendar and again on the server before any booking is created.
+            </p>
+            <div style={gridStyle}>
+              <Field label="Minimum Lead Time (minutes)" required>
+                <input
+                  type="number"
+                  min="0"
+                  max="43200"
+                  step="15"
+                  value={businessForm.booking_lead_time_minutes}
+                  onChange={(e) => handleInputChange('booking_lead_time_minutes', e.target.value)}
+                  style={inputStyle}
+                />
+              </Field>
+              <Field label="Max Advance Booking Window (days)" required>
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={businessForm.max_advance_days}
+                  onChange={(e) => handleInputChange('max_advance_days', e.target.value)}
+                  style={inputStyle}
+                />
+              </Field>
+            </div>
+
+            <SectionHeading style={{ paddingTop: '0.5rem' }}>Closed Days</SectionHeading>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }} role="group" aria-label="Closed weekdays">
+              {WEEKDAYS.map((day) => {
+                const isClosed = (businessForm.closed_weekdays || []).includes(day.value);
+                return (
+                  <button
+                    key={day.value}
+                    type="button"
+                    onClick={() => toggleClosedWeekday(day.value)}
+                    aria-pressed={isClosed}
+                    title={isClosed ? `${day.long} — closed` : `${day.long} — open`}
+                    style={{
+                      minWidth: '64px',
+                      padding: '0.6rem 0.85rem',
+                      borderRadius: 'var(--admin-radius-sm)',
+                      background: isClosed ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-input-bg, var(--admin-bg))',
+                      border: `1px solid ${isClosed ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
+                      color: isClosed ? 'var(--admin-brand)' : 'var(--admin-text-primary)',
+                      fontSize: '0.72rem',
+                      fontWeight: 900,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {day.short}
+                  </button>
+                );
+              })}
+            </div>
+            <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--admin-text-secondary)', fontWeight: 700 }}>
+              Tap a day to toggle the shop closed. Closed days are greyed out on the customer calendar.
+            </p>
+
+            <SectionHeading style={{ paddingTop: '0.5rem' }}>Capacity Enforcement</SectionHeading>
+            <button
+              type="button"
+              onClick={() => handleInputChange('enforce_capacity', !businessForm.enforce_capacity)}
+              aria-pressed={Boolean(businessForm.enforce_capacity)}
+              style={{
+                ...insetPanelStyle,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1rem',
+                cursor: 'pointer',
+                textAlign: 'left',
+                width: '100%'
+              }}
+            >
+              <span style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 950, color: 'var(--admin-text-primary)' }}>
+                  Enforce slot capacity
+                </span>
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                  When ON, slots respect the "Slots Per Hour" and "Max Vehicles Per Staff" limits. When OFF, capacity checks are skipped.
+                </span>
+              </span>
+              <span
+                aria-hidden="true"
+                style={{
+                  flexShrink: 0,
+                  width: '48px',
+                  height: '26px',
+                  borderRadius: '999px',
+                  background: businessForm.enforce_capacity ? 'var(--admin-brand)' : 'var(--admin-border)',
+                  position: 'relative',
+                  transition: 'background 0.2s'
+                }}
+              >
+                <span style={{
+                  position: 'absolute',
+                  top: '3px',
+                  left: businessForm.enforce_capacity ? '25px' : '3px',
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '50%',
+                  background: '#fff',
+                  transition: 'left 0.2s'
+                }} />
+              </span>
+            </button>
+
+            {!sectionValid('schedule') && (
+              <Hint>Lead time must be 0–43,200 minutes and the advance window 1–365 days.</Hint>
+            )}
+
+            <SaveBar
+              canSave={canSave('schedule')}
+              saving={saving}
+              dirty={isDirty('schedule')}
+              label="Save Schedule Rules"
             />
           </form>
         )}

@@ -7,6 +7,7 @@ const multer = require('multer');
 require('dotenv').config();
 
 const { normalizeStatus, shouldRestoreGraceWindow } = require('./noShowRestoreLogic');
+const { validateBookingRequest } = require('./services/scheduleValidation');
 const { Resend } = require('resend');
 const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEmail, sendAccountInviteEmail } = require('./services/emailService');
 const { processReceiptOCR } = require('./services/ocrService');
@@ -2880,6 +2881,96 @@ app.delete('/api/admin/blocked-slots/:id', async (req, res) => {
     return res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// 🗓️ Batch 6 / Step 6.2 — Schedule rules enforcement
+// ============================================================================
+// Server-side hard block for the Batch 6 schedule restrictions (lead time,
+// max advance window, closed weekdays, past dates, admin blocks, slot
+// capacity). The decision itself lives in the shared pure module
+// (frontend/src/domain/schedule/rules.js) consumed via services/scheduleValidation.
+//
+//   POST /api/bookings/validate-slot   -> 200 { valid:true } | 400/409 { valid:false, code, message }
+//
+// The booking wizard calls this before creating a booking so the client shows a
+// guided <ValidationModal>; the same validator is safe to call from any future
+// server-side booking-creation path.
+//
+// Status contract:
+//   400 = malformed request (INVALID_DATE / INVALID_SLOT / PAST_DATE)
+//   409 = valid request that conflicts with current shop state
+//         (CLOSED_WEEKDAY / BLOCKED_DATE / BEYOND_ADVANCE_WINDOW / LEAD_TIME /
+//          SLOT_UNAVAILABLE / CAPACITY_EXCEEDED)
+//   500 = infrastructure failure (DB unreachable) — never a silent pass.
+app.post('/api/bookings/validate-slot', async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ success: false, valid: false, error: 'Supabase Admin not initialized' });
+  }
+
+  try {
+    const result = await validateBookingRequest(supabaseAdmin, req.body || {});
+
+    if (result.valid) {
+      return res.status(200).json({
+        success: true,
+        valid: true,
+        code: 'OK',
+        details: result.details,
+      });
+    }
+
+    return res.status(result.status).json({
+      success: false,
+      valid: false,
+      code: result.code,
+      internalCode: result.internalCode,
+      error: result.message,
+      message: result.message,
+      details: result.details,
+    });
+  } catch (err) {
+    // A DB failure must NOT report the slot as valid — fail closed.
+    console.error('❌ Schedule Validation Error:', err.message);
+    return res.status(500).json({
+      success: false,
+      valid: false,
+      code: 'VALIDATION_UNAVAILABLE',
+      error: 'Unable to validate this slot right now. Please try again.',
+    });
+  }
+});
+
+// Enumerate the bookable slots for a date (powers the calendar + modal).
+//   GET /api/bookings/slots?date=YYYY-MM-DD    (query, not a mutation)
+app.get('/api/bookings/slots', async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ success: false, error: 'Supabase Admin not initialized' });
+  }
+  const date = String(req.query.date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ success: false, code: 'INVALID_DATE', error: 'A valid date (YYYY-MM-DD) query param is required.' });
+  }
+
+  try {
+    const { loadScheduleContext, countStaffOnDuty } = require('./services/scheduleValidation');
+    const { getBookableSlots } = require('../frontend/src/domain/schedule/rules.js');
+    const { config, blocks, bookings } = await loadScheduleContext(supabaseAdmin, date, {
+      excludeBookingId: req.query.excludeBookingId,
+    });
+    const staffOnDuty = await countStaffOnDuty(supabaseAdmin);
+    const durationMinutes = Math.max(1, Number(req.query.durationMinutes) || 60);
+    const requestedBays = Math.max(1, Number(req.query.requestedBays) || 1);
+    const slots = getBookableSlots(date, config, bookings, {
+      blocks, durationMinutes, requestedBays, staffOnDuty,
+    });
+    return res.json({ success: true, date, slots });
+  } catch (err) {
+    console.error('❌ Slot Enumeration Error:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Allow cross-module use of the shared validator from booking creation paths.
+app.locals.validateBookingRequest = validateBookingRequest;
 
 app.listen(PORT, () => {
   console.log('\n' + '*'.repeat(50));

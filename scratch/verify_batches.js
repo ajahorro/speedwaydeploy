@@ -1,5 +1,5 @@
-// Verifies the existence of every Batch 1-5 fix by name.
-// Master E2E sweep: imported-by-name assertions across all five batches.
+// Verifies the existence of every Batch 1-6 fix by name.
+// Master E2E sweep: imported-by-name assertions across all six batches.
 // Run: node scratch/verify_batches.js
 const fs = require('fs');
 const path = require('path');
@@ -61,13 +61,32 @@ const checks = [
   ['B5  customer evidence drawer',    'frontend/src/pages/Customer/CustomerBookingDetails.jsx', ["PhotoProofGallery", "photoGalleryOpen", "View Service Photos"]],
   ['B5  spin utility (global css)',   'frontend/src/index.css',                       ["@keyframes spin", ".spin {"]],
   ['DELETED  orphan plateNorm gone',  'frontend/src/domain/booking/plateNormalization.js', []],
-  ['DELETED  legacy promo test gone', 'frontend/tests/domain/promoEngine.test.mjs',   []]
+  ['DELETED  legacy promo test gone', 'frontend/tests/domain/promoEngine.test.mjs',   []],
+
+  // ── Batch 6: Schedule Rules Engine, Server Validation & Modal UI ─────────
+  // Step 6.1 — migration + pure rules module
+  ['B6  migration: schedule rules',   'supabase/migrations/20260925000001_add_schedule_rules.sql', ["booking_lead_time_minutes", "max_advance_days", "closed_weekdays", "enforce_capacity", "business_config_lead_time_bounds", "business_config_advance_days_bounds", "business_config_closed_weekdays_valid"]],
+  ['B6  pure rules module',           'frontend/src/domain/schedule/rules.js',        ["isDateBookable", "isSlotBookable", "getBookableSlots", "normalizeConfig", "SCHEDULE_DECISION_CODES"]],
+  // Step 6.2 — backend enforcement
+  ['B6  server validation service',   'backend/services/scheduleValidation.js',       ["validateBookingRequest", "loadScheduleContext", "countStaffOnDuty", "SCHEDULE_DECISION_CODES"]],
+  ['B6  validate-slot endpoint',      'backend/server.js',                            ["/api/bookings/validate-slot", "/api/bookings/slots", "VALIDATION_UNAVAILABLE", "SLOT_UNAVAILABLE", "CAPACITY_EXCEED"]],
+  // Step 6.3 — ValidationModal + client wiring
+  ['B6  ValidationModal codes',       'frontend/src/components/ValidationModal.jsx',  ["PAST_DATE", "CLOSED_WEEKDAY", "BLOCKED_DATE", "BEYOND_ADVANCE_WINDOW", "LEAD_TIME", "SLOT_UNAVAILABLE", "CAPACITY_EXCEED", "VALIDATION_UNAVAILABLE"]],
+  ['B6  ValidationModal tokens',      'frontend/src/components/ValidationModal.jsx',  ["var(--admin-card)", "var(--admin-brand)", "var(--modal-overlay)", "var(--status-warning)", "Pick Another Time", "Select Next Available Date"]],
+  ['B6  client validation service',   'frontend/src/services/scheduleValidationService.js', ["validateSlot", "/api/bookings/validate-slot", "reachable"]],
+  ['B6  fail-closed on unreachable',  'frontend/src/services/scheduleValidationService.js', ["valid: false", "VALIDATION_UNAVAILABLE", "fail-closed"]],
+  ['B6  wizard pre-submit gate',      'frontend/src/pages/Customer/CustomerBookAppointment.jsx', ["validateSlot", "ValidationModal", "setValidationIssue", "calculateBayUsage"]],
+  // Step 6.4 — calendar greying + admin Schedule Rules tab
+  ['B6  calendar rules-aware',        'frontend/src/components/BookingWizard/CustomCalendar.jsx', ["isDateBookable", "decision.reason", "blocked_slots", "aria-label"]],
+  ['B6  slot date-gate feedback',     'frontend/src/components/BookingWizard/Step1Schedule.jsx', ["isDateBookable", "dateGate", "blocked_slots"]],
+  ['B6  BusinessHub Schedule tab',    'frontend/src/pages/Admin/BusinessHub.jsx',     ["'schedule'", "Schedule Rules", "booking_lead_time_minutes", "max_advance_days", "closed_weekdays", "enforce_capacity", "toggleClosedWeekday"]],
+  ['B6  BusinessHub smart-save',      'frontend/src/pages/Admin/BusinessHub.jsx',     ["section === 'schedule'", "canSave('schedule')", "isDirty('schedule')"]]
 ];
 
 let pass = 0;
 let fail = 0;
 const byBatch = {};
-console.log('=== BATCH 1-5 MASTER E2E REGRESSION SWEEP ===\n');
+console.log('=== BATCH 1-6 MASTER E2E REGRESSION SWEEP ===\n');
 for (const [label, file, needles] of checks) {
   const r = has(file, needles);
   const deletedCheck = label.startsWith('DELETED');

@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, Clock, Phone, AlertCircle } from 'lucide-react';
 import { getAvailableSlots } from '../../services/scheduleService';
+import { supabase } from '../../lib/supabase';
+import { isDateBookable } from '../../domain/schedule/rules';
 import CustomCalendar from './CustomCalendar';
 import { sanitizeVehicleText } from '../../config/constants';
 
 const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, onNext, onBack, onCancel, customerDetailsLocked = false }) => {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  // Batch 6: why the selected date itself may be unbookable (closed/blocked/etc),
+  // loaded from the shared rules engine so the message matches the server.
+  const [dateGate, setDateGate] = useState(null);
 
   // Vehicles are serviced concurrently; duration is driven by the longest unit,
   // while bay capacity separately limits how many units can share the slot.
@@ -30,6 +35,21 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
     const fetchSlots = async () => {
       setIsLoadingSlots(true);
       try {
+        // Fetch the schedule rules + admin blocks for this date so we can
+        // explain WHY a day/slot is unavailable (mirrors the server decision).
+        const [configRes, blockRes] = await Promise.all([
+          supabase
+            .from('business_config')
+            .select('booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity, slots_per_hour, max_vehicles_per_staff')
+            .maybeSingle(),
+          supabase
+            .from('blocked_slots')
+            .select('block_date, start_time, end_time')
+            .eq('block_date', bookingData.date),
+        ]);
+        const gate = isDateBookable(bookingData.date, configRes.data || {}, { blocks: blockRes.data || [] });
+        setDateGate(gate);
+
         const slots = await getAvailableSlots(bookingData.date, totalDuration, bookingData.vehicles || []);
         setAvailableSlots(slots);
 
@@ -199,7 +219,12 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
               </div>
             ) : availableSlots.length === 0 ? (
               <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 'var(--admin-radius-md)', padding: '1.5rem', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: '600', fontSize: '0.9rem' }}>
-                <AlertCircle size={20} /> No matching time slots are available for this fleet. Try another date or a shorter service selection.
+                <AlertCircle size={20} style={{ flexShrink: 0 }} />
+                <span>
+                  {dateGate && !dateGate.bookable
+                    ? `${dateGate.reason} Please choose another date.`
+                    : 'No matching time slots are available for this fleet. Try another date or a shorter service selection.'}
+                </span>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))', gap: '0.75rem' }}>
