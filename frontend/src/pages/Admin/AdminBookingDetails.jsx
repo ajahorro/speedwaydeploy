@@ -1527,7 +1527,9 @@ const AdminBookingDetails = () => {
                         </div>
                       </div>
 
-                      {(v.service_notes || v.photo_proof_url) && (
+                      {/* Batch 5: always render the evidence affordance so photos stored
+                          ONLY in service_photos (not the legacy column) are reachable. */}
+                      {true && (
                         <div style={{ display: 'flex', gap: '1.5rem' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
                             {v.photo_proof_url && (

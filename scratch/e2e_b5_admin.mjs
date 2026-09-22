@@ -1,51 +1,56 @@
-// Batch 5 UI probe #2: log in as ADMIN, open the bookings list, open the first
-// booking detail, and confirm the "View Evidence" button renders and the
-// PhotoProofGallery drawer opens. This exercises the real data path.
-export default async function run(page /*, ui*/) {
-  const out = { steps: [] };
+// Batch 5 admin gallery sweep.
+// Reads the seed handoff, logs in as admin, opens the seeded booking detail,
+// clicks "View Evidence", and confirms the before/after drawer opens.
+import fs from 'node:fs';
+
+export default async function run(page /*, ui */) {
+  const HANDOFF = 'C:/Users/ajaho/Downloads/speedway_thesis/scratch/b5_seed_handoff.json';
+  const handoff = JSON.parse(fs.readFileSync(HANDOFF, 'utf8'));
+  const out = { checks: [], bookingId: handoff.bookingId };
+  const check = (label, ok, detail = '') => out.checks.push({ label, ok, detail });
 
   await page.context().clearCookies();
-  await page.goto(page.url().replace(/\/[^/]*$/, '/') + 'login', { waitUntil: 'domcontentloaded' });
+  const base = page.url().replace(/\/[^/]*$/, '/');
+  await page.goto(base + 'login', { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => { try { localStorage.clear(); sessionStorage.clear(); } catch { /* ignore */ } });
-  await page.goto(page.url().replace(/\/[^/]*$/, '/') + 'login', { waitUntil: 'domcontentloaded' });
+  await page.goto(base + 'login', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1000);
 
   await page.locator('input[type="email"], input[name="email"]').first().fill('testadmin961@gmail.com');
   const passInput = page.locator('input[type="password"], input[name="password"]').first();
-  for (const pass of ['admin1234', 'admin123']) {
+  for (const pass of ['admin123', 'admin1234']) {
     await passInput.fill(pass);
     await page.locator('button[type="submit"]').first().click();
     await page.waitForTimeout(2500);
     if (!page.url().includes('/login')) break;
   }
-  out.steps.push({ step: 'admin login', url: page.url() });
+  check('admin login', !page.url().includes('/login'), page.url());
 
-  // Find a link into a booking detail page and follow the first one.
-  const bookingHref = await page.evaluate(() => {
-    const a = [...document.querySelectorAll('a[href*="/admin/bookings/"]')]
-      .map((el) => el.getAttribute('href'))
-      .filter((h) => h && /\/admin\/bookings\/[^/]+$/.test(h));
-    return a[0] || null;
-  });
-  out.bookingHrefFound = Boolean(bookingHref);
+  // Go straight to the seeded booking detail.
+  await page.goto(base + 'admin/bookings/' + handoff.bookingId, { waitUntil: 'domcontentloaded' });
+  try {
+    await page.waitForFunction(() => /VIOS E2E/i.test(document.body.innerText), null, { timeout: 20000 });
+  } catch { /* assertions below will report */ }
+  await page.waitForTimeout(1500);
 
-  if (bookingHref) {
-    await page.goto('http://localhost:5173' + bookingHref, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(4000);
-    const text = await page.evaluate(() => document.body.innerText);
-    out.onDetailPage = page.url().includes('/admin/bookings/');
-    out.hasViewEvidence = text.includes('VIEW EVIDENCE') || text.includes('View Evidence');
+  let text = await page.evaluate(() => document.body.innerText);
+  check('admin opened the seeded booking detail', /VIOS E2E/i.test(text));
 
-    // Click View Evidence and confirm the drawer opens.
-    if (out.hasViewEvidence) {
-      const btn = page.getByText(/view evidence/i).first();
-      await btn.click().catch(() => { });
-      await page.waitForTimeout(1500);
-      const drawerText = await page.evaluate(() => document.body.innerText);
-      out.drawerOpened = drawerText.includes('PHOTO EVIDENCE') || drawerText.includes('Photo Evidence');
-      out.drawerHasSections = drawerText.includes('Intake (Before)') && drawerText.includes('Completion (After)');
-    }
+  const viewBtn = page.getByRole('button', { name: /view evidence/i }).first();
+  const hasBtn = (await viewBtn.count()) > 0;
+  check('"View Evidence" button present on admin detail', hasBtn);
+
+  if (hasBtn) {
+    await viewBtn.click().catch(() => {});
+    await page.waitForTimeout(2000);
+    text = await page.evaluate(() => document.body.innerText);
+    const upper = text.toUpperCase();
+    check('evidence drawer opened', upper.includes('PHOTO EVIDENCE'));
+    check('drawer has Intake (Before) section', upper.includes('INTAKE (BEFORE)'));
+    check('drawer has Completion (After) section', upper.includes('COMPLETION (AFTER)'));
   }
 
+  out.bodySnippet = text.slice(0, 400);
+  out.summary = { passed: out.checks.filter(c => c.ok).length, failed: out.checks.filter(c => !c.ok).length };
   return out;
 }

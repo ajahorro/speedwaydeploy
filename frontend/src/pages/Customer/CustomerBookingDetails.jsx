@@ -513,7 +513,8 @@ const CustomerBookingDetails = () => {
                   </div>
                 </div>
 
-                {(v.service_notes || v.photo_proof_url) && (
+                {/* Batch 5: always render so photos stored only in service_photos are reachable. */}
+                {true && (
                   <div style={{ display: 'flex', gap: '1.5rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
                       {v.photo_proof_url && (
