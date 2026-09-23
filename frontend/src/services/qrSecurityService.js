@@ -12,9 +12,8 @@ import {
  * Batch 7 / Step 7.5 — Task B: Business Hub QR Code security + OTP.
  *
  * Responsibilities:
- *   1. Load the four MANDATORY recipient fields from business_config:
- *        qr_account_name, qr_account_number,
- *        fallback_receiver_name, fallback_receiver_number
+ *   1. Load the mandatory recipient fields from business_config:
+ *        qr_account_name, qr_account_number, payment_qr_url
  *   2. Validate completion and BLOCK saves when any field is missing/blank or
  *      contains characters outside the strict alphanumeric allow-list.
  *   3. Drive the 6-digit email OTP flow for a QR change:
@@ -34,7 +33,7 @@ export const buildQrSubmission = (config = {}) => buildQrSubmissionFromUtil(conf
 export const fetchQrConfig = async () => {
   const { data, error } = await supabase
     .from('business_config')
-    .select('id, qr_account_name, qr_account_number, fallback_receiver_name, fallback_receiver_number, payment_qr_url, gcash_qr_url, qr_photo_url, qr_config_version, qr_config_complete, qr_updated_at')
+    .select('id, qr_account_name, qr_account_number, payment_qr_url, gcash_qr_url, qr_photo_url, qr_config_version, qr_config_complete, qr_updated_at')
     .order('id')
     .limit(1)
     .maybeSingle();
@@ -56,8 +55,6 @@ export const captureQrSnapshot = async (bookingId, config) => {
   const snapshot = {
     qr_account_name: config?.qr_account_name || '',
     qr_account_number: config?.qr_account_number || '',
-    fallback_receiver_name: config?.fallback_receiver_name || '',
-    fallback_receiver_number: config?.fallback_receiver_number || '',
     payment_qr_url: config?.payment_qr_url || config?.gcash_qr_url || config?.qr_photo_url || null,
     gcash_qr_url: config?.gcash_qr_url || config?.payment_qr_url || config?.qr_photo_url || null,
     qr_photo_url: config?.qr_photo_url || config?.payment_qr_url || config?.gcash_qr_url || null,
@@ -132,12 +129,9 @@ export const requestQrChangeOtp = async (pendingConfig, currentConfig = {}) => {
     // Kept for the audit-log Old-vs-New diff.
     old_qr_account_name: currentConfig.qr_account_name || '',
     old_qr_account_number: currentConfig.qr_account_number || '',
-    old_fallback_receiver_name: currentConfig.fallback_receiver_name || '',
-    old_fallback_receiver_number: currentConfig.fallback_receiver_number || '',
     old_payment_qr_url: currentConfig.payment_qr_url || currentConfig.gcash_qr_url || currentConfig.qr_photo_url || '',
   };
 
-  // Park the challenge first — if the email fails we do not want a live code.
   const { data: challengeId, error: startErr } = await supabase.rpc('start_qr_change_otp', {
     p_payload: payload,
     p_otp_hash: otpHash,

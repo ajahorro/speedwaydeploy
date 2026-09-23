@@ -62,15 +62,15 @@ begin
     ''
   ));
 
-  if v_name = '' or v_num = '' or v_fname = '' or v_fnum = '' then
+  if v_name = '' or v_num = '' or v_qr_url = '' then
     raise exception 'All fields are required';
   end if;
 
   update public.business_config
      set qr_account_name = v_name,
          qr_account_number = v_num,
-         fallback_receiver_name = v_fname,
-         fallback_receiver_number = v_fnum,
+         fallback_receiver_name = coalesce(v_fname, ''),
+         fallback_receiver_number = coalesce(v_fnum, ''),
          payment_qr_url = v_qr_url,
          gcash_qr_url = v_qr_url,
          qr_photo_url = v_qr_url,

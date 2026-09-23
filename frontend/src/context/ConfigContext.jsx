@@ -22,11 +22,12 @@ export const ConfigProvider = ({ children }) => {
     PAYMENT_ACCOUNT_NAME: 'SPEEDWAY STUDIO',
     PAYMENT_ACCOUNT_NUMBER: '0912 345 6789',
     PAYMENT_QR_URL: null,
-    // Task B: the four QR recipient fields + version.
+    qr_code_url: null,
+    qr_account_name: '',
+    qr_account_number: '',
+    // Task B: the primary QR recipient fields + version.
     QR_ACCOUNT_NAME: '',
     QR_ACCOUNT_NUMBER: '',
-    QR_FALLBACK_NAME: '',
-    QR_FALLBACK_NUMBER: '',
     QR_CONFIG_VERSION: 1,
     QR_CONFIG_COMPLETE: false,
     loaded: false
@@ -62,6 +63,10 @@ export const ConfigProvider = ({ children }) => {
       if (error) throw error;
 
       if (data) {
+        const qrAccountName = data.qr_account_name || data.payment_account_name || data.gcash_name || '';
+        const qrAccountNumber = data.qr_account_number || data.payment_account_number || data.gcash_number || '';
+        const qrCodeUrl = data.qr_code_url || data.payment_qr_url || data.gcash_qr_url || data.qr_photo_url || null;
+
         // Tier 2.9: keep the shared service-catalog cache in lock-step with the
         // persisted catalog so admin edits (Business Hub "Service Catalog") reach
         // the public landing page and the booking wizard on every device, not
@@ -87,15 +92,16 @@ export const ConfigProvider = ({ children }) => {
           // Task B: the mandated QR recipients are the source of truth. Legacy
           // payment_account_* / gcash_* keys remain as fallbacks so older rows
           // still render a QR during the migration window.
-          QR_ACCOUNT_NAME: data.qr_account_name || data.payment_account_name || data.gcash_name || '',
-          QR_ACCOUNT_NUMBER: data.qr_account_number || data.payment_account_number || data.gcash_number || '',
-          QR_FALLBACK_NAME: data.fallback_receiver_name || '',
-          QR_FALLBACK_NUMBER: data.fallback_receiver_number || '',
+          qr_code_url: qrCodeUrl,
+          qr_account_name: qrAccountName,
+          qr_account_number: qrAccountNumber,
+          QR_ACCOUNT_NAME: qrAccountName,
+          QR_ACCOUNT_NUMBER: qrAccountNumber,
           QR_CONFIG_VERSION: data.qr_config_version ?? 1,
           QR_CONFIG_COMPLETE: data.qr_config_complete === true,
-          PAYMENT_ACCOUNT_NAME: data.qr_account_name || data.payment_account_name || data.gcash_name || 'SPEEDWAY STUDIO',
-          PAYMENT_ACCOUNT_NUMBER: data.qr_account_number || data.payment_account_number || data.gcash_number || '0912 345 6789',
-          PAYMENT_QR_URL: data.payment_qr_url || data.gcash_qr_url || data.qr_photo_url || null,
+          PAYMENT_ACCOUNT_NAME: qrAccountName || 'SPEEDWAY STUDIO',
+          PAYMENT_ACCOUNT_NUMBER: qrAccountNumber || '0912 345 6789',
+          PAYMENT_QR_URL: qrCodeUrl,
           loaded: true
         });
       } else {

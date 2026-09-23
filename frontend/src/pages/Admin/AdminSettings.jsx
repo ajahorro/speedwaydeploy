@@ -11,6 +11,7 @@ import { useConfig } from '../../context/ConfigContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { logger } from '../../utils/logger';
+import { sanitizeByFieldType } from '../../config/constants';
 
 // Tier 2.10 / 2.11 — SINGLE SOURCE OF TRUTH.
 // Business Hub (/admin/business) owns the business_config row: business identity,
@@ -101,6 +102,18 @@ const AdminSettings = () => {
     fetchSettings();
   }, []);
 
+  const sanitizeSettingField = (field, value) => {
+    const fieldMap = {
+      business_name: 'alphaNum',
+      contact_number: 'phone',
+      email_address: 'email',
+      business_address: 'address',
+    };
+
+    if (!fieldMap[field]) return String(value ?? '');
+    return sanitizeByFieldType(String(value ?? ''), fieldMap[field]);
+  };
+
   const handleSave = async () => {
     setLoading(true);
     try {
@@ -111,27 +124,35 @@ const AdminSettings = () => {
       if (!session?.user) throw new Error('No active admin session. Please sign in again.');
       if (profile?.role?.toUpperCase() !== 'ADMIN') throw new Error('Admin access is required to save company settings.');
 
+      const sanitizedSettings = {
+        ...settings,
+        business_name: sanitizeSettingField('business_name', settings.business_name),
+        contact_number: sanitizeSettingField('contact_number', settings.contact_number),
+        email_address: sanitizeSettingField('email_address', settings.email_address),
+        business_address: sanitizeSettingField('business_address', settings.business_address),
+      };
+
       const { error } = await supabase
         .from('business_config')
         .upsert({
-          id: settings.id || 1,
-          business_name: settings.business_name,
-          contact_number: settings.contact_number,
-          email_address: settings.email_address,
-          business_address: settings.business_address,
-          opening_hour: settings.opening_hour,
-          closing_hour: settings.closing_hour,
+          id: sanitizedSettings.id || 1,
+          business_name: sanitizedSettings.business_name,
+          contact_number: sanitizedSettings.contact_number,
+          email_address: sanitizedSettings.email_address,
+          business_address: sanitizedSettings.business_address,
+          opening_hour: sanitizedSettings.opening_hour,
+          closing_hour: sanitizedSettings.closing_hour,
           // NOTE: qr_account_* / fallback_receiver_* (payment), custom_services and
           // faqs are owned by the Business Hub and deliberately omitted here so
           // this page can never blank them (Tier 2.10).
-          slots_per_hour: settings.slots_per_hour,
-          max_vehicles_per_staff: Number(settings.max_vehicles_per_staff) || 4,
+          slots_per_hour: sanitizedSettings.slots_per_hour,
+          max_vehicles_per_staff: Number(sanitizedSettings.max_vehicles_per_staff) || 4,
           updated_at: new Date().toISOString()
         });
 
       if (error) throw error;
 
-      localStorage.setItem('speedway_business_settings', JSON.stringify({ ...settings, max_vehicles_per_staff: Number(settings.max_vehicles_per_staff) || 4 }));
+      localStorage.setItem('speedway_business_settings', JSON.stringify({ ...sanitizedSettings, max_vehicles_per_staff: Number(sanitizedSettings.max_vehicles_per_staff) || 4 }));
       await refreshConfig();
       toast.success('Global settings updated successfully!');
       logger.admin('Global parameters committed to database.');
@@ -202,7 +223,7 @@ const AdminSettings = () => {
               <input 
                 type="text" 
                 value={settings.business_name}
-                onChange={(e) => setSettings({...settings, business_name: e.target.value})}
+                onChange={(e) => setSettings({...settings, business_name: sanitizeSettingField('business_name', e.target.value)})}
                 style={inputStyle} 
               />
             </div>
@@ -213,7 +234,7 @@ const AdminSettings = () => {
                 <input 
                   type="text" 
                   value={settings.contact_number}
-                  onChange={(e) => setSettings({...settings, contact_number: e.target.value})}
+                  onChange={(e) => setSettings({...settings, contact_number: sanitizeSettingField('contact_number', e.target.value)})}
                   style={inputStyle} 
                 />
               </div>
@@ -222,7 +243,7 @@ const AdminSettings = () => {
                 <input 
                   type="email" 
                   value={settings.email_address}
-                  onChange={(e) => setSettings({...settings, email_address: e.target.value})}
+                  onChange={(e) => setSettings({...settings, email_address: sanitizeSettingField('email_address', e.target.value)})}
                   style={inputStyle} 
                 />
               </div>
@@ -232,7 +253,7 @@ const AdminSettings = () => {
               <label style={labelStyle}>Business Address</label>
               <textarea 
                 value={settings.business_address}
-                onChange={(e) => setSettings({...settings, business_address: e.target.value})}
+                onChange={(e) => setSettings({...settings, business_address: sanitizeSettingField('business_address', e.target.value)})}
                 style={{ ...inputStyle, minHeight: '80px', resize: 'vertical', fontFamily: 'inherit' }} 
               />
             </div>

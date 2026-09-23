@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ShieldCheck, Mail, KeyRound, AlertCircle, Loader } from 'lucide-react';
+import { X, ShieldCheck, Mail, KeyRound, AlertCircle, Loader, UploadCloud } from 'lucide-react';
 import { requestQrChangeOtp, verifyQrChangeOtp, QR_FIELDS, validateQrRecipients } from '../../services/qrSecurityService';
+import { sanitizeQrAccountName, sanitizeQrAccountNumber } from '../../services/qrConfigUtils';
 import toast from 'react-hot-toast';
 
 /**
@@ -22,8 +23,7 @@ import toast from 'react-hot-toast';
 const EMPTY = {
   qr_account_name: '',
   qr_account_number: '',
-  fallback_receiver_name: '',
-  fallback_receiver_number: '',
+  qr_code_url: '',
   payment_qr_url: '',
 };
 
@@ -33,7 +33,10 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
   const [otp, setOtp] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [dragActive, setDragActive] = useState(false);
+  const [blockedNoChange, setBlockedNoChange] = useState(false);
   const otpInputRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (open) {
@@ -41,12 +44,13 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
       setOtp('');
       setError('');
       setBusy(false);
+      setBlockedNoChange(false);
+      const qrCodeUrl = currentConfig.qr_code_url || currentConfig.payment_qr_url || currentConfig.gcash_qr_url || currentConfig.qr_photo_url || '';
       setForm({
         qr_account_name: currentConfig.qr_account_name || '',
         qr_account_number: currentConfig.qr_account_number || '',
-        fallback_receiver_name: currentConfig.fallback_receiver_name || '',
-        fallback_receiver_number: currentConfig.fallback_receiver_number || '',
-        payment_qr_url: currentConfig.payment_qr_url || currentConfig.gcash_qr_url || currentConfig.qr_photo_url || '',
+        qr_code_url: qrCodeUrl,
+        payment_qr_url: qrCodeUrl,
       });
     }
   }, [open, currentConfig]);
@@ -57,16 +61,83 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
 
   if (!open) return null;
 
-  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
-  const qrFieldList = [...QR_FIELDS, { key: 'payment_qr_url', label: 'QR Photo URL' }];
+  const sanitizeQrModalField = (key, value) => {
+    if (key === 'qr_account_name') return sanitizeQrAccountName(value);
+    if (key === 'qr_account_number') return sanitizeQrAccountNumber(value);
+    return String(value ?? '');
+  };
+
+  const setField = (key, value) => setForm((prev) => {
+    const sanitizedValue = key === 'qr_code_url' || key === 'payment_qr_url'
+      ? String(value ?? '')
+      : sanitizeQrModalField(key, value);
+
+    const next = { ...prev, [key]: sanitizedValue };
+    if (key === 'qr_code_url') next.payment_qr_url = sanitizedValue;
+    if (key === 'payment_qr_url') next.qr_code_url = sanitizedValue;
+    setBlockedNoChange(false);
+    return next;
+  });
+
+  const handleQrFile = (file) => {
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose a valid image file for the QR code.');
+      toast.error('Please choose a valid image file for the QR code.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const nextValue = typeof reader.result === 'string' ? reader.result : '';
+      setField('qr_code_url', nextValue);
+      setError('');
+    };
+    reader.onerror = () => {
+      setError('Could not read the selected QR image. Please try another file.');
+      toast.error('Could not read the selected QR image. Please try another file.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleQrDrop = (event) => {
+    event.preventDefault();
+    setDragActive(false);
+    const file = event.dataTransfer?.files?.[0];
+    handleQrFile(file);
+  };
+
+  const handleRemoveQr = () => {
+    setField('qr_code_url', '');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const qrPreview = form.qr_code_url || form.payment_qr_url || '';
+  const qrFieldList = [...QR_FIELDS];
+  const hasQrChanges = (() => {
+    const liveName = String(currentConfig.qr_account_name || '').trim();
+    const liveNumber = String(currentConfig.qr_account_number || '').trim();
+    const liveQr = String(currentConfig.qr_code_url || currentConfig.payment_qr_url || currentConfig.gcash_qr_url || currentConfig.qr_photo_url || '').trim();
+    const nextName = String(form.qr_account_name || '').trim();
+    const nextNumber = String(form.qr_account_number || '').trim();
+    const nextQr = String(form.qr_code_url || form.payment_qr_url || '').trim();
+    return liveName !== nextName || liveNumber !== nextNumber || liveQr !== nextQr;
+  })();
+  const canSendCode = Boolean(form.qr_account_name.trim() && form.qr_account_number.trim() && qrPreview && validateQrRecipients(form).ok && hasQrChanges);
 
   const handleSendCode = async () => {
     setError('');
     const v = validateQrRecipients(form);
-    if (!v.ok) {
-      // Explicit, actionable message — never a silent failure.
-      setError('All fields are required');
-      toast.error('All fields are required');
+    if (!hasQrChanges) {
+      setBlockedNoChange(true);
+      setError('No changes were made. Update the QR details before requesting a new verification code.');
+      toast.error('No changes were made. Update the QR details before requesting a new verification code.');
+      return;
+    }
+    if (!canSendCode || !v.ok) {
+      setError('Complete all required fields and upload a QR image before sending the code.');
+      toast.error('Complete all required fields and upload a QR image before sending the code.');
       return;
     }
     setBusy(true);
@@ -151,31 +222,97 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
 
           {phase === 'fields' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {qrFieldList.map(({ key, label }) => {
-                const required = key !== 'payment_qr_url';
-                return (
-                  <label key={key} style={{ display: 'block' }}>
-                    <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.35rem' }}>
-                      {label}{required ? <span style={{ color: 'var(--status-danger)' }}> *</span> : ''}
-                    </span>
-                    <input
-                      type="text"
-                      value={form[key]}
-                      onChange={(e) => setField(key, e.target.value)}
-                      placeholder={required ? label : 'https://example.com/qr-code.png'}
-                      style={{
-                        width: '100%', padding: '0.8rem 0.9rem',
-                        background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)',
-                        border: '1px solid var(--admin-input-border)',
-                        borderRadius: 'var(--admin-radius-sm)', fontSize: '0.9rem', fontWeight: 600, outline: 'none',
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                  </label>
-                );
-              })}
+              {qrFieldList.map(({ key, label }) => (
+                <label key={key} style={{ display: 'block' }}>
+                  <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.35rem' }}>
+                    {label}<span style={{ color: 'var(--status-danger)' }}> *</span>
+                  </span>
+                  <input
+                    type="text"
+                    value={form[key] ?? ''}
+                    onChange={(e) => setField(key, e.target.value)}
+                    placeholder={label}
+                    inputMode={key === 'qr_account_number' ? 'numeric' : 'text'}
+                    style={{
+                      width: '100%', padding: '0.8rem 0.9rem',
+                      background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)',
+                      border: '1px solid var(--admin-input-border)',
+                      borderRadius: 'var(--admin-radius-sm)', fontSize: '0.9rem', fontWeight: 600, outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </label>
+              ))}
+
+              <div>
+                <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.35rem' }}>
+                  QR Photo
+                </span>
+                <div
+                  onDragOver={(event) => { event.preventDefault(); setDragActive(true); }}
+                  onDragLeave={() => setDragActive(false)}
+                  onDrop={handleQrDrop}
+                  style={{
+                    border: `2px dashed ${dragActive ? 'var(--admin-brand)' : 'var(--admin-input-border)'}`,
+                    borderRadius: 'var(--admin-radius-md)',
+                    background: dragActive ? 'rgba(var(--admin-brand-rgb), 0.08)' : 'var(--admin-input-bg)',
+                    padding: '1rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                  }}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      handleQrFile(file);
+                    }}
+                    style={{ display: 'none' }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                      padding: '0.85rem 1rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)',
+                      border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)',
+                      fontWeight: 900, fontSize: '0.74rem', textTransform: 'uppercase', cursor: 'pointer'
+                    }}
+                  >
+                    <UploadCloud size={16} /> {qrPreview ? 'Replace Image' : 'Upload QR Image'}
+                  </button>
+
+                  {qrPreview ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#fff', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', padding: '0.5rem' }}>
+                        <img src={qrPreview} alt="QR preview" style={{ maxWidth: '180px', maxHeight: '180px', objectFit: 'contain', borderRadius: '0.5rem' }} />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveQr}
+                        style={{
+                          width: '100%', padding: '0.65rem 0.8rem', background: 'transparent', color: 'var(--status-danger)',
+                          border: '1px solid rgba(var(--status-danger-rgb), 0.4)', borderRadius: 'var(--admin-radius-sm)',
+                          fontWeight: 800, fontSize: '0.72rem', textTransform: 'uppercase', cursor: 'pointer'
+                        }}
+                      >
+                        Remove / Replace Image
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: 700, lineHeight: 1.5 }}>
+                      Drag and drop a QR image here<br />or browse from your device.
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: 600, lineHeight: 1.5 }}>
-                The four recipient fields are required. The QR photo URL is optional, but if you provide one it is stored with the QR configuration and shown on the payment screen.
+                All recipient fields and the QR image are required before the verification code can be sent.
               </p>
             </div>
           ) : (
@@ -212,7 +349,7 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
             Cancel
           </button>
           {phase === 'fields' ? (
-            <button type="button" onClick={handleSendCode} disabled={busy} style={{ flex: '1 1 160px', minHeight: '2.75rem', padding: '0.85rem 1rem', background: busy ? 'var(--admin-border)' : 'var(--admin-brand)', color: busy ? 'var(--admin-text-secondary)' : 'var(--admin-text-on-brand)', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', fontWeight: 950, fontSize: '0.78rem', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+            <button type="button" onClick={handleSendCode} disabled={busy || !canSendCode || blockedNoChange} style={{ flex: '1 1 160px', minHeight: '2.75rem', padding: '0.85rem 1rem', background: busy || !canSendCode || blockedNoChange ? 'var(--admin-border)' : 'var(--admin-brand)', color: busy || !canSendCode || blockedNoChange ? 'var(--admin-text-secondary)' : 'var(--admin-text-on-brand)', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', fontWeight: 950, fontSize: '0.78rem', textTransform: 'uppercase', cursor: busy || !canSendCode || blockedNoChange ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', opacity: busy || !canSendCode || blockedNoChange ? 0.7 : 1 }}>
               {busy ? <><Loader size={15} className="spin" /> Sending…</> : 'Send Code'}
             </button>
           ) : (

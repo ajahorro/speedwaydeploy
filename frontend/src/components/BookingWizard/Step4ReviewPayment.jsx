@@ -27,11 +27,9 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   useEffect(() => {
     const existingBookingId = bookingData?.bookingId || bookingData?.id || null;
     const snapshot = {
-      QR_ACCOUNT_NAME: settings.QR_ACCOUNT_NAME || settings.PAYMENT_ACCOUNT_NAME || '',
-      QR_ACCOUNT_NUMBER: settings.QR_ACCOUNT_NUMBER || settings.PAYMENT_ACCOUNT_NUMBER || '',
-      QR_FALLBACK_NAME: settings.QR_FALLBACK_NAME || '',
-      QR_FALLBACK_NUMBER: settings.QR_FALLBACK_NUMBER || '',
-      PAYMENT_QR_URL: settings.PAYMENT_QR_URL || null,
+      QR_ACCOUNT_NAME: settings.qr_account_name || settings.QR_ACCOUNT_NAME || settings.PAYMENT_ACCOUNT_NAME || '',
+      QR_ACCOUNT_NUMBER: settings.qr_account_number || settings.QR_ACCOUNT_NUMBER || settings.PAYMENT_ACCOUNT_NUMBER || '',
+      PAYMENT_QR_URL: settings.qr_code_url || settings.PAYMENT_QR_URL || null,
       QR_CONFIG_VERSION: settings.QR_CONFIG_VERSION ?? 1,
     };
     setQrTarget(snapshot);
@@ -43,8 +41,6 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
       captureQrSnapshot(existingBookingId, {
         qr_account_name: snapshot.QR_ACCOUNT_NAME,
         qr_account_number: snapshot.QR_ACCOUNT_NUMBER,
-        fallback_receiver_name: snapshot.QR_FALLBACK_NAME,
-        fallback_receiver_number: snapshot.QR_FALLBACK_NUMBER,
         gcash_qr_url: snapshot.PAYMENT_QR_URL,
         qr_config_version: snapshot.QR_CONFIG_VERSION,
       }).catch((err) => logger.warn('QR snapshot capture skipped', err));
@@ -465,14 +461,6 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                       )}
                       <div style={{ fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>{qrTarget?.QR_ACCOUNT_NAME}</div>
                       <div style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--admin-brand)', marginTop: '0.25rem' }}>{qrTarget?.QR_ACCOUNT_NUMBER}</div>
-                      {/* Task B: show the fallback receiver so a cross-bank customer
-                          who cannot use the primary QR knows where to send funds. */}
-                      {qrTarget?.QR_FALLBACK_NAME ? (
-                        <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.9rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.72rem', fontWeight: 700, color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
-                          Fallback receiver: <strong style={{ color: 'var(--admin-text-primary)' }}>{qrTarget.QR_FALLBACK_NAME}</strong>
-                          {qrTarget.QR_FALLBACK_NUMBER ? <> &middot; {qrTarget.QR_FALLBACK_NUMBER}</> : null}
-                        </div>
-                      ) : null}
                     </>
                   ) : (
                     <div style={{ padding: '2rem', color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '600' }}>Loading business settings...</div>

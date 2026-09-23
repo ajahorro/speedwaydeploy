@@ -715,7 +715,7 @@ const CustomerBookingDetails = () => {
               <div style={labelStyle}>Outstanding Balance</div>
               <div style={{ fontSize: '1.8rem', fontWeight: '950', color: 'var(--admin-warning)', margin: '.35rem 0 1rem' }}>{formatCurrency(balance)}</div>
               <div style={{ fontSize: '.75rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5, marginBottom: '.5rem' }}>Complete the remaining payment using the studio's digital payment details.</div>
-              <QRMagnifier qrUrl={settings.PAYMENT_QR_URL} accountName={settings.PAYMENT_ACCOUNT_NAME} accountNumber={settings.PAYMENT_ACCOUNT_NUMBER} standalone />
+              <QRMagnifier qrUrl={settings.qr_code_url || settings.PAYMENT_QR_URL} accountName={settings.qr_account_name || settings.PAYMENT_ACCOUNT_NAME} accountNumber={settings.qr_account_number || settings.PAYMENT_ACCOUNT_NUMBER} standalone />
             </div>
           )}
           </div>
