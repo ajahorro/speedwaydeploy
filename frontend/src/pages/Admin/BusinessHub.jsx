@@ -17,7 +17,7 @@ import LeaveGuardModal from '../../components/LeaveGuardModal';
 import SegmentedTimePicker from '../../components/AdminSchedule/SegmentedTimePicker';
 import { BACKEND_URL } from '../../config/api';
 
-const TAB_KEYS = ['profile', 'hours', 'schedule', 'services', 'faqs', 'promos'];
+const TAB_KEYS = ['profile', 'hours', 'schedule', 'services', 'promos'];
 
 // The fields each section owns (mirrors handleSaveSection's UPDATE payload).
 const SECTION_FIELDS = {
@@ -25,6 +25,7 @@ const SECTION_FIELDS = {
     'business_name', 'contact_number', 'email_address', 'business_address',
     // Task B: the primary QR recipient fields plus the uploaded QR image.
     'qr_account_name', 'qr_account_number', 'payment_qr_url',
+    'faqs'
   ],
   hours: ['opening_hour', 'closing_hour', 'slots_per_hour', 'max_vehicles_per_staff'],
   schedule: ['booking_lead_time_minutes', 'max_advance_days', 'closed_weekdays', 'enforce_capacity'],
@@ -146,6 +147,13 @@ const createServiceDraft = (overrides = {}) => ({
 // Tier 2.8: FAQ editor row seed. FAQs persist to business_config.faqs and render
 // on the public landing page in array order.
 const EMPTY_NEW_FAQ = { question: '', answer: '' };
+const DEFAULT_FAQ_STARTER_QUESTIONS = [
+  'How long does ceramic coating last?',
+  'What is the booking process?',
+  'Do you offer mobile services?',
+  'What payment methods do you accept?',
+  'Do I need to leave my car overnight?'
+];
 
 // Section 3.2: convert a stored business-hours string into the 24h "HH:MM" value
 // a <input type="time"> expects. Handles the legacy "08:00 AM" display format and
@@ -336,6 +344,8 @@ export default function BusinessHub() {
   // Tier 2.8: FAQ catalog editor state (add / edit / delete / reorder).
   const [faqForm, setFaqForm] = useState(EMPTY_NEW_FAQ);
   const [editingFaqId, setEditingFaqId] = useState(null);
+  const [faqEditorOpen, setFaqEditorOpen] = useState(false);
+  const [faqPanels, setFaqPanels] = useState({});
   // Section 3.1: Delete confirmation. The service pending deletion is held here so
   // that choosing "Keep Editing" (Decline) simply clears it and leaves the form
   // and any in-progress edit untouched.
@@ -706,7 +716,7 @@ export default function BusinessHub() {
 
       const qrConfigComplete = validateQrRecipients(businessForm).ok;
       const primaryPayload = buildBusinessConfigUpdatePayload(businessForm, {
-        supportsFaqs: false,
+        supportsFaqs: true,
         supportsCustomServices: false,
         supportsVehicleTypes: false,
         qrConfigComplete,
@@ -970,23 +980,35 @@ export default function BusinessHub() {
       setMessage({ type: 'error', text: 'FAQ question is required.' });
       return;
     }
+
     const item = {
       id: editingFaqId || `faq_${Date.now()}`,
       question,
       answer: faqForm.answer.trim(),
       order: 0
     };
+
+    const currentFaqs = Array.isArray(businessForm.faqs) ? [...businessForm.faqs] : [];
     const next = editingFaqId
-      ? businessForm.faqs.map((f) => (f.id === editingFaqId ? { ...f, ...item } : f))
-      : [...businessForm.faqs, item];
+      ? (() => {
+          const matchIndex = currentFaqs.findIndex((f) => f.id === editingFaqId);
+          if (matchIndex >= 0) {
+            return currentFaqs.map((f) => (f.id === editingFaqId ? { ...f, ...item } : f));
+          }
+          return [...currentFaqs, item];
+        })()
+      : [...currentFaqs, item];
+
     setFaqs(next);
     setFaqForm(EMPTY_NEW_FAQ);
     setEditingFaqId(null);
+    setFaqEditorOpen(false);
     setMessage({ type: 'success', text: `${editingFaqId ? 'FAQ updated' : 'FAQ added'}. Remember to save changes.` });
   };
 
   const editFaq = (faq) => {
     setEditingFaqId(faq.id);
+    setFaqEditorOpen(true);
     setFaqForm({ question: faq.question || '', answer: faq.answer || '' });
   };
 
@@ -1008,6 +1030,39 @@ export default function BusinessHub() {
     setFaqs(list);
     setMessage({ type: 'success', text: 'FAQ order updated. Remember to save changes.' });
   };
+
+  const visibleFaqs = useMemo(() => {
+    const currentFaqs = Array.isArray(businessForm.faqs) && businessForm.faqs.length > 0
+      ? businessForm.faqs
+      : DEFAULT_FAQ_STARTER_QUESTIONS.map((question, index) => ({
+          id: `starter_faq_${index}`,
+          question,
+          answer: '',
+          order: index,
+          isStarter: true,
+        }));
+
+    return currentFaqs.map((faq, index) => ({
+      ...faq,
+      order: typeof faq.order === 'number' ? faq.order : index,
+    }));
+  }, [businessForm.faqs]);
+
+  useEffect(() => {
+    setFaqPanels((prev) => {
+      const next = { ...prev };
+      let changed = false;
+
+      visibleFaqs.forEach((faq) => {
+        if (next[faq.id] === undefined) {
+          next[faq.id] = false;
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [visibleFaqs]);
 
   const allLoadedServices = useMemo(
     () => mergeCatalogServices(businessForm.custom_services || []),
@@ -1291,7 +1346,6 @@ export default function BusinessHub() {
     { id: 'hours', label: 'Hours & Capacity', icon: Clock },
     { id: 'schedule', label: 'Schedule Rules', icon: CalendarClock },
     { id: 'services', label: 'Service Catalog', icon: Wrench },
-    { id: 'faqs', label: 'FAQ', icon: HelpCircle },
     { id: 'promos', label: 'Promo Management', icon: Tag }
   ];
 
@@ -1489,6 +1543,118 @@ export default function BusinessHub() {
                 </div>
               );
             })()}
+
+            <div style={{ ...insetPanelStyle, display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 900, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    FAQ Management
+                  </h3>
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.7rem', color: 'var(--admin-text-secondary)', fontWeight: 700, lineHeight: 1.5 }}>
+                    Manage landing-page questions here; saving the profile keeps the FAQ list in sync with the public storefront.
+                  </p>
+                </div>
+                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--admin-text-secondary)' }}>
+                  {visibleFaqs.length} {visibleFaqs.length === 1 ? 'entry' : 'entries'}
+                </span>
+              </div>
+
+              {!faqEditorOpen && !editingFaqId && (
+                <button
+                  type="button"
+                  onClick={() => setFaqEditorOpen(true)}
+                  style={{ ...buttonBase, background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: '1px solid var(--admin-brand)', alignSelf: 'flex-start' }}
+                >
+                  <Plus size={15} /> Add FAQ
+                </button>
+              )}
+
+              {(faqEditorOpen || editingFaqId) && (
+                <div style={{ ...insetPanelStyle, display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--admin-card)' }}>
+                  <input
+                    type="text"
+                    placeholder="Question"
+                    value={faqForm.question}
+                    onChange={(e) => setFaqForm((prev) => ({ ...prev, question: sanitizeBusinessHubValue('question', e.target.value) }))}
+                    style={inputStyle}
+                  />
+                  <textarea
+                    placeholder="Answer"
+                    rows={3}
+                    value={faqForm.answer}
+                    onChange={(e) => setFaqForm((prev) => ({ ...prev, answer: sanitizeBusinessHubValue('answer', e.target.value) }))}
+                    style={{ ...inputStyle, minHeight: '80px', resize: 'vertical', fontFamily: 'inherit' }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={addOrUpdateFaq}
+                      style={{ ...buttonBase, background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: '1px solid var(--admin-brand)' }}
+                    >
+                      {editingFaqId ? 'Update FAQ' : (<><Plus size={15} /> Save FAQ</>)}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setEditingFaqId(null); setFaqForm(EMPTY_NEW_FAQ); setFaqEditorOpen(false); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', padding: 0 }}
+                    >
+                      <X size={14} /> {editingFaqId ? 'Cancel edit' : 'Close'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {visibleFaqs.length > 0 ? (
+                  visibleFaqs.map((faq, index) => {
+                    const isOpen = Boolean(faqPanels[faq.id]);
+
+                    return (
+                      <div key={faq.id} style={{ border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', background: 'var(--admin-bg)', overflow: 'hidden' }}>
+                        <button
+                          type="button"
+                          onClick={() => setFaqPanels((prev) => ({ ...prev, [faq.id]: !prev[faq.id] }))}
+                          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', background: 'transparent', border: 'none', color: 'var(--admin-text-primary)', padding: '0.9rem 1rem', fontWeight: 900, textAlign: 'left', cursor: 'pointer' }}
+                        >
+                          <span style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--admin-text-secondary)', fontWeight: 800 }}>Q{index + 1}</span>
+                            {faq.question}
+                          </span>
+                          {isOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                        </button>
+
+                        {isOpen && (
+                          <div style={{ borderTop: '1px solid var(--admin-border)', padding: '0.9rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: 700, lineHeight: 1.5 }}>
+                              {faq.answer ? faq.answer : 'No answer added yet.'}
+                            </p>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              <button type="button" onClick={() => moveFaq(faq.id, -1)} disabled={index === 0 || faq.isStarter} title="Move up" style={{ ...ghostButton, opacity: index === 0 || faq.isStarter ? 0.4 : 1, cursor: index === 0 || faq.isStarter ? 'not-allowed' : 'pointer' }}>
+                                <ChevronUp size={13} />
+                              </button>
+                              <button type="button" onClick={() => moveFaq(faq.id, 1)} disabled={index === visibleFaqs.length - 1 || faq.isStarter} title="Move down" style={{ ...ghostButton, opacity: index === visibleFaqs.length - 1 || faq.isStarter ? 0.4 : 1, cursor: index === visibleFaqs.length - 1 || faq.isStarter ? 'not-allowed' : 'pointer' }}>
+                                <ChevronDown size={13} />
+                              </button>
+                              <button type="button" onClick={() => editFaq(faq)} style={ghostButton}>Edit answer</button>
+                              {!faq.isStarter && (
+                                <button type="button" onClick={() => removeFaq(faq.id)} style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}>
+                                  <Trash2 size={13} /> Delete
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div style={{ ...insetPanelStyle, fontSize: '0.74rem', color: 'var(--admin-text-secondary)', fontWeight: 600 }}>
+                    No FAQs are available right now.
+                  </div>
+                )}
+              </div>
+            </div>
 
             <SaveBar
               canSave={canSave('profile')}
@@ -2186,111 +2352,6 @@ export default function BusinessHub() {
               )}
             </div>
           </div>
-        )}
-
-        {/* Tab 4: FAQ Management (Tier 2.8) */}
-        {currentTab === 'faqs' && (
-          <form onSubmit={handleSaveSection} style={cardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.75rem', gap: '1rem', flexWrap: 'wrap' }}>
-              <h2 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 950, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                Frequently Asked Questions
-              </h2>
-              <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--admin-text-secondary)' }}>
-                {businessForm.faqs.length} {businessForm.faqs.length === 1 ? 'entry' : 'entries'}
-              </span>
-            </div>
-            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: 600, lineHeight: 1.6 }}>
-              These questions and answers are published on the public landing page in the order below. Leave the list empty to show the built-in starter questions instead.
-            </p>
-
-            {/* Add / edit FAQ row */}
-            <div style={{ ...insetPanelStyle, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <input
-                type="text"
-                placeholder="Question"
-                value={faqForm.question}
-                onChange={(e) => setFaqForm((prev) => ({ ...prev, question: sanitizeBusinessHubValue('question', e.target.value) }))}
-                style={inputStyle}
-              />
-              <textarea
-                placeholder="Answer"
-                rows={3}
-                value={faqForm.answer}
-                onChange={(e) => setFaqForm((prev) => ({ ...prev, answer: sanitizeBusinessHubValue('answer', e.target.value) }))}
-                style={{ ...inputStyle, minHeight: '80px', resize: 'vertical', fontFamily: 'inherit' }}
-              />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={addOrUpdateFaq}
-                  style={{ ...buttonBase, background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: '1px solid var(--admin-brand)' }}
-                >
-                  {editingFaqId ? 'Update FAQ' : (<><Plus size={15} /> Add FAQ</>)}
-                </button>
-                {editingFaqId && (
-                  <button
-                    type="button"
-                    onClick={() => { setEditingFaqId(null); setFaqForm(EMPTY_NEW_FAQ); }}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', padding: 0 }}
-                  >
-                    <X size={14} /> Cancel edit
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* FAQ list (ordered) */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {businessForm.faqs.length > 0 ? (
-                businessForm.faqs.map((faq, index) => (
-                  <div
-                    key={faq.id}
-                    style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', background: 'var(--admin-bg)', flexWrap: 'wrap' }}
-                  >
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 900, color: 'var(--admin-text-primary)' }}>{faq.question}</p>
-                      {faq.answer && (
-                        <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: 700, whiteSpace: 'pre-wrap' }}>{faq.answer}</p>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-                      <button type="button" onClick={() => moveFaq(faq.id, -1)} disabled={index === 0} title="Move up" style={{ ...ghostButton, opacity: index === 0 ? 0.4 : 1, cursor: index === 0 ? 'not-allowed' : 'pointer' }}>
-                        <ChevronUp size={13} />
-                      </button>
-                      <button type="button" onClick={() => moveFaq(faq.id, 1)} disabled={index === businessForm.faqs.length - 1} title="Move down" style={{ ...ghostButton, opacity: index === businessForm.faqs.length - 1 ? 0.4 : 1, cursor: index === businessForm.faqs.length - 1 ? 'not-allowed' : 'pointer' }}>
-                        <ChevronDown size={13} />
-                      </button>
-                      <button type="button" onClick={() => editFaq(faq)} style={ghostButton}>
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeFaq(faq.id)}
-                        style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
-                      >
-                        <Trash2 size={13} /> Delete
-                      </button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ ...insetPanelStyle, fontSize: '0.74rem', color: 'var(--admin-text-secondary)', fontWeight: 600 }}>
-                  No custom FAQs configured. The landing page shows its built-in starter questions.
-                </div>
-              )}
-            </div>
-
-            {!sectionValid('faqs') && (
-              <Hint>Enter a question before saving an FAQ entry.</Hint>
-            )}
-
-            <SaveBar
-              canSave={canSave('faqs')}
-              saving={saving}
-              dirty={isDirty('faqs')}
-              label="Save FAQ Changes"
-            />
-          </form>
         )}
 
         {/* Tab 5: Promo & Package Rules */}
