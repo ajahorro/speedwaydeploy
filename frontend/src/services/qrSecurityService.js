@@ -1,6 +1,10 @@
 import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
-import { isAlphaNum } from '../config/constants';
+import {
+  QR_FIELDS,
+  buildQrSubmission as buildQrSubmissionFromUtil,
+  validateQrRecipients,
+} from './qrConfigUtils';
 
 /**
  * qrSecurityService.js
@@ -23,38 +27,14 @@ import { isAlphaNum } from '../config/constants';
  * and the change is NOT applied.
  */
 
-export const QR_FIELDS = [
-  { key: 'qr_account_name', label: 'QR Account Name' },
-  { key: 'qr_account_number', label: 'QR Account Number' },
-  { key: 'fallback_receiver_name', label: 'Fallback Receiver Name' },
-  { key: 'fallback_receiver_number', label: 'Fallback Receiver Number' },
-];
-
-/**
- * Validate the four mandatory recipient fields.
- * @returns {{ ok: boolean, missing: string[], invalid: string[] }}
- *   `missing`  — labels that are blank.
- *   `invalid`  — labels failing the strict alphanumeric guard.
- */
-export const validateQrRecipients = (config = {}) => {
-  const missing = [];
-  const invalid = [];
-  for (const { key, label } of QR_FIELDS) {
-    const raw = String(config[key] ?? '').trim();
-    if (!raw) { missing.push(label); continue; }
-    // Account numbers may legitimately contain a dash/space; names must be
-    // strictly alphanumeric. Normalise separators before the allow-list check.
-    const normalised = raw.replace(/[-\s]/g, '');
-    if (!isAlphaNum(normalised)) invalid.push(label);
-  }
-  return { ok: missing.length === 0 && invalid.length === 0, missing, invalid };
-};
+export { QR_FIELDS, validateQrRecipients };
+export const buildQrSubmission = (config = {}) => buildQrSubmissionFromUtil(config);
 
 /** Fetch the current QR recipient configuration (fail-closed on error). */
 export const fetchQrConfig = async () => {
   const { data, error } = await supabase
     .from('business_config')
-    .select('id, qr_account_name, qr_account_number, fallback_receiver_name, fallback_receiver_number, qr_config_version, qr_config_complete, qr_updated_at, gcash_qr_url')
+    .select('id, qr_account_name, qr_account_number, fallback_receiver_name, fallback_receiver_number, payment_qr_url, gcash_qr_url, qr_photo_url, qr_config_version, qr_config_complete, qr_updated_at')
     .order('id')
     .limit(1)
     .maybeSingle();
@@ -78,7 +58,9 @@ export const captureQrSnapshot = async (bookingId, config) => {
     qr_account_number: config?.qr_account_number || '',
     fallback_receiver_name: config?.fallback_receiver_name || '',
     fallback_receiver_number: config?.fallback_receiver_number || '',
-    gcash_qr_url: config?.gcash_qr_url || null,
+    payment_qr_url: config?.payment_qr_url || config?.gcash_qr_url || config?.qr_photo_url || null,
+    gcash_qr_url: config?.gcash_qr_url || config?.payment_qr_url || config?.qr_photo_url || null,
+    qr_photo_url: config?.qr_photo_url || config?.payment_qr_url || config?.gcash_qr_url || null,
     qr_config_version: config?.qr_config_version ?? 1,
     captured_at: new Date().toISOString(),
   };
@@ -146,15 +128,13 @@ export const requestQrChangeOtp = async (pendingConfig, currentConfig = {}) => {
   const otpHash = await sha256Hex(otp);
 
   const payload = {
-    qr_account_name: pendingConfig.qr_account_name.trim(),
-    qr_account_number: pendingConfig.qr_account_number.trim(),
-    fallback_receiver_name: pendingConfig.fallback_receiver_name.trim(),
-    fallback_receiver_number: pendingConfig.fallback_receiver_number.trim(),
+    ...buildQrSubmissionFromUtil(pendingConfig),
     // Kept for the audit-log Old-vs-New diff.
     old_qr_account_name: currentConfig.qr_account_name || '',
     old_qr_account_number: currentConfig.qr_account_number || '',
     old_fallback_receiver_name: currentConfig.fallback_receiver_name || '',
     old_fallback_receiver_number: currentConfig.fallback_receiver_number || '',
+    old_payment_qr_url: currentConfig.payment_qr_url || currentConfig.gcash_qr_url || currentConfig.qr_photo_url || '',
   };
 
   // Park the challenge first — if the email fails we do not want a live code.
@@ -169,9 +149,16 @@ export const requestQrChangeOtp = async (pendingConfig, currentConfig = {}) => {
 
   // Dispatch the email (fail-closed: cancel the challenge if it cannot be sent).
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) throw new Error('You must be signed in to verify a QR change.');
+
     const res = await fetch(`${BACKEND_URL}/api/emails/qr-change-otp`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({ otp }),
     });
     if (!res.ok) throw new Error(`email relay ${res.status}`);

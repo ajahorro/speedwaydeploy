@@ -19,7 +19,13 @@ import toast from 'react-hot-toast';
  * Styling: native tokens only; 375px-safe (single column, no overflow).
  */
 
-const EMPTY = { qr_account_name: '', qr_account_number: '', fallback_receiver_name: '', fallback_receiver_number: '' };
+const EMPTY = {
+  qr_account_name: '',
+  qr_account_number: '',
+  fallback_receiver_name: '',
+  fallback_receiver_number: '',
+  payment_qr_url: '',
+};
 
 const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) => {
   const [phase, setPhase] = useState('fields'); // 'fields' | 'otp'
@@ -40,6 +46,7 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
         qr_account_number: currentConfig.qr_account_number || '',
         fallback_receiver_name: currentConfig.fallback_receiver_name || '',
         fallback_receiver_number: currentConfig.fallback_receiver_number || '',
+        payment_qr_url: currentConfig.payment_qr_url || currentConfig.gcash_qr_url || currentConfig.qr_photo_url || '',
       });
     }
   }, [open, currentConfig]);
@@ -51,6 +58,7 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
   if (!open) return null;
 
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const qrFieldList = [...QR_FIELDS, { key: 'payment_qr_url', label: 'QR Photo URL' }];
 
   const handleSendCode = async () => {
     setError('');
@@ -143,28 +151,31 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
 
           {phase === 'fields' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {QR_FIELDS.map(({ key, label }) => (
-                <label key={key} style={{ display: 'block' }}>
-                  <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.35rem' }}>
-                    {label} <span style={{ color: 'var(--status-danger)' }}>*</span>
-                  </span>
-                  <input
-                    type="text"
-                    value={form[key]}
-                    onChange={(e) => setField(key, e.target.value)}
-                    placeholder={label}
-                    style={{
-                      width: '100%', padding: '0.8rem 0.9rem',
-                      background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)',
-                      border: '1px solid var(--admin-input-border)',
-                      borderRadius: 'var(--admin-radius-sm)', fontSize: '0.9rem', fontWeight: 600, outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </label>
-              ))}
+              {qrFieldList.map(({ key, label }) => {
+                const required = key !== 'payment_qr_url';
+                return (
+                  <label key={key} style={{ display: 'block' }}>
+                    <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.35rem' }}>
+                      {label}{required ? <span style={{ color: 'var(--status-danger)' }}> *</span> : ''}
+                    </span>
+                    <input
+                      type="text"
+                      value={form[key]}
+                      onChange={(e) => setField(key, e.target.value)}
+                      placeholder={required ? label : 'https://example.com/qr-code.png'}
+                      style={{
+                        width: '100%', padding: '0.8rem 0.9rem',
+                        background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)',
+                        border: '1px solid var(--admin-input-border)',
+                        borderRadius: 'var(--admin-radius-sm)', fontSize: '0.9rem', fontWeight: 600, outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </label>
+                );
+              })}
               <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: 600, lineHeight: 1.5 }}>
-                All four recipient fields are required. Changing the QR requires a 6-digit code emailed to the administrator.
+                The four recipient fields are required. The QR photo URL is optional, but if you provide one it is stored with the QR configuration and shown on the payment screen.
               </p>
             </div>
           ) : (

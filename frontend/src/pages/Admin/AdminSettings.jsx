@@ -258,34 +258,14 @@ const AdminSettings = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem', borderTop: '1px solid var(--admin-border)', paddingTop: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ borderTop: '1px solid var(--admin-border)', paddingTop: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <Gauge size={20} color="var(--admin-brand)" />
-                <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Maximum Concurrent Bookings</label>
-                  <input 
-                    type="number" 
-                    min="1" max="10"
-                    value={settings.slots_per_hour || 2}
-                    onChange={(e) => setSettings({...settings, slots_per_hour: parseInt(e.target.value)})}
-                    style={{ ...inputStyle, width: '80px', textAlign: 'center', fontSize: '1.25rem' }} 
-                  />
-                </div>
+                <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase' }}>Capacity &amp; Scheduling</h3>
               </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <Users size={20} color="var(--admin-brand)" />
-                <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Max Units / Vehicles Per Staff</label>
-                  <input 
-                    type="number" 
-                    min="1" max="12"
-                    value={settings.max_vehicles_per_staff || 4}
-                    onChange={(e) => setSettings({...settings, max_vehicles_per_staff: Math.max(1, parseInt(e.target.value) || 1)})}
-                    style={{ ...inputStyle, width: '80px', textAlign: 'center', fontSize: '1.25rem' }} 
-                  />
-                </div>
-              </div>
+              <p style={{ margin: '0.75rem 0 0', fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: 600, lineHeight: 1.6 }}>
+                The hour-by-hour capacity and per-staff vehicle limits are configured in the Business Hub under Hours &amp; Capacity. This page keeps the business identity only, to avoid duplicated writes to the same configuration row.
+              </p>
             </div>
 
             {/* Tier 2.10: service catalog now lives in the Business Hub only. */}

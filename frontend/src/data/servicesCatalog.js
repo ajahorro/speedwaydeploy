@@ -43,22 +43,125 @@ export const SERVICES_DATA = {
   ]
 };
 
+export const buildFrozenServiceSnapshot = (service = {}, vehicleType = '', source = 'catalog') => {
+  const normalized = service && typeof service === 'object' ? service : {};
+  const basePrice = Number(normalized.price ?? normalized.basePrice ?? normalized.final_price ?? 0);
+  const minutes = Number(normalized.durationMinutes ?? normalized.duration_minutes ?? normalized.duration ?? 60);
+  const snapshot = {
+    service_id: normalized.id || null,
+    service_name: String(normalized.name || normalized.service_name || '').trim() || 'Custom service',
+    price: Number.isFinite(basePrice) ? basePrice : 0,
+    duration_minutes: Number.isFinite(minutes) ? minutes : 60,
+    vehicle_type: String(vehicleType || normalized.vehicle_type || normalized.vehicleType || '').trim() || null,
+    snapshot_source: source,
+    service_snapshot: {
+      id: normalized.id || null,
+      name: String(normalized.name || normalized.service_name || '').trim() || 'Custom service',
+      description: String(normalized.description || '').trim(),
+      price: Number.isFinite(basePrice) ? basePrice : 0,
+      duration_minutes: Number.isFinite(minutes) ? minutes : 60,
+      vehicle_type: String(vehicleType || normalized.vehicle_type || normalized.vehicleType || '').trim() || null,
+      source
+    }
+  };
+
+  return {
+    ...snapshot,
+    service_name: snapshot.service_name,
+    price: snapshot.price,
+    duration_minutes: snapshot.duration_minutes,
+    vehicle_type: snapshot.vehicle_type,
+    service_id: snapshot.service_id,
+    snapshot_source: snapshot.snapshot_source,
+    service_snapshot: snapshot.service_snapshot,
+  };
+};
+
+export const buildBookingServiceSnapshot = (service = {}, vehicleType = '', source = 'booking') => {
+  const frozen = buildFrozenServiceSnapshot(service, vehicleType, source);
+  const finalPrice = Number(frozen.price ?? 0);
+  const entry = {
+    service_id: frozen.service_id,
+    service_name: frozen.service_name,
+    final_price: finalPrice,
+    duration_minutes: Number(frozen.duration_minutes ?? 60),
+    vehicle_type: frozen.vehicle_type,
+    service_snapshot: [{
+      service_id: frozen.service_id,
+      service_name: frozen.service_name,
+      final_price: finalPrice,
+      duration_minutes: Number(frozen.duration_minutes ?? 60),
+      vehicle_type: frozen.vehicle_type,
+      source
+    }]
+  };
+
+  return {
+    ...entry,
+    service_name: entry.service_name,
+    final_price: entry.final_price,
+    duration_minutes: entry.duration_minutes,
+    vehicle_type: entry.vehicle_type,
+    service_id: entry.service_id,
+    service_snapshot: entry.service_snapshot,
+  };
+};
+
 export const getServiceCatalog = () => {
   if (typeof window === 'undefined') return SERVICES_DATA;
   try {
-    const customCatalog = JSON.parse(localStorage.getItem('speedway_custom_services') || '[]');
-    const activeCustomServices = Array.isArray(customCatalog) ? customCatalog.filter(service => !service.archived) : [];
+    const persistedCustomServices = (() => {
+      try {
+        const direct = JSON.parse(localStorage.getItem('speedway_custom_services') || '[]');
+        return Array.isArray(direct) ? direct : [];
+      } catch {
+        return [];
+      }
+    })();
+
+    const runtimeCustomServices = (() => {
+      try {
+        const direct = window.__speedway_custom_services_cache;
+        return Array.isArray(direct) ? direct : [];
+      } catch {
+        return [];
+      }
+    })();
+
+    const customCatalog = runtimeCustomServices.length ? runtimeCustomServices : persistedCustomServices;
+    const activeCustomServices = Array.isArray(customCatalog)
+      ? customCatalog.filter((service) => service && service.is_active !== false && service.archived !== true)
+      : [];
+
     if (!activeCustomServices.length) return SERVICES_DATA;
-    return {
-      ...SERVICES_DATA,
-      'Custom Services': activeCustomServices.map(service => ({
+
+    const customServicesByType = activeCustomServices.map((service) => {
+      const vehicleType = service.vehicleType || service.vehicle_type || '';
+      const singlePrice = Number(service.price || 0);
+      const prices = vehicleType
+        ? { [vehicleType]: singlePrice }
+        : {
+            Sedan: singlePrice,
+            SUV: singlePrice,
+            'Van/L300': singlePrice,
+            Regular: singlePrice,
+            Bigbike: singlePrice
+          };
+
+      return {
         id: service.id || `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         name: service.name,
         desc: service.description || 'Custom service added by the admin.',
-        prices: { Sedan: Number(service.price || 0), SUV: Number(service.price || 0), 'Van/L300': Number(service.price || 0), Regular: Number(service.price || 0), Bigbike: Number(service.price || 0) },
+        prices,
         estTime: `${Number(service.durationMinutes || 60)} mins`,
-        durationMinutes: Number(service.durationMinutes || 60)
-      }))
+        durationMinutes: Number(service.durationMinutes || 60),
+        vehicleType,
+      };
+    });
+
+    return {
+      ...SERVICES_DATA,
+      'Custom Services': customServicesByType
     };
   } catch {
     return SERVICES_DATA;

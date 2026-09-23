@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { emitEvent, EVENTS } from './eventEngine';
 import { SHOP_CONFIG } from '../config/constants';
-import { getEffectivePriceForService, calculateBookingDiscountSummary } from '../data/servicesCatalog';
+import { getEffectivePriceForService, calculateBookingDiscountSummary, buildFrozenServiceSnapshot } from '../data/servicesCatalog';
 import { getRequiredDownpayment } from '../utils/paymentUtils';
 import { sendStatusEmail } from './notificationService';
 import { calculateBayUsage } from '../utils/schedulingUtils';
@@ -115,6 +115,27 @@ export const createBooking = async (customerId, bookingData) => {
   }
 
   const bookingRef = booking.id.substring(0, 8).toUpperCase();
+  const bookingServiceSnapshot = (vehicles || []).flatMap((vehicle) => (vehicle.services || []).map((service) => {
+    const snapshot = buildBookingServiceSnapshot(service, vehicle.type, 'booking');
+    return {
+      service_id: snapshot.service_id,
+      service_name: snapshot.service_name,
+      final_price: Number(snapshot.final_price || 0),
+      duration_minutes: Number(snapshot.duration_minutes || 0),
+      vehicle_type: snapshot.vehicle_type,
+      service_snapshot: snapshot.service_snapshot
+    };
+  }));
+
+  // Store an immutable snapshot on the booking itself so later catalog edits
+  // never mutate the historical record for a completed or live booking.
+  await supabase
+    .from('bookings')
+    .update({
+      service_snapshot: bookingServiceSnapshot,
+      service_snapshot_version: 1
+    })
+    .eq('id', booking.id);
 
   // 2. Insert vehicle(s) into booking_vehicles
   for (const vehicle of vehicles) {
@@ -152,19 +173,39 @@ export const createBooking = async (customerId, bookingData) => {
     // 3. Insert selected services for that vehicle
     const services = vehicle.services || [];
     if (services.length > 0) {
-      const serviceRows = services.map(s => ({
-        booking_vehicle_id: bv.id,
-        service_name: s.name,
-        price: getEffectivePriceForService(s.price, vehicle.type, s.name || s.service_name)
-      }));
+      const serviceRows = services.map((service) => {
+        const snapshot = buildBookingServiceSnapshot(service, vehicle.type, 'booking');
+        return {
+          booking_vehicle_id: bv.id,
+          service_name: snapshot.service_name,
+          price: snapshot.final_price,
+          final_price: snapshot.final_price,
+          duration_minutes: snapshot.duration_minutes,
+          vehicle_type: snapshot.vehicle_type,
+          service_id: snapshot.service_id,
+          service_snapshot: snapshot.service_snapshot,
+          // Keep the live pricing policy as the fallback path for older DB schemas
+          base_price: Number(service.original_price || service.price || 0),
+          price_at_booking: snapshot.final_price
+        };
+      });
 
-      const { error: svcError } = await supabase
-        .from('booking_vehicle_services')
-        .insert(serviceRows);
+      try {
+        const { error: svcError } = await supabase
+          .from('booking_vehicle_services')
+          .insert(serviceRows);
 
-      if (svcError) {
-        console.error('Service Insert Error:', svcError);
-        throw new Error(`Service Error: ${svcError.message}`);
+        if (svcError) throw svcError;
+      } catch (svcError) {
+        const legacyRows = serviceRows.map(({ duration_minutes, vehicle_type, service_id, service_snapshot, base_price, price_at_booking, final_price, ...row }) => row);
+        const { error: fallbackError } = await supabase
+          .from('booking_vehicle_services')
+          .insert(legacyRows);
+
+        if (fallbackError) {
+          console.error('Service Insert Error:', fallbackError);
+          throw new Error(`Service Error: ${fallbackError.message}`);
+        }
       }
     }
   }

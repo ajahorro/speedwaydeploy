@@ -43,7 +43,10 @@ export const useUnsavedChangesGuard = (isDirty, options = {}) => {
    * @returns {boolean} true when the caller may navigate immediately.
    */
   const confirmNavigation = useCallback((action) => {
-    if (!dirtyRef.current) return true;
+    if (!dirtyRef.current) {
+      if (typeof action === 'function') action();
+      return true;
+    }
     setPendingLeave(() => action || null);
     return false;
   }, []);

@@ -110,16 +110,6 @@
   }
 }
 
-/* ── Full-viewport modal isolation ────────────────────────
-   While a full-screen backdrop is mounted, background navigation (including
-   the SPEEDWAY ADMIN sidebar) must be non-interactive so pointer hover/clicks
-   and keyboard focus cannot reach it. The backdrop itself stays interactive. */
-body:has(.app-modal-backdrop) .admin-sidebar,
-body:has(.app-modal-backdrop) nav,
-body:has(.app-modal-backdrop) aside {
-  pointer-events: none !important;
-}
-
 * {
   box-sizing: border-box;
   margin: 0;

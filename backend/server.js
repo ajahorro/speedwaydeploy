@@ -2711,8 +2711,31 @@ app.post('/api/bookings/add-service', async (req, res) => {
     if (servicePrice >= 1000 && (!hasPayment || Number(paymentAmount) < minimumDownpayment || Number(paymentAmount) > servicePrice)) return res.status(409).json({ success: false, error: `Payment must be at least ${minimumDownpayment.toLocaleString()} and no more than the service price.` });
     if (hasPayment && (!Number.isFinite(Number(paymentAmount)) || Number(paymentAmount) <= 0 || Number(paymentAmount) > servicePrice)) return res.status(400).json({ success: false, error: 'Invalid service payment amount.' });
 
-    const { error: serviceError } = await supabaseAdmin.from('booking_vehicle_services').insert({ booking_vehicle_id: vehicleId, service_name: serviceName, price: servicePrice });
-    if (serviceError) throw serviceError;
+    const snapshot = {
+      booking_vehicle_id: vehicleId,
+      service_name: serviceName,
+      price: servicePrice,
+      duration_minutes: Number(durationMinutes || 60),
+      vehicle_type: null,
+      service_snapshot: {
+        name: serviceName,
+        price: servicePrice,
+        duration_minutes: Number(durationMinutes || 60),
+        source: 'admin_add_service'
+      }
+    };
+
+    try {
+      const { error: serviceError } = await supabaseAdmin.from('booking_vehicle_services').insert(snapshot);
+      if (serviceError) throw serviceError;
+    } catch (serviceError) {
+      const { error: fallbackError } = await supabaseAdmin.from('booking_vehicle_services').insert({
+        booking_vehicle_id: vehicleId,
+        service_name: serviceName,
+        price: servicePrice
+      });
+      if (fallbackError) throw fallbackError;
+    }
     const end = new Date(new Date(booking.end_datetime).getTime() + Number(durationMinutes || 60) * 60000);
     const { error: bookingUpdateError } = await supabaseAdmin.from('bookings').update({ end_datetime: end.toISOString(), total_amount: Number(booking.total_amount || 0) + servicePrice }).eq('id', bookingId);
     if (bookingUpdateError) throw bookingUpdateError;

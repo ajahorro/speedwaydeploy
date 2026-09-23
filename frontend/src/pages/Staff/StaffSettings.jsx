@@ -99,12 +99,12 @@ const StaffSettings = () => {
           <div>
             <div style={{ fontWeight: '800', color: 'var(--admin-text-primary)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               {pushEnabled ? <Bell size={16} color="var(--admin-brand)" /> : <BellOff size={16} color="var(--admin-text-secondary)" />}
-              Job Assignment Alerts
+              Email alerts for notifications
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '600', marginTop: '0.25rem' }}>
               {pushEnabled
-                ? 'You will be alerted when a vehicle is assigned to you.'
-                : 'Assignment alerts are off. In-app notifications remain active.'}
+                ? 'In-app notifications stay enabled. Email alerts will be sent when assignment updates or status changes occur.'
+                : 'In-app notifications remain active. Email alerts are currently off.'}
             </div>
           </div>
           <div

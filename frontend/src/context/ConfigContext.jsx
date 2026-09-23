@@ -69,6 +69,9 @@ export const ConfigProvider = ({ children }) => {
         if (Array.isArray(data.custom_services)) {
           try {
             localStorage.setItem('speedway_custom_services', JSON.stringify(data.custom_services));
+            if (typeof window !== 'undefined') {
+              window.__speedway_custom_services_cache = data.custom_services;
+            }
           } catch { /* ignore quota / private-mode errors */ }
         }
         setSettings({
@@ -92,7 +95,7 @@ export const ConfigProvider = ({ children }) => {
           QR_CONFIG_COMPLETE: data.qr_config_complete === true,
           PAYMENT_ACCOUNT_NAME: data.qr_account_name || data.payment_account_name || data.gcash_name || 'SPEEDWAY STUDIO',
           PAYMENT_ACCOUNT_NUMBER: data.qr_account_number || data.payment_account_number || data.gcash_number || '0912 345 6789',
-          PAYMENT_QR_URL: data.payment_qr_url || data.gcash_qr_url || null,
+          PAYMENT_QR_URL: data.payment_qr_url || data.gcash_qr_url || data.qr_photo_url || null,
           loaded: true
         });
       } else {
