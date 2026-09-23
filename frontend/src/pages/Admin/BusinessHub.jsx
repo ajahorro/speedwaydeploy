@@ -9,9 +9,11 @@ import { supabase } from '../../lib/supabase';
 import PromoManager from '../../components/AdminSchedule/PromoManager';
 import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
 import { validateQrRecipients } from '../../services/qrSecurityService';
-import { sanitizeAlphaNum } from '../../config/constants';
+import { sanitizeAlphaNum, VEHICLE_TYPE_OPTIONS } from '../../config/constants';
+import { SERVICES_DATA } from '../../data/servicesCatalog';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
+import SegmentedTimePicker from '../../components/AdminSchedule/SegmentedTimePicker';
 import { BACKEND_URL } from '../../config/api';
 
 const TAB_KEYS = ['profile', 'hours', 'schedule', 'services', 'faqs', 'promos'];
@@ -20,12 +22,12 @@ const TAB_KEYS = ['profile', 'hours', 'schedule', 'services', 'faqs', 'promos'];
 const SECTION_FIELDS = {
   profile: [
     'business_name', 'contact_number', 'email_address', 'business_address',
-    // Task B: the four MANDATORY QR recipient fields.
-    'qr_account_name', 'qr_account_number', 'fallback_receiver_name', 'fallback_receiver_number',
+    // Task B: the four MANDATORY QR recipient fields plus the optional QR photo.
+    'qr_account_name', 'qr_account_number', 'fallback_receiver_name', 'fallback_receiver_number', 'payment_qr_url',
   ],
   hours: ['opening_hour', 'closing_hour', 'slots_per_hour', 'max_vehicles_per_staff'],
   schedule: ['booking_lead_time_minutes', 'max_advance_days', 'closed_weekdays', 'enforce_capacity'],
-  services: ['custom_services'],
+  services: ['custom_services', 'vehicle_types'],
   faqs: ['faqs']
 };
 
@@ -41,7 +43,104 @@ const WEEKDAYS = [
   { value: 6, short: 'Sat', long: 'Saturday' }
 ];
 
-const EMPTY_NEW_SERVICE = { name: '', price: '', description: '', durationMinutes: '60' };
+const DEFAULT_VEHICLE_TYPES = ['Sedan', 'SUV', 'Van/L300', 'Regular', 'Bigbike'];
+const VEHICLE_TYPE_CHOICES = DEFAULT_VEHICLE_TYPES;
+const DEFAULT_VEHICLE_CATEGORY_OPTIONS = VEHICLE_TYPE_OPTIONS.map((option) => ({
+  value: option.value,
+  label: option.label
+}));
+
+const normalizeVehicleCategoryKey = (value = '') => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+
+  const aliasMap = {
+    sedan: 'Sedan',
+    'sedan/hatchback': 'Sedan',
+    hatchback: 'Sedan',
+    suv: 'SUV',
+    'suv/crossover': 'SUV',
+    crossover: 'SUV',
+    'pickup/van': 'Van/L300',
+    pickup: 'Van/L300',
+    van: 'Van/L300',
+    'van/l300': 'Van/L300',
+    motorcycle: 'Regular',
+    'motorcycle regular': 'Regular',
+    regular: 'Regular',
+    bigbike: 'Bigbike'
+  };
+
+  const normalized = raw.toLowerCase().replace(/[_/\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return aliasMap[normalized] || raw;
+};
+
+const getVehicleTypeLabel = (value = '') => {
+  const normalized = normalizeVehicleCategoryKey(value);
+  const match = VEHICLE_TYPE_OPTIONS.find((option) => normalizeVehicleCategoryKey(option.value) === normalized);
+  return match ? match.label : normalized || 'Vehicle';
+};
+
+const flattenDefaultServices = () => {
+  const rows = [];
+  Object.values(SERVICES_DATA || {}).forEach((services) => {
+    (services || []).forEach((service) => {
+      const priceMap = service?.prices || {};
+      Object.entries(priceMap).forEach(([vehicleKey, price]) => {
+        const normalizedType = normalizeVehicleCategoryKey(vehicleKey);
+        rows.push({
+          id: `${service.id || service.name}-${normalizedType}`,
+          name: service.name,
+          description: service.desc || service.description || '',
+          price: Number(price || 0),
+          durationMinutes: Number(service.durationMinutes || 60),
+          vehicleType: normalizedType,
+          vehicle_type: normalizedType,
+          applicableVehicleTypes: [normalizedType],
+          vehicleTypes: [normalizedType],
+          is_active: true,
+          archived: false,
+          source: 'default'
+        });
+      });
+    });
+  });
+  return rows;
+};
+
+const mergeCatalogServices = (customServices = []) => {
+  const defaults = flattenDefaultServices();
+  const custom = Array.isArray(customServices) ? customServices.filter(Boolean) : [];
+  const merged = [...defaults, ...custom];
+  const unique = new Map();
+
+  merged.forEach((service) => {
+    const key = service.id || `${service.name}-${service.vehicleType || service.vehicle_type || 'default'}`;
+    unique.set(key, service);
+  });
+
+  return [...unique.values()];
+};
+
+const EMPTY_NEW_SERVICE = {
+  name: '',
+  price: '',
+  description: '',
+  durationMinutes: '60',
+  applicableVehicleTypes: ['Sedan'],
+  vehicleType: 'Sedan',
+  is_active: true
+};
+
+const createServiceDraft = (overrides = {}) => ({
+  id: overrides.id || (`draft_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+  collapsed: false,
+  ...EMPTY_NEW_SERVICE,
+  ...overrides,
+  applicableVehicleTypes: Array.isArray(overrides.applicableVehicleTypes) && overrides.applicableVehicleTypes.length
+    ? overrides.applicableVehicleTypes
+    : (overrides.vehicleType ? [overrides.vehicleType] : ['Sedan'])
+});
 
 // Tier 2.8: FAQ editor row seed. FAQs persist to business_config.faqs and render
 // on the public landing page in array order.
@@ -214,8 +313,24 @@ export default function BusinessHub() {
   const [message, setMessage] = useState({ type: '', text: '' });
 
   // Service catalog management state (Tab 3)
-  const [newService, setNewService] = useState(EMPTY_NEW_SERVICE);
-  const [editingServiceId, setEditingServiceId] = useState(null);
+  const [servicePanels, setServicePanels] = useState({ existing: false, add: false, vehicle: false });
+  const [selectedVehicleFilter, setSelectedVehicleFilter] = useState('All');
+  const [newServiceForm, setNewServiceForm] = useState({
+    targetVehicleCategory: 'Sedan',
+    name: '',
+    price: '',
+    duration: '60',
+    description: ''
+  });
+  const [vehicleCategoryForm, setVehicleCategoryForm] = useState({
+    name: '',
+    serviceName: '',
+    price: '',
+    duration: '60',
+    description: ''
+  });
+  const [editingService, setEditingService] = useState(null);
+  const [editingServiceForm, setEditingServiceForm] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   // Tier 2.8: FAQ catalog editor state (add / edit / delete / reorder).
   const [faqForm, setFaqForm] = useState(EMPTY_NEW_FAQ);
@@ -238,6 +353,7 @@ export default function BusinessHub() {
     qr_account_number: '',
     fallback_receiver_name: '',
     fallback_receiver_number: '',
+    payment_qr_url: '',
     qr_config_version: 1,
     qr_config_complete: false,
     slots_per_hour: 2,
@@ -247,6 +363,7 @@ export default function BusinessHub() {
     closed_weekdays: [],
     enforce_capacity: true,
     custom_services: [],
+    vehicle_types: [...DEFAULT_VEHICLE_TYPES],
     faqs: []
   });
   const [pristine, setPristine] = useState(null);
@@ -254,10 +371,43 @@ export default function BusinessHub() {
   // Task B: the QR change modal owns its own OTP flow. Saving the profile does
   // NOT commit QR changes — those go through the verified [Change QR] path only.
   const [showQrModal, setShowQrModal] = useState(false);
+  const [restrictionDate, setRestrictionDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [blockedSlots, setBlockedSlots] = useState([]);
+  const [restrictionForm, setRestrictionForm] = useState({
+    scope: 'day',
+    startDate: new Date().toISOString().slice(0, 10),
+    endDate: new Date().toISOString().slice(0, 10),
+    startTime: '08:00:00',
+    endTime: '17:00:00',
+    reason: ''
+  });
 
   useEffect(() => {
     fetchBusinessConfig();
   }, []);
+
+  useEffect(() => {
+    if (currentTab === 'schedule') {
+      fetchBlockedSlotsForDate(restrictionDate);
+    }
+  }, [currentTab, restrictionDate]);
+
+  const fetchBlockedSlotsForDate = async (dateValue) => {
+    if (!dateValue) return;
+    try {
+      const { data, error } = await supabase
+        .from('blocked_slots')
+        .select('*')
+        .eq('block_date', dateValue)
+        .order('start_time', { ascending: true, nullsFirst: true });
+
+      if (error) throw error;
+      setBlockedSlots(data || []);
+    } catch (err) {
+      console.error('Failed to load blocked slots:', err);
+      setBlockedSlots([]);
+    }
+  };
 
   const fetchBusinessConfig = async () => {
     try {
@@ -269,6 +419,8 @@ export default function BusinessHub() {
 
       if (error) throw error;
       if (data) {
+        const configuredServices = Array.isArray(data.custom_services) ? data.custom_services : [];
+        const mergedServices = configuredServices.length > 0 ? configuredServices : flattenDefaultServices();
         const merged = {
           business_name: data.business_name || '',
           contact_number: data.contact_number || '',
@@ -280,6 +432,7 @@ export default function BusinessHub() {
           qr_account_number: data.qr_account_number || '',
           fallback_receiver_name: data.fallback_receiver_name || '',
           fallback_receiver_number: data.fallback_receiver_number || '',
+          payment_qr_url: data.payment_qr_url || data.gcash_qr_url || data.qr_photo_url || '',
           qr_config_version: data.qr_config_version ?? 1,
           qr_config_complete: data.qr_config_complete === true,
           slots_per_hour: data.slots_per_hour ?? 2,
@@ -288,7 +441,10 @@ export default function BusinessHub() {
           max_advance_days: data.max_advance_days ?? 30,
           closed_weekdays: Array.isArray(data.closed_weekdays) ? data.closed_weekdays : [],
           enforce_capacity: data.enforce_capacity !== false,
-          custom_services: Array.isArray(data.custom_services) ? data.custom_services : [],
+          custom_services: mergedServices,
+          vehicle_types: Array.isArray(data.vehicle_types) && data.vehicle_types.length
+            ? data.vehicle_types
+            : [...DEFAULT_VEHICLE_TYPES],
           faqs: Array.isArray(data.faqs) ? data.faqs : []
         };
         setBusinessForm(merged);
@@ -312,8 +468,12 @@ export default function BusinessHub() {
   // zone and crash the whole page on first render.
 
   const handleTabChange = (tabKey) => {
-    // Guard the in-app navigation; only switch when the guard approves.
-    leaveGuard.confirmNavigation(() => setSearchParams({ tab: tabKey }));
+    const nextTab = () => setSearchParams({ tab: tabKey });
+    if (!anyDirty) {
+      nextTab();
+      return;
+    }
+    leaveGuard.confirmNavigation(nextTab);
   };
 
   const handleInputChange = (field, value) => {
@@ -323,7 +483,7 @@ export default function BusinessHub() {
       'business_name', 'contact_number', 'email_address', 'business_address',
       'qr_account_name', 'qr_account_number', 'fallback_receiver_name', 'fallback_receiver_number',
     ];
-    const nextValue = TEXT_FIELDS.includes(field) ? sanitizeAlphaNum(value) : value;
+    const nextValue = field === 'payment_qr_url' ? value : TEXT_FIELDS.includes(field) ? sanitizeAlphaNum(value) : value;
     setBusinessForm((prev) => ({ ...prev, [field]: nextValue }));
     setMessage((prev) => (prev.text ? { type: '', text: '' } : prev));
   };
@@ -385,8 +545,18 @@ export default function BusinessHub() {
       );
     }
     if (section === 'services') {
-      // Valid so long as no in-progress editor has a blank name.
-      return !(newService.name.trim() === '' && (newService.price !== '' || newService.description !== ''));
+      const draftError = serviceDrafts.some((draft) => {
+        const hasAnyEntry = draft.name.trim() || draft.price !== '' || draft.description.trim();
+        return hasAnyEntry && draft.name.trim() === '';
+      });
+
+      const customVehicleTypes = (businessForm.vehicle_types || []).filter((type) => !DEFAULT_VEHICLE_TYPES.includes(type));
+      const missingVehicleMappings = customVehicleTypes.filter((type) => {
+        const activeServices = (businessForm.custom_services || []).filter((service) => service && service.is_active !== false && service.archived !== true);
+        return !activeServices.some((service) => normalizeVehicleTypes(service).includes(type));
+      });
+
+      return !draftError && missingVehicleMappings.length === 0;
     }
     if (section === 'faqs') {
       // Valid so long as no in-progress FAQ editor has text but no question.
@@ -396,6 +566,87 @@ export default function BusinessHub() {
   };
 
   const canSave = (section) => !saving && isDirty(section) && sectionValid(section);
+
+  const handleCommitBlock = async () => {
+    const dateForBlock = restrictionForm.scope === 'range' ? restrictionForm.startDate : restrictionDate;
+    const payload = restrictionForm.scope === 'range'
+      ? {
+          start_date: restrictionForm.startDate,
+          end_date: restrictionForm.endDate,
+          start_time: null,
+          end_time: null,
+          reason: restrictionForm.reason || 'ADMIN BLOCK'
+        }
+      : restrictionForm.scope === 'window'
+        ? {
+            block_date: dateForBlock,
+            start_time: restrictionForm.startTime,
+            end_time: restrictionForm.endTime,
+            reason: restrictionForm.reason || 'TIME WINDOW RESTRICTION'
+          }
+        : {
+            block_date: dateForBlock,
+            start_time: null,
+            end_time: null,
+            reason: restrictionForm.reason || 'FULL DAY BLOCK'
+          };
+
+    if (restrictionForm.scope === 'range' && (!restrictionForm.startDate || !restrictionForm.endDate)) {
+      setMessage({ type: 'error', text: 'Please choose both start and end dates.' });
+      return;
+    }
+
+    if (restrictionForm.scope === 'range' && restrictionForm.startDate > restrictionForm.endDate) {
+      setMessage({ type: 'error', text: 'Start date cannot be after the end date.' });
+      return;
+    }
+
+    if (!window.confirm('Apply this restriction and immediately enforce it across the booking rules?')) return;
+
+    try {
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const res = await fetch(`${BACKEND_URL}/api/admin/blocked-slots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json().catch(() => ({}));
+
+      if (!res.ok || !result.success) {
+        const affected = (result.bookings || []).map((booking) => `#${String(booking.id).slice(0, 8).toUpperCase()}`).join(', ');
+        throw new Error(affected ? `${result.error} Affected bookings: ${affected}.` : (result.error || 'Failed to create restriction'));
+      }
+
+      setMessage({ type: 'success', text: 'Resource restriction saved and now enforced in the booking rules.' });
+      setRestrictionForm((prev) => ({ ...prev, reason: '', scope: prev.scope === 'range' ? 'day' : prev.scope }));
+      await fetchBlockedSlotsForDate(restrictionForm.scope === 'range' ? restrictionForm.startDate : restrictionDate);
+    } catch (err) {
+      console.error('Block create failed:', err);
+      setMessage({ type: 'error', text: err.message || 'Failed to create resource restriction.' });
+    }
+  };
+
+  const handleDeleteBlock = async (id) => {
+    if (!window.confirm('Lift this restriction and reopen the affected slot(s)?')) return;
+
+    try {
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const res = await fetch(`${BACKEND_URL}/api/admin/blocked-slots/${id}`, {
+        method: 'DELETE'
+      });
+      const result = await res.json().catch(() => ({}));
+
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || 'Failed to remove restriction');
+      }
+
+      setMessage({ type: 'success', text: 'Restriction lifted successfully.' });
+      await fetchBlockedSlotsForDate(restrictionDate);
+    } catch (err) {
+      console.error('Block delete failed:', err);
+      setMessage({ type: 'error', text: err.message || 'Failed to lift restriction.' });
+    }
+  };
 
   // Targeted update on the existing row ID. We deliberately never include
   // promo_rules here, so saving profile/hours/services can never clobber a
@@ -429,11 +680,14 @@ export default function BusinessHub() {
           business_address: businessForm.business_address,
           opening_hour: businessForm.opening_hour,
           closing_hour: businessForm.closing_hour,
-          // Task B: persist the four mandatory QR recipient fields.
+          // Task B: persist the four mandatory QR recipient fields and the optional QR image URL.
           qr_account_name: businessForm.qr_account_name,
           qr_account_number: businessForm.qr_account_number,
           fallback_receiver_name: businessForm.fallback_receiver_name,
           fallback_receiver_number: businessForm.fallback_receiver_number,
+          payment_qr_url: businessForm.payment_qr_url || '',
+          gcash_qr_url: businessForm.payment_qr_url || '',
+          qr_photo_url: businessForm.payment_qr_url || '',
           qr_config_complete: validateQrRecipients(businessForm).ok,
           slots_per_hour: Number(businessForm.slots_per_hour),
           max_vehicles_per_staff: Number(businessForm.max_vehicles_per_staff),
@@ -442,6 +696,7 @@ export default function BusinessHub() {
           closed_weekdays: businessForm.closed_weekdays || [],
           enforce_capacity: Boolean(businessForm.enforce_capacity),
           custom_services: businessForm.custom_services,
+          vehicle_types: businessForm.vehicle_types || [...DEFAULT_VEHICLE_TYPES],
           faqs: businessForm.faqs
         })
         .eq('id', id);
@@ -467,22 +722,117 @@ export default function BusinessHub() {
     try { localStorage.setItem('speedway_custom_services', JSON.stringify(next)); } catch { /* ignore quota errors */ }
   };
 
-  const addOrUpdateService = () => {
-    if (!newService.name.trim()) {
+  const normalizeVehicleTypes = (service) => {
+    const rawTypes = Array.isArray(service?.applicableVehicleTypes)
+      ? service.applicableVehicleTypes
+      : Array.isArray(service?.vehicleTypes)
+        ? service.vehicleTypes
+        : Array.isArray(service?.applicable_vehicles)
+          ? service.applicable_vehicles
+          : service?.vehicleType || service?.vehicle_type
+            ? [service.vehicleType || service.vehicle_type]
+            : ['Sedan'];
+
+    const available = new Set((businessForm.vehicle_types || [...DEFAULT_VEHICLE_TYPES]).concat(DEFAULT_VEHICLE_TYPES));
+    const normalized = rawTypes
+      .map((type) => normalizeVehicleCategoryKey(type))
+      .filter(Boolean)
+      .filter((type) => available.has(type) || available.has(normalizeVehicleCategoryKey(type)));
+
+    return [...new Set(normalized.map((type) => normalizeVehicleCategoryKey(type)))];
+  };
+
+  const getAvailableVehicleTypes = () => {
+    const values = [...new Set([...(businessForm.vehicle_types || [...DEFAULT_VEHICLE_TYPES]), ...DEFAULT_VEHICLE_TYPES])]
+      .map((type) => normalizeVehicleCategoryKey(type))
+      .filter(Boolean);
+
+    return values;
+  };
+
+  const getUnmappedVehicleTypes = () => {
+    const activeServices = (businessForm.custom_services || []).filter((service) => service && service.is_active !== false && service.archived !== true);
+    return (businessForm.vehicle_types || [])
+      .filter((type) => !DEFAULT_VEHICLE_TYPES.includes(type))
+      .filter((type) => !activeServices.some((service) => normalizeVehicleTypes(service).includes(type)));
+  };
+
+  const addVehicleType = () => {
+    const cleaned = String(newVehicleType || '').trim();
+    if (!cleaned) return;
+
+    const normalized = cleaned.replace(/\s+/g, ' ');
+    const exists = (businessForm.vehicle_types || []).includes(normalized);
+    if (exists || DEFAULT_VEHICLE_TYPES.includes(normalized)) {
+      setNewVehicleType('');
+      return;
+    }
+
+    const next = [...(businessForm.vehicle_types || [...DEFAULT_VEHICLE_TYPES]), normalized];
+    setBusinessForm((prev) => ({ ...prev, vehicle_types: next }));
+    setNewVehicleType('');
+
+    const missing = getUnmappedVehicleTypes();
+    if (missing.length > 0) {
+      setMessage({ type: 'error', text: `Please configure at least one service for ${missing[0]} before saving.` });
+    }
+  };
+
+  const removeVehicleType = (vehicleType) => {
+    if (DEFAULT_VEHICLE_TYPES.includes(vehicleType)) return;
+    setBusinessForm((prev) => ({
+      ...prev,
+      vehicle_types: (prev.vehicle_types || []).filter((type) => type !== vehicleType),
+      custom_services: (prev.custom_services || []).map((service) => ({
+        ...service,
+        applicableVehicleTypes: (service.applicableVehicleTypes || []).filter((type) => type !== vehicleType),
+        vehicleTypes: (service.vehicleTypes || []).filter((type) => type !== vehicleType)
+      }))
+    }));
+  };
+
+  const toggleVehicleTypeSelection = (vehicleType) => {
+    setNewService((prev) => {
+      const current = Array.isArray(prev.applicableVehicleTypes) ? prev.applicableVehicleTypes : [];
+      const next = current.includes(vehicleType)
+        ? current.filter((type) => type !== vehicleType)
+        : [...current, vehicleType];
+      return {
+        ...prev,
+        applicableVehicleTypes: next.length ? next : ['Sedan'],
+        vehicleType: next.length ? next[0] : 'Sedan'
+      };
+    });
+  };
+
+  const addOrUpdateService = (draftId = null) => {
+    const draft = draftId ? serviceDrafts.find((item) => item.id === draftId) : newService;
+    if (!draft) return;
+    if (!draft.name.trim()) {
       setMessage({ type: 'error', text: 'Service name is required.' });
       return;
     }
-    if (newService.price === '' || Number(newService.price) < 0) {
+    if (!Array.isArray(draft.applicableVehicleTypes) || draft.applicableVehicleTypes.length === 0) {
+      setMessage({ type: 'error', text: 'Select at least one applicable vehicle type.' });
+      return;
+    }
+    if (draft.price === '' || Number(draft.price) < 0) {
       setMessage({ type: 'error', text: 'Enter a valid service price.' });
       return;
     }
 
+    const vehicleTypes = normalizeVehicleTypes({ applicableVehicleTypes: draft.applicableVehicleTypes });
     const item = {
-      id: editingServiceId || `custom_${Date.now()}`,
-      name: newService.name.trim(),
-      price: Number(newService.price) || 0,
-      description: newService.description.trim() || 'Admin-added service',
-      durationMinutes: Number(newService.durationMinutes) || 60,
+      id: draft.id.startsWith('draft_') ? `custom_${Date.now()}` : (editingServiceId || draft.id || `custom_${Date.now()}`),
+      name: draft.name.trim(),
+      price: Number(draft.price) || 0,
+      description: draft.description.trim() || 'Admin-added service',
+      durationMinutes: Number(draft.durationMinutes) || 60,
+      applicableVehicleTypes: vehicleTypes,
+      vehicleTypes: vehicleTypes,
+      vehicleType: vehicleTypes[0] || 'Sedan',
+      vehicle_type: vehicleTypes[0] || 'Sedan',
+      is_active: true,
       archived: false,
       updatedAt: new Date().toISOString()
     };
@@ -492,24 +842,35 @@ export default function BusinessHub() {
       : [...businessForm.custom_services, item];
 
     persistCustomServices(next);
-    setNewService(EMPTY_NEW_SERVICE);
+    setServiceDrafts((prev) => prev.filter((entry) => entry.id !== draftId));
+    if (!draftId) {
+      setNewService(EMPTY_NEW_SERVICE);
+    }
     setEditingServiceId(null);
     setMessage({ type: 'success', text: `${editingServiceId ? 'Service updated' : 'Service added'}. Remember to save changes.` });
   };
 
   const editService = (service) => {
-    setEditingServiceId(service.id);
-    setNewService({
+    const vehicleTypes = normalizeVehicleTypes(service);
+    const draft = createServiceDraft({
+      id: `draft_edit_${service.id}`,
       name: service.name || '',
       price: String(service.price ?? ''),
       description: service.description || '',
-      durationMinutes: String(service.durationMinutes || 60)
+      durationMinutes: String(service.durationMinutes || 60),
+      applicableVehicleTypes: vehicleTypes.length ? vehicleTypes : ['Sedan'],
+      vehicleType: vehicleTypes[0] || 'Sedan',
+      is_active: service.is_active !== false && service.archived !== true,
+      collapsed: false
     });
+    setEditingServiceId(service.id);
+    setServiceDrafts((prev) => [...prev, draft]);
+    setNewService({ ...draft });
   };
 
   const archiveService = (id) => {
     const next = businessForm.custom_services.map((s) =>
-      s.id === id ? { ...s, archived: true, archivedAt: new Date().toISOString() } : s
+      s.id === id ? { ...s, archived: true, is_active: false, archivedAt: new Date().toISOString() } : s
     );
     persistCustomServices(next);
     setMessage({ type: 'success', text: 'Service archived. Historical bookings are preserved.' });
@@ -551,7 +912,7 @@ export default function BusinessHub() {
 
     if (inUse) {
       const next = businessForm.custom_services.map((s) =>
-        s.id === service.id ? { ...s, archived: true, archivedAt: new Date().toISOString() } : s
+        s.id === service.id ? { ...s, archived: true, is_active: false, archivedAt: new Date().toISOString() } : s
       );
       persistCustomServices(next);
       setMessage({
@@ -572,7 +933,7 @@ export default function BusinessHub() {
 
   const restoreService = (id) => {
     const next = businessForm.custom_services.map((s) =>
-      s.id === id ? { ...s, archived: false } : s
+      s.id === id ? { ...s, archived: false, is_active: true } : s
     );
     persistCustomServices(next);
     setMessage({ type: 'success', text: 'Service restored.' });
@@ -632,14 +993,247 @@ export default function BusinessHub() {
     setMessage({ type: 'success', text: 'FAQ order updated. Remember to save changes.' });
   };
 
-  const activeServices = useMemo(
-    () => businessForm.custom_services.filter((s) => !s.archived),
+  const allLoadedServices = useMemo(
+    () => mergeCatalogServices(businessForm.custom_services || []),
     [businessForm.custom_services]
   );
-  const archivedServices = useMemo(
-    () => businessForm.custom_services.filter((s) => s.archived),
-    [businessForm.custom_services]
-  );
+
+  const activeServices = useMemo(() => {
+    const services = selectedVehicleFilter === 'All'
+      ? allLoadedServices
+      : allLoadedServices.filter((service) => {
+          const serviceTypes = normalizeVehicleTypes(service).map((type) => normalizeVehicleCategoryKey(type));
+          return serviceTypes.includes(normalizeVehicleCategoryKey(selectedVehicleFilter));
+        });
+    return services.filter((s) => s.is_active !== false && s.archived !== true);
+  }, [allLoadedServices, selectedVehicleFilter]);
+
+  const addServiceDraft = () => {
+    setServiceDrafts((prev) => [...prev, createServiceDraft()]);
+  };
+
+  const updateDraftField = (draftId, field, value) => {
+    setServiceDrafts((prev) => prev.map((draft) => draft.id === draftId ? { ...draft, [field]: value } : draft));
+    if (draftId === 'new' || !draftId) {
+      setNewService((prev) => ({ ...prev, [field]: value }));
+    }
+  };
+
+  const toggleDraftCollapsed = (draftId) => {
+    setServiceDrafts((prev) => prev.map((draft) => draft.id === draftId ? { ...draft, collapsed: !draft.collapsed } : draft));
+  };
+
+  const removeDraft = (draftId) => {
+    setServiceDrafts((prev) => prev.filter((draft) => draft.id !== draftId));
+    if (editingServiceId && draftId === `draft_edit_${editingServiceId}`) {
+      setEditingServiceId(null);
+      setNewService(EMPTY_NEW_SERVICE);
+    }
+  };
+  const archivedServices = useMemo(() => {
+    const services = selectedVehicleFilter === 'All'
+      ? allLoadedServices
+      : allLoadedServices.filter((service) => {
+          const serviceTypes = normalizeVehicleTypes(service).map((type) => normalizeVehicleCategoryKey(type));
+          return serviceTypes.includes(normalizeVehicleCategoryKey(selectedVehicleFilter));
+        });
+    return services.filter((s) => s.is_active === false || s.archived === true);
+  }, [allLoadedServices, selectedVehicleFilter]);
+
+  const toggleServicePanel = (panelKey) => {
+    setServicePanels((prev) => ({ ...prev, [panelKey]: !prev[panelKey] }));
+  };
+
+  const filteredServices = useMemo(() => {
+    const services = mergeCatalogServices(businessForm.custom_services || []);
+    if (selectedVehicleFilter === 'All') return services;
+    const targetKey = normalizeVehicleCategoryKey(selectedVehicleFilter);
+    return services.filter((service) => {
+      const serviceTypes = normalizeVehicleTypes(service).map((type) => normalizeVehicleCategoryKey(type));
+      return serviceTypes.includes(targetKey);
+    });
+  }, [businessForm.custom_services, selectedVehicleFilter]);
+
+  const saveCatalogState = async (nextCustomServices, nextVehicleTypes, successText) => {
+    try {
+      let id = recordId;
+      if (!id) {
+        const { data: existing, error: fetchError } = await supabase
+          .from('business_config')
+          .select('id')
+          .maybeSingle();
+        if (fetchError) throw fetchError;
+        if (!existing?.id) throw new Error('No business configuration row found to update.');
+        id = existing.id;
+        setRecordId(id);
+      }
+
+      const normalizedVehicleTypes = (nextVehicleTypes && nextVehicleTypes.length ? nextVehicleTypes : [...DEFAULT_VEHICLE_TYPES]).filter(Boolean);
+      const payload = {
+        custom_services: nextCustomServices || [],
+        vehicle_types: normalizedVehicleTypes
+      };
+
+      const { error } = await supabase
+        .from('business_config')
+        .update(payload)
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setBusinessForm((prev) => ({
+        ...prev,
+        custom_services: payload.custom_services,
+        vehicle_types: payload.vehicle_types
+      }));
+      setPristine({
+        ...businessForm,
+        custom_services: payload.custom_services,
+        vehicle_types: payload.vehicle_types
+      });
+      await refreshConfig();
+      setMessage({ type: 'success', text: successText });
+    } catch (err) {
+      console.error('Catalog save failed:', err);
+      setMessage({ type: 'error', text: err.message || 'Failed to save service catalog changes.' });
+    }
+  };
+
+  const handlePublishService = async () => {
+    const name = newServiceForm.name.trim();
+    const price = Number(newServiceForm.price);
+    const duration = Number(newServiceForm.duration);
+
+    if (!name) {
+      setMessage({ type: 'error', text: 'Service name is required.' });
+      return;
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      setMessage({ type: 'error', text: 'Please enter a valid service price.' });
+      return;
+    }
+    if (!Number.isFinite(duration) || duration <= 0) {
+      setMessage({ type: 'error', text: 'Estimated duration must be greater than zero.' });
+      return;
+    }
+
+    const nextService = {
+      id: `custom_${Date.now()}`,
+      name,
+      price,
+      description: newServiceForm.description.trim() || 'Custom service added by the admin.',
+      durationMinutes: duration,
+      applicableVehicleTypes: [newServiceForm.targetVehicleCategory],
+      vehicleTypes: [newServiceForm.targetVehicleCategory],
+      vehicleType: newServiceForm.targetVehicleCategory,
+      vehicle_type: newServiceForm.targetVehicleCategory,
+      is_active: true,
+      archived: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    await saveCatalogState([...businessForm.custom_services, nextService], businessForm.vehicle_types, 'Service published successfully!');
+    setNewServiceForm({ targetVehicleCategory: newServiceForm.targetVehicleCategory, name: '', price: '', duration: '60', description: '' });
+    setServicePanels((prev) => ({ ...prev, add: false }));
+  };
+
+  const handleEditService = async () => {
+    if (!editingService || !editingServiceForm) return;
+
+    const name = editingServiceForm.name.trim();
+    const price = Number(editingServiceForm.price);
+    const duration = Number(editingServiceForm.duration);
+
+    if (!name) {
+      setMessage({ type: 'error', text: 'Service name is required.' });
+      return;
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      setMessage({ type: 'error', text: 'Price must be valid.' });
+      return;
+    }
+    if (!Number.isFinite(duration) || duration <= 0) {
+      setMessage({ type: 'error', text: 'Duration must be greater than zero.' });
+      return;
+    }
+
+    const nextServices = (businessForm.custom_services || []).map((service) =>
+      service.id === editingService.id
+        ? {
+            ...service,
+            name,
+            price,
+            description: editingServiceForm.description.trim() || 'Custom service updated by the admin.',
+            durationMinutes: duration,
+            applicableVehicleTypes: normalizeVehicleTypes({ applicableVehicleTypes: [service.vehicleType || service.vehicle_type || 'Sedan'] }),
+            vehicleTypes: normalizeVehicleTypes({ applicableVehicleTypes: [service.vehicleType || service.vehicle_type || 'Sedan'] }),
+            vehicleType: service.vehicleType || service.vehicle_type || 'Sedan',
+            vehicle_type: service.vehicleType || service.vehicle_type || 'Sedan',
+            updatedAt: new Date().toISOString(),
+            is_active: service.is_active !== false && service.archived !== true,
+            archived: false
+          }
+        : service
+    );
+
+    await saveCatalogState(nextServices, businessForm.vehicle_types, 'Service updated successfully!');
+    setEditingService(null);
+    setEditingServiceForm(null);
+  };
+
+  const handleArchiveRestoreService = async (service) => {
+    const isArchived = service.is_active === false || service.archived === true;
+    const nextServices = (businessForm.custom_services || []).map((entry) =>
+      entry.id === service.id
+        ? {
+            ...entry,
+            archived: !isArchived,
+            is_active: isArchived,
+            updatedAt: new Date().toISOString()
+          }
+        : entry
+    );
+
+    await saveCatalogState(nextServices, businessForm.vehicle_types, isArchived ? 'Service restored successfully!' : 'Service archived successfully!');
+  };
+
+  const isVehicleCategoryValid = () => {
+    const categoryName = vehicleCategoryForm.name.trim();
+    const serviceName = vehicleCategoryForm.serviceName.trim();
+    const price = Number(vehicleCategoryForm.price);
+    const duration = Number(vehicleCategoryForm.duration);
+    return Boolean(categoryName) && Boolean(serviceName) && Number.isFinite(price) && price >= 0 && Number.isFinite(duration) && duration > 0;
+  };
+
+  const handleAddVehicleCategory = async () => {
+    if (!isVehicleCategoryValid()) {
+      setMessage({ type: 'error', text: 'Complete the vehicle category name and all initial service fields before saving.' });
+      return;
+    }
+
+    const categoryName = vehicleCategoryForm.name.trim();
+    const nextVehicleTypes = [...new Set([...(businessForm.vehicle_types || [...DEFAULT_VEHICLE_TYPES]), categoryName])];
+    const initialService = {
+      id: `custom_${Date.now()}`,
+      name: vehicleCategoryForm.serviceName.trim(),
+      price: Number(vehicleCategoryForm.price) || 0,
+      description: vehicleCategoryForm.description.trim() || 'Initial service for the new vehicle category.',
+      durationMinutes: Number(vehicleCategoryForm.duration) || 60,
+      applicableVehicleTypes: [categoryName],
+      vehicleTypes: [categoryName],
+      vehicleType: categoryName,
+      vehicle_type: categoryName,
+      is_active: true,
+      archived: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    await saveCatalogState([...businessForm.custom_services, initialService], nextVehicleTypes, 'Vehicle category and service added successfully.');
+    setVehicleCategoryForm({ name: '', serviceName: '', price: '', duration: '60', description: '' });
+    setServicePanels((prev) => ({ ...prev, vehicle: false }));
+  };
 
   const tabs = [
     { id: 'profile', label: 'Business Profile', icon: Building },
@@ -684,6 +1278,24 @@ export default function BusinessHub() {
                 key={tab.id}
                 type="button"
                 onClick={() => handleTabChange(tab.id)}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.color = 'var(--admin-text-primary)';
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = isActive ? 'var(--admin-brand)' : 'var(--admin-text-secondary)';
+                  e.currentTarget.style.background = 'transparent';
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.color = 'var(--admin-text-primary)';
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.color = isActive ? 'var(--admin-brand)' : 'var(--admin-text-secondary)';
+                  e.currentTarget.style.background = 'transparent';
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -699,7 +1311,11 @@ export default function BusinessHub() {
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                   cursor: 'pointer',
-                  transition: 'color 0.2s, border-color 0.2s'
+                  pointerEvents: 'auto',
+                  position: 'relative',
+                  zIndex: 1,
+                  transition: 'color 0.2s ease, background 0.2s ease, border-color 0.2s ease, transform 0.2s ease',
+                  transform: 'translateY(0)'
                 }}
               >
                 <Icon size={15} strokeWidth={2.25} />
@@ -812,6 +1428,15 @@ export default function BusinessHub() {
                   placeholder="Fallback recipient number"
                 />
               </Field>
+              <Field label="QR Photo URL">
+                <input
+                  type="url"
+                  value={businessForm.payment_qr_url || ''}
+                  onChange={(e) => handleInputChange('payment_qr_url', e.target.value)}
+                  style={inputStyle}
+                  placeholder="https://example.com/qr-code.png"
+                />
+              </Field>
             </div>
 
             {/* Task B: all four fields are mandatory. Show the exact gaps
@@ -910,275 +1535,621 @@ export default function BusinessHub() {
         {/* Tab 3: Schedule Rules (Batch 6 — booking restrictions) */}
         {currentTab === 'schedule' && (
           <form onSubmit={handleSaveSection} style={cardStyle}>
-            <SectionHeading>Booking Window &amp; Lead Time</SectionHeading>
-            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: 600, lineHeight: 1.6 }}>
-              These rules are enforced on the customer calendar and again on the server before any booking is created.
-            </p>
-            <div style={gridStyle}>
-              <Field label="Minimum Lead Time (minutes)" required>
-                <input
-                  type="number"
-                  min="0"
-                  max="43200"
-                  step="15"
-                  value={businessForm.booking_lead_time_minutes}
-                  onChange={(e) => handleInputChange('booking_lead_time_minutes', e.target.value)}
-                  style={inputStyle}
-                />
-              </Field>
-              <Field label="Max Advance Booking Window (days)" required>
-                <input
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={businessForm.max_advance_days}
-                  onChange={(e) => handleInputChange('max_advance_days', e.target.value)}
-                  style={inputStyle}
-                />
-              </Field>
-            </div>
-
-            <SectionHeading style={{ paddingTop: '0.5rem' }}>Closed Days</SectionHeading>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }} role="group" aria-label="Closed weekdays">
-              {WEEKDAYS.map((day) => {
-                const isClosed = (businessForm.closed_weekdays || []).includes(day.value);
-                return (
-                  <button
-                    key={day.value}
-                    type="button"
-                    onClick={() => toggleClosedWeekday(day.value)}
-                    aria-pressed={isClosed}
-                    title={isClosed ? `${day.long} — closed` : `${day.long} — open`}
-                    style={{
-                      minWidth: '64px',
-                      padding: '0.6rem 0.85rem',
-                      borderRadius: 'var(--admin-radius-sm)',
-                      background: isClosed ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-input-bg, var(--admin-bg))',
-                      border: `1px solid ${isClosed ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
-                      color: isClosed ? 'var(--admin-brand)' : 'var(--admin-text-primary)',
-                      fontSize: '0.72rem',
-                      fontWeight: 900,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    {day.short}
-                  </button>
-                );
-              })}
-            </div>
-            <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--admin-text-secondary)', fontWeight: 700 }}>
-              Tap a day to toggle the shop closed. Closed days are greyed out on the customer calendar.
-            </p>
-
-            <SectionHeading style={{ paddingTop: '0.5rem' }}>Capacity Enforcement</SectionHeading>
-            <button
-              type="button"
-              onClick={() => handleInputChange('enforce_capacity', !businessForm.enforce_capacity)}
-              aria-pressed={Boolean(businessForm.enforce_capacity)}
-              style={{
-                ...insetPanelStyle,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '1rem',
-                cursor: 'pointer',
-                textAlign: 'left',
-                width: '100%'
-              }}
-            >
-              <span style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 950, color: 'var(--admin-text-primary)' }}>
-                  Enforce slot capacity
-                </span>
-                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
-                  When ON, slots respect the "Slots Per Hour" and "Max Vehicles Per Staff" limits. When OFF, capacity checks are skipped.
-                </span>
-              </span>
-              <span
-                aria-hidden="true"
+            <div style={{ display: 'grid', gap: '1.25rem' }}>
+              <div
                 style={{
-                  flexShrink: 0,
-                  width: '48px',
-                  height: '26px',
-                  borderRadius: '999px',
-                  background: businessForm.enforce_capacity ? 'var(--admin-brand)' : 'var(--admin-border)',
-                  position: 'relative',
-                  transition: 'background 0.2s'
+                  border: '1px solid var(--admin-border)',
+                  borderRadius: 'var(--admin-radius)',
+                  background: 'var(--admin-card)',
+                  padding: '1.2rem 1.25rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem'
                 }}
               >
-                <span style={{
-                  position: 'absolute',
-                  top: '3px',
-                  left: businessForm.enforce_capacity ? '25px' : '3px',
-                  width: '20px',
-                  height: '20px',
-                  borderRadius: '50%',
-                  background: '#fff',
-                  transition: 'left 0.2s'
-                }} />
-              </span>
-            </button>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: 'var(--admin-text-primary)' }}>
+                    General Schedule Rules
+                  </h2>
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.74rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                    Manage shop lead times and weekly closed days.
+                  </p>
+                </div>
 
-            {!sectionValid('schedule') && (
-              <Hint>Lead time must be 0–43,200 minutes and the advance window 1–365 days.</Hint>
-            )}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                  <Field label="Minimum Advance Notice" required>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="43200"
+                        step="15"
+                        value={businessForm.booking_lead_time_minutes}
+                        onChange={(e) => handleInputChange('booking_lead_time_minutes', e.target.value)}
+                        style={{ ...inputStyle, flex: 1, minWidth: '120px' }}
+                      />
+                      <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: 700 }}>minutes</span>
+                    </div>
+                    <p style={{ margin: '0.38rem 0 0', fontSize: '0.68rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                      How much notice do you need before a customer arrives? (e.g., 120 mins = 2 hours notice required).
+                    </p>
+                  </Field>
 
-            <SaveBar
-              canSave={canSave('schedule')}
-              saving={saving}
-              dirty={isDirty('schedule')}
-              label="Save Schedule Rules"
-            />
+                  <Field label="Maximum Advance Booking Limit" required>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={businessForm.max_advance_days}
+                        onChange={(e) => handleInputChange('max_advance_days', e.target.value)}
+                        style={{ ...inputStyle, flex: 1, minWidth: '120px' }}
+                      />
+                      <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: 700 }}>days</span>
+                    </div>
+                    <p style={{ margin: '0.38rem 0 0', fontSize: '0.68rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                      How far into the future can customers schedule appointments? (e.g., 30 = up to 30 days ahead).
+                    </p>
+                  </Field>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+                  <div style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--admin-text-primary)' }}>
+                    Regular Weekly Schedule
+                  </div>
+                  <p style={{ margin: '0.2rem 0 0', fontSize: '0.7rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                    Select which days your shop is open for customer appointments.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem', width: '100%' }}>
+                    {WEEKDAYS.map((day) => {
+                      const isClosed = (businessForm.closed_weekdays || []).includes(day.value);
+                      const statusText = isClosed ? 'Closed' : 'Open';
+                      return (
+                        <button
+                          key={day.value}
+                          type="button"
+                          onClick={() => toggleClosedWeekday(day.value)}
+                          aria-pressed={isClosed}
+                          title={`${day.long} — ${statusText}`}
+                          style={{
+                            borderRadius: '0.75rem',
+                            border: `1px solid ${isClosed ? 'rgba(244, 63, 94, 0.35)' : 'rgba(148, 163, 184, 0.28)'}`,
+                            background: isClosed ? 'rgba(244, 63, 94, 0.09)' : 'rgba(15, 23, 42, 0.8)',
+                            color: 'var(--admin-text-primary)',
+                            padding: '0.7rem 0.45rem',
+                            textAlign: 'center',
+                            transition: 'all 0.2s ease',
+                            cursor: 'pointer',
+                            boxShadow: 'none',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            minHeight: '74px'
+                          }}
+                        >
+                          <span style={{ fontSize: '0.72rem', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                            {day.short}
+                          </span>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '0.2rem 0.55rem',
+                              borderRadius: '999px',
+                              fontSize: '0.62rem',
+                              fontWeight: 800,
+                              letterSpacing: '0.04em',
+                              textTransform: 'uppercase',
+                              border: `1px solid ${isClosed ? 'rgba(244, 63, 94, 0.3)' : 'rgba(16, 185, 129, 0.35)'}`,
+                              background: isClosed ? 'rgba(244, 63, 94, 0.12)' : 'rgba(16, 185, 129, 0.10)',
+                              color: isClosed ? '#fda4af' : '#a7f3d0'
+                            }}
+                          >
+                            {statusText}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {!sectionValid('schedule') && (
+                  <Hint>Lead time must be 0–43,200 minutes and the advance window 1–365 days.</Hint>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.8rem', marginTop: '0.1rem', borderTop: '1px solid var(--admin-border)' }}>
+                  <SaveBar
+                    canSave={canSave('schedule')}
+                    saving={saving}
+                    dirty={isDirty('schedule')}
+                    label="Save Schedule Rules"
+                  />
+                </div>
+              </div>
+
+              <div
+                style={{
+                  border: '1px solid var(--admin-border)',
+                  borderRadius: 'var(--admin-radius)',
+                  background: 'var(--admin-card)',
+                  padding: '1.2rem 1.25rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem'
+                }}
+              >
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, color: 'var(--admin-text-primary)' }}>
+                    Holidays &amp; Special Shop Closures
+                  </h3>
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.74rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                    Set one-off closures for holidays, staff training, or shop maintenance.
+                  </p>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                  <div>
+                    <label style={labelStyle}>Select Date</label>
+                    <input
+                      type="date"
+                      value={restrictionDate}
+                      onChange={(e) => setRestrictionDate(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Closure Type</label>
+                    <select
+                      value={restrictionForm.scope}
+                      onChange={(e) => setRestrictionForm((prev) => ({ ...prev, scope: e.target.value }))}
+                      style={inputStyle}
+                    >
+                      <option value="day">Close Entire Day</option>
+                      <option value="window">Block Specific Hours</option>
+                      <option value="range">Close Multiple Days</option>
+                    </select>
+                  </div>
+
+                  {restrictionForm.scope === 'range' && (
+                    <>
+                      <div>
+                        <label style={labelStyle}>Start Date</label>
+                        <input
+                          type="date"
+                          value={restrictionForm.startDate}
+                          onChange={(e) => setRestrictionForm((prev) => ({ ...prev, startDate: e.target.value }))}
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>End Date</label>
+                        <input
+                          type="date"
+                          value={restrictionForm.endDate}
+                          onChange={(e) => setRestrictionForm((prev) => ({ ...prev, endDate: e.target.value }))}
+                          style={inputStyle}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {restrictionForm.scope === 'window' && (
+                    <>
+                      <div>
+                        <label style={labelStyle}>Start Time</label>
+                        <SegmentedTimePicker
+                          value={restrictionForm.startTime}
+                          onChange={(value) => setRestrictionForm((prev) => ({ ...prev, startTime: value }))}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>End Time</label>
+                        <SegmentedTimePicker
+                          value={restrictionForm.endTime}
+                          onChange={(value) => setRestrictionForm((prev) => ({ ...prev, endTime: value }))}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={labelStyle}>Reason</label>
+                    <input
+                      type="text"
+                      value={restrictionForm.reason}
+                      onChange={(e) => setRestrictionForm((prev) => ({ ...prev, reason: e.target.value }))}
+                      placeholder="e.g., Holiday, Staff Training"
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={handleCommitBlock}
+                    style={{
+                      ...buttonBase,
+                      background: 'var(--admin-brand)',
+                      color: '#fff',
+                      border: '1px solid var(--admin-brand)',
+                      cursor: 'pointer',
+                      minWidth: '180px'
+                    }}
+                  >
+                    + Add Shop Closure
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingTop: '0.7rem', borderTop: '1px solid var(--admin-border)' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 900, color: 'var(--admin-text-secondary)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                    Active Closures for {restrictionDate}
+                  </div>
+
+                  {blockedSlots.length === 0 ? (
+                    <div style={{ fontSize: '0.78rem', color: 'var(--admin-text-secondary)', padding: '0.25rem 0' }}>
+                      No active closures for this date.
+                    </div>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0 0 0.55rem', borderBottom: '1px solid var(--admin-border)' }}>Date</th>
+                            <th style={{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0 0 0.55rem', borderBottom: '1px solid var(--admin-border)' }}>Type</th>
+                            <th style={{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0 0 0.55rem', borderBottom: '1px solid var(--admin-border)' }}>Reason</th>
+                            <th style={{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'right', padding: '0 0 0.55rem', borderBottom: '1px solid var(--admin-border)' }}>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {blockedSlots.map((block) => (
+                            <tr key={block.id}>
+                              <td style={{ fontSize: '0.76rem', color: 'var(--admin-text-primary)', fontWeight: 800, padding: '0.7rem 0.4rem 0.7rem 0', borderBottom: '1px solid var(--admin-border)' }}>{restrictionDate}</td>
+                              <td style={{ fontSize: '0.76rem', color: 'var(--admin-text-primary)', fontWeight: 700, padding: '0.7rem 0.4rem 0.7rem 0', borderBottom: '1px solid var(--admin-border)' }}>{block.start_time && block.end_time ? 'Specific Hours' : 'Entire Day'}</td>
+                              <td style={{ fontSize: '0.76rem', color: 'var(--admin-text-secondary)', fontWeight: 700, padding: '0.7rem 0.4rem 0.7rem 0', borderBottom: '1px solid var(--admin-border)' }}>{block.reason || 'Shop closure'}</td>
+                              <td style={{ padding: '0.7rem 0 0.7rem 0.4rem', borderBottom: '1px solid var(--admin-border)', textAlign: 'right' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteBlock(block.id)}
+                                  style={{ ...ghostButton, borderColor: 'var(--admin-brand)', color: 'var(--admin-brand)', background: 'rgba(var(--admin-brand-rgb, 230,30,42), 0.04)', justifyContent: 'center' }}
+                                >
+                                  Remove
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </form>
         )}
 
         {/* Tab 3: Service Catalog Configuration */}
         {currentTab === 'services' && (
-          <form onSubmit={handleSaveSection} style={cardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.75rem', gap: '1rem', flexWrap: 'wrap' }}>
-              <h2 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 950, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                Custom Service Catalog
-              </h2>
-              <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--admin-text-secondary)' }}>
-                {activeServices.length} active &middot; {archivedServices.length} archived
-              </span>
-            </div>
-            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: 600, lineHeight: 1.6 }}>
-              Add, edit, or archive custom services. These appear to customers alongside the standard catalog. Changes are committed to the database when you save.
-            </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {editingService && editingServiceForm && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '1rem' }}>
+                <div style={{ width: '100%', maxWidth: '560px', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', boxShadow: 'var(--modal-shadow)', padding: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem' }}>
+                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900, color: 'var(--admin-text-primary)' }}>Edit Service</h3>
+                    <button type="button" onClick={() => { setEditingService(null); setEditingServiceForm(null); }} style={{ border: 'none', background: 'transparent', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}>
+                      <X size={18} />
+                    </button>
+                  </div>
 
-            {/* Add / edit service row */}
-            <div style={{ ...insetPanelStyle, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
-                <input
-                  type="text"
-                  placeholder="Service name"
-                  value={newService.name}
-                  onChange={(e) => setNewService({ ...newService, name: e.target.value })}
-                  style={inputStyle}
-                />
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="Price (₱)"
-                  value={newService.price}
-                  onChange={(e) => setNewService({ ...newService, price: e.target.value })}
-                  style={inputStyle}
-                />
-                <input
-                  type="number"
-                  min="15"
-                  step="15"
-                  placeholder="Minutes"
-                  value={newService.durationMinutes}
-                  onChange={(e) => setNewService({ ...newService, durationMinutes: e.target.value })}
-                  style={inputStyle}
-                />
-                <button
-                  type="button"
-                  onClick={addOrUpdateService}
-                  style={{ ...buttonBase, background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: '1px solid var(--admin-brand)' }}
-                >
-                  {editingServiceId ? 'Update Service' : (<><Plus size={15} /> Add Service</>)}
-                </button>
-              </div>
-              <input
-                type="text"
-                placeholder="Service description (optional)"
-                value={newService.description}
-                onChange={(e) => setNewService({ ...newService, description: e.target.value })}
-                style={inputStyle}
-              />
-              {editingServiceId && (
-                <button
-                  type="button"
-                  onClick={() => { setEditingServiceId(null); setNewService(EMPTY_NEW_SERVICE); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', padding: 0, alignSelf: 'flex-start' }}
-                >
-                  <X size={14} /> Cancel edit
-                </button>
-              )}
-            </div>
-
-            {/* Active services */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {activeServices.length > 0 ? (
-                activeServices.map((service) => (
-                  <div
-                    key={service.id}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', background: 'var(--admin-bg)', flexWrap: 'wrap' }}
-                  >
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 900, color: 'var(--admin-text-primary)' }}>{service.name}</p>
-                      <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.7rem', color: 'var(--admin-text-secondary)', fontWeight: 700 }}>
-                        ₱{Number(service.price || 0).toLocaleString()} &middot; {Number(service.durationMinutes || 60)}m
-                        {service.description ? ` · ${service.description}` : ''}
-                      </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={labelStyle}>Service Name</label>
+                      <input
+                        type="text"
+                        value={editingServiceForm.name}
+                        onChange={(e) => setEditingServiceForm((prev) => ({ ...prev, name: e.target.value }))}
+                        style={inputStyle}
+                      />
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                      <button type="button" onClick={() => editService(service)} style={ghostButton}>
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => requestDeleteService(service)}
-                        style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
-                      >
-                        <Trash2 size={13} /> Delete
-                      </button>
+                    <div>
+                      <label style={labelStyle}>Price (₱)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editingServiceForm.price}
+                        onChange={(e) => setEditingServiceForm((prev) => ({ ...prev, price: e.target.value }))}
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Duration (Minutes)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={editingServiceForm.duration}
+                        onChange={(e) => setEditingServiceForm((prev) => ({ ...prev, duration: e.target.value }))}
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={labelStyle}>Description</label>
+                      <textarea
+                        rows={4}
+                        value={editingServiceForm.description}
+                        onChange={(e) => setEditingServiceForm((prev) => ({ ...prev, description: e.target.value }))}
+                        style={{ ...inputStyle, resize: 'vertical', minHeight: '100px' }}
+                      />
                     </div>
                   </div>
-                ))
-              ) : (
-                <div style={{ ...insetPanelStyle, fontSize: '0.74rem', color: 'var(--admin-text-secondary)', fontWeight: 600 }}>
-                  No custom services configured. Standard catalog defaults are active.
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
+                    <button type="button" onClick={() => { setEditingService(null); setEditingServiceForm(null); }} style={{ ...ghostButton, color: 'var(--admin-text-secondary)' }}>Cancel</button>
+                    <button type="button" onClick={handleEditService} style={{ ...buttonBase, background: 'var(--admin-brand)', color: '#fff', border: '1px solid var(--admin-brand)' }}>Save Changes</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ ...cardStyle, gap: '1rem' }}>
+              <button
+                type="button"
+                onClick={() => toggleServicePanel('existing')}
+                style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', color: 'var(--admin-text-primary)', textAlign: 'left' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 900 }}>View &amp; Edit Existing Services</span>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--admin-text-secondary)', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '999px', padding: '0.3rem 0.55rem' }}>
+                    {activeServices.length} active / {archivedServices.length} archived
+                  </span>
+                </div>
+                {servicePanels.existing ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
+
+              {servicePanels.existing && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                    <div>
+                      <label style={labelStyle}>Select Vehicle</label>
+                      <select
+                        value={selectedVehicleFilter}
+                        onChange={(e) => setSelectedVehicleFilter(e.target.value)}
+                        style={inputStyle}
+                      >
+                        <option value="All">All Vehicles</option>
+                        {getAvailableVehicleTypes().map((type) => (
+                          <option key={type} value={type}>{getVehicleTypeLabel(type)}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Service Name</th>
+                          <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Duration (Mins)</th>
+                          <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Price (₱)</th>
+                          <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Status</th>
+                          <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'right', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredServices.length > 0 ? (
+                          filteredServices.map((service) => (
+                            <tr key={service.id}>
+                              <td style={{ padding: '0.9rem 0.5rem', fontSize: '0.8rem', fontWeight: 900, color: 'var(--admin-text-primary)', borderBottom: '1px solid var(--admin-border)' }}>{service.name}</td>
+                              <td style={{ padding: '0.9rem 0.5rem', fontSize: '0.76rem', color: 'var(--admin-text-secondary)', fontWeight: 700, borderBottom: '1px solid var(--admin-border)' }}>{Number(service.durationMinutes || 60)}</td>
+                              <td style={{ padding: '0.9rem 0.5rem', fontSize: '0.78rem', color: 'var(--admin-text-primary)', fontWeight: 900, borderBottom: '1px solid var(--admin-border)' }}>₱{Number(service.price || 0).toLocaleString()}</td>
+                              <td style={{ padding: '0.9rem 0.5rem', borderBottom: '1px solid var(--admin-border)' }}>
+                                <span style={{ display: 'inline-flex', padding: '0.24rem 0.5rem', borderRadius: '999px', background: service.is_active === false || service.archived === true ? 'rgba(148, 163, 184, 0.12)' : 'rgba(16,185,129,0.12)', color: service.is_active === false || service.archived === true ? 'var(--admin-text-secondary)' : '#10b981', fontSize: '0.64rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                  {service.is_active === false || service.archived === true ? 'Archived' : 'Active'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.9rem 0.5rem', borderBottom: '1px solid var(--admin-border)', textAlign: 'right' }}>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <button type="button" onClick={() => { setEditingService(service); setEditingServiceForm({ name: service.name || '', price: String(service.price ?? ''), duration: String(service.durationMinutes || 60), description: service.description || '' }); }} style={ghostButton}>Edit</button>
+                                  <button type="button" onClick={() => handleArchiveRestoreService(service)} style={{ ...ghostButton, color: service.is_active === false || service.archived === true ? 'var(--admin-brand)' : 'var(--status-danger)', borderColor: service.is_active === false || service.archived === true ? 'var(--admin-border)' : 'rgba(239,68,68,0.4)' }}>
+                                    {service.is_active === false || service.archived === true ? 'Restore' : 'Archive'}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={5} style={{ padding: '1rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontWeight: 700, fontSize: '0.78rem' }}>
+                              No services for this vehicle category.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Archived drawer */}
-            {archivedServices.length > 0 && (
-              <div style={{ borderTop: '1px solid var(--admin-border)', paddingTop: '0.75rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowArchived((prev) => !prev)}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', fontSize: '0.72rem', fontWeight: 900, cursor: 'pointer', padding: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}
-                >
-                  {showArchived ? 'Hide' : 'Show'} archived services ({archivedServices.length})
-                </button>
-                {showArchived && (
-                  <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {archivedServices.map((service) => (
-                      <div
-                        key={service.id}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed var(--admin-border)', background: 'var(--admin-bg)', flexWrap: 'wrap' }}
-                      >
-                        <div style={{ minWidth: 0, opacity: 0.65, flex: 1 }}>
-                          <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 900, color: 'var(--admin-text-primary)' }}>{service.name}</p>
-                          <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.7rem', color: 'var(--admin-text-secondary)', fontWeight: 700 }}>
-                            ₱{Number(service.price || 0).toLocaleString()} &middot; {Number(service.durationMinutes || 60)}m
-                          </p>
-                        </div>
-                        <button type="button" onClick={() => restoreService(service.id)} style={{ ...ghostButton, flexShrink: 0 }}>
-                          <ArchiveRestore size={13} /> Restore
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            <div style={{ ...cardStyle, gap: '1rem' }}>
+              <button
+                type="button"
+                onClick={() => toggleServicePanel('add')}
+                style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', color: 'var(--admin-text-primary)', textAlign: 'left' }}
+              >
+                <span style={{ fontSize: '0.92rem', fontWeight: 900 }}>+ Add New Service to Existing Vehicle</span>
+                {servicePanels.add ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
 
-            <SaveBar
-              canSave={canSave('services')}
-              saving={saving}
-              dirty={isDirty('services')}
-              label="Save Catalog Changes"
-            />
-          </form>
+              {servicePanels.add && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                  <div>
+                    <label style={labelStyle}>Target Vehicle Category</label>
+                    <select
+                      value={newServiceForm.targetVehicleCategory}
+                      onChange={(e) => setNewServiceForm((prev) => ({ ...prev, targetVehicleCategory: e.target.value }))}
+                      style={inputStyle}
+                    >
+                      {getAvailableVehicleTypes().map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={labelStyle}>Service Name</label>
+                    <input
+                      type="text"
+                      value={newServiceForm.name}
+                      onChange={(e) => setNewServiceForm((prev) => ({ ...prev, name: e.target.value }))}
+                      placeholder="Premium Ceramic Wash"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Price (₱)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newServiceForm.price}
+                      onChange={(e) => setNewServiceForm((prev) => ({ ...prev, price: e.target.value }))}
+                      placeholder="2500"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Estimated Duration (Minutes)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={newServiceForm.duration}
+                      onChange={(e) => setNewServiceForm((prev) => ({ ...prev, duration: e.target.value }))}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={labelStyle}>Description</label>
+                    <textarea
+                      rows={4}
+                      value={newServiceForm.description}
+                      onChange={(e) => setNewServiceForm((prev) => ({ ...prev, description: e.target.value }))}
+                      placeholder="Optional description"
+                      style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }}
+                    />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={handlePublishService}
+                      style={{ ...buttonBase, background: 'var(--admin-brand)', color: '#fff', border: '1px solid var(--admin-brand)' }}
+                    >
+                      Publish Service
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ ...cardStyle, gap: '1rem' }}>
+              <button
+                type="button"
+                onClick={() => toggleServicePanel('vehicle')}
+                style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', color: 'var(--admin-text-primary)', textAlign: 'left' }}
+              >
+                <span style={{ fontSize: '0.92rem', fontWeight: 900 }}>+ Add New Vehicle Category</span>
+                {servicePanels.vehicle ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
+
+              {servicePanels.vehicle && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={labelStyle}>Vehicle Category Name</label>
+                      <input
+                        type="text"
+                        value={vehicleCategoryForm.name}
+                        onChange={(e) => setVehicleCategoryForm((prev) => ({ ...prev, name: e.target.value }))}
+                        placeholder="e.g. Van / Minibus, Commercial Truck"
+                        style={inputStyle}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ ...insetPanelStyle, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '0.78rem', fontWeight: 900, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Initial Required Service</h4>
+                      <p style={{ margin: '0.4rem 0 0', fontSize: '0.68rem', color: 'var(--admin-text-secondary)', fontWeight: 700, lineHeight: 1.5 }}>
+                        Every vehicle category must have at least one active service before it can be saved and exposed to customers.
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <label style={labelStyle}>Service Name</label>
+                        <input
+                          type="text"
+                          value={vehicleCategoryForm.serviceName}
+                          onChange={(e) => setVehicleCategoryForm((prev) => ({ ...prev, serviceName: e.target.value }))}
+                          placeholder="Initial service name"
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Price (₱)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={vehicleCategoryForm.price}
+                          onChange={(e) => setVehicleCategoryForm((prev) => ({ ...prev, price: e.target.value }))}
+                          placeholder="1500"
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Duration (Mins)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={vehicleCategoryForm.duration}
+                          onChange={(e) => setVehicleCategoryForm((prev) => ({ ...prev, duration: e.target.value }))}
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <label style={labelStyle}>Description</label>
+                        <textarea
+                          rows={4}
+                          value={vehicleCategoryForm.description}
+                          onChange={(e) => setVehicleCategoryForm((prev) => ({ ...prev, description: e.target.value }))}
+                          placeholder="Optional description"
+                          style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      disabled={!isVehicleCategoryValid()}
+                      onClick={handleAddVehicleCategory}
+                      style={{
+                        ...buttonBase,
+                        background: isVehicleCategoryValid() ? 'var(--admin-brand)' : 'var(--admin-input-bg, var(--admin-bg))',
+                        color: isVehicleCategoryValid() ? '#fff' : 'var(--admin-text-secondary)',
+                        border: `1px solid ${isVehicleCategoryValid() ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
+                        cursor: isVehicleCategoryValid() ? 'pointer' : 'not-allowed',
+                        opacity: isVehicleCategoryValid() ? 1 : 0.6
+                      }}
+                    >
+                      Save Category &amp; Service
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Tab 4: FAQ Management (Tier 2.8) */}

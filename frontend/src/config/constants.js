@@ -50,11 +50,11 @@ export const VEHICLE_STATUSES = {
 };
 
 export const VEHICLE_TYPE_OPTIONS = [
-  { value: 'Sedan', label: 'Sedan' },
-  { value: 'SUV', label: 'SUV' },
-  { value: 'Van/L300', label: 'Van / L300' },
-  { value: 'Regular', label: 'Motorcycle (Regular)' },
-  { value: 'Bigbike', label: 'Motorcycle (Bigbike)' }
+  { value: 'Sedan', label: 'Sedan/Hatchback' },
+  { value: 'SUV', label: 'SUV/Crossover' },
+  { value: 'Van/L300', label: 'Pickup/Van' },
+  { value: 'Regular', label: 'Motorcycle' },
+  { value: 'Bigbike', label: 'Bigbike' }
 ];
 
 export const sanitizeVehiclePlate = (value = '') => value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
