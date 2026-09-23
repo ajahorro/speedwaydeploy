@@ -75,12 +75,13 @@ const Landing = () => {
 
     if (user) {
       if (profile) {
+        const roleKey = String(profile.role || '').toUpperCase();
         const routes = {
           ADMIN: '/admin',
           STAFF: '/staff',
           CUSTOMER: '/customer'
         };
-        navigate(routes[profile.role] || '/customer');
+        navigate(routes[roleKey] || '/customer');
       } else {
         // If user exists but profile is missing, they are technically "in" but roleless
         // We redirect them to customer as a safe default or wait for sync
@@ -113,13 +114,14 @@ const Landing = () => {
   useEffect(() => {
     // Check if fully initialized AND user object has an ID (prevents logout race conditions)
     if (isInitialized && !authLoading && user?.id && profile?.role) {
+      const roleKey = String(profile.role || '').toUpperCase();
       const routes = {
         ADMIN: '/admin',
         STAFF: '/staff',
         CUSTOMER: '/customer'
       };
 
-      const targetRoute = routes[profile.role] || '/customer';
+      const targetRoute = routes[roleKey] || '/customer';
 
       // Only redirect if we aren't already on that path
       if (window.location.pathname !== targetRoute) {

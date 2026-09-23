@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
-import { Outlet, useNavigate, Link, NavLink, useLocation } from 'react-router-dom';
+import { Outlet, useNavigate, NavLink, useLocation } from 'react-router-dom';
 import {
   ClipboardList,
   Menu, Bell, History, Clock, Settings, LogOut
@@ -187,25 +187,31 @@ const StaffLayout = () => {
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '0 0.5rem' }}>
           {menuItems.map((item) => (
-            <Link key={item.path} to={item.path} className="admin-card-hover" style={({ isActive }) => ({
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.85rem',
-              padding: '0.7rem 1.25rem',
-              borderRadius: 'var(--admin-radius-sm)',
-              textDecoration: 'none',
-              color: isActive ? 'var(--admin-sidebar-active-text)' : 'var(--admin-text-secondary)',
-              background: isActive ? 'var(--admin-sidebar-active-bg)' : 'transparent',
-              fontWeight: isActive ? '800' : '600',
-              fontSize: '0.8rem',
-              letterSpacing: 0,
-              transition: 'all 0.2s',
-              borderLeft: isActive ? '3px solid var(--admin-brand)' : '3px solid transparent',
-              marginLeft: '0',
-            })} onClick={() => isMobile && setIsSidebarOpen(false)}>
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className="admin-card-hover"
+              style={({ isActive }) => ({
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.85rem',
+                padding: '0.7rem 1.25rem',
+                borderRadius: 'var(--admin-radius-sm)',
+                textDecoration: 'none',
+                color: isActive ? 'var(--admin-sidebar-active-text)' : 'var(--admin-text-secondary)',
+                background: isActive ? 'var(--admin-sidebar-active-bg)' : 'transparent',
+                fontWeight: isActive ? '800' : '600',
+                fontSize: '0.8rem',
+                letterSpacing: 0,
+                transition: 'all 0.2s',
+                borderLeft: isActive ? '3px solid var(--admin-brand)' : '3px solid transparent',
+                marginLeft: '0',
+              })}
+              onClick={() => isMobile && setIsSidebarOpen(false)}
+            >
               <item.icon size={16} strokeWidth={2.25} />
               {item.label}
-            </Link>
+            </NavLink>
           ))}
         </nav>
 

@@ -16,6 +16,7 @@ export const useAuthFlow = () => {
   // Auto-redirect whenever session and profile are both available
   useEffect(() => {
     if (user && profile) {
+      const roleKey = String(profile.role || '').toUpperCase();
       const routes = {
         ADMIN: '/admin',
         STAFF: '/staff',
@@ -26,7 +27,7 @@ export const useAuthFlow = () => {
       // guard the user was bounced straight into the dashboard and never saw the
       // "check your email" screen.
       if (mode !== 'RESET' && mode !== 'AWAIT_LINK') {
-        navigate(routes[profile.role] || '/customer');
+        navigate(routes[roleKey] || '/customer');
       }
     }
   }, [user, profile, mode, navigate]);
