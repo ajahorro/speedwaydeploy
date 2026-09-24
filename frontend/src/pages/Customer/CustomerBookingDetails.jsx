@@ -21,6 +21,7 @@ import CustomCalendar from '../../components/BookingWizard/CustomCalendar';
 import ValidationModal from '../../components/ValidationModal';
 import { classifyScheduleError, toCleanMessage } from '../../utils/errorRouting';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
+import { calculatePaymentSummary } from '../../utils/paymentUtils';
 import { getAvailableSlots, getBusinessHours } from '../../services/scheduleService';
 
 const CustomerBookingDetails = () => {
@@ -239,7 +240,7 @@ const CustomerBookingDetails = () => {
       const processedPayments = (pData || []).map(p => {
         let url = p.receipt_url;
         if (url && !url.startsWith('http')) {
-          const { data: { publicUrl } } = supabase.storage.from('receipts').getPublicUrl(url);
+          const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(url);
           url = publicUrl;
         }
         return { ...p, receipt_url: url };
@@ -364,6 +365,7 @@ const CustomerBookingDetails = () => {
   const dateStr = dt ? dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'TBD';
   const timeStr = dt ? dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
   const balance = Math.max(0, (booking.total_amount || 0) - (booking.totalPaid || 0));
+  const paymentSummary = calculatePaymentSummary({ ...booking, payments });
   const selectedRescheduleSlot = rescheduleSlots.some(slot => slot.time === rescheduleTime);
 
   // 🚀 DERIVED STATE: Ensure UI reflects reality even if master status lags
@@ -443,7 +445,7 @@ const CustomerBookingDetails = () => {
         booking={summaryBooking}
         showCustomer={false}
         showTechnician
-        paymentStatus={{ balance, totalPaid: booking.totalPaid }}
+        paymentStatus={paymentSummary}
       />
 
       {/* ===== A. BOOKING STATUS ===== */}
@@ -883,7 +885,7 @@ const CustomerBookingDetails = () => {
         }
       `}</style>
       </div>
-      <FloatingBubbleChat />
+      {booking.customer_id && <FloatingBubbleChat />}
     </>
   );
 };

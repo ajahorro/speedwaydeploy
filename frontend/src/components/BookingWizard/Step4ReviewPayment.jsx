@@ -108,13 +108,17 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         try {
           const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
           const controller = new AbortController();
-          const timeoutId = window.setTimeout(() => controller.abort(), 20000);
-          const response = await fetch(`${BACKEND_URL}/api/ocr/verify-receipt`, {
-            method: 'POST',
-            body: formData,
-            signal: controller.signal
-          });
-          window.clearTimeout(timeoutId);
+          const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+          let response;
+          try {
+            response = await fetch(`${BACKEND_URL}/api/ocr/verify-receipt`, {
+              method: 'POST',
+              body: formData,
+              signal: controller.signal
+            });
+          } finally {
+            window.clearTimeout(timeoutId);
+          }
 
           if (!response.ok) {
             const errData = await response.json().catch(() => ({}));

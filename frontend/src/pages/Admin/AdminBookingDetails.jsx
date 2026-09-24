@@ -14,7 +14,7 @@ import { SERVICES_DATA } from '../../data/servicesCatalog';
 import { calculateBayUsage, calculateOccupancy, filterActiveBookings } from '../../utils/schedulingUtils';
 import { SHOP_CONFIG } from '../../config/constants';
 import { getStatusColor, isStaffOccupied } from '../../utils/bookingHelpers';
-import { calculateRequiredDownpayment, requiresDownpayment } from '../../utils/paymentUtils';
+import { calculatePaymentSummary, calculateRequiredDownpayment, requiresDownpayment } from '../../utils/paymentUtils';
 import { applyServiceDownpayment } from '../../services/creditLedgerService';
 import toast from 'react-hot-toast';
 import BookingAuditTrail from '../../components/BookingAuditTrail';
@@ -81,9 +81,10 @@ const AdminBookingDetails = () => {
   });
 
   useEffect(() => {
-    setActiveBookingId(id);
+    if (booking?.customer_id) setActiveBookingId(id);
+    else setActiveBookingId(null);
     return () => setActiveBookingId(null);
-  }, [id, setActiveBookingId]);
+  }, [id, booking?.customer_id, setActiveBookingId]);
 
   // Deep links from notifications and the chat digest land on
   // /bookings/:id?chat=open. Without this the thread was highlighted but the
@@ -112,6 +113,10 @@ const AdminBookingDetails = () => {
     const channel = supabase.channel(`admin-booking-detail-${id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `id=eq.${id}` }, () => fetchBookingDetails())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'booking_vehicles', filter: `booking_id=eq.${id}` }, () => fetchBookingDetails())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `booking_id=eq.${id}` }, () => {
+        fetchPayments();
+        fetchBookingDetails();
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -230,7 +235,7 @@ const AdminBookingDetails = () => {
       const processed = data.map(p => {
         let url = p.receipt_url;
         if (url && !url.startsWith('http')) {
-          const { data: { publicUrl } } = supabase.storage.from('receipts').getPublicUrl(url);
+          const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(url);
           url = publicUrl;
         }
         return { ...p, receipt_url: url };
@@ -441,7 +446,7 @@ const AdminBookingDetails = () => {
       const { error } = await supabase.from('payments').update({ amount: verifiedAmount, status: 'PAID', notes: `${p.notes || 'PAYMENT_DIGITAL'} | PAYMENT_DIGITAL_VERIFIED | OCR_AMOUNT:${verifiedAmount}`, verified_by: verifier?.id, verified_at: new Date().toISOString() }).eq('id', p.id);
       if (error) throw error;
 
-      await notifyUser(booking.customer_id, 'Payment Verified', `Your payment of ₱${p.amount.toLocaleString()} has been approved. Thank you!`, 'PAYMENT_APPROVED', `/my-bookings/${id}`);
+      await notifyUser(booking.customer_id, 'Payment Verified', `Your payment of ₱${p.amount.toLocaleString()} has been approved. Thank you!`, 'PAYMENT_APPROVED', `/customer/bookings/${id}`);
 
       // 🚀 AUTOMATIC LIFECYCLE SYNC via Backend Propagator
       const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
@@ -488,7 +493,7 @@ const AdminBookingDetails = () => {
       const { error } = await supabase.from('payments').update({ status: 'REJECTED', rejection_reason: reason }).eq('id', p.id);
       if (error) throw error;
 
-      await notifyUser(booking.customer_id, 'Payment Rejected', `Reason: ${reason}. Please re-submit your receipt.`, 'PAYMENT_REJECTED', `/my-bookings/${id}`);
+      await notifyUser(booking.customer_id, 'Payment Rejected', `Reason: ${reason}. Please re-submit your receipt.`, 'PAYMENT_REJECTED', `/customer/bookings/${id}`);
 
       toast.success('Receipt rejected');
       fetchPayments(); fetchBookingDetails(); fetchAuditLogs();
@@ -530,7 +535,7 @@ const AdminBookingDetails = () => {
   const performManualPaymentReject = async (reason) => {
     if (!reason) return;
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from('bookings').update({ payment_status: 'Payment Rejected' }).eq('id', id);
+    const { error } = await supabase.from('bookings').update({ payment_status: 'unpaid' }).eq('id', id);
     if (error) return toast.error('Rejection failed');
 
     await supabase.from('audit_logs').insert({
@@ -741,7 +746,7 @@ const AdminBookingDetails = () => {
       if (pError) throw pError;
 
       // Notify Customer
-      await notifyUser(booking.customer_id, 'Payment Received', `We have recorded your manual payment of ₱${Number(paymentAmount).toLocaleString()}.`, 'PAYMENT_RECEIVED', `/my-bookings/${id}`);
+      await notifyUser(booking.customer_id, 'Payment Received', `We have recorded your manual payment of ₱${Number(paymentAmount).toLocaleString()}.`, 'PAYMENT_RECEIVED', `/customer/bookings/${id}`);
 
       // AUDIT LOG
       await supabase.from('audit_logs').insert({
@@ -1167,8 +1172,9 @@ const AdminBookingDetails = () => {
   if (loading || !booking) return <LoadingState message="Synchronizing fleet records..." />;
 
   const pendingVerification = bookingPayments.find(p => p.status === 'FOR_VERIFICATION');
-  const totalPaid = bookingPayments.filter(p => p.status === 'PAID').reduce((sum, p) => sum + Number(p.amount), 0);
-  const balance = Math.max(0, (booking?.total_amount || 0) - totalPaid);
+  const paymentSummary = calculatePaymentSummary({ ...booking, payments: bookingPayments });
+  const totalPaid = paymentSummary.totalPaid;
+  const balance = paymentSummary.balance;
   
   // 🚀 DERIVED STATUS & LOCK LOGIC
   const vehicleStatuses = (vehicles || []).map(v => v.status?.toUpperCase());
@@ -1300,7 +1306,7 @@ const AdminBookingDetails = () => {
         )}
       </div>
 
-      <BookingSummaryHeader booking={booking} onUnitCollected={derivedStatus === 'completed' ? requestReleaseBooking : undefined} />
+      <BookingSummaryHeader booking={booking} onUnitCollected={derivedStatus === 'completed' ? requestReleaseBooking : undefined} paymentStatus={paymentSummary} />
 
       {isNoShowBooking && (
         <div
@@ -2244,7 +2250,7 @@ const AdminBookingDetails = () => {
         }
       `}</style>
       </div>
-      <FloatingBubbleChat />
+      {booking.customer_id && <FloatingBubbleChat />}
     </>
   );
 };

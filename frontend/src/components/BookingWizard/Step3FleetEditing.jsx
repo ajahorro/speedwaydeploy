@@ -215,6 +215,10 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
           setBookingData={virtualSetBookingData} 
           activeVehicleIndex={0} 
           onNext={commitDraftVehicle} 
+          onCancelNewVehicle={() => {
+            setDraftVehicle(null);
+            setIsSubTaskActive(false);
+          }}
         />
       </div>
     );

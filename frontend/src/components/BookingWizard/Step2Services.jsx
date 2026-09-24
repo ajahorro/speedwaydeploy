@@ -31,7 +31,7 @@ const inputStyle = { width: '100%', padding: '.75rem', background: 'var(--admin-
 // Strips everything except A-Z and 0-9 for collision-proof plate comparison
 const normalizePlate = (plate) => String(plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext, onCancel }) => {
+const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext, onCancel, onCancelNewVehicle }) => {
   const { user } = useAuth();
   const vehicles = bookingData.vehicles || [];
   const [garageVehicles, setGarageVehicles] = useState([]);
@@ -157,24 +157,6 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
   };
   const isGarageVehicleSelected = (savedVehicle) => vehicles.some((vehicle) => vehicle.garageVehicleId === savedVehicle.id);
 
-  // A blank, manually-added unit the user has not filled in yet (no type/brand/
-  // model/plate/services). This is the unit a mis-click creates and a user most
-  // often wants to back out of — so we surface a prominent Cancel button while
-  // at least one exists.
-  const blankManualUnits = vehicles.filter(
-    (vehicle) => !vehicle.locked && !vehicle.garageVehicleId && isUntouchedUnit(vehicle)
-  );
-  const canCancelAddedVehicle = blankManualUnits.length > 0;
-  const cancelAddedVehicle = () => {
-    updateVehicles((current) => {
-      // Remove every blank, non-locked unit; keep real saved/committed vehicles.
-      // If the user cancels the last temporary unit, leave the booking empty so
-      // the dashboard and validation flow do not keep a phantom blank vehicle.
-      const kept = current.filter((vehicle) => vehicle.locked || vehicle.garageVehicleId || !isUntouchedUnit(vehicle));
-      return kept;
-    });
-  };
-
   const addFleet = async (fleetId = fleetToAddId) => {
     const selectedFleet = fleetGroups.find((group) => group.id === fleetId);
     const fleetVehicles = selectedFleet?.vehicles || [];
@@ -277,7 +259,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
     : 'Resolve duplicate plate numbers to add more vehicles';
 
   return <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-    <style>{`.booking-unit-columns{display:grid;grid-template-columns:1fr}.booking-unit-column{padding:1.25rem;border-top:1px solid var(--admin-border)}.booking-addable-card:hover:not(:disabled){transform:translateY(-4px);border-color:var(--admin-brand)!important;box-shadow:0 10px 20px rgba(var(--admin-brand-rgb),.18)}.booking-addable-card:focus-visible{outline:none;box-shadow:none}@media(min-width:900px){.booking-unit-columns{grid-template-columns:minmax(180px,.75fr) minmax(300px,1.6fr) minmax(220px,.9fr)}.booking-unit-column{border-top:0;border-left:1px solid var(--admin-border)}.booking-unit-column:first-child{border-left:0}}.vehicle-addition-locked{opacity:.38;filter:grayscale(.6);pointer-events:none;user-select:none;cursor:not-allowed}.vehicle-addition-locked *{pointer-events:none!important;tabindex:"-1"}`}</style>
+    <style>{`.booking-unit-columns{display:grid;grid-template-columns:1fr}.booking-unit-column{padding:1.25rem;border-top:1px solid var(--admin-border)}.booking-addable-card:hover:not(:disabled){transform:translateY(-4px);border-color:var(--admin-brand)!important;box-shadow:0 10px 20px rgba(var(--admin-brand-rgb),.18)}.booking-addable-card:focus,.booking-addable-card:focus-visible{outline:none}@media(min-width:900px){.booking-unit-columns{grid-template-columns:minmax(180px,.75fr) minmax(300px,1.6fr) minmax(220px,.9fr)}.booking-unit-column{border-top:0;border-left:1px solid var(--admin-border)}.booking-unit-column:first-child{border-left:0}}.vehicle-addition-locked{opacity:.38;filter:grayscale(.6);pointer-events:none;user-select:none;cursor:not-allowed}.vehicle-addition-locked *{pointer-events:none!important;tabindex:"-1"}`}</style>
     <section
       aria-disabled={vehicleAdditionLocked || undefined}
       style={{
@@ -327,7 +309,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem' }}>{garageVehicles.map((vehicle) => {
           const selected = isGarageVehicleSelected(vehicle);
           return <button key={vehicle.id} type="button" tabIndex={vehicleAdditionLocked ? -1 : undefined} onClick={() => toggleGarageVehicle(vehicle)} title={selected ? `Remove ${vehicle.brand} ${vehicle.model} from this booking` : `Add ${vehicle.brand} ${vehicle.model}`} className="booking-addable-card" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: `2px solid ${selected ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '6px', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer', textAlign: 'left', opacity: selected ? .9 : 1, transition: 'transform .2s ease, border-color .2s ease, box-shadow .2s ease' }}><Car size={16} color="var(--admin-brand)" /><span><strong style={{ display: 'block' }}>{vehicle.brand} {vehicle.model}</strong><small style={{ color: 'var(--admin-text-secondary)' }}>{selected ? 'Added to booking · click to remove' : `${vehicle.plate_number} · ${vehicle.type}`}</small></span></button>;
-        })}<button type="button" tabIndex={vehicleAdditionLocked ? -1 : undefined} onClick={addManualVehicle} className="booking-addable-card" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'transparent', color: 'var(--admin-brand)', border: '1px dashed var(--admin-brand)', borderRadius: '6px', fontWeight: '900', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer', transition: 'transform .2s ease, border-color .2s ease, box-shadow .2s ease' }}><Plus size={16} /> ADD NEW VEHICLE</button>{canCancelAddedVehicle && <button type="button" tabIndex={vehicleAdditionLocked ? -1 : undefined} onClick={cancelAddedVehicle} title="Discard the new vehicle you just added" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'transparent', color: 'var(--status-danger)', border: '1px dashed var(--status-danger)', borderRadius: '6px', fontWeight: '900', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer' }}><X size={16} /> CANCEL NEW VEHICLE</button>}</div>
+        })}<button type="button" tabIndex={vehicleAdditionLocked ? -1 : undefined} onClick={addManualVehicle} className="booking-addable-card" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'transparent', color: 'var(--admin-brand)', border: '1px dashed var(--admin-brand)', borderRadius: '6px', fontWeight: '900', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer', transition: 'transform .2s ease, border-color .2s ease, box-shadow .2s ease' }}><Plus size={16} /> ADD NEW VEHICLE</button>{onCancelNewVehicle && <button type="button" onClick={onCancelNewVehicle} title="Cancel adding this vehicle" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'transparent', color: 'var(--status-danger)', border: '1px dashed var(--status-danger)', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}><X size={16} /> CANCEL ADD NEW VEHICLE</button>}</div>
       </div>
     </section>
     {showServiceConfiguration && <section style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>

@@ -78,9 +78,15 @@ export const ChatProvider = ({ children }) => {
         event: 'INSERT',
         schema: 'public',
         table: 'booking_messages'
-      }, (payload) => {
+      }, async (payload) => {
         if (payload.new.message_type === 'system') return;
         if (payload.new.sender_id === user.id || payload.new.is_read) return;
+        const { data: booking } = await supabase
+          .from('bookings')
+          .select('customer_id')
+          .eq('id', payload.new.booking_id)
+          .maybeSingle();
+        if (!booking?.customer_id) return;
         const arrivedFor = payload.new.booking_id;
         // Always credit the owning thread; only add to the global badge when the
         // user is not already looking at that conversation.
@@ -101,8 +107,14 @@ export const ChatProvider = ({ children }) => {
     };
   }, [user?.id, activeBookingId, refreshUnreadCount]);
 
-  const openChatForBooking = (bookingId) => {
+  const openChatForBooking = async (bookingId) => {
     if (!bookingId) return;
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('customer_id')
+      .eq('id', bookingId)
+      .maybeSingle();
+    if (!booking?.customer_id) return;
     setActiveBookingId(bookingId);
     setIsOpen(true);
   };

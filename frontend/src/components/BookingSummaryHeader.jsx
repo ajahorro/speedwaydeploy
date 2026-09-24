@@ -11,14 +11,7 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
 
   return (
     <div
-      className="booking-summary-sticky"
       style={{
-        // Pin the lifecycle/status header to the top while the detail body below
-        // scrolls. zIndex keeps it above the content; the background is opaque so
-        // scrolled content passes behind it cleanly.
-        position: 'sticky',
-        top: 0,
-        zIndex: 20,
         display: 'flex', flexDirection: 'column', gap: '1.5rem',
         backgroundColor: 'var(--admin-card)', border: '1px solid var(--admin-border)',
         borderRadius: 'var(--admin-radius)', padding: '1.5rem',
@@ -34,8 +27,10 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
         </SummaryItem>
         {paymentStatus ? (
           <SummaryItem icon={CreditCard} label="Payment Status">
-            <span style={{ color: paymentStatus.balance > 0 ? '#f59e0b' : '#10b981' }}>
-              {paymentStatus.balance > 0 ? `Balance: ₱${paymentStatus.balance.toLocaleString()}` : 'Fully Paid'}
+            <span style={{ color: paymentStatus.status === 'REFUNDED' ? 'var(--status-danger)' : paymentStatus.balance > 0 ? '#f59e0b' : '#10b981' }}>
+              {paymentStatus.status === 'REFUNDED'
+                ? 'Refunded'
+                : paymentStatus.balance > 0 ? `Balance: ₱${paymentStatus.balance.toLocaleString()}` : 'Fully Paid'}
             </span>
           </SummaryItem>
         ) : showCustomer && (

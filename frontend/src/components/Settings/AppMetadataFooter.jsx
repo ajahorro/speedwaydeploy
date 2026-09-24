@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { HelpCircle, Bug, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
@@ -20,8 +19,7 @@ import { SettingsSection, SettingRow, SettingButton, SettingTag } from './Settin
  * insert is unavailable, so the user is never blocked by a backend hiccup).
  *
  * View FAQ opens the shop's live FAQs in a modal (same data as the landing
- * page) so the user never has to leave their dashboard; a landing-page link is
- * offered as a fallback when no FAQs are published.
+ * page) so the user never has to leave their dashboard.
  */
 
 // Fallback questions shown when the studio has not published any FAQs yet.
@@ -31,8 +29,7 @@ const FALLBACK_FAQS = [
   { question: 'Can I reschedule my booking?', answer: 'Yes — you may reschedule a confirmed booking to another available slot at no extra cost, subject to availability.' },
 ];
 
-const AppMetadataFooter = ({ faqPath = '/#faq', onRequestDeletion = null, role = 'customer' }) => {
-  const navigate = useNavigate();
+const AppMetadataFooter = ({ onRequestDeletion = null, role = 'customer' }) => {
   const { user, profile } = useAuth();
   const { openModal } = useUI();
   const { settings } = useConfig();
@@ -93,13 +90,6 @@ const AppMetadataFooter = ({ faqPath = '/#faq', onRequestDeletion = null, role =
               </p>
             </div>
           ))}
-          <button
-            type="button"
-            onClick={() => navigate(faqPath)}
-            style={{ alignSelf: 'flex-start', marginTop: '0.5rem', padding: '0.55rem 0.9rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-brand)', fontWeight: 900, fontSize: '0.68rem', cursor: 'pointer', textTransform: 'uppercase' }}
-          >
-            Visit full FAQ page
-          </button>
         </div>
       ),
     });

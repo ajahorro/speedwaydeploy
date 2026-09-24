@@ -334,7 +334,7 @@ const StaffSettings = () => {
       {/* ── Shared: App preferences, legal, footer ───────────────────────── */}
       <AppPreferencesCard role="staff" />
       <LegalPoliciesCard />
-      <AppMetadataFooter role="staff" faqPath="/#faq" />
+      <AppMetadataFooter role="staff" />
 
       </div>
     </div>

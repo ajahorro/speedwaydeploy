@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { X, ExternalLink, Info, Calendar, Star, Megaphone, Bell, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { parseChatNotification } from './NotificationPopover';
+import { supabase } from '../lib/supabase';
 
 const TYPE_ICONS = {
   ANNOUNCEMENT: Megaphone,
@@ -28,7 +29,7 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
   const role = profile?.role?.toUpperCase();
   const rolePrefix = role === 'ADMIN' ? '/admin' : role === 'STAFF' ? '/staff' : '/customer';
 
-  const handleViewBooking = (e) => {
+  const handleViewBooking = async (e) => {
     if (e) {
       e.stopPropagation();
       e.preventDefault();
@@ -36,7 +37,20 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
 
     const bookingTarget = notification.booking_id || notification.message?.match(/#([A-Za-z0-9_-]{8})/)?.[1];
     if (bookingTarget) {
-      const targetUrl = `${rolePrefix}/bookings/${bookingTarget}${notification.notification_type === 'MESSAGE_RECEIVED' || notification.title?.toLowerCase().includes('new message') ? '?chat=open' : ''}`;
+      let resolvedBookingId = bookingTarget;
+      if (!String(bookingTarget).includes('-') && String(bookingTarget).length < 20) {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('id')
+          .ilike('id', `${bookingTarget}%`)
+          .maybeSingle();
+        if (error || !data?.id) {
+          toast.error('Associated booking record not found.');
+          return;
+        }
+        resolvedBookingId = data.id;
+      }
+      const targetUrl = `${rolePrefix}/bookings/${resolvedBookingId}${notification.notification_type === 'MESSAGE_RECEIVED' || notification.title?.toLowerCase().includes('new message') ? '?chat=open' : ''}`;
       onClose();
       navigate(targetUrl);
     } else {

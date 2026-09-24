@@ -7,7 +7,7 @@ import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from 'react-hot-toast';
 import { logger } from '../../utils/logger';
-import { getServiceCatalog } from '../../data/servicesCatalog';
+import { getServiceCatalog, fetchActivePromos } from '../../data/servicesCatalog';
 
 // Refactored Imports
 import { COLORS } from '../../config/constants';
@@ -183,6 +183,27 @@ const AdminSchedule = () => {
     }
   };
 
+  const handleDeleteBlock = (blockId, block) => {
+    if (!blockId) return;
+    openModal({
+      title: 'Lift Schedule Restriction?',
+      message: `Remove the ${block?.start_time ? 'time-window' : 'full-day'} restriction for ${selectedDate}?`,
+      confirmText: 'Lift Restriction',
+      cancelText: 'Keep Restriction',
+      type: 'warning',
+      onConfirm: async () => {
+        const { error } = await supabase.from('blocked_slots').delete().eq('id', blockId);
+        if (error) {
+          logger.error('Restriction Delete Error', error);
+          toast.error('Could not lift the schedule restriction.');
+          return;
+        }
+        setBlockedSlots(current => current.filter(item => item.id !== blockId));
+        toast.success('Schedule restriction lifted.');
+      }
+    });
+  };
+
   const getBookingsForHour = (hour) => {
     const hourStart = new Date(`${selectedDate}T${String(hour).padStart(2, '0')}:00:00`);
     const hourEnd = new Date(`${selectedDate}T${String(hour + 1).padStart(2, '0')}:00:00`);
@@ -267,7 +288,7 @@ const AdminSchedule = () => {
   const [promoRules, setPromoRules] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('speedway_promo_rules') || '[]');
-      return Array.isArray(saved) && saved.length ? saved : defaultPromoRules;
+      return Array.isArray(saved) ? saved : [];
     } catch {
       return defaultPromoRules;
     }
@@ -300,6 +321,14 @@ const AdminSchedule = () => {
       setCurrentPromoTime(new Date());
     }, 10000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetchActivePromos().then((rules) => {
+      if (active && Array.isArray(rules)) syncPromoRules(rules);
+    }).catch(() => {});
+    return () => { active = false; };
   }, []);
 
   // Status Condition:
@@ -478,9 +507,10 @@ const AdminSchedule = () => {
 
     try {
       const BACKEND_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || 'http://localhost:3000';
+      const session = (await supabase.auth.getSession()).data.session;
       const response = await fetch(`${BACKEND_URL}/api/admin/promos`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
         body: JSON.stringify(nextRule)
       });
 
@@ -502,16 +532,17 @@ const AdminSchedule = () => {
           setPromoPublishing(false);
           return;
         }
-        const nextRules = promoEditingId
-          ? promoRules.map(rule => rule.id === promoEditingId ? nextRule : rule)
-          : [nextRule, ...promoRules];
-        syncPromoRules(nextRules);
+        toast.error(errJson.error || 'The promotion could not be saved.');
+        setPromoValidationError(errJson.error || 'The promotion could not be saved.');
+        setPromoPublishing(false);
+        return;
       }
-    } catch {
-      const nextRules = promoEditingId
-        ? promoRules.map(rule => rule.id === promoEditingId ? nextRule : rule)
-        : [nextRule, ...promoRules];
-      syncPromoRules(nextRules);
+    } catch (error) {
+      logger.error('Promo publish failed; promotion was not saved.', error);
+      toast.error('The promotions service is unreachable. The promotion was not saved.');
+      setPromoValidationError('The promotions service is unreachable. The promotion was not saved.');
+      setPromoPublishing(false);
+      return;
     }
 
     toast.success(
@@ -573,11 +604,21 @@ const AdminSchedule = () => {
       confirmText: 'Delete Promo',
       cancelText: 'Cancel',
       type: 'danger',
-      onConfirm: () => {
+      onConfirm: async () => {
         if (promoEditingId === promoId) {
           resetPromoDraft();
         }
-        const nextRules = promoRules.filter(rule => rule.id !== promoId);
+        const session = (await supabase.auth.getSession()).data.session;
+        const response = await fetch(`${(typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || 'http://localhost:3000'}/api/admin/promos/${encodeURIComponent(promoId)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${session?.access_token || ''}` }
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+          toast.error(result.error || 'The promotion could not be removed.');
+          return;
+        }
+        const nextRules = result.promoRules || promoRules.filter(rule => rule.id !== promoId);
         syncPromoRules(nextRules);
         toast.success(`Promo "${target.name}" removed.`);
       }
@@ -740,6 +781,7 @@ const AdminSchedule = () => {
                   getBookingsForHour={getBookingsForHour}
                   getBlockForHour={getBlockForHour}
                   onBookingClick={(id) => navigate(`/admin/bookings/${id}`)}
+                  onDeleteBlock={handleDeleteBlock}
                   config={settings}
                 />
               </>

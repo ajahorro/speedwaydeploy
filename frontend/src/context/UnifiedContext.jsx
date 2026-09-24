@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { fetchCustomerBookings, subscribeToCustomerBookings } from '../services/bookingService';
 import { fetchNotifications, subscribeToNotifications } from '../services/notificationService';
 import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
 
 const UnifiedContext = createContext();
 
@@ -44,12 +45,22 @@ export const UnifiedProvider = ({ children }) => {
             fetchCustomerBookings(user.id).then(setBookings);
         });
 
+        // Booking status is also represented by child vehicle and payment rows.
+        // Subscribe to those tables as well so list/dashboard projections do not
+        // wait for a master-row update or a manual refresh.
+        const childStateSub = supabase
+            .channel(`customer-booking-state-${user.id}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'booking_vehicles' }, () => loadData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => loadData())
+            .subscribe();
+
         const notificationSub = subscribeToNotifications(user.id, () => {
             fetchNotifications(user.id).then(setNotifications);
         });
 
         return () => {
             if (bookingSub) bookingSub.unsubscribe();
+            if (childStateSub) supabase.removeChannel(childStateSub);
             if (notificationSub) notificationSub.unsubscribe();
         };
     }, [user, loadData]);

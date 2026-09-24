@@ -164,7 +164,7 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
       <div>
         <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '1.5rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>Select Schedule</h2>
         <p style={{ margin: 0, color: 'var(--admin-text-secondary)', fontSize: '0.9rem', fontWeight: '600' }}>
-          Choose your preferred date and time. Our system automatically filters out full slots based on our 7-bay capacity limit.
+          Choose your preferred date and time. Full slots are filtered using the shop's configured bay capacity and staff limit.
         </p>
       </div>
 
@@ -285,7 +285,7 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
                     }}
                   >
                     <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}><Clock size={15} /> {slot.time}</span>
-                    <small style={{ display: 'block', marginTop: '0.25rem', fontSize: '0.65rem', fontWeight: '700', opacity: bookingData.time === slot.time ? 0.9 : 0.7 }}>{slot.availableBays} bay{slot.availableBays === 1 ? '' : 's'} available</small>
+                    <small style={{ display: 'block', marginTop: '0.25rem', fontSize: '0.65rem', fontWeight: '700', opacity: bookingData.time === slot.time ? 0.9 : 0.7 }}>{slot.availableBays} capacity slot{slot.availableBays === 1 ? '' : 's'} available</small>
                   </button>
                 ))}
               </div>

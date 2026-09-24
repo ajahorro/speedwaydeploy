@@ -293,9 +293,8 @@ const AdminAuditLogs = () => {
       rows.push({ label, value });
     };
 
-    push('Performer name', log.profiles?.full_name || log.actor_name || 'System');
-    push('Performer role', log.profiles?.role || log.actor_role || 'SYSTEM');
-    push('Performer email', log.actor_email);
+    // Performer identity is already present in the human-readable sentence.
+    // Keep only the stable ID here to avoid repeating the same identity block.
     push('Performer ID', log.actor_id);
     push('Action', log.action_type || log.event_type);
 

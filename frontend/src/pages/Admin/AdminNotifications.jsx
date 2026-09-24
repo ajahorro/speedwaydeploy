@@ -110,13 +110,39 @@ const AdminNotifications = () => {
     if (!notif) return null;
     const explicit = notif.action_url || notif.link_url;
     if (explicit && typeof explicit === 'string') {
-      // Already an absolute in-app path — use it as-is.
-      if (explicit.startsWith('/')) return explicit;
+      if (explicit === '/notifications') return '/admin/notifications';
+      if (explicit.startsWith('/customer/bookings/')) {
+        return explicit.replace(/^\/customer/, '/admin');
+      }
+      if (explicit.startsWith('/bookings/')) {
+        return explicit.replace(/^\/bookings/, '/admin/bookings');
+      }
+      if (explicit.startsWith('/admin/')) return explicit;
       return null;
     }
     const rawBooking = notif.booking_id || notif.message?.match(/#([A-Za-z0-9_-]{8})/)?.[1];
     if (rawBooking) return `/admin/bookings/${rawBooking}`;
     return null;
+  };
+
+  const openNotificationTarget = async (notif) => {
+    const targetUrl = resolveNotificationTarget(notif);
+    if (!targetUrl) return;
+    const reference = targetUrl.match(/^\/admin\/bookings\/([^/?]+)/)?.[1];
+    if (reference && !reference.includes('-') && reference.length < 20) {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id')
+        .ilike('id', `${reference}%`)
+        .maybeSingle();
+      if (error || !data?.id) {
+        toast.error('The booking record could not be resolved.');
+        return;
+      }
+      navigate(`/admin/bookings/${data.id}`);
+      return;
+    }
+    navigate(targetUrl);
   };
 
   const [broadcastForm, setBroadcastForm] = useState({ message: '' });
@@ -387,7 +413,7 @@ const AdminNotifications = () => {
                       when there is genuinely nothing to open. */}
                   {targetUrl && (
                     <button
-                      onClick={() => navigate(targetUrl)}
+                      onClick={() => openNotificationTarget(notif)}
                       title="Open the record this notification is about"
                       style={{ background: 'none', border: '1px solid var(--admin-border)', borderRadius: 0, color: 'var(--admin-brand)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '.35rem', padding: '.3rem .55rem', fontSize: '.65rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.04em' }}
                     >

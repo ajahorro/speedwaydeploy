@@ -25,7 +25,15 @@ const CustomerBilling = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setBookings(data || []);
+      const processedBookings = (data || []).map(booking => ({
+        ...booking,
+        payments: (booking.payments || []).map(payment => {
+          if (!payment.receipt_url || payment.receipt_url.startsWith('http')) return payment;
+          const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(payment.receipt_url);
+          return { ...payment, receipt_url: publicUrl };
+        })
+      }));
+      setBookings(processedBookings);
     } catch (err) {
       console.error('Error fetching billing data:', err);
     } finally {
@@ -310,6 +318,21 @@ const CustomerBilling = () => {
                         </td>
                         <td style={{ padding: '1.25rem 2rem', textAlign: 'center' }}>
                           <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            {p.receipt_url && (
+                              <button
+                                type="button"
+                                onClick={() => window.open(p.receipt_url, '_blank', 'noopener,noreferrer')}
+                                title="View proof of payment"
+                                style={{
+                                  background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)',
+                                  color: 'var(--admin-text-primary)', borderRadius: '8px', padding: '0 0.7rem',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                                  fontSize: '0.62rem', fontWeight: '900', textTransform: 'uppercase'
+                                }}
+                              >
+                                View Proof
+                              </button>
+                            )}
                             <button 
                               onClick={() => { setSelectedReceipt(booking); setSelectedPayment(p); }}
                               title="View Transaction Receipt"

@@ -19,7 +19,7 @@ import LeaveGuardModal from '../../components/LeaveGuardModal';
 import SegmentedTimePicker from '../../components/AdminSchedule/SegmentedTimePicker';
 import { BACKEND_URL } from '../../config/api';
 
-const TAB_KEYS = ['profile', 'hours', 'schedule', 'services', 'promos'];
+const TAB_KEYS = ['profile', 'hours', 'schedule', 'promos'];
 
 // The fields each section owns (mirrors handleSaveSection's UPDATE payload).
 const SECTION_FIELDS = {
@@ -1516,7 +1516,6 @@ export default function BusinessHub() {
     { id: 'profile', label: 'Business Profile', icon: Building },
     { id: 'hours', label: 'Hours & Capacity', icon: Clock },
     { id: 'schedule', label: 'Schedule Rules', icon: CalendarClock },
-    { id: 'services', label: 'Service Catalog', icon: Wrench },
     { id: 'promos', label: 'Promo Management', icon: Tag }
   ];
 
@@ -1629,6 +1628,7 @@ export default function BusinessHub() {
             <SectionHeading>Store Identification &amp; Contact</SectionHeading>
             <div style={gridStyle}>
               <Field label="Business Name" required htmlFor="business-name">
+                <small style={{ display: 'block', margin: '-.35rem 0 .5rem', color: 'var(--admin-text-secondary)', fontSize: '.72rem' }}>Total bays available for overlapping bookings.</small>
                 <input
                   id="business-name"
                   name="business_name"
@@ -1911,7 +1911,8 @@ export default function BusinessHub() {
                   style={{ ...inputStyle, opacity: businessForm.is_24_7 === true ? 0.5 : 1, cursor: businessForm.is_24_7 === true ? 'not-allowed' : 'text' }}
                 />
               </Field>
-              <Field label="Max Booking Slots Per Hour" required>
+              <Field label="Total Bookable Bays" required>
+                <small style={{ display: 'block', margin: '-.35rem 0 .5rem', color: 'var(--admin-text-secondary)', fontSize: '.72rem' }}>Maximum bays available for overlapping bookings.</small>
                 <input
                   id="business-slots-per-hour"
                   name="slots_per_hour"
@@ -1923,7 +1924,8 @@ export default function BusinessHub() {
                   style={inputStyle}
                 />
               </Field>
-              <Field label="Max Vehicles Per Staff Member" required>
+              <Field label="Maximum Concurrent Vehicles Per Staff Member" required>
+                <small style={{ display: 'block', margin: '-.35rem 0 .5rem', color: 'var(--admin-text-secondary)', fontSize: '.72rem' }}>Staff workload limit; this is separate from bay capacity.</small>
                 <input
                   id="business-max-vehicles-per-staff"
                   name="max_vehicles_per_staff"
@@ -1986,7 +1988,7 @@ export default function BusinessHub() {
                         type="number"
                         min="0"
                         max="43200"
-                        step="15"
+                        step="1"
                         value={businessForm.booking_lead_time_minutes}
                         onChange={(e) => handleInputChange('booking_lead_time_minutes', e.target.value)}
                         style={{ ...inputStyle, flex: 1, minWidth: '120px' }}

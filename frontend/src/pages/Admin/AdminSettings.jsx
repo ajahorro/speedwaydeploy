@@ -31,7 +31,7 @@ const AdminSettings = () => {
       <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 0, padding: '0.5rem 2rem 2rem' }}>
         <AppPreferencesCard role="admin" />
         <LegalPoliciesCard />
-        <AppMetadataFooter role="admin" faqPath="/#faq" />
+        <AppMetadataFooter role="admin" />
       </div>
     </div>
   );

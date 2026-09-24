@@ -60,50 +60,62 @@ const BookingChat = ({ bookingId }) => {
 
   useEffect(() => {
     if (!bookingId || !user?.id) return undefined;
-    fetchMessages();
-
-    // Real-time subscription
-    const channel = supabase
-      .channel(`chat-${bookingId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'booking_messages',
-        filter: `booking_id=eq.${bookingId}`
-      }, (payload) => {
-        if (payload.new.message_type === 'system') return;
-        // Silently replace optimistic messages or append new DB confirmed ones
-        setMessages(prev => {
-          const filtered = prev.filter(m => !(m.status === 'sending' && m.message === payload.new.message));
-          // Only append if it doesn't already exist (in case fetch Messages already got it)
-          if (!filtered.some(m => m.id === payload.new.id)) {
-            return [...filtered, payload.new];
-          }
-          return filtered;
-        });
-        if (payload.new.sender_id !== user.id) {
-          supabase.from('booking_messages').update({ is_read: true, read_at: new Date().toISOString() }).eq('id', payload.new.id).then(async ({ error: readError }) => {
-            if (readError) console.error('Unable to mark incoming message as read:', readError);
-            else await refreshUnreadCount();
+    let active = true;
+    let channel;
+    const startChat = async () => {
+      const { data: booking } = await supabase
+        .from('bookings')
+        .select('customer_id')
+        .eq('id', bookingId)
+        .maybeSingle();
+      if (!active || !booking?.customer_id) {
+        setMessages([]);
+        reportThreadUnread(bookingId, 0);
+        return;
+      }
+      fetchMessages();
+      // Real-time subscription is created only after the booking is confirmed
+      // to belong to a registered customer account.
+      channel = supabase
+        .channel(`chat-${bookingId}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'booking_messages',
+          filter: `booking_id=eq.${bookingId}`
+        }, (payload) => {
+          if (payload.new.message_type === 'system') return;
+          setMessages(prev => {
+            const filtered = prev.filter(m => !(m.status === 'sending' && m.message === payload.new.message));
+            if (!filtered.some(m => m.id === payload.new.id)) return [...filtered, payload.new];
+            return filtered;
           });
-        }
-        fetchMessages();
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'booking_messages',
-        filter: `booking_id=eq.${bookingId}`
-      }, (payload) => {
-        setMessages(prev => prev.map(message => message.id === payload.new.id ? { ...message, ...payload.new } : message));
-      })
-      .subscribe((status) => {
-        if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          console.warn('Chat connection temporarily offline. Reconnecting...');
-        }
-      });
+          if (payload.new.sender_id !== user.id) {
+            supabase.from('booking_messages').update({ is_read: true, read_at: new Date().toISOString() }).eq('id', payload.new.id).then(async ({ error: readError }) => {
+              if (readError) console.error('Unable to mark incoming message as read:', readError);
+              else await refreshUnreadCount();
+            });
+          }
+          fetchMessages();
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'booking_messages',
+          filter: `booking_id=eq.${bookingId}`
+        }, (payload) => {
+          setMessages(prev => prev.map(message => message.id === payload.new.id ? { ...message, ...payload.new } : message));
+        })
+        .subscribe((status) => {
+          if (status === 'CLOSED' || status === 'CHANNEL_ERROR') console.warn('Chat connection temporarily offline. Reconnecting...');
+        });
+    };
+    startChat();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      active = false;
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [bookingId, user?.id, refreshUnreadCount, reportThreadUnread]);
 
   // Smart Auto-scroll (REQ-NFR-30)

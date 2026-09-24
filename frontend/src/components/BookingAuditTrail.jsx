@@ -35,6 +35,42 @@ const BookingAuditTrail = ({ logs = [] }) => {
     });
   };
 
+  const renderDetails = (log) => {
+    const rawDetails = log.metadata?.details || log.details;
+    if (!rawDetails) return 'System event recorded.';
+
+    let parsed = rawDetails;
+    if (typeof rawDetails === 'string') {
+      try { parsed = JSON.parse(rawDetails); } catch { parsed = rawDetails; }
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return String(parsed);
+    }
+
+    const entries = Object.entries(parsed).filter(([, value]) => value !== null && value !== undefined && value !== '');
+    if (!entries.length) return 'System event recorded.';
+
+    const formatValue = (value) => {
+      if (!value || typeof value !== 'object') return String(value);
+      return Object.entries(value)
+        .filter(([, nested]) => nested !== null && nested !== undefined && nested !== '')
+        .map(([key, nested]) => `${key.replace(/_/g, ' ')}: ${String(nested)}`)
+        .join(' · ');
+    };
+
+    return (
+      <dl style={{ margin: 0, display: 'grid', gap: '0.45rem' }}>
+        {entries.map(([key, value]) => (
+          <div key={key} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+            <dt style={{ color: 'var(--admin-text-secondary)', textTransform: 'uppercase', fontSize: '0.62rem', fontWeight: '900' }}>{key.replace(/_/g, ' ')}</dt>
+            <dd style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '0.75rem', fontWeight: '700', textAlign: 'right' }}>{formatValue(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    );
+  };
+
   return (
     <div style={{ position: 'relative', paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Timeline Connector Line */}
@@ -94,9 +130,9 @@ const BookingAuditTrail = ({ logs = [] }) => {
                   {formatAuditDate(log.created_at)}
                 </span>
               </div>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: '600', lineHeight: 1.5 }}>
-                {log.metadata?.details || log.details || 'System event recorded.'}
-              </p>
+              <div style={{ margin: 0, fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: '600', lineHeight: 1.5 }}>
+                {renderDetails(log)}
+              </div>
             </div>
           </div>
         );

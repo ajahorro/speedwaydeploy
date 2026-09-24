@@ -175,6 +175,7 @@ const AdminWalkInWizard = () => {
     const booking = await createBooking(resolvedCustomerId, {
       ...bookingData,
       adminWalkIn: true,
+      adminActorId: user?.id || null,
       notes: `${bookingData.notes || ''} WALK-IN`,
       customerId: resolvedCustomerId,
       // Never let the admin's own identity leak into the customer-facing record.
@@ -184,19 +185,6 @@ const AdminWalkInWizard = () => {
       contactNumber: bookingData.contactNumber,
       customerEmail: bookingData.guest?.email || bookingData.customerEmail || null
     });
-    // Walk-ins bypass verification entirely: the admin has taken payment in
-    // person, so the payment is recorded as PAID immediately.
-    const { error: paymentError } = await supabase.from('payments').insert({
-      booking_id: booking.id,
-      amount: paymentAmount,
-      method: bookingData.payment?.method === 'GCash' ? 'GCash' : 'Cash',
-      payment_type: paymentType,
-      status: 'PAID',
-      verified_by: user?.id,
-      verified_at: new Date().toISOString(),
-      notes: `ADMIN_WALK_IN|TYPE:${paymentType}|DECLARED_AMOUNT:${paymentAmount}`
-    });
-    if (paymentError) throw paymentError;
     toast.success('Walk-in booking created and confirmed.');
   };
 

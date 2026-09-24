@@ -154,6 +154,42 @@ const AdminRefunds = () => {
         if (retryStateError) throw retryStateError;
       }
 
+      const { data: existingRefundNotification } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('booking_id', item.id)
+        .eq('notification_type', 'REFUND_PROCESSED')
+        .limit(1)
+        .maybeSingle();
+      if (!existingRefundNotification) {
+        const { data: admins } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('role', 'ADMIN')
+          .eq('is_active', true);
+        const recipients = [
+          item.customer_id ? {
+            user_id: item.customer_id,
+            action_url: `/customer/bookings/${item.id}`,
+          } : null,
+          ...(admins || []).map(admin => ({
+            user_id: admin.id,
+            action_url: `/admin/bookings/${item.id}`,
+          }))
+        ].filter(Boolean);
+        if (recipients.length) {
+          const { error: notificationError } = await supabase.from('notifications').insert(recipients.map(recipient => ({
+            ...recipient,
+            booking_id: item.id,
+            title: 'Refund Processed',
+            message: `Refund of ₱${Number(refundAmount).toLocaleString()} processed for booking #${item.id.slice(0, 8).toUpperCase()} (${refundRef}).`,
+            notification_type: 'REFUND_PROCESSED',
+            is_read: false,
+          })));
+          if (notificationError) logger.warn('Refund completed but notification fan-out failed.', notificationError);
+        }
+      }
+
       toast.success('Financial record and refund email completed.', { id: toastId });
       await fetchRefundData();
       setState(prev => ({ ...prev, selectedItem: null, confirmRefundItem: null, refundReason: '', refundAmount: 0 }));

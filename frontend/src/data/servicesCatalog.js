@@ -108,74 +108,10 @@ export const buildBookingServiceSnapshot = (service = {}, vehicleType = '', sour
 };
 
 export const getServiceCatalog = () => {
-  if (typeof window === 'undefined') return SERVICES_DATA;
-  try {
-    const persistedCustomServices = (() => {
-      try {
-        const direct = JSON.parse(localStorage.getItem('speedway_custom_services') || '[]');
-        return Array.isArray(direct) ? direct : [];
-      } catch {
-        return [];
-      }
-    })();
-
-    const runtimeCustomServices = (() => {
-      try {
-        const direct = window.__speedway_custom_services_cache;
-        return Array.isArray(direct) ? direct : [];
-      } catch {
-        return [];
-      }
-    })();
-
-    const customCatalog = runtimeCustomServices.length ? runtimeCustomServices : persistedCustomServices;
-    const activeCustomServices = Array.isArray(customCatalog)
-      ? customCatalog.filter((service) => service && service.is_active !== false && service.archived !== true)
-      : [];
-
-    if (!activeCustomServices.length) return SERVICES_DATA;
-
-    const customServicesByType = activeCustomServices.map((service) => {
-      const vehicleType = service.vehicleType || service.vehicle_type || '';
-      const singlePrice = Number(service.price || 0);
-      const prices = vehicleType
-        ? { [vehicleType]: singlePrice }
-        : {
-            Sedan: singlePrice,
-            SUV: singlePrice,
-            'Van/L300': singlePrice,
-            Regular: singlePrice,
-            Bigbike: singlePrice
-          };
-
-      return {
-        id: service.id || `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        name: service.name,
-        desc: service.description || 'Custom service added by the admin.',
-        prices,
-        estTime: `${Number(service.durationMinutes || 60)} mins`,
-        durationMinutes: Number(service.durationMinutes || 60),
-        vehicleType,
-        // General service (grouping category) the admin assigned when creating
-        // this specific service. Defaults to the generic bucket.
-        generalService: String(service.generalService || service.category || 'Custom Services').trim() || 'Custom Services',
-      };
-    });
-
-    // Group every custom service under its general service so the booking wizard
-    // renders it inside the correct Step-A category. When the general service
-    // matches a built-in category, the custom service is appended to that
-    // category instead of appearing in a separate bucket.
-    const grouped = { ...SERVICES_DATA };
-    customServicesByType.forEach((service) => {
-      const category = service.generalService;
-      grouped[category] = [...(grouped[category] || []), service];
-    });
-
-    return grouped;
-  } catch {
-    return SERVICES_DATA;
-  }
+  // The catalog is intentionally limited to the governed built-in services.
+  // Legacy custom-service rows remain stored for audit history but are no
+  // longer exposed as bookable or configurable services.
+  return SERVICES_DATA;
 };
 
 export const getAvailableServiceNames = () => {

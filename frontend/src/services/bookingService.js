@@ -135,6 +135,9 @@ export const createBooking = async (customerId, bookingData) => {
         final_price: snapshot.final_price,
         duration_minutes: snapshot.duration_minutes,
         vehicle_type: snapshot.vehicle_type,
+        // Catalog IDs such as `moto_2` are application identifiers, not UUIDs.
+        // Keep them in the immutable snapshot, but never send them to the UUID
+        // column used by booking_vehicle_services.
         service_id: normalizeServiceId(snapshot.service_id),
         service_snapshot: snapshot.service_snapshot,
         // Keep the live pricing policy as the fallback path for older schemas.
@@ -147,14 +150,18 @@ export const createBooking = async (customerId, bookingData) => {
   // Payment payload mirrors the previous post-creation insert logic exactly.
   let rpcPayment = null;
   let rpcExcess = 0;
-  if ((!bookingData.adminWalkIn && bookingData.payment?.method === 'Cash') || (bookingData.payment?.method === 'GCash' && bookingData.payment.proofOfPayment)) {
+  if ((bookingData.adminWalkIn && bookingData.payment?.method === 'Cash') || (!bookingData.adminWalkIn && bookingData.payment?.method === 'Cash') || (bookingData.payment?.method === 'GCash' && bookingData.payment.proofOfPayment)) {
     if (bookingData.payment.method === 'Cash') {
-      const cashAmount = bookingData.payment.type === 'Downpayment' ? getRequiredDownpayment(totalAmount) : totalAmount;
+      const cashAmount = bookingData.adminWalkIn && bookingData.payment.type === 'Manual'
+        ? Number(bookingData.payment.manualAmount || 0)
+        : bookingData.payment.type === 'Downpayment' ? getRequiredDownpayment(totalAmount) : totalAmount;
       rpcPayment = {
         amount: cashAmount,
         method: 'Cash',
         payment_type: bookingData.payment.type || 'Full',
-        status: 'PENDING',
+        status: bookingData.adminWalkIn ? 'PAID' : 'PENDING',
+        verified_by: bookingData.adminWalkIn ? bookingData.adminActorId || null : null,
+        verified_at: bookingData.adminWalkIn ? new Date().toISOString() : null,
         notes: `PAYMENT_CASH|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${cashAmount}`
       };
     } else {

@@ -39,6 +39,17 @@ process.on('unhandledRejection', (reason) => {
 const PASSWORD_CONFIRMATION_TTL_MS = 15 * 60 * 1000;
 const PASSWORD_CIPHER_KEY = crypto.createHash('sha256').update(process.env.SUPABASE_SERVICE_ROLE_KEY || 'development-key').digest();
 
+const calculateNetPaid = (payments = []) => {
+  const positive = payments
+    .filter(payment => ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(String(payment.status || '').toUpperCase()) && Number(payment.amount) > 0)
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const refunds = payments
+    .filter(payment => (String(payment.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(payment.amount) < 0)
+      || String(payment.status || '').toUpperCase() === 'REFUNDED')
+    .reduce((sum, payment) => sum + Math.abs(Number(payment.amount || 0)), 0);
+  return Math.max(0, positive - refunds);
+};
+
 const encryptPendingPassword = (password) => {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', PASSWORD_CIPHER_KEY, iv);
@@ -2364,6 +2375,7 @@ app.post('/api/admin/announce-catalog', async (req, res) => {
 
 app.post('/api/admin/promos', async (req, res) => {
   const promo = req.body;
+  if (!(await requireAdmin(req))) return res.status(403).json({ success: false, error: 'Authorized administrator required.' });
   console.log('🏷️ [ADMIN PROMO] Saving promo rule:', promo?.name);
   try {
     if (!promo || !promo.name || !promo.name.trim()) {
@@ -2371,6 +2383,9 @@ app.post('/api/admin/promos', async (req, res) => {
     }
     if (promo.value === undefined || Number(promo.value) <= 0) {
       return res.status(400).json({ success: false, error: 'Discount value must be numeric and greater than 0.' });
+    }
+    if (promo.mode !== 'package' && promo.type === 'percentage' && Number(promo.value) > 100) {
+      return res.status(400).json({ success: false, error: 'Percentage discounts must be between 1 and 100.' });
     }
     if (!promo.validFrom || (!promo.neverExpires && !promo.validUntil)) {
       return res.status(400).json({ success: false, error: 'Valid From and Valid Until dates are required.' });
@@ -2464,15 +2479,17 @@ app.post('/api/admin/promos', async (req, res) => {
     // Persist to Supabase business_config
     if (supabaseAdmin) {
       try {
-        await supabaseAdmin
+        const { error: upsertError } = await supabaseAdmin
           .from('business_config')
           .upsert({
             id: configRowId,
             promo_rules: nextRules,
             updated_at: new Date().toISOString()
           });
+        if (upsertError) throw upsertError;
       } catch (upsertErr) {
-        console.warn('⚠️ [ADMIN PROMO] Database upsert failed, preserved in cache:', upsertErr.message);
+        inMemoryPromoCache = null;
+        throw upsertErr;
       }
     }
 
@@ -2506,6 +2523,29 @@ app.post('/api/admin/promos', async (req, res) => {
   }
 });
 
+app.delete('/api/admin/promos/:promoId', async (req, res) => {
+  if (!(await requireAdmin(req))) return res.status(403).json({ success: false, error: 'Authorized administrator required.' });
+  const promoId = String(req.params.promoId || '').trim();
+  if (!promoId) return res.status(400).json({ success: false, error: 'Promo ID is required.' });
+  try {
+    const { data: config, error: fetchError } = await supabaseAdmin
+      .from('business_config')
+      .select('id, promo_rules')
+      .maybeSingle();
+    if (fetchError) throw fetchError;
+    const nextRules = (Array.isArray(config?.promo_rules) ? config.promo_rules : []).filter(rule => rule?.id !== promoId);
+    const { error: updateError } = await supabaseAdmin
+      .from('business_config')
+      .upsert({ id: config?.id || 1, promo_rules: nextRules, updated_at: new Date().toISOString() });
+    if (updateError) throw updateError;
+    inMemoryPromoCache = nextRules;
+    return res.json({ success: true, promoRules: nextRules });
+  } catch (error) {
+    console.error('🏷️ [ADMIN PROMO] Delete failed:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 /**
  * 🏷️ REQ-PROMO-02: Active Promo Lookup Endpoint (GET /api/promos/active)
  * Serves active promotions filtered by current timestamp:
@@ -2522,7 +2562,7 @@ app.get('/api/promos/active', async (req, res) => {
           .select('promo_rules')
           .maybeSingle();
 
-        if (!fetchErr && config && Array.isArray(config.promo_rules) && config.promo_rules.length) {
+        if (!fetchErr && config && Array.isArray(config.promo_rules)) {
           rules = config.promo_rules;
           inMemoryPromoCache = rules;
         }
@@ -3337,7 +3377,7 @@ app.post('/api/bookings/update-master-status', async (req, res) => {
 
   try {
     const normalizedStatus = String(status).toLowerCase();
-    const { data: booking, error: bookingError } = await supabaseAdmin.from('bookings').select('id, status, customer_id, total_amount, staff_id').eq('id', bookingId).single();
+    const { data: booking, error: bookingError } = await supabaseAdmin.from('bookings').select('id, status, customer_id, total_amount, staff_id, start_datetime').eq('id', bookingId).single();
     if (bookingError) throw bookingError;
     const { data: vehicles, error: vehiclesError } = await supabaseAdmin.from('booking_vehicles').select('status').eq('booking_id', bookingId);
     if (vehiclesError) throw vehiclesError;
@@ -3345,13 +3385,18 @@ app.post('/api/bookings/update-master-status', async (req, res) => {
     if (paymentsError) throw paymentsError;
 
     const currentStatus = String(booking.status || '').toLowerCase();
-    const totalPaid = (payments || []).filter(payment => payment.status === 'PAID').reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const totalPaid = calculateNetPaid(payments || []);
     const requiredDownpayment = getRequiredDownpayment(booking.total_amount);
     const allCompleted = (vehicles || []).length > 0 && vehicles.every(vehicle => ['COMPLETED', 'CANCELLED'].includes(String(vehicle.status || '').toUpperCase()));
 
     if (normalizedStatus === 'confirmed') {
       if (!['scheduled', 'pending'].includes(currentStatus) || totalPaid < requiredDownpayment) {
         return res.status(409).json({ success: false, error: `Booking requires at least ${requiredDownpayment.toLocaleString()} in verified payment before confirmation.` });
+      }
+    } else if (normalizedStatus === 'in_progress') {
+      const scheduledDate = new Date(booking.start_datetime);
+      if (currentStatus !== 'confirmed' || !booking.staff_id || scheduledDate.toDateString() !== new Date().toDateString()) {
+        return res.status(409).json({ success: false, error: 'Service can only start on the scheduled date after confirmation and staff assignment.' });
       }
     } else if (normalizedStatus === 'completed') {
       if (currentStatus !== 'in_progress' || !allCompleted || totalPaid < Number(booking.total_amount || 0)) {
@@ -3407,9 +3452,7 @@ app.post('/api/bookings/release', async (req, res) => {
     const bookingStatus = booking.status?.toLowerCase();
     const allVehiclesFinished = (vehicles || []).length > 0
       && vehicles.every(vehicle => ['COMPLETED', 'CANCELLED'].includes(String(vehicle.status || '').toUpperCase()));
-    const totalPaid = (payments || [])
-      .filter(payment => String(payment.status || '').toUpperCase() === 'PAID')
-      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const totalPaid = calculateNetPaid(payments || []);
     const isSettled = Number(booking.total_amount || 0) <= 0 || totalPaid >= Number(booking.total_amount || 0);
     if (bookingStatus !== 'completed' && !(allVehiclesFinished && isSettled)) {
       return res.status(409).json({ success: false, error: 'Only completed bookings can be released.' });
@@ -3556,9 +3599,7 @@ app.post('/api/bookings/update-status', async (req, res) => {
       .select('amount, status')
       .eq('booking_id', bookingId);
 
-    const totalPaid = (payments || [])
-      .filter(p => p.status === 'PAID')
-      .reduce((sum, p) => sum + p.amount, 0);
+    const totalPaid = calculateNetPaid(payments || []);
     const balance = Math.max(0, (masterBooking.total_amount || 0) - totalPaid);
     const isFullySettled = (masterBooking.total_amount || 0) > 0 && balance === 0;
 

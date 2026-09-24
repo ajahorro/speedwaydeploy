@@ -42,7 +42,7 @@ const CustomerSettings = () => {
         </SettingsSection>
 
         <LegalPoliciesCard />
-        <AppMetadataFooter role="customer" faqPath="/#faq" />
+        <AppMetadataFooter role="customer" />
       </div>
     </div>
   );

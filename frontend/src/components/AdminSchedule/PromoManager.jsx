@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Tag, Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getServiceCatalog, getPackageStandaloneSum } from '../../data/servicesCatalog';
+import { getServiceCatalog, getPackageStandaloneSum, fetchActivePromos } from '../../data/servicesCatalog';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useUI } from '../../context/UIContext';
 import { logger } from '../../utils/logger';
+import { supabase } from '../../lib/supabase';
 
 /**
  * PromoManager (System A)
@@ -103,7 +104,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
   const [promoRules, setPromoRules] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('speedway_promo_rules') || '[]');
-      return Array.isArray(saved) && saved.length ? saved : defaultPromoRules;
+      return Array.isArray(saved) ? saved : [];
     } catch {
       return defaultPromoRules;
     }
@@ -122,6 +123,14 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       setCurrentPromoTime(new Date());
     }, 10000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetchActivePromos().then((rules) => {
+      if (active && Array.isArray(rules)) syncPromoRules(rules);
+    }).catch(() => {});
+    return () => { active = false; };
   }, []);
 
   // Status Condition:
@@ -266,6 +275,10 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       setPromoValidationError('Please enter a valid discount value or package price.');
       return;
     }
+    if (promoDraft.mode !== 'package' && promoDraft.type === 'percentage' && Number(promoDraft.value) > 100) {
+      setPromoValidationError('Percentage discounts must be between 1% and 100%.');
+      return;
+    }
     if (!promoDraft.validFrom || (!promoDraft.neverExpires && !promoDraft.validUntil)) {
       setPromoValidationError('Please set valid dates.');
       return;
@@ -326,7 +339,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/admin/promos`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}` },
         body: JSON.stringify(nextRule)
       });
 
@@ -380,8 +393,18 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       confirmText: 'Delete Promo',
       cancelText: 'Cancel',
       type: 'danger',
-      onConfirm: () => {
+      onConfirm: async () => {
         const nextRules = promoRules.filter(rule => rule.id !== promoId);
+        const session = (await supabase.auth.getSession()).data.session;
+        const response = await fetch(`${(typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || 'http://localhost:3000'}/api/admin/promos/${encodeURIComponent(promoId)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${session?.access_token || ''}` }
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+          toast.error(result.error || 'The promotion could not be removed.');
+          return;
+        }
         syncPromoRules(nextRules);
         toast.success(`Promo "${target.name}" removed.`);
       }
@@ -510,6 +533,8 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                 <input
                   type="number"
                   min="1"
+                  max={promoDraft.mode !== 'package' && promoDraft.type === 'percentage' ? '100' : undefined}
+                  step="0.01"
                   value={promoDraft.value}
                   onChange={(e) => setPromoDraft(prev => ({ ...prev, value: Number(e.target.value) || 0 }))}
                   style={{ height: '36px', fontSize: '13px', fontWeight: '400', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '0 0.65rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', boxSizing: 'border-box', width: '100%' }}
