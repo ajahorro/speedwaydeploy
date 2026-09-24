@@ -202,6 +202,33 @@ const count = async (db, table, where = '') =>
     const fixedProbe = await db.query(`select public.create_booking_atomic($1::jsonb) as r`, [JSON.stringify(enumProbePayload)]);
     asserts.push(['fix: same payload now succeeds on the enum column', Boolean(fixedProbe.rows[0]?.r?.booking?.id)]);
 
+    // Regression: the frontend uses catalog IDs like 'moto_2', which are not UUIDs.
+    // The RPC must silently store them as NULL and continue, rather than aborting
+    // the whole booking with "invalid input syntax for type uuid".
+    const nonUuidServicePayload = {
+      booking: {
+        customer_name: 'Service ID Regression', start_datetime: '2026-10-01T00:00:00Z',
+        end_datetime: '2026-10-01T01:00:00Z', status: 'scheduled', total_amount: 0,
+      },
+      vehicles: [{
+        vehicle: { vehicle_type: 'motorcycle', plate_number: 'Moto-1', status: 'SCHEDULED' },
+        services: [{
+          service_name: 'Moto VIP',
+          price: 250,
+          final_price: 250,
+          base_price: 250,
+          duration_minutes: 60,
+          vehicle_type: 'motorcycle',
+          service_id: 'moto_2'
+        }]
+      }],
+      payment: null,
+    };
+    const serviceIdRegression = await db.query(`select public.create_booking_atomic($1::jsonb) as r`, [JSON.stringify(nonUuidServicePayload)]);
+    const serviceIdRows = await q(db, `select service_id from public.booking_vehicle_services where service_name = 'Moto VIP' order by created_at desc limit 1`);
+    asserts.push(['regression: non-UUID service IDs do not crash the RPC', Boolean(serviceIdRegression.rows[0]?.r?.booking?.id)]);
+    asserts.push(['regression: invalid service IDs are stored as NULL instead of UUID-casting', serviceIdRows.length > 0 && serviceIdRows[0].service_id === null]);
+
     // And an unexpected enum value must fall back to 'unpaid' rather than abort.
     const badEnumPayload = JSON.parse(JSON.stringify(enumProbePayload));
     badEnumPayload.booking.customer_name = 'Bad Enum';

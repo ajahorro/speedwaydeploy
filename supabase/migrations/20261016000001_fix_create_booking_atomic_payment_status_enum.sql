@@ -162,7 +162,12 @@ begin
           coalesce((v_service ->> 'price_at_booking')::numeric, 0),
           nullif(v_service ->> 'duration_minutes', '')::integer,
           v_service ->> 'vehicle_type',
-          nullif(v_service ->> 'service_id', '')::uuid,
+          case
+            when nullif(v_service ->> 'service_id', '') is null then null
+            when nullif(v_service ->> 'service_id', '') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+              then (nullif(v_service ->> 'service_id', ''))::uuid
+            else null
+          end,
           v_service -> 'service_snapshot',
           coalesce((v_service ->> 'service_version')::integer, 1),
           v_service ->> 'service_name',

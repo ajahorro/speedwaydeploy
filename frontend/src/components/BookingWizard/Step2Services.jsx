@@ -168,8 +168,10 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
   const cancelAddedVehicle = () => {
     updateVehicles((current) => {
       // Remove every blank, non-locked unit; keep real saved/committed vehicles.
+      // If the user cancels the last temporary unit, leave the booking empty so
+      // the dashboard and validation flow do not keep a phantom blank vehicle.
       const kept = current.filter((vehicle) => vehicle.locked || vehicle.garageVehicleId || !isUntouchedUnit(vehicle));
-      return kept.length ? kept : [emptyVehicle()];
+      return kept;
     });
   };
 
@@ -275,7 +277,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
     : 'Resolve duplicate plate numbers to add more vehicles';
 
   return <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-    <style>{`.booking-unit-columns{display:grid;grid-template-columns:1fr}.booking-unit-column{padding:1.25rem;border-top:1px solid var(--admin-border)}.booking-addable-card:hover:not(:disabled){transform:translateY(-4px);border-color:var(--admin-brand)!important;box-shadow:0 10px 20px rgba(var(--admin-brand-rgb),.18)}.booking-addable-card:focus-visible{outline:2px solid var(--admin-brand);outline-offset:2px}@media(min-width:900px){.booking-unit-columns{grid-template-columns:minmax(180px,.75fr) minmax(300px,1.6fr) minmax(220px,.9fr)}.booking-unit-column{border-top:0;border-left:1px solid var(--admin-border)}.booking-unit-column:first-child{border-left:0}}.vehicle-addition-locked{opacity:.38;filter:grayscale(.6);pointer-events:none;user-select:none;cursor:not-allowed}.vehicle-addition-locked *{pointer-events:none!important;tabindex:"-1"}`}</style>
+    <style>{`.booking-unit-columns{display:grid;grid-template-columns:1fr}.booking-unit-column{padding:1.25rem;border-top:1px solid var(--admin-border)}.booking-addable-card:hover:not(:disabled){transform:translateY(-4px);border-color:var(--admin-brand)!important;box-shadow:0 10px 20px rgba(var(--admin-brand-rgb),.18)}.booking-addable-card:focus-visible{outline:none;box-shadow:none}@media(min-width:900px){.booking-unit-columns{grid-template-columns:minmax(180px,.75fr) minmax(300px,1.6fr) minmax(220px,.9fr)}.booking-unit-column{border-top:0;border-left:1px solid var(--admin-border)}.booking-unit-column:first-child{border-left:0}}.vehicle-addition-locked{opacity:.38;filter:grayscale(.6);pointer-events:none;user-select:none;cursor:not-allowed}.vehicle-addition-locked *{pointer-events:none!important;tabindex:"-1"}`}</style>
     <section
       aria-disabled={vehicleAdditionLocked || undefined}
       style={{

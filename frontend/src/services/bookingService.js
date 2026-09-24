@@ -6,6 +6,12 @@ import { getRequiredDownpayment } from '../utils/paymentUtils';
 import { sendStatusEmail } from './notificationService';
 import { calculateBayUsage } from '../utils/schedulingUtils';
 
+const normalizeServiceId = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed) ? trimmed : null;
+};
+
 /**
  * bookingService.js
  * Centralized booking logic for the Customer portal.
@@ -129,7 +135,7 @@ export const createBooking = async (customerId, bookingData) => {
         final_price: snapshot.final_price,
         duration_minutes: snapshot.duration_minutes,
         vehicle_type: snapshot.vehicle_type,
-        service_id: snapshot.service_id,
+        service_id: normalizeServiceId(snapshot.service_id),
         service_snapshot: snapshot.service_snapshot,
         // Keep the live pricing policy as the fallback path for older schemas.
         base_price: Number(service.original_price || service.price || 0),
