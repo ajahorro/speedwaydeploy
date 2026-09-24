@@ -23,7 +23,14 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
   const subtotal = selectedPayment
     ? Number(selectedPayment.amount || 0)
     : Number(booking?.total_amount ?? 0);
-  const discount = Number(selectedPayment?.discount_amount || 0);
+  // The promo/discount snapshot is frozen on the BOOKING at creation time (the
+  // payments table has no discount column). Prefer the payment's own value when a
+  // caller supplies one, otherwise read the booking snapshot so a discounted
+  // booking shows a real "Discount / Promo" line instead of ₱0.
+  const discount = Number(
+    selectedPayment?.discount_amount ?? booking?.discount_amount_snapshot ?? 0
+  ) || 0;
+  const promoName = booking?.promo_name_snapshot || null;
   const vatableSales = Math.max(0, subtotal - discount);
   const vat = Math.max(0, vatableSales * VAT_RATE);
   const total = vatableSales + vat;
@@ -63,7 +70,7 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
         <div><strong style={{ display: 'block', fontSize: '0.65rem', color: '#9CA3AF', textTransform: 'uppercase' }}>Work Order</strong><div style={{ marginTop: '0.35rem', fontWeight: 700 }}>WO-{(booking?.id || 'REF').slice(0, 12).toUpperCase()}</div><div style={{ color: '#6B7280', fontSize: '0.8rem' }}>{selectedPayment?.method || 'Digital / Online Payment'}</div></div>
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}><thead><tr>{['Description', 'Qty', 'Unit Price', 'Total'].map((heading, index) => <th key={heading} style={{ textAlign: index ? 'right' : 'left', padding: '0.65rem 0.4rem', borderBottom: '2px solid #E5E7EB', color: '#6B7280', textTransform: 'uppercase', fontSize: '0.65rem' }}>{heading}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={row.key || index}><td style={{ padding: '0.8rem 0.4rem', borderBottom: '1px solid #F3F4F6' }}>{row.description}</td><td style={{ textAlign: 'right' }}>1</td><td style={{ textAlign: 'right' }}>{currency(row.price)}</td><td style={{ textAlign: 'right', fontWeight: 700 }}>{currency(row.price)}</td></tr>)}</tbody></table>
-      <div style={{ width: '280px', margin: '1.5rem 0 0 auto', borderTop: '2px solid #111827', paddingTop: '0.75rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem' }}><span>Subtotal</span><span>{currency(subtotal)}</span></div>{discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem', marginTop: '0.4rem' }}><span>Discount / Promo</span><span>-{currency(discount)}</span></div>}<div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem', marginTop: '0.4rem' }}><span>Vatable Sales</span><span>{currency(vatableSales)}</span></div><div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem', marginTop: '0.4rem' }}><span>VAT (12%)</span><span>{currency(vat)}</span></div><div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '1.1rem', marginTop: '0.7rem' }}><span>Total Amount Due</span><span>{currency(total)}</span></div></div>
+      <div style={{ width: '280px', margin: '1.5rem 0 0 auto', borderTop: '2px solid #111827', paddingTop: '0.75rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem' }}><span>Subtotal</span><span>{currency(subtotal)}</span></div>{discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem', marginTop: '0.4rem' }}><span>Discount / Promo{promoName ? ` (${promoName})` : ''}</span><span>-{currency(discount)}</span></div>}<div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem', marginTop: '0.4rem' }}><span>Vatable Sales</span><span>{currency(vatableSales)}</span></div><div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem', marginTop: '0.4rem' }}><span>VAT (12%)</span><span>{currency(vat)}</span></div><div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '1.1rem', marginTop: '0.7rem' }}><span>Total Amount Due</span><span>{currency(total)}</span></div></div>
     </div>
   );
 

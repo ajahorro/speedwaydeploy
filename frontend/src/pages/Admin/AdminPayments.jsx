@@ -15,11 +15,14 @@ import { getAuditCompliantTransactions } from '../../utils/bookingHelpers';
 import { sendPaymentReceiptEmail, sendBookingConfirmationEmail } from '../../services/notificationService';
 import { calculateRequiredDownpayment } from '../../utils/paymentUtils';
 import OfficialReceipt from '../../components/OfficialReceipt';
+import { useUI } from '../../context/UIContext';
 
 const AdminPayments = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useMediaQuery('(max-width: 1024px)');
+  // Tier 3 / Task 15: styled modal system for destructive actions (no window.prompt).
+  const { openModal } = useUI();
 
   // BATCHED STATE
   const [state, setState] = useState({
@@ -41,7 +44,7 @@ const AdminPayments = () => {
     setState(prev => ({ ...prev, loading: true }));
     try {
       logger.admin('Auditing Payment Transactions...');
-      
+
       const { data: paymentData, error: paymentError } = await supabase
         .from('payments')
         .select(`
@@ -92,11 +95,11 @@ const AdminPayments = () => {
 
   useEffect(() => {
     fetchPayments();
-    
+
     const channel = supabase.channel('admin-payments-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => fetchPayments())
       .subscribe();
-      
+
     return () => { supabase.removeChannel(channel); };
   }, [fetchPayments]);
 
@@ -119,7 +122,7 @@ const AdminPayments = () => {
             : isDigitalMethod;
         return matchesSearch && isProcessed && matchesMethodFilter;
       }
-      
+
       return matchesSearch;
     });
   }, [state.payments, state.searchTerm, state.filter, state.methodFilter]);
@@ -189,17 +192,17 @@ const AdminPayments = () => {
           : null
       ].filter(Boolean).join('|');
 
-      const { error } = await supabase.from('payments').update({ 
+      const { error } = await supabase.from('payments').update({
         amount: verifiedAmount,
-        status: 'PAID', 
-        verified_by: verifier?.id, 
+        status: 'PAID',
+        verified_by: verifier?.id,
         verified_at: new Date().toISOString(),
         notes: verificationNote,
         ...(ocrReference ? { reference_number: ocrReference } : {})
       }).eq('id', payment.id);
-      
+
       if (error) throw error;
-      
+
       // 📧 DISPATCH RECEIPT EMAIL (REQ-FIN-01)
       if (!isCashPayment) {
         sendPaymentReceiptEmail(payment.booking_id, payment.id).catch(err => {
@@ -207,7 +210,7 @@ const AdminPayments = () => {
         });
       }
       await confirmBookingWhenReady(payment.booking_id);
-      
+
       const previousPaid = (payment.booking?.payments || [])
         .filter(existing => existing.id !== payment.id && existing.status === 'PAID')
         .reduce((sum, existing) => sum + Number(existing.amount || 0), 0);
@@ -220,13 +223,28 @@ const AdminPayments = () => {
       );
       fetchPayments();
       setState(prev => ({ ...prev, selectedItem: null, overrideAI: false }));
-    } catch (err) { 
-      toast.error('Verification failed', { id: toastId }); 
+    } catch (err) {
+      toast.error('Verification failed', { id: toastId });
     }
   };
 
   const handleRejectPayment = async (payment) => {
-    const reason = window.prompt('Reason for rejection:');
+    // Tier 3 / Task 15: collect the reason in the app's styled prompt modal
+    // instead of a raw window.prompt (unstyled + blocked in some browsers).
+    openModal({
+      title: 'Reject Payment?',
+      message: 'This transaction will be rejected and, if funds were received, a refund will be queued. Please state the reason.',
+      type: 'danger',
+      prompt: true,
+      inputLabel: 'Reason for rejection',
+      inputPlaceholder: 'e.g. Amount does not match the booking total',
+      confirmText: 'Reject Payment',
+      cancelText: 'Cancel',
+      onConfirm: (reason) => performRejectPayment(payment, reason)
+    });
+  };
+
+  const performRejectPayment = async (payment, reason) => {
     if (!reason) return;
     
     const toastId = toast.loading('Rejecting transaction...');

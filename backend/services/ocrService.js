@@ -24,6 +24,11 @@ const parseJsonResponse = (text) => {
  * Reads a receipt with a cascading Gemini fallback. A model-level failure
  * (unavailable model, quota, timeout, or malformed result) advances to the
  * next model without exposing the API key or raw receipt to the client.
+ *
+ * OCR IS A SOURCE OF TRUTH for several downstream flows (payment verification,
+ * financial ledger, booking confirmation), so this routine is deliberately
+ * resilient: it discovers models at runtime, tries EVERY operational candidate,
+ * and only fails once all of them have been exhausted.
  */
 async function processReceiptOCR(imageBuffer, mimeType = 'image/jpeg') {
   if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured');
@@ -33,7 +38,23 @@ async function processReceiptOCR(imageBuffer, mimeType = 'image/jpeg') {
   let lastError;
   const now = Date.now();
   if (availableModelsCache.expiresAt <= now) {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(geminiKey)}`);
+    // B3-iii: the discovery call itself must be bounded. Without an abort
+    // signal a hung TLS connection to Google would block the request forever,
+    // which the customer experiences as a permanently spinning upload.
+    const controller = new AbortController();
+    const discoveryTimeout = setTimeout(() => controller.abort(), 8000);
+    let response;
+    try {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(geminiKey)}`,
+        { signal: controller.signal }
+      );
+    } catch (discoveryErr) {
+      throw new Error(`Gemini model discovery failed: ${discoveryErr.message}`);
+    } finally {
+      clearTimeout(discoveryTimeout);
+    }
+
     if (!response.ok) throw new Error(`Gemini model discovery failed (${response.status})`);
     const payload = await response.json();
     availableModelsCache = {
@@ -41,17 +62,48 @@ async function processReceiptOCR(imageBuffer, mimeType = 'image/jpeg') {
       names: (payload.models || [])
         .filter(model => model.name && (model.supportedGenerationMethods || []).includes('generateContent'))
         .map(model => model.name.replace(/^models\//, ''))
-        .filter(name => /^gemini/i.test(name) && /flash/i.test(name) && !/2\.5-flash/i.test(name))
+        // B3-i: we no longer EXCLUDE any model family. The previous
+        // `!/2\.5-flash/i` filter actively dropped gemini-2.5-flash, and once
+        // the older flash generations are retired the list could become empty —
+        // which failed every OCR upload with 'Gemini returned no models'.
+        // We keep every Gemini text/vision model that supports generateContent.
+        .filter(name => /^gemini/i.test(name))
+        // Exclude variants that CANNOT take an inline image. Verified live
+        // against the API: a TTS model answers 400 'Image input modality is not
+        // enabled for this model', and embeddings/aqa reject the request shape
+        // outright. Trying these wastes a slot in the cascade.
+        .filter(name => !/(embedding|aqa|tts|image-generation|imagen)/i.test(name))
+        // Prefer, in order: newest flash, then flash-latest, then any flash,
+        // then anything else. A stable, explicit rank keeps behaviour
+        // deterministic across discovery refreshes.
         .sort((a, b) => {
-          const rank = name => name.includes('3.6-flash') ? 0 : name.includes('flash-latest') ? 1 : name.includes('3.5-flash') ? 2 : 3;
-          return rank(a) - rank(b);
+          const rank = name => {
+            if (/3\.6.*flash/i.test(name)) return 0;
+            if (/flash-latest/i.test(name)) return 1;
+            if (/3\.[0-9]+.*flash/i.test(name)) return 2;
+            if (/flash/i.test(name)) return 3;
+            return 4;
+          };
+          const diff = rank(a) - rank(b);
+          // Deterministic tie-break so two equivalent models never swap order
+          // between refreshes (avoids flapping which model gets tried first).
+          return diff !== 0 ? diff : a.localeCompare(b);
         })
     };
-      console.log(`[OCR] Discovered ${availableModelsCache.names.length} Gemini generateContent model(s).`);
-      if (!availableModelsCache.names.length) throw new Error('Gemini returned no models supporting generateContent');
+    console.log(`[OCR] Discovered ${availableModelsCache.names.length} Gemini generateContent model(s): ${availableModelsCache.names.slice(0, 5).join(', ')}`);
+    if (!availableModelsCache.names.length) {
+      // Surface a specific, operatable error instead of a generic failure: this
+      // means the API key cannot see any generateContent model (wrong key,
+      // disabled API, or a region/entitlement problem).
+      throw new Error('Gemini returned no models supporting generateContent (check GEMINI_API_KEY and that the Generative Language API is enabled)');
+    }
   }
 
-  for (const modelName of availableModelsCache.names.slice(0, 2)) {
+  // B3-ii: try EVERY discovered candidate in priority order, not just the first
+  // two. A 503 / rate-limit on the preferred model must fall through to the next
+  // operational one rather than failing the whole scan.
+  const attempts = availableModelsCache.names;
+  for (const modelName of attempts) {
     try {
       console.log(`[OCR] Attempting receipt scan with ${modelName}.`);
       const model = genAI.getGenerativeModel({ model: modelName });
@@ -60,7 +112,7 @@ async function processReceiptOCR(imageBuffer, mimeType = 'image/jpeg') {
           contents: [{ role: 'user', parts: [{ text: prompt }, imagePart] }],
           generationConfig: { responseMimeType: 'application/json', temperature: 0 }
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('OCR model timeout')), 9000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('OCR model timeout')), 12000))
       ]);
       const rawText = (await result.response).text();
       const parsed = parseJsonResponse(rawText);

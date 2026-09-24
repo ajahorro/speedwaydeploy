@@ -6,12 +6,14 @@ import toast from 'react-hot-toast';
 import PageHeader from '../../components/PageHeader';
 
 const StaffProfile = () => {
-  const { profile, user, verifyPassword, requestPasswordChange } = useAuth();
+  const { profile, user, verifyPassword, requestPasswordChange, resendPasswordChange } = useAuth();
   const [loading, setLoading] = useState(false);
   const [passLoading, setPassLoading] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  // Task 16: track confirmation-email delivery so the user can resend if needed.
+  const [passwordEmailState, setPasswordEmailState] = useState(null);
 
   const isFormValid = currentPassword.trim().length > 0 && newPassword.length > 4 && confirmPassword === newPassword;
 
@@ -30,9 +32,14 @@ const StaffProfile = () => {
         throw new Error('Identity verification failed. Incorrect current password.');
       }
 
-      await requestPasswordChange(currentPassword, newPassword);
+      const changeResult = await requestPasswordChange(currentPassword, newPassword);
 
-      toast.success('Check your email to confirm the password change');
+      setPasswordEmailState({ delivered: changeResult?.emailDelivered !== false, currentPassword });
+      if (changeResult?.emailDelivered === false) {
+        toast.error('Password change saved, but the confirmation email could not be sent. Use “Resend confirmation email”.');
+      } else {
+        toast.success('Check your email to confirm the password change');
+      }
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -51,6 +58,25 @@ const StaffProfile = () => {
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem'
+  };
+
+  // Task 16: resend the password-change confirmation without retyping fields.
+  const handleResendPasswordEmail = async () => {
+    if (!passwordEmailState?.currentPassword) {
+      return toast.error('Please submit the password change again to resend the email.');
+    }
+    const toastId = toast.loading('Resending confirmation email...');
+    try {
+      const result = await resendPasswordChange(passwordEmailState.currentPassword);
+      if (result?.emailDelivered === false) {
+        toast.error('The confirmation email still could not be sent.', { id: toastId });
+      } else {
+        setPasswordEmailState((prev) => ({ ...prev, delivered: true }));
+        toast.success('Confirmation email resent. Please check your inbox.', { id: toastId });
+      }
+    } catch (err) {
+      toast.error(err.message || 'Unable to resend the confirmation email.', { id: toastId });
+    }
   };
 
   const labelStyle = {
@@ -134,21 +160,21 @@ const StaffProfile = () => {
           </div>
 
           <form onSubmit={handleUpdatePassword} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <input 
-              type="text" 
-              name="username" 
-              autoComplete="username" 
+            <input
+              type="text"
+              name="username"
+              autoComplete="username"
               defaultValue={profile?.email || user?.email || ''}
-              style={{ display: 'none' }} 
-              tabIndex={-1} 
-              aria-hidden="true" 
+              style={{ display: 'none' }}
+              tabIndex={-1}
+              aria-hidden="true"
             />
             <div>
               <div style={{ marginBottom: '0.5rem' }}>
                 <div style={labelStyle}>Current Password</div>
               </div>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 value={currentPassword}
                 onFocus={() => setCurrentPassword('')}
                 onChange={(e) => setCurrentPassword(e.target.value)}
@@ -162,8 +188,8 @@ const StaffProfile = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
               <div>
                 <div style={labelStyle}>New Password</div>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Min. 5 characters"
@@ -174,8 +200,8 @@ const StaffProfile = () => {
               </div>
               <div>
                 <div style={labelStyle}>Confirm New Password</div>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Repeat new password"
@@ -195,6 +221,23 @@ const StaffProfile = () => {
             {confirmPassword.length > 0 && newPassword !== confirmPassword && (
               <div style={{ fontSize: '0.72rem', color: 'var(--status-danger)', fontWeight: '700', marginTop: '-0.5rem' }}>
                 ✕ Passwords do not match
+              </div>
+            )}
+            {/* Task 16: confirmation-email delivery status + resend option. */}
+            {passwordEmailState && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.85rem 1rem', background: passwordEmailState.delivered ? 'rgba(var(--admin-success-rgb), 0.08)' : 'rgba(245, 158, 11, 0.1)', border: `1px solid ${passwordEmailState.delivered ? 'var(--admin-success)' : 'var(--status-warning)'}`, borderRadius: '4px' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: '700', color: passwordEmailState.delivered ? 'var(--admin-success)' : 'var(--status-warning)' }}>
+                  {passwordEmailState.delivered
+                    ? 'Confirmation email sent. Check your inbox (and spam) to complete the change.'
+                    : 'The confirmation email could not be confirmed as sent. Resend it below.'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleResendPasswordEmail}
+                  style={{ padding: '0.5rem 0.9rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '900', cursor: 'pointer', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
+                >
+                  Resend confirmation email
+                </button>
               </div>
             )}
             <button 

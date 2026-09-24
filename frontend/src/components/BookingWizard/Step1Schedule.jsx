@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar as CalendarIcon, Clock, Phone, AlertCircle } from 'lucide-react';
 import { getAvailableSlots } from '../../services/scheduleService';
 import { supabase } from '../../lib/supabase';
 import { isDateBookable } from '../../domain/schedule/rules';
 import CustomCalendar from './CustomCalendar';
+import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { sanitizeVehicleText } from '../../config/constants';
 
-const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, onNext, onBack, onCancel, customerDetailsLocked = false }) => {
+const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, onNext, onBack, onCancel, customerDetailsLocked = false, adminMode = false }) => {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   // Batch 6: why the selected date itself may be unbookable (closed/blocked/etc),
@@ -29,43 +30,76 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
     (bookingData.customerName || '').trim().length > 0 && allVehiclesComplete;
 
   // Fetch available slots when date changes (real bay capacity check)
-  useEffect(() => {
+  const fetchSlots = useCallback(async (silent = false) => {
     if (!bookingData.date) return;
+    if (!silent) setIsLoadingSlots(true);
+    try {
+      const requestedBays = Math.max(1, calculateBayUsage(bookingData.vehicles || []));
 
-    const fetchSlots = async () => {
-      setIsLoadingSlots(true);
-      try {
-        // Fetch the schedule rules + admin blocks for this date so we can
-        // explain WHY a day/slot is unavailable (mirrors the server decision).
-        const [configRes, blockRes] = await Promise.all([
-          supabase
-            .from('business_config')
-            .select('booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity, slots_per_hour, max_vehicles_per_staff')
-            .maybeSingle(),
-          supabase
-            .from('blocked_slots')
-            .select('block_date, start_time, end_time')
-            .eq('block_date', bookingData.date),
-        ]);
-        const gate = isDateBookable(bookingData.date, configRes.data || {}, { blocks: blockRes.data || [] });
-        setDateGate(gate);
+      // The slot list itself now comes from the shared rules engine (via
+      // scheduleService), so lead time greys out early same-day slots here
+      // instead of only rejecting them at submit. We only fetch the config +
+      // blocks here to explain WHY the whole day is unavailable.
+      const [configRes, blockRes, slots] = await Promise.all([
+        supabase
+          .from('business_config')
+          // Include the operating-hours columns too: isDateBookable() and the
+          // rules engine read is_24_7/opening_hour/closing_hour, so omitting
+          // them here would let the wizard's date gate disagree with the slot
+          // generator and the server validator.
+          .select('opening_hour, closing_hour, is_24_7, booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity, slots_per_hour, max_vehicles_per_staff')
+          .maybeSingle(),
+        supabase
+          .from('blocked_slots')
+          .select('block_date, start_time, end_time')
+          .eq('block_date', bookingData.date),
+        getAvailableSlots(bookingData.date, totalDuration, bookingData.vehicles || [], null, { requestedBays, skipLeadTime: adminMode }),
+      ]);
+      const gate = isDateBookable(bookingData.date, configRes.data || {}, { blocks: blockRes.data || [] });
+      setDateGate(gate);
 
-        const slots = await getAvailableSlots(bookingData.date, totalDuration, bookingData.vehicles || []);
-        setAvailableSlots(slots);
+      setAvailableSlots(slots);
 
-        // Auto-clear time if the selected time is no longer available
-        if (bookingData.time && !slots.some(slot => slot.time === bookingData.time)) {
-          setBookingData(prev => ({ ...prev, time: '' }));
-        }
-      } catch (error) {
-        console.error('Failed to fetch slots', error);
-      } finally {
-        setIsLoadingSlots(false);
+      // Auto-clear time if the selected time is no longer available
+      if (bookingData.time && !slots.some(slot => slot.time === bookingData.time)) {
+        setBookingData(prev => ({ ...prev, time: '' }));
       }
-    };
+    } catch (error) {
+      console.error('Failed to fetch slots', error);
+    } finally {
+      if (!silent) setIsLoadingSlots(false);
+    }
+  }, [bookingData.date, totalDuration, bookingData.vehicles, adminMode, bookingData.time, setBookingData]); // eslint-disable-line
 
-    fetchSlots();
-  }, [bookingData.date, totalDuration, bookingData.vehicles]); // eslint-disable-line
+  // Recompute on date / duration / vehicle / mode change.
+  useEffect(() => {
+    fetchSlots(false);
+  }, [fetchSlots]);
+
+  // LIVE SLOT REFLECTION: subscribe to the tables that can change what is
+  // bookable while the user is on this screen (a slot gets taken, an admin
+  // blocks/opens a day, business hours change). On any change we silently
+  // recompute the slot list so it reflects reality within ~1s instead of only
+  // refreshing on the next date change — and the auto-clear above drops a chosen
+  // time that has just been booked by someone else.
+  useEffect(() => {
+    if (!bookingData.date) return undefined;
+    let debounce;
+    const trigger = () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => fetchSlots(true), 600);
+    };
+    const channel = supabase
+      .channel(`slots:${bookingData.date}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, trigger)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'blocked_slots' }, trigger)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'business_config' }, trigger)
+      .subscribe();
+    return () => {
+      clearTimeout(debounce);
+      supabase.removeChannel(channel);
+    };
+  }, [bookingData.date, fetchSlots]);
 
   const handleDateChange = (e) => {
     setBookingData({ ...bookingData, date: e.target.value });

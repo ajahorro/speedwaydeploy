@@ -20,6 +20,7 @@ import { useConfig } from '../../context/ConfigContext';
 import CustomCalendar from '../../components/BookingWizard/CustomCalendar';
 import ValidationModal from '../../components/ValidationModal';
 import { classifyScheduleError, toCleanMessage } from '../../utils/errorRouting';
+import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { getAvailableSlots, getBusinessHours } from '../../services/scheduleService';
 
 const CustomerBookingDetails = () => {
@@ -117,9 +118,10 @@ const CustomerBookingDetails = () => {
     if (!showRescheduleModal || !rescheduleDate || !booking?.id) return;
     let active = true;
     const durationMinutes = Math.max(60, Math.ceil((new Date(booking.end_datetime) - new Date(booking.start_datetime)) / 60000));
+    const requestedBays = Math.max(1, calculateBayUsage(vehicles || []));
     setRescheduleSlotsLoading(true);
     Promise.all([
-      getAvailableSlots(rescheduleDate, durationMinutes, vehicles, booking.id),
+      getAvailableSlots(rescheduleDate, durationMinutes, vehicles, booking.id, { requestedBays }),
       getBusinessHours()
     ]).then(([slots, hours]) => {
       if (!active) return;
@@ -409,7 +411,7 @@ const CustomerBookingDetails = () => {
           }
         }
       `}</style>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', paddingBottom: '5rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '5rem' }}>
 
       {/* HEADER */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Tag, Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getServiceCatalog } from '../../data/servicesCatalog';
+import { getServiceCatalog, getPackageStandaloneSum } from '../../data/servicesCatalog';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useUI } from '../../context/UIContext';
 import { logger } from '../../utils/logger';
@@ -233,6 +233,28 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
     hasValidVehicleServiceMapping
   );
 
+  // Soft warning (package mode only): if the flat package price is NOT lower
+  // than the sum of its member services bought separately, the "package" is not
+  // actually a saving. This never blocks saving — showroom bundles are sometimes
+  // priced for convenience — but it flags the likely mistake so an admin can fix
+  // a mis-typed value before customers see it.
+  const packagePriceWarning = (() => {
+    if (promoDraft.mode !== 'package') return '';
+    const price = Number(promoDraft.value);
+    if (!Number.isFinite(price) || price <= 0) return '';
+    const draftRule = { vehicleServiceMatrix: promoDraft.vehicleServiceMatrix || {} };
+    const boundVehicles = Object.keys(draftRule.vehicleServiceMatrix).filter(
+      v => Array.isArray(draftRule.vehicleServiceMatrix[v]) && draftRule.vehicleServiceMatrix[v].length > 0
+    );
+    for (const vehicle of boundVehicles) {
+      const standalone = getPackageStandaloneSum(draftRule, vehicle);
+      if (standalone > 0 && price >= standalone) {
+        return `Heads up: ₱${price.toLocaleString()} is not lower than the ${vehicle} services bought separately (₱${standalone.toLocaleString()}). This package won't save the customer money — double-check the price.`;
+      }
+    }
+    return '';
+  })();
+
   const handleCommitPromo = async () => {
     // Section 4 — Immutable Promo Action Rule: only CREATE is supported here.
     // Editing is removed entirely, so there is no edit-intercept path to run.
@@ -261,6 +283,21 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       return;
     }
 
+    // Package-specific rules. A package is a bundle (a product), so unlike a
+    // standard promo it must group several services into one set on every
+    // vehicle it targets — a "bundle" of one service is just a re-priced service.
+    if (promoDraft.mode === 'package') {
+      const singleServiceVehicle = boundVehicles.find(
+        v => (promoDraft.vehicleServiceMatrix[v] || []).length < 2
+      );
+      if (singleServiceVehicle) {
+        setPromoValidationError(
+          `A package must group at least 2 services. Add another service to ${singleServiceVehicle}, or switch to Standard Promo for a single-service discount.`
+        );
+        return;
+      }
+    }
+
     setPromoPublishing(true);
     setPromoValidationError('');
 
@@ -276,11 +313,17 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       vehicleServiceMatrix: promoDraft.vehicleServiceMatrix,
       vehicleTypes: boundVehicles,
       serviceMatches: Array.from(new Set(Object.values(promoDraft.vehicleServiceMatrix).flat())),
+      // Package = a whole-vehicle flat-price bundle that applies ONLY when the
+      // full set is present and never stacks with other promos. `isBundle` makes
+      // that intent explicit for the pricing engine and future readers.
+      isBundle: promoDraft.mode === 'package',
+      stackable: promoDraft.mode !== 'package',
       isOngoing: true
     };
 
+    const BACKEND_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || 'http://localhost:3000';
+
     try {
-      const BACKEND_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || 'http://localhost:3000';
       const response = await fetch(`${BACKEND_URL}/api/admin/promos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -308,7 +351,10 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       // previous code optimistically synced the promo locally and then showed a
       // success toast, so a promo that never persisted appeared saved.
       logger.error('Promo publish failed (backend unreachable); blocking.', err);
-      const message = 'The promotions service is unreachable. Your promotion was not saved. Please try again.';
+      const isConnectionRefused = /failed to fetch|networkerror|load failed|err_connection_refused/i.test(String(err?.message || ''));
+      const message = isConnectionRefused
+        ? `The promotions service is unreachable at ${BACKEND_URL}. Make sure the backend server is running, then try again — your promotion was not saved.`
+        : 'The promotions service is unreachable. Your promotion was not saved. Please try again.';
       toast.error(message);
       setPromoValidationError(message);
       setPromoPublishing(false);
@@ -529,7 +575,11 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
               </span>
             </div>
 
-            <div style={{ maxHeight: '260px', overflowY: activeVehiclePopover ? 'visible' : 'auto', paddingRight: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {/* Each vehicle card stays compact because its service list scrolls
+                internally (see the popover below). The column itself must NOT
+                clip or force a fixed height, so an open popover can never spill
+                over the action buttons or the campaign cards underneath. */}
+            <div style={{ paddingRight: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {promoVehicleOptions.map(vehicle => {
                 const isVehicleSelected = Boolean(promoDraft.vehicleServiceMatrix?.[vehicle]);
                 const boundServices = promoDraft.vehicleServiceMatrix?.[vehicle] || [];
@@ -583,9 +633,13 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                       )}
                     </div>
 
-                    {/* Inline Service Popover Panel / Nested Accordion */}
+                    {/* Inline Service Popover Panel. Rendered in normal document
+                        flow (the parent no longer clips), so opening it pushes the
+                        rows below down instead of overlapping the action buttons.
+                        The service list scrolls internally when a vehicle has many
+                        services, keeping the card compact. */}
                     {isVehicleSelected && isPopoverOpen && (
-                      <div style={{ position: 'relative', zIndex: 60, marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed var(--admin-border)', background: 'var(--admin-input-bg)', borderRadius: '4px', padding: '0.5rem' }}>
+                      <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed var(--admin-border)', background: 'var(--admin-input-bg)', borderRadius: '4px', padding: '0.5rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                           <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>
                             Available Services for {vehicle}
@@ -609,7 +663,11 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                           </div>
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '140px', overflowY: 'auto' }}>
+                        {/* Scrollable list backstop: works even if a browser
+                            ignores the outer flex sizing when dozens of services
+                            exist. minHeight:0 lets the flex item shrink so the
+                            scrollbar (not page growth) absorbs the overflow. */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '180px', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }}>
                           {availableServices.map(svc => {
                             const isBound = boundServices.includes(svc.name);
                             return (
@@ -651,6 +709,27 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
             </div>
           </div>
         </div>
+
+        {/* Plain-language explainer. The two promo modes look the same but behave
+            differently; this note spells out the difference without jargon so an
+            admin knows which one to pick. It swaps based on the selected mode. */}
+        <div style={{ marginTop: '1rem', padding: '0.85rem 1rem', borderRadius: '6px', border: '1px solid var(--admin-border)', background: 'var(--admin-bg)' }}>
+          <div style={{ fontSize: '12px', fontWeight: '800', color: 'var(--admin-text-primary)', marginBottom: '0.35rem' }}>
+            {promoDraft.mode === 'package' ? 'What a Package Promo does' : 'What a Standard Promo does'}
+          </div>
+          <div style={{ fontSize: '12px', lineHeight: 1.6, color: 'var(--admin-text-secondary)' }}>
+            {promoDraft.mode === 'package'
+              ? 'A package sets one fixed total price for a group of services you pick together on a vehicle. Example: Wash + Engine Wash + Wax for a flat ₱1,500 instead of their separate prices added up. The customer gets that one price when they take the whole set.'
+              : 'A standard promo takes money off the services you pick. You can take off a percentage (Example: 10% off) or a fixed amount (Example: ₱200 off), and it applies to each service that matches. The customer still sees and picks the services one by one.'}
+          </div>
+        </div>
+
+        {packagePriceWarning && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginTop: '0.85rem', padding: '0.65rem 0.85rem', borderRadius: '6px', border: '1px solid var(--status-warning, #d97706)', background: 'rgba(217, 119, 6, 0.08)', color: 'var(--status-warning, #d97706)', fontSize: '12px', fontWeight: '700', lineHeight: 1.5 }}>
+            <span aria-hidden="true">⚠️</span>
+            <span>{packagePriceWarning}</span>
+          </div>
+        )}
 
         {promoValidationError && (
           <div style={{ color: 'var(--status-danger)', fontSize: '12px', fontWeight: '700', marginTop: '0.5rem' }}>

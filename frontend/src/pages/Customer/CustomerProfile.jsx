@@ -9,10 +9,12 @@ import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 const CustomerProfile = () => {
-  const { user, profile, updateProfile, verifyPassword, requestPasswordChange, requestEmailChange, confirmEmailChange, deactivateAccount } = useAuth();
-  
+  const { user, profile, updateProfile, verifyPassword, requestPasswordChange, resendPasswordChange, requestEmailChange, confirmEmailChange, deactivateAccount } = useAuth();
+
   // States
   const [isEditing, setIsEditing] = useState(false);
+  // Task 16: track confirmation-email delivery so the user can resend if needed.
+  const [passwordEmailState, setPasswordEmailState] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -89,10 +91,15 @@ const CustomerProfile = () => {
         return;
       }
 
-      await requestPasswordChange(passwordData.currentPassword, passwordData.newPassword);
-      
+      const changeResult = await requestPasswordChange(passwordData.currentPassword, passwordData.newPassword);
+
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      toast.success('Check your email to confirm the password change', { id: toastId });
+      setPasswordEmailState({ delivered: changeResult?.emailDelivered !== false, currentPassword: passwordData.currentPassword });
+      if (changeResult?.emailDelivered === false) {
+        toast.error('Password change saved, but the confirmation email could not be sent. Use “Resend confirmation email”.', { id: toastId });
+      } else {
+        toast.success('Check your email to confirm the password change', { id: toastId });
+      }
     } catch (error) {
       toast.error(error.message || 'Operation failed', { id: toastId });
     }
@@ -100,7 +107,7 @@ const CustomerProfile = () => {
 
   const executeVerifiedAction = async () => {
     const isVerified = await verifyPassword(passwordData.currentPassword);
-    
+
     if (!isVerified.success) {
       toast.error('Password check failed. Please try again.');
       return;
@@ -120,9 +127,14 @@ const CustomerProfile = () => {
         setIsEditing(false);
         toast.success('Profile updated', { id: toastId });
       } else if (pendingAction === 'password') {
-        await requestPasswordChange(passwordData.currentPassword, passwordData.newPassword);
+        const changeResult = await requestPasswordChange(passwordData.currentPassword, passwordData.newPassword);
         setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-        toast.success('Check your email to confirm the password change', { id: toastId });
+        setPasswordEmailState({ delivered: changeResult?.emailDelivered !== false, currentPassword: passwordData.currentPassword });
+        if (changeResult?.emailDelivered === false) {
+          toast.error('Password change saved, but the confirmation email could not be sent. Use “Resend confirmation email”.', { id: toastId });
+        } else {
+          toast.success('Check your email to confirm the password change', { id: toastId });
+        }
       }
     } catch (error) {
       toast.error(error.message || 'Operation failed', { id: toastId });
@@ -178,6 +190,25 @@ const CustomerProfile = () => {
     overflow: 'hidden'
   };
 
+  // Task 16: resend the password-change confirmation without retyping fields.
+  const handleResendPasswordEmail = async () => {
+    if (!passwordEmailState?.currentPassword) {
+      return toast.error('Please submit the password change again to resend the email.');
+    }
+    const toastId = toast.loading('Resending confirmation email...');
+    try {
+      const result = await resendPasswordChange(passwordEmailState.currentPassword);
+      if (result?.emailDelivered === false) {
+        toast.error('The confirmation email still could not be sent.', { id: toastId });
+      } else {
+        setPasswordEmailState((prev) => ({ ...prev, delivered: true }));
+        toast.success('Confirmation email resent. Please check your inbox.', { id: toastId });
+      }
+    } catch (err) {
+      toast.error(err.message || 'Unable to resend the confirmation email.', { id: toastId });
+    }
+  };
+
   const labelStyle = {
     display: 'block',
     fontSize: '0.68rem',
@@ -204,7 +235,7 @@ const CustomerProfile = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', paddingBottom: '5rem' }}>
-      
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '1.5rem', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -219,7 +250,7 @@ const CustomerProfile = () => {
           </div>
         </div>
         {!isEditing && (
-          <button 
+          <button
             onClick={() => setIsEditing(true)}
             style={{ padding: '0.65rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '800', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
@@ -229,7 +260,7 @@ const CustomerProfile = () => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-        
+
         {/* Left Column: Personal Data */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           <section style={cardStyle}>
@@ -242,22 +273,22 @@ const CustomerProfile = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
                 <div>
                   <label style={labelStyle}>First Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={formData.firstName}
                     readOnly={!isEditing}
                     onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                    style={inputStyle} 
+                    style={inputStyle}
                   />
                 </div>
                 <div>
                   <label style={labelStyle}>Last Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={formData.lastName}
                     readOnly={!isEditing}
                     onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                    style={inputStyle} 
+                    style={inputStyle}
                   />
                 </div>
               </div>
@@ -266,12 +297,12 @@ const CustomerProfile = () => {
                 <label style={labelStyle}>Contact Number</label>
                 <div style={{ position: 'relative' }}>
                   <Phone size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
-                  <input 
-                    type="tel" 
+                  <input
+                    type="tel"
                     value={formData.phone}
                     readOnly={!isEditing}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    style={{ ...inputStyle, paddingLeft: '3rem' }} 
+                    style={{ ...inputStyle, paddingLeft: '3rem' }}
                   />
                 </div>
               </div>
@@ -287,15 +318,15 @@ const CustomerProfile = () => {
 
               {isEditing && (
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => { setIsEditing(false); setFormData({ firstName: profile?.first_name || '', lastName: profile?.last_name || '', phone: profile?.phone_number || '' }); }}
                     style={{ flex: 1, padding: '0.75rem 1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '800', cursor: 'pointer' }}
                   >
                     Cancel
                   </button>
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     style={{ flex: 1.5, padding: '0.75rem 1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '8px', color: 'var(--admin-text-on-brand)', fontWeight: '800', cursor: 'pointer' }}
                   >
                     Save Changes
@@ -309,7 +340,7 @@ const CustomerProfile = () => {
 
         {/* Right Column: Security & Danger Zone */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          
+
           {/* Password Section */}
           <section style={cardStyle}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
@@ -318,21 +349,21 @@ const CustomerProfile = () => {
             </div>
 
             <form onSubmit={handleUpdatePasswordClick} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <input 
-                type="text" 
-                name="username" 
-                autoComplete="username" 
+              <input
+                type="text"
+                name="username"
+                autoComplete="username"
                 defaultValue={profile?.email || user?.email || ''}
-                style={{ display: 'none' }} 
-                tabIndex={-1} 
-                aria-hidden="true" 
+                style={{ display: 'none' }}
+                tabIndex={-1}
+                aria-hidden="true"
               />
               <div>
                 <div style={{ marginBottom: '0.5rem' }}>
                   <label style={{ ...labelStyle, marginBottom: 0 }}>Current Password</label>
                 </div>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   name="verification-password"
                   autoComplete="off"
                   readOnly={!passwordInputReady}
@@ -343,30 +374,30 @@ const CustomerProfile = () => {
                   placeholder="Current password"
                   value={passwordData.currentPassword}
                   onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
-                  style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text' }} 
+                  style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text' }}
                   required
                 />
               </div>
               <div>
                 <label style={labelStyle}>New Password</label>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   autoComplete="new-password"
                   placeholder="Min. 6 characters"
                   value={passwordData.newPassword}
                   onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
-                  style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text' }} 
+                  style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text' }}
                 />
               </div>
               <div>
                 <label style={labelStyle}>Confirm Password</label>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   autoComplete="new-password"
                   placeholder="Repeat new password"
                   value={passwordData.confirmPassword}
                   onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
-                  style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text' }} 
+                  style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text' }}
                 />
               </div>
               {/* Inline validation hints */}
@@ -378,6 +409,23 @@ const CustomerProfile = () => {
               {passwordData.confirmPassword.length > 0 && passwordData.newPassword !== passwordData.confirmPassword && (
                 <div style={{ fontSize: '0.72rem', color: 'var(--status-danger)', fontWeight: '700', marginTop: '-0.5rem' }}>
                   ✕ Passwords do not match
+                </div>
+              )}
+              {/* Task 16: confirmation-email delivery status + resend option. */}
+              {passwordEmailState && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.85rem 1rem', background: passwordEmailState.delivered ? 'rgba(var(--admin-success-rgb), 0.08)' : 'rgba(245, 158, 11, 0.1)', border: `1px solid ${passwordEmailState.delivered ? 'var(--admin-success)' : 'var(--status-warning)'}`, borderRadius: '8px' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: '700', color: passwordEmailState.delivered ? 'var(--admin-success)' : 'var(--status-warning)' }}>
+                    {passwordEmailState.delivered
+                      ? 'Confirmation email sent. Check your inbox (and spam) to complete the change.'
+                      : 'The confirmation email could not be confirmed as sent. Resend it below.'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleResendPasswordEmail}
+                    style={{ padding: '0.5rem 0.9rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '8px', fontSize: '0.65rem', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    Resend confirmation email
+                  </button>
                 </div>
               )}
               <button 

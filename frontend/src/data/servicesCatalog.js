@@ -156,13 +156,23 @@ export const getServiceCatalog = () => {
         estTime: `${Number(service.durationMinutes || 60)} mins`,
         durationMinutes: Number(service.durationMinutes || 60),
         vehicleType,
+        // General service (grouping category) the admin assigned when creating
+        // this specific service. Defaults to the generic bucket.
+        generalService: String(service.generalService || service.category || 'Custom Services').trim() || 'Custom Services',
       };
     });
 
-    return {
-      ...SERVICES_DATA,
-      'Custom Services': customServicesByType
-    };
+    // Group every custom service under its general service so the booking wizard
+    // renders it inside the correct Step-A category. When the general service
+    // matches a built-in category, the custom service is appended to that
+    // category instead of appearing in a separate bucket.
+    const grouped = { ...SERVICES_DATA };
+    customServicesByType.forEach((service) => {
+      const category = service.generalService;
+      grouped[category] = [...(grouped[category] || []), service];
+    });
+
+    return grouped;
   } catch {
     return SERVICES_DATA;
   }
@@ -232,13 +242,26 @@ export const getApplicablePromoRules = ({ vehicleType, serviceName, atDate = nul
   return getPromoRules().filter(rule => {
     if (!isPromoActiveForNow(rule, atDate)) return false;
 
-    // 1. Dynamic Vehicle-to-Service Binding Matrix Evaluation
+    // Packages are NOT evaluated per-service here. A package is a bundle that
+    // only applies when the WHOLE set is present on the vehicle, so it is
+    // resolved separately by getActivePackageForVehicle(). Excluding it from
+    // the per-service path is what makes a package non-stackable.
+    if (isPackageRule(rule)) return false;
+
+    // 1. Dynamic Vehicle-to-Service Binding Matrix Evaluation. When a rule
+    //    defines a matrix AND that matrix scopes the target vehicle, matrix
+    //    membership is DECISIVE: only the services explicitly bound to this
+    //    vehicle qualify. This prevents the broad fallback below from
+    //    accidentally applying a per-vehicle promo to services it never listed
+    //    (e.g. a 10%-off "Regular Wash" rule silently discounting "Engine Wash").
+    let matrixScopedThisVehicle = false;
     if (rule.vehicleServiceMatrix && typeof rule.vehicleServiceMatrix === 'object') {
       const matrixVehicles = Object.keys(rule.vehicleServiceMatrix);
       const vehicleKey = matrixVehicles.find(v => String(v).toLowerCase() === targetVehicleType.toLowerCase());
       if (vehicleKey) {
         const boundServices = rule.vehicleServiceMatrix[vehicleKey];
         if (Array.isArray(boundServices) && boundServices.length > 0) {
+          matrixScopedThisVehicle = true;
           const normTarget = targetServiceName.toLowerCase();
           const matches = boundServices.some(item => {
             const cand = String(item || '').trim().toLowerCase();
@@ -248,8 +271,12 @@ export const getApplicablePromoRules = ({ vehicleType, serviceName, atDate = nul
         }
       }
     }
+    // The rule explicitly scopes this vehicle but not this service → it does not
+    // apply. Do not fall through to the broad scope.
+    if (matrixScopedThisVehicle) return false;
 
-    // 2. Fallback to vehicleTypes & serviceMatches array scope
+    // 2. Fallback to vehicleTypes & serviceMatches array scope (only reached when
+    //    the rule did not define a per-vehicle matrix for the target vehicle).
     const hasVehicleScope = Array.isArray(rule.vehicleTypes) && rule.vehicleTypes.length > 0;
     const vehicleMatch = !hasVehicleScope || rule.vehicleTypes.some(vehicle => String(vehicle).toLowerCase() === targetVehicleType.toLowerCase());
 
@@ -267,51 +294,261 @@ export const getApplicablePromoRules = ({ vehicleType, serviceName, atDate = nul
   });
 };
 
+// ── Package (bundle) helpers ───────────────────────────────────────────────
+// A package differs from a standard promo at the semantic level:
+//   • Standard promo = a MODIFIER. It takes an amount/percentage off each
+//     matched service, independently. Multiple standard promos may apply.
+//   • Package = a PRODUCT. It replaces the individual prices of a defined SET
+//     of services on one vehicle with a single flat price. It applies ONLY when
+//     the customer has selected the entire set, and it never stacks with other
+//     promos (a package price plus a percentage would double-discount).
+export const isPackageRule = (rule) => Boolean(
+  rule && (rule.mode === 'package' || rule.type === 'fixed_package')
+);
+
+// Resolve how a promo rule binds a specific vehicle to a set of service names.
+// Returns the exact service-name list, or [] when the rule does not scope this
+// vehicle at all.
+export const getPackageServicesForVehicle = (rule, vehicleType) => {
+  if (!rule || !vehicleType) return [];
+  const target = String(vehicleType).toLowerCase();
+
+  if (rule.vehicleServiceMatrix && typeof rule.vehicleServiceMatrix === 'object') {
+    const key = Object.keys(rule.vehicleServiceMatrix)
+      .find(v => String(v).toLowerCase() === target);
+    if (key && Array.isArray(rule.vehicleServiceMatrix[key])) {
+      return rule.vehicleServiceMatrix[key].map(s => String(s || '').trim()).filter(Boolean);
+    }
+  }
+  // Fallback scope matrices.
+  const scopedVehicles = Array.isArray(rule.vehicleTypes) ? rule.vehicleTypes : [];
+  const scopeMatches = !scopedVehicles.length || scopedVehicles.some(v => String(v).toLowerCase() === target);
+  if (!scopeMatches) return [];
+  const list = Array.isArray(rule.serviceMatches) ? rule.serviceMatches : (Array.isArray(rule.serviceNames) ? rule.serviceNames : []);
+  return list.map(s => String(s || '').trim()).filter(Boolean);
+};
+
+const normalizeServiceName = (name) => String(name || '').trim().toLowerCase();
+
+// True when `selectedNames` contains every service required by the package set.
+const packageSetIsComplete = (requiredNames, selectedNames) => {
+  if (!requiredNames.length) return false;
+  const selected = selectedNames.map(normalizeServiceName);
+  return requiredNames.every(required => {
+    const req = normalizeServiceName(required);
+    return selected.some(sel => sel === req || sel.includes(req) || req.includes(sel));
+  });
+};
+
+/**
+ * Sum of a package's member services at their regular (catalog) prices for a
+ * vehicle — the "if bought separately" figure. Used to warn an admin when a
+ * package price is not actually a saving, and to compute package savings for UI.
+ *
+ * @param {object} rule the package promo rule
+ * @param {string} vehicleType
+ * @returns {number}
+ */
+export const getPackageStandaloneSum = (rule, vehicleType) => {
+  const required = getPackageServicesForVehicle(rule, vehicleType);
+  if (!required.length) return 0;
+  const catalog = getServiceCatalog();
+  const all = Object.values(catalog).flat();
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  return required.reduce((sum, name) => {
+    const match = all.find((svc) => {
+      const svcName = norm(svc.name);
+      const target = norm(name);
+      return svcName === target || svcName.includes(target) || target.includes(svcName);
+    });
+    const priceMap = match?.prices || {};
+    const price = Number(
+      vehicleType === 'Motorcycle Regular'
+        ? (priceMap.Regular ?? priceMap['Motorcycle Regular'] ?? 0)
+        : vehicleType === 'Bigbike'
+          ? (priceMap.Bigbike ?? 0)
+          : (priceMap[vehicleType] ?? 0)
+    );
+    return sum + (Number.isFinite(price) ? price : 0);
+  }, 0);
+};
+
+/**
+ * Resolve the single package (if any) that fully applies to one vehicle in a
+ * booking, given the services the customer selected on that vehicle.
+ *
+ * @param {string} vehicleType
+ * @param {string[]} selectedServiceNames
+ * @param {string|null} atDate
+ * @returns {null | { rule, requiredServices, packagePrice, matchedServices, savings }}
+ */
+export const getActivePackageForVehicle = (vehicleType, selectedServiceNames = [], atDate = null) => {
+  const names = Array.isArray(selectedServiceNames) ? selectedServiceNames : [];
+  if (!vehicleType || !names.length) return null;
+
+  const candidates = getPromoRules()
+    .filter(rule => isPackageRule(rule) && isPromoActiveForNow(rule, atDate))
+    .map(rule => ({ rule, requiredServices: getPackageServicesForVehicle(rule, vehicleType) }))
+    .filter(({ requiredServices }) => packageSetIsComplete(requiredServices, names));
+
+  if (!candidates.length) return null;
+
+  const { rule, requiredServices } = candidates[0];
+  const packagePrice = Math.max(0, Number(rule.value || 0));
+  return {
+    rule,
+    requiredServices,
+    packagePrice,
+    matchedServices: requiredServices,
+  };
+};
+
+/**
+ * priceVehicleServices — the single source of truth for how one vehicle's
+ * selected services are priced. It decides between the two promo semantics:
+ *
+ *  • PACKAGE (product): if the full bundle set is present, the vehicle is priced
+ *    at ONE flat package price and every service is marked package-priced. No
+ *    standard promo applies (non-stackable).
+ *  • STANDARD (modifier): otherwise each service is priced with the standard
+ *    promos that match it, independently.
+ *
+ * Returns the per-service array (unchanged shape the wizard stores) plus the
+ * resolved package, so callers can both persist correct prices AND render the
+ * bundle as a single line.
+ *
+ * @param {string} vehicleType
+ * @param {Array<{ name:string, price?:number, basePrice?:number }>} services
+ * @param {string|null} atDate
+ */
+export const priceVehicleServices = (vehicleType, services = [], atDate = null) => {
+  const list = Array.isArray(services) ? services : [];
+  const names = list.map(s => s.name || s.service_name || '').filter(Boolean);
+  const activePackage = getActivePackageForVehicle(vehicleType, names, atDate);
+
+  if (activePackage) {
+    const pkgName = activePackage.rule.name;
+    const priced = list.map(service => {
+      const basePrice = Number(service.price ?? service.basePrice ?? 0);
+      const priceAtBooking = Number(service.price_at_booking ?? basePrice);
+      return {
+        ...service,
+        original_price: basePrice,
+        // A package price is a whole-vehicle figure; individual services keep
+        // their base price here so the bundle line can show the single total.
+        price_at_booking: priceAtBooking,
+        discount: Math.max(0, basePrice - priceAtBooking),
+        applied_promo: null,
+        package_applied: pkgName,
+      };
+    });
+
+    // Package total is authoritative: clear per-service booking prices so the
+    // unit subtotal function must use the package total instead of summing.
+    return {
+      services: priced.map(s => ({ ...s, price_at_booking: 0 })),
+      package: {
+        name: pkgName,
+        ruleId: activePackage.rule.id,
+        packagePrice: activePackage.packagePrice,
+        requiredServices: activePackage.requiredServices,
+      },
+      unitSubtotal: activePackage.packagePrice,
+    };
+  }
+
+  const priced = list.map(service => {
+    const basePrice = Number(service.price ?? service.basePrice ?? 0);
+    const promoInfo = getBestPromoForService(vehicleType, service.name || service.service_name, basePrice, atDate);
+    const priceAtBooking = promoInfo ? promoInfo.effectivePrice : basePrice;
+    return {
+      ...service,
+      original_price: basePrice,
+      price_at_booking: priceAtBooking,
+      discount: promoInfo ? promoInfo.discountAmount : 0,
+      applied_promo: promoInfo ? promoInfo.name : null,
+      package_applied: null,
+    };
+  });
+
+  const unitSubtotal = priced.reduce((total, s) => total + Number(s.price_at_booking ?? 0), 0);
+  return { services: priced, package: null, unitSubtotal: Math.round(unitSubtotal * 100) / 100 };
+};
+
 export const getEffectivePriceForService = (basePrice, vehicleType, serviceName, atDate = null) => {
   let adjustedPrice = Number(basePrice || 0);
   const rules = getApplicablePromoRules({ vehicleType, serviceName, atDate });
 
+  // Standard promos stack additively, but the price is floored at 0 so a fixed
+  // discount larger than the price can never create a negative charge.
   rules.forEach(rule => {
     if (rule.type === 'percentage') {
       adjustedPrice = adjustedPrice * (1 - (Number(rule.value || 0) / 100));
     } else if (rule.type === 'fixed') {
       adjustedPrice = Math.max(0, adjustedPrice - Number(rule.value || 0));
-    } else if (rule.type === 'fixed_package' || rule.mode === 'package') {
-      if (Number(rule.value) > 0) {
-        adjustedPrice = Math.min(adjustedPrice, Number(rule.value));
-      }
     }
   });
 
   return Math.round(adjustedPrice * 100) / 100;
 };
 
-export const getBestPromoForService = (vehicleType, serviceName, basePrice = 0) => {
-  const rules = getApplicablePromoRules({ vehicleType, serviceName });
+export const getBestPromoForService = (vehicleType, serviceName, basePrice = 0, atDate = null) => {
+  // Standard (modifier) promos only. Packages are bundles resolved per-vehicle
+  // via getActivePackageForVehicle(), so they never appear here — that is what
+  // keeps a package from being shown as a per-service "discount".
+  const rules = getApplicablePromoRules({ vehicleType, serviceName, atDate });
   if (!rules.length) return null;
   const rule = rules[0];
-  const effectivePrice = getEffectivePriceForService(basePrice, vehicleType, serviceName);
+  const effectivePrice = getEffectivePriceForService(basePrice, vehicleType, serviceName, atDate);
   const discountAmount = Math.max(0, Number(basePrice) - effectivePrice);
   return {
     ...rule,
     effectivePrice,
     discountAmount,
-    tagText: rule.mode === 'package'
-      ? `PKG: ₱${Number(rule.value).toLocaleString()}`
-      : rule.type === 'percentage'
-        ? `${rule.value}% OFF`
-        : `₱${Number(rule.value).toLocaleString()} OFF`
+    tagText: rule.type === 'percentage'
+      ? `${rule.value}% OFF`
+      : `₱${Number(rule.value).toLocaleString()} OFF`
   };
 };
 
 export const calculateBookingDiscountSummary = (vehicles = [], atDate = null) => {
   let originalTotal = 0;
   let discountedTotal = 0;
+  const appliedPackages = [];
 
   (vehicles || []).forEach(vehicle => {
-    (vehicle.services || []).forEach(service => {
+    const services = vehicle.services || [];
+    const standaloneSum = services.reduce(
+      (sum, service) => sum + Number(service.price || service.basePrice || 0), 0
+    );
+    originalTotal += standaloneSum;
+
+    // A package is a mutually-exclusive PRODUCT for this vehicle: when the full
+    // bundle set is selected, the vehicle is priced at ONE flat package price
+    // and NO standard promo applies on top (prevents double-discounting).
+    const selectedNames = services.map(s => s.name || s.service_name || '').filter(Boolean);
+    const activePackage = getActivePackageForVehicle(vehicle.type, selectedNames, atDate);
+
+    if (activePackage) {
+      discountedTotal += activePackage.packagePrice;
+      appliedPackages.push({
+        // Both naming conventions are provided so the booking persistence path
+        // (packageId/standaloneSum) and UI consumers (ruleId/packagePrice) agree.
+        packageId: activePackage.rule.id,
+        ruleId: activePackage.rule.id,
+        name: activePackage.rule.name,
+        vehicleType: vehicle.type,
+        packagePrice: activePackage.packagePrice,
+        standaloneSum,
+        savings: Math.max(0, standaloneSum - activePackage.packagePrice),
+        requiredServices: activePackage.requiredServices,
+      });
+      return;
+    }
+
+    // No package applies → every service is priced with standard promos.
+    services.forEach(service => {
       const basePrice = Number(service.price || service.basePrice || 0);
-      originalTotal += basePrice;
       discountedTotal += getEffectivePriceForService(basePrice, vehicle.type, service.name || service.service_name, atDate);
     });
   });
@@ -319,7 +556,8 @@ export const calculateBookingDiscountSummary = (vehicles = [], atDate = null) =>
   return {
     originalTotal,
     discountedTotal,
-    totalDiscount: Math.max(0, originalTotal - discountedTotal)
+    totalDiscount: Math.max(0, originalTotal - discountedTotal),
+    appliedPackages,
   };
 };
 

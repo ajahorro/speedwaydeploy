@@ -76,9 +76,17 @@ const AdminAccountsManagement = () => {
     try {
       logger.admin(`Inviting ${activeTab}: ${inviteForm.email}`);
 
+      // 🛡️ TASK 13: send the caller's JWT so the backend can independently
+      // confirm they hold an ADMIN role (not just rely on the DB RPC guard).
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Your session has expired. Please sign in again.');
+
       const response = await fetch(`${BACKEND_URL}/api/admin/invite-account`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({
           email: inviteForm.email.trim().toLowerCase(),
           firstName: inviteForm.firstName.trim(),
@@ -138,9 +146,29 @@ const AdminAccountsManagement = () => {
   // Only the specific DEFAULT_ADMIN_ID account gets the badge and is protected.
   const isDefaultAdmin = (member) => member.id === defaultAdminId;
 
+  // 🛡️ TASK 17: SELF-PROTECTION. An admin must never see a control that would
+  // revoke their own access — the backend refuses it too (defence in depth).
+  const isSelf = (member) => Boolean(currentUser?.id && member.id === currentUser.id);
+
+  // 🛡️ TASK 14: there must always be at least one administrator. When only one
+  // ADMIN remains, its deactivate control is hidden so the system cannot be
+  // left with zero admins.
+  const adminCount = accounts.filter(a => a.role === 'ADMIN').length;
+  const isLastAdmin = (member) => member.role === 'ADMIN' && adminCount <= 1;
+
   const handleDeactivate = (member) => {
     if (isDefaultAdmin(member)) {
       toast.error('Default Admin accounts cannot be deactivated.');
+      return;
+    }
+    // 🛡️ TASK 17: never allow self-deactivation from the UI.
+    if (isSelf(member)) {
+      toast.error('You cannot deactivate your own account.');
+      return;
+    }
+    // 🛡️ TASK 14: keep at least one administrator at all times.
+    if (isLastAdmin(member)) {
+      toast.error('This is the last remaining administrator and cannot be deactivated.');
       return;
     }
 
@@ -152,9 +180,16 @@ const AdminAccountsManagement = () => {
       onConfirm: async () => {
         setIsSubmitting(true);
         try {
+          // 🛡️ TASK 13: authenticated admin call.
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) throw new Error('Your session has expired. Please sign in again.');
+
           const response = await fetch(`${BACKEND_URL}/api/admin/revoke-access`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`
+            },
             body: JSON.stringify({ memberId: member.id })
           });
           const result = await response.json();
@@ -190,7 +225,7 @@ const AdminAccountsManagement = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      <PageHeader 
+      <PageHeader
         badge="ACCOUNT INFRASTRUCTURE"
         title="Accounts Management"
         subtitle="Manage system access levels and administrative privileges via secure invitation."
@@ -200,10 +235,10 @@ const AdminAccountsManagement = () => {
       <div style={{ ...cardStyle }}>
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--admin-border)', marginBottom: '1.5rem', gap: '2rem' }}>
-          <button 
+          <button
             onClick={() => setActiveTab('STAFF')}
-            style={{ 
-              padding: '1rem 0.5rem', background: 'none', border: 'none', 
+            style={{
+              padding: '1rem 0.5rem', background: 'none', border: 'none',
               color: activeTab === 'STAFF' ? 'var(--admin-brand)' : 'var(--admin-text-secondary)',
               borderBottom: activeTab === 'STAFF' ? '2px solid var(--admin-brand)' : '2px solid transparent',
               fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer', textTransform: 'uppercase'
@@ -212,10 +247,10 @@ const AdminAccountsManagement = () => {
             Staff Accounts
           </button>
           {isAdmin && (
-            <button 
+            <button
               onClick={() => setActiveTab('ADMIN')}
-              style={{ 
-                padding: '1rem 0.5rem', background: 'none', border: 'none', 
+              style={{
+                padding: '1rem 0.5rem', background: 'none', border: 'none',
                 color: activeTab === 'ADMIN' ? 'var(--admin-brand)' : 'var(--admin-text-secondary)',
                 borderBottom: activeTab === 'ADMIN' ? '2px solid var(--admin-brand)' : '2px solid transparent',
                 fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer', textTransform: 'uppercase'
@@ -229,26 +264,26 @@ const AdminAccountsManagement = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div style={{ position: 'relative', width: isMobile ? '100%' : '300px' }}>
             <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)', opacity: 0.5 }} />
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder={`SEARCH ${activeTab}S...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ 
-                width: '100%', padding: '0.75rem 1rem 0.75rem 2.5rem', background: 'var(--admin-bg)', 
-                border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', 
-                color: 'var(--admin-text-primary)', fontSize: '0.75rem', fontWeight: '950', 
+              style={{
+                width: '100%', padding: '0.75rem 1rem 0.75rem 2.5rem', background: 'var(--admin-bg)',
+                border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)',
+                color: 'var(--admin-text-primary)', fontSize: '0.75rem', fontWeight: '950',
                 outline: 'none', textTransform: 'uppercase'
               }}
             />
           </div>
-          
-          <button 
+
+          <button
             onClick={() => setIsModalOpen(true)}
-            style={{ 
-              padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', 
-              border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', 
-              fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' 
+            style={{
+              padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)',
+              border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950',
+              fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem'
             }}
           >
             <UserPlus size={16} /> SEND {activeTab} INVITE
@@ -262,18 +297,18 @@ const AdminAccountsManagement = () => {
             ))
           ) : filteredAccounts.length > 0 ? (
             filteredAccounts.map((member) => (
-              <div 
+              <div
                 key={member.id}
-                style={{ 
-                  padding: '1rem 1.5rem', background: 'var(--admin-bg)', 
+                style={{
+                  padding: '1rem 1.5rem', background: 'var(--admin-bg)',
                   borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)',
                   display: 'flex', alignItems: 'center', gap: '1.25rem'
                 }}
               >
-                <div style={{ 
-                  width: '42px', height: '42px', borderRadius: 'var(--admin-radius-sm)', 
-                  background: 'var(--admin-card)', display: 'flex', alignItems: 'center', 
-                  justifyContent: 'center', color: member.role === 'ADMIN' ? '#f59e0b' : 'var(--admin-brand)', 
+                <div style={{
+                  width: '42px', height: '42px', borderRadius: 'var(--admin-radius-sm)',
+                  background: 'var(--admin-card)', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', color: member.role === 'ADMIN' ? '#f59e0b' : 'var(--admin-brand)',
                   fontSize: '1rem', fontWeight: '950', border: '1px solid var(--admin-border)'
                 }}>
                   {member.role === 'ADMIN' ? <Shield size={18} /> : member.full_name?.charAt(0).toUpperCase()}
@@ -291,18 +326,23 @@ const AdminAccountsManagement = () => {
                   </div>
                 </div>
 
-                {!isDefaultAdmin(member) && (
-                  <button 
+                {!isDefaultAdmin(member) && !isSelf(member) && !isLastAdmin(member) && (
+                  <button
                     onClick={() => handleDeactivate(member)}
-                    style={{ 
-                      padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)', 
-                      background: 'rgba(239, 68, 68, 0.05)', color: 'var(--status-danger)', 
+                    style={{
+                      padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)',
+                      background: 'rgba(239, 68, 68, 0.05)', color: 'var(--status-danger)',
                       fontSize: '0.65rem', fontWeight: '950', border: '1px solid rgba(239, 68, 68, 0.2)',
                       cursor: 'pointer', textTransform: 'uppercase'
                     }}
                   >
                     Deactivate
                   </button>
+                )}
+                {(isDefaultAdmin(member) || isSelf(member) || isLastAdmin(member)) && (
+                  <span style={{ fontSize: '0.6rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', opacity: 0.7 }}>
+                    {isSelf(member) ? 'This is you' : 'Protected'}
+                  </span>
                 )}
               </div>
             ))

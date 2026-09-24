@@ -5,12 +5,14 @@ import {
   Plus, X, Trash2, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { useConfig } from '../../context/ConfigContext';
+import { useUI } from '../../context/UIContext';
 import { supabase } from '../../lib/supabase';
+import toast from 'react-hot-toast';
 import PromoManager from '../../components/AdminSchedule/PromoManager';
 import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
 import { validateQrRecipients } from '../../services/qrSecurityService';
 import { buildBusinessConfigUpdatePayload, stripUnsupportedBusinessConfigColumns } from '../../services/businessConfigPayload';
-import { sanitizeAlphaNum, sanitizeByFieldType, VEHICLE_TYPE_OPTIONS } from '../../config/constants';
+import { sanitizeAlphaNum, sanitizeByFieldType, toTitleCase, VEHICLE_TYPE_OPTIONS } from '../../config/constants';
 import { SERVICES_DATA } from '../../data/servicesCatalog';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
@@ -27,7 +29,7 @@ const SECTION_FIELDS = {
     'qr_account_name', 'qr_account_number', 'payment_qr_url',
     'faqs'
   ],
-  hours: ['opening_hour', 'closing_hour', 'slots_per_hour', 'max_vehicles_per_staff'],
+  hours: ['opening_hour', 'closing_hour', 'is_24_7', 'slots_per_hour', 'max_vehicles_per_staff'],
   schedule: ['booking_lead_time_minutes', 'max_advance_days', 'closed_weekdays', 'enforce_capacity'],
   services: ['custom_services', 'vehicle_types'],
   faqs: ['faqs']
@@ -47,6 +49,15 @@ const WEEKDAYS = [
 
 const DEFAULT_VEHICLE_TYPES = ['Sedan', 'SUV', 'Van/L300', 'Regular', 'Bigbike'];
 const VEHICLE_TYPE_CHOICES = DEFAULT_VEHICLE_TYPES;
+
+// A "general service" is the catalog category a specific service belongs to
+// (e.g. "Premium Car Wash", "Interior & Cabin Care"). The booking wizard renders
+// these as the Step-A service-type buttons. Custom services are grouped into the
+// category the admin assigns here instead of one flat "Custom Services" bucket.
+const GENERAL_SERVICE_DEFAULT = '__default__';
+const GENERAL_SERVICE_NEW = '__new__';
+// Built-in catalog categories are offered as-is; admins may also type a new one.
+const baseGeneralServiceOptions = () => Object.keys(SERVICES_DATA || {});
 const DEFAULT_VEHICLE_CATEGORY_OPTIONS = VEHICLE_TYPE_OPTIONS.map((option) => ({
   value: option.value,
   label: option.label
@@ -73,7 +84,7 @@ const normalizeVehicleCategoryKey = (value = '') => {
     bigbike: 'Bigbike'
   };
 
-  const normalized = raw.toLowerCase().replace(/[_/\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalized = raw.toLowerCase().replace(/[_/-]+/g, ' ').replace(/\s+/g, ' ').trim();
   return aliasMap[normalized] || raw;
 };
 
@@ -256,14 +267,26 @@ const SectionHeading = ({ children, style }) => (
  </h2>
 );
 
-const Field = ({ label, required, children }) => (
- <div>
-    <label style={labelStyle}>
+// Accessibility: a <label> must be tied to a control. Pass `htmlFor` equal to the
+// child control's `id` — that satisfies both "form field should have an id/name"
+// and "no label associated with a form field". When a field wraps a non-input
+// group (e.g. a button), omit `htmlFor` and the caption renders as a plain <div>
+// so we never emit an orphan <label>.
+const Field = ({ label, required, htmlFor, children }) => {
+  const caption = (
+    <>
       {label}{required ? <span style={{ color: 'var(--admin-brand)' }}> *</span> : null}
-    </label>
-    {children}
- </div>
-);
+    </>
+  );
+  return (
+    <div>
+      {htmlFor
+        ? <label htmlFor={htmlFor} style={labelStyle}>{caption}</label>
+        : <div style={labelStyle}>{caption}</div>}
+      {children}
+    </div>
+  );
+};
 
 const Hint = ({ children }) => (
  <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: 700, color: 'var(--status-warning, #f59e0b)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -309,6 +332,7 @@ const SaveBar = ({ canSave, saving, dirty, label }) => {
 
 export default function BusinessHub() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { openModal } = useUI();
 
   // Derive the active tab directly from the URL on every render so browser
   // Back/Forward navigation stays in sync. Fall back to 'profile' for any
@@ -326,6 +350,8 @@ export default function BusinessHub() {
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState('All');
   const [newServiceForm, setNewServiceForm] = useState({
     targetVehicleCategory: 'Sedan',
+    generalService: GENERAL_SERVICE_DEFAULT,
+    newGeneralService: '',
     name: '',
     price: '',
     duration: '60',
@@ -333,6 +359,8 @@ export default function BusinessHub() {
   });
   const [vehicleCategoryForm, setVehicleCategoryForm] = useState({
     name: '',
+    generalService: GENERAL_SERVICE_DEFAULT,
+    newGeneralService: '',
     serviceName: '',
     price: '',
     duration: '60',
@@ -359,6 +387,7 @@ export default function BusinessHub() {
     business_address: '',
     opening_hour: '',
     closing_hour: '',
+    is_24_7: false,
     // Task B: QR recipient fields replace the legacy single-payment pair.
     qr_account_name: '',
     qr_account_number: '',
@@ -367,7 +396,7 @@ export default function BusinessHub() {
     qr_config_complete: false,
     slots_per_hour: 2,
     max_vehicles_per_staff: 1,
-    booking_lead_time_minutes: 120,
+    booking_lead_time_minutes: 5,
     max_advance_days: 30,
     closed_weekdays: [],
     enforce_capacity: true,
@@ -437,6 +466,7 @@ export default function BusinessHub() {
           business_address: data.business_address || '',
           opening_hour: data.opening_hour || '',
           closing_hour: data.closing_hour || '',
+          is_24_7: data.is_24_7 === true,
           qr_account_name: data.qr_account_name || '',
           qr_account_number: data.qr_account_number || '',
           payment_qr_url: data.payment_qr_url || data.gcash_qr_url || data.qr_photo_url || '',
@@ -444,7 +474,7 @@ export default function BusinessHub() {
           qr_config_complete: data.qr_config_complete === true,
           slots_per_hour: data.slots_per_hour ?? 2,
           max_vehicles_per_staff: data.max_vehicles_per_staff ?? 1,
-          booking_lead_time_minutes: data.booking_lead_time_minutes ?? 120,
+          booking_lead_time_minutes: data.booking_lead_time_minutes ?? 5,
           max_advance_days: data.max_advance_days ?? 30,
           closed_weekdays: Array.isArray(data.closed_weekdays) ? data.closed_weekdays : [],
           enforce_capacity: data.enforce_capacity !== false,
@@ -496,10 +526,10 @@ export default function BusinessHub() {
       reason: 'alphaNum',
       name: 'alphaNum',
       serviceName: 'alphaNum',
-      description: 'alphaNum',
-      question: 'alphaNum',
-      answer: 'alphaNum',
-      targetVehicleCategory: 'alphaNum',
+      description: 'prose',
+      question: 'prose',
+      answer: 'prose',
+      targetVehicleCategory: 'prose',
       vehicleCategory: 'alphaNum',
       payment_qr_url: null,
     };
@@ -566,6 +596,9 @@ export default function BusinessHub() {
     if (section === 'hours') {
       const slots = Number(businessForm.slots_per_hour);
       const maxUnits = Number(businessForm.max_vehicles_per_staff);
+      // 24/7 ignores the finite window, so the opening<closing ordering only
+      // applies when the shop is NOT open 24 hours.
+      if (businessForm.is_24_7 === true) return slots >= 1 && maxUnits >= 1;
       const opening = String(businessForm.opening_hour || '').trim();
       const closing = String(businessForm.closing_hour || '').trim();
       // Closing must be strictly after opening so the shop never opens "backwards".
@@ -644,10 +677,25 @@ export default function BusinessHub() {
       return;
     }
 
-    if (!window.confirm('Apply this restriction and immediately enforce it across the booking rules?')) return;
+    const scopeLabel = restrictionForm.scope === 'range'
+      ? 'a date range'
+      : restrictionForm.scope === 'window'
+        ? 'a time window'
+        : 'a full day';
 
+    // Styled confirmation modal (replaces the unstyled native window.confirm).
+    openModal({
+      title: 'Apply This Restriction?',
+      message: `This will block ${scopeLabel} and immediately stop new bookings from landing on the affected slot(s). Any existing bookings in the way will be flagged. Continue?`,
+      confirmText: 'Apply Restriction',
+      cancelText: 'Cancel',
+      type: 'warning',
+      onConfirm: () => commitBlock(payload, dateForBlock),
+    });
+  };
+
+  const commitBlock = async (payload, dateForBlock) => {
     try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
       const res = await fetch(`${BACKEND_URL}/api/admin/blocked-slots`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -662,18 +710,33 @@ export default function BusinessHub() {
 
       setMessage({ type: 'success', text: 'Resource restriction saved and now enforced in the booking rules.' });
       setRestrictionForm((prev) => ({ ...prev, reason: '', scope: prev.scope === 'range' ? 'day' : prev.scope }));
-      await fetchBlockedSlotsForDate(restrictionForm.scope === 'range' ? restrictionForm.startDate : restrictionDate);
+      await fetchBlockedSlotsForDate(restrictionForm.scope === 'range' ? dateForBlock : restrictionDate);
     } catch (err) {
       console.error('Block create failed:', err);
-      setMessage({ type: 'error', text: err.message || 'Failed to create resource restriction.' });
+      const unreachable = /failed to fetch|networkerror|load failed|err_connection_refused/i.test(String(err?.message || ''));
+      setMessage({
+        type: 'error',
+        text: unreachable
+          ? 'Could not reach the scheduling service. Make sure the backend server is running, then try again.'
+          : (err.message || 'Failed to create resource restriction.')
+      });
     }
   };
 
   const handleDeleteBlock = async (id) => {
-    if (!window.confirm('Lift this restriction and reopen the affected slot(s)?')) return;
+    // Styled confirmation modal (replaces the unstyled native window.confirm).
+    openModal({
+      title: 'Lift This Restriction?',
+      message: 'This will reopen the affected slot(s) so customers can book them again. This cannot be undone. Continue?',
+      confirmText: 'Lift Restriction',
+      cancelText: 'Keep Restriction',
+      type: 'danger',
+      onConfirm: () => commitDeleteBlock(id),
+    });
+  };
 
+  const commitDeleteBlock = async (id) => {
     try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
       const res = await fetch(`${BACKEND_URL}/api/admin/blocked-slots/${id}`, {
         method: 'DELETE'
       });
@@ -687,7 +750,13 @@ export default function BusinessHub() {
       await fetchBlockedSlotsForDate(restrictionDate);
     } catch (err) {
       console.error('Block delete failed:', err);
-      setMessage({ type: 'error', text: err.message || 'Failed to lift restriction.' });
+      const unreachable = /failed to fetch|networkerror|load failed|err_connection_refused/i.test(String(err?.message || ''));
+      setMessage({
+        type: 'error',
+        text: unreachable
+          ? 'Could not reach the scheduling service. Make sure the backend server is running, then try again.'
+          : (err.message || 'Failed to lift restriction.')
+      });
     }
   };
 
@@ -722,18 +791,63 @@ export default function BusinessHub() {
         qrConfigComplete,
       });
 
-      const { error } = await supabase
+      let { error } = await supabase
         .from('business_config')
         .update(primaryPayload)
         .eq('id', id);
+
+      // Graceful capability fallback: a DB may be missing SEVERAL optional
+      // columns at once (e.g. is_24_7 AND vehicle_types AND custom_services).
+      // Supabase reports only the FIRST missing column per attempt, so we loop:
+      // strip whatever the error names and retry until it saves or nothing is
+      // left to strip. This is why a single retry was not enough before.
+      let currentPayload = primaryPayload;
+      let guard = 0;
+      while (error && guard < 8) {
+        guard += 1;
+        const retryPayload = stripUnsupportedBusinessConfigColumns(currentPayload, error);
+        if (retryPayload === currentPayload) break;
+        currentPayload = retryPayload;
+        const retry = await supabase.from('business_config').update(currentPayload).eq('id', id);
+        error = retry.error;
+      }
 
       if (error) throw error;
 
       await refreshConfig();
       setPristine(businessForm); // Saved state becomes the new baseline.
-      setMessage({ type: 'success', text: 'Business settings saved successfully!' });
+      // Standard popup confirmation, matching every other save action in the app
+      // (react-hot-toast) instead of a bespoke inline banner.
+      toast.success('Business settings saved successfully!');
+      setMessage({ type: '', text: '' });
+
+      // Announce newly-added catalog items to opted-in customers only. We diff
+      // the just-saved form against the previous baseline (pristine) so ONLY
+      // genuine additions trigger an email — edits/removals do not. The backend
+      // gates each category on the matching email preference (fail-closed).
+      try {
+        const baseline = pristine || {};
+        const prevServiceIds = new Set((baseline.custom_services || []).map((s) => s?.id).filter(Boolean));
+        const addedServices = (businessForm.custom_services || []).filter(
+          (s) => s?.is_active !== false && s?.archived !== true && (!s?.id || !prevServiceIds.has(s.id))
+        );
+        const prevVehicleTypes = new Set(baseline.vehicle_types || []);
+        const addedVehicles = (businessForm.vehicle_types || []).filter((t) => t && !prevVehicleTypes.has(t));
+
+        if (addedServices.length || addedVehicles.length) {
+          fetch(`${BACKEND_URL}/api/admin/announce-catalog`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              services: addedServices.map((s) => ({ name: s.name })),
+              vehicles: addedVehicles,
+            }),
+          }).catch(() => { /* announcement is best-effort */ });
+        }
+      } catch { /* never block the save on announcement detection */ }
     } catch (err) {
       console.error('Save failed:', err);
+      toast.error(err.message || 'Failed to save settings. Please try again.');
       setMessage({ type: 'error', text: err.message || 'Failed to save settings. Please try again.' });
     } finally {
       setSaving(false);
@@ -774,6 +888,21 @@ export default function BusinessHub() {
       .filter(Boolean);
 
     return values;
+  };
+
+  // General-service (catalog category) options = the built-in catalog categories
+  // plus every category already assigned to an existing custom service, de-duped
+  // case-insensitively and sorted for a stable order.
+  const getAvailableGeneralServices = () => {
+    const seen = new Map();
+    baseGeneralServiceOptions().forEach((label) => {
+      if (label && !seen.has(label.toLowerCase())) seen.set(label.toLowerCase(), label);
+    });
+    (businessForm.custom_services || []).forEach((service) => {
+      const label = String(service?.generalService || service?.category || '').trim();
+      if (label && !seen.has(label.toLowerCase())) seen.set(label.toLowerCase(), label);
+    });
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
   };
 
   const getUnmappedVehicleTypes = () => {
@@ -1158,17 +1287,22 @@ export default function BusinessHub() {
         .update(primaryPayload)
         .eq('id', id);
 
-      if (error && (
-        error.message.includes("Could not find the 'custom_services' column") ||
-        error.message.includes("Could not find the 'vehicle_types' column") ||
-        error.message.includes("Could not find the 'faqs' column")
-      )) {
-        const retryPayload = stripUnsupportedBusinessConfigColumns(primaryPayload, error);
-        const retryResult = await supabase
+      // Graceful capability fallback (mirrors the main save path): a DB may be
+      // missing SEVERAL optional columns at once. Supabase reports only the
+      // FIRST missing column per attempt, so loop: strip whatever the error
+      // names and retry until it saves or nothing is left to strip.
+      let currentPayload = primaryPayload;
+      let guard = 0;
+      while (error && guard < 8) {
+        guard += 1;
+        const retryPayload = stripUnsupportedBusinessConfigColumns(currentPayload, error);
+        if (retryPayload === currentPayload) break;
+        currentPayload = retryPayload;
+        const retry = await supabase
           .from('business_config')
-          .update(retryPayload)
+          .update(currentPayload)
           .eq('id', id);
-        error = retryResult.error;
+        error = retry.error;
       }
 
       if (error) throw error;
@@ -1196,17 +1330,31 @@ export default function BusinessHub() {
     }
   };
 
+  // Resolve the chosen general-service selection into a concrete category label.
+  // `__default__` means "leave it in the generic Custom Services bucket"; a
+  // `__new__` or any other value is used verbatim (title-cased on save).
+  const resolveGeneralServiceLabel = (selection, newLabel) => {
+    const choice = String(selection || '').trim();
+    if (choice === GENERAL_SERVICE_DEFAULT) return 'Custom Services';
+    if (choice === GENERAL_SERVICE_NEW) return String(newLabel || '').trim();
+    return choice;
+  };
+
   const isPublishServiceReady = () => {
     const name = String(newServiceForm.name || '').trim();
     const description = String(newServiceForm.description || '');
     const target = String(newServiceForm.targetVehicleCategory || '').trim();
     const price = Number(newServiceForm.price);
     const duration = Number(newServiceForm.duration);
+    // When "Create a new general service" is chosen, a non-empty title is required.
+    const generalServiceLabel = resolveGeneralServiceLabel(newServiceForm.generalService, newServiceForm.newGeneralService);
+    const needsNewGeneralServiceTitle = newServiceForm.generalService === GENERAL_SERVICE_NEW;
 
     return Boolean(target)
       && name.length > 0
       && sanitizeBusinessHubValue('name', name) === name
       && sanitizeBusinessHubValue('description', description) === description
+      && (!needsNewGeneralServiceTitle || generalServiceLabel.length > 0)
       && Number.isFinite(price)
       && price >= 0
       && Number.isFinite(duration)
@@ -1222,12 +1370,15 @@ export default function BusinessHub() {
     const name = sanitizeBusinessHubValue('name', newServiceForm.name).trim();
     const price = Number(newServiceForm.price);
     const duration = Number(newServiceForm.duration);
+    const generalService = resolveGeneralServiceLabel(newServiceForm.generalService, newServiceForm.newGeneralService);
 
     const nextService = {
       id: `custom_${Date.now()}`,
       name,
       price,
       description: newServiceForm.description.trim() || 'Custom service added by the admin.',
+      generalService,
+      category: generalService,
       durationMinutes: duration,
       applicableVehicleTypes: [newServiceForm.targetVehicleCategory],
       vehicleTypes: [newServiceForm.targetVehicleCategory],
@@ -1240,7 +1391,7 @@ export default function BusinessHub() {
     };
 
     await saveCatalogState([...businessForm.custom_services, nextService], businessForm.vehicle_types, 'Service published successfully!');
-    setNewServiceForm({ targetVehicleCategory: newServiceForm.targetVehicleCategory, name: '', price: '', duration: '60', description: '' });
+    setNewServiceForm({ targetVehicleCategory: newServiceForm.targetVehicleCategory, generalService: generalService, newGeneralService: '', name: '', price: '', duration: '60', description: '' });
     setServicePanels((prev) => ({ ...prev, add: false }));
   };
 
@@ -1250,9 +1401,14 @@ export default function BusinessHub() {
     const name = editingServiceForm.name.trim();
     const price = Number(editingServiceForm.price);
     const duration = Number(editingServiceForm.duration);
+    const description = String(editingServiceForm.description || '').trim();
 
     if (!name) {
       setMessage({ type: 'error', text: 'Service name is required.' });
+      return;
+    }
+    if (!description) {
+      setMessage({ type: 'error', text: 'Service description is required.' });
       return;
     }
     if (!Number.isFinite(price) || price < 0) {
@@ -1270,7 +1426,9 @@ export default function BusinessHub() {
             ...service,
             name,
             price,
-            description: editingServiceForm.description.trim() || 'Custom service updated by the admin.',
+            description,
+            generalService: String(editingServiceForm.generalService || service.generalService || service.category || 'Custom Services').trim(),
+            category: String(editingServiceForm.generalService || service.generalService || service.category || 'Custom Services').trim(),
             durationMinutes: duration,
             applicableVehicleTypes: normalizeVehicleTypes({ applicableVehicleTypes: [service.vehicleType || service.vehicle_type || 'Sedan'] }),
             vehicleTypes: normalizeVehicleTypes({ applicableVehicleTypes: [service.vehicleType || service.vehicle_type || 'Sedan'] }),
@@ -1307,24 +1465,37 @@ export default function BusinessHub() {
   const isVehicleCategoryValid = () => {
     const categoryName = vehicleCategoryForm.name.trim();
     const serviceName = vehicleCategoryForm.serviceName.trim();
+    const description = String(vehicleCategoryForm.description || '').trim();
+    const generalService = resolveGeneralServiceLabel(vehicleCategoryForm.generalService, vehicleCategoryForm.newGeneralService);
+    const needsNewGeneralServiceTitle = vehicleCategoryForm.generalService === GENERAL_SERVICE_NEW;
     const price = Number(vehicleCategoryForm.price);
     const duration = Number(vehicleCategoryForm.duration);
-    return Boolean(categoryName) && Boolean(serviceName) && Number.isFinite(price) && price >= 0 && Number.isFinite(duration) && duration > 0;
+    return Boolean(categoryName)
+      && Boolean(serviceName)
+      && Boolean(description)
+      && (!needsNewGeneralServiceTitle || generalService.length > 0)
+      && Number.isFinite(price)
+      && price >= 0
+      && Number.isFinite(duration)
+      && duration > 0;
   };
 
   const handleAddVehicleCategory = async () => {
     if (!isVehicleCategoryValid()) {
-      setMessage({ type: 'error', text: 'Complete the vehicle category name and all initial service fields before saving.' });
+      setMessage({ type: 'error', text: 'Complete the vehicle category name and all initial service fields (including a description) before saving.' });
       return;
     }
 
     const categoryName = vehicleCategoryForm.name.trim();
+    const generalService = resolveGeneralServiceLabel(vehicleCategoryForm.generalService, vehicleCategoryForm.newGeneralService);
     const nextVehicleTypes = [...new Set([...(businessForm.vehicle_types || [...DEFAULT_VEHICLE_TYPES]), categoryName])];
     const initialService = {
       id: `custom_${Date.now()}`,
       name: vehicleCategoryForm.serviceName.trim(),
       price: Number(vehicleCategoryForm.price) || 0,
-      description: vehicleCategoryForm.description.trim() || 'Initial service for the new vehicle category.',
+      description: vehicleCategoryForm.description.trim(),
+      generalService,
+      category: generalService,
       durationMinutes: Number(vehicleCategoryForm.duration) || 60,
       applicableVehicleTypes: [categoryName],
       vehicleTypes: [categoryName],
@@ -1337,7 +1508,7 @@ export default function BusinessHub() {
     };
 
     await saveCatalogState([...businessForm.custom_services, initialService], nextVehicleTypes, 'Vehicle category and service added successfully.');
-    setVehicleCategoryForm({ name: '', serviceName: '', price: '', duration: '60', description: '' });
+    setVehicleCategoryForm({ name: '', generalService: GENERAL_SERVICE_DEFAULT, newGeneralService: '', serviceName: '', price: '', duration: '60', description: '' });
     setServicePanels((prev) => ({ ...prev, vehicle: false }));
   };
 
@@ -1361,7 +1532,7 @@ export default function BusinessHub() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
       {/* Header */}
       <div>
-        <h1 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 950, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        <h1 className="text-fluid-h1" style={{ margin: 0, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '-1.5px', lineHeight: 1.1 }}>
           Business Hub
         </h1>
         <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: 600 }}>
@@ -1457,8 +1628,10 @@ export default function BusinessHub() {
           <form onSubmit={handleSaveSection} style={cardStyle}>
             <SectionHeading>Store Identification &amp; Contact</SectionHeading>
             <div style={gridStyle}>
-              <Field label="Business Name" required>
+              <Field label="Business Name" required htmlFor="business-name">
                 <input
+                  id="business-name"
+                  name="business_name"
                   type="text"
                   value={businessForm.business_name}
                   onChange={(e) => handleInputChange('business_name', e.target.value)}
@@ -1466,8 +1639,10 @@ export default function BusinessHub() {
                   placeholder="e.g. Speedway Detail Studio"
                 />
               </Field>
-              <Field label="Contact Number">
+              <Field label="Contact Number" htmlFor="business-contact-number">
                 <input
+                  id="business-contact-number"
+                  name="contact_number"
                   type="text"
                   value={businessForm.contact_number}
                   onChange={(e) => handleInputChange('contact_number', e.target.value)}
@@ -1475,8 +1650,10 @@ export default function BusinessHub() {
                   placeholder="e.g. 0912 345 6789"
                 />
               </Field>
-              <Field label="Email Address">
+              <Field label="Email Address" htmlFor="business-email-address">
                 <input
+                  id="business-email-address"
+                  name="email_address"
                   type="email"
                   value={businessForm.email_address}
                   onChange={(e) => handleInputChange('email_address', e.target.value)}
@@ -1484,8 +1661,10 @@ export default function BusinessHub() {
                   placeholder="e.g. hello@speedway.com"
                 />
               </Field>
-              <Field label="Business Address">
+              <Field label="Business Address" htmlFor="business-address">
                 <input
+                  id="business-address"
+                  name="business_address"
                   type="text"
                   value={businessForm.business_address}
                   onChange={(e) => handleInputChange('business_address', e.target.value)}
@@ -1497,8 +1676,10 @@ export default function BusinessHub() {
 
             <SectionHeading style={{ paddingTop: '0.5rem' }}>Payment &amp; Settlement Details</SectionHeading>
             <div style={gridStyle}>
-              <Field label="QR Account Name" required>
+              <Field label="QR Account Name" required htmlFor="business-qr-account-name">
                 <input
+                  id="business-qr-account-name"
+                  name="qr_account_name"
                   type="text"
                   value={businessForm.qr_account_name}
                   onChange={(e) => handleInputChange('qr_account_name', e.target.value)}
@@ -1506,8 +1687,10 @@ export default function BusinessHub() {
                   placeholder="Primary recipient name"
                 />
               </Field>
-              <Field label="QR Account Number" required>
+              <Field label="QR Account Number" required htmlFor="business-qr-account-number">
                 <input
+                  id="business-qr-account-number"
+                  name="qr_account_number"
                   type="text"
                   value={businessForm.qr_account_number}
                   onChange={(e) => handleInputChange('qr_account_number', e.target.value)}
@@ -1572,13 +1755,19 @@ export default function BusinessHub() {
               {(faqEditorOpen || editingFaqId) && (
                 <div style={{ ...insetPanelStyle, display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--admin-card)' }}>
                   <input
+                    id="faq-question"
+                    name="faq_question"
                     type="text"
+                    aria-label="FAQ question"
                     placeholder="Question"
                     value={faqForm.question}
                     onChange={(e) => setFaqForm((prev) => ({ ...prev, question: sanitizeBusinessHubValue('question', e.target.value) }))}
                     style={inputStyle}
                   />
                   <textarea
+                    id="faq-answer"
+                    name="faq_answer"
+                    aria-label="FAQ answer"
                     placeholder="Answer"
                     rows={3}
                     value={faqForm.answer}
@@ -1669,25 +1858,63 @@ export default function BusinessHub() {
         {currentTab === 'hours' && (
           <form onSubmit={handleSaveSection} style={cardStyle}>
             <SectionHeading>Operating Schedule &amp; Daily Capacity</SectionHeading>
+
+            {/* 24/7 switch: the single source of truth for a full-day window. When
+                on, the finite opening/closing window is ignored everywhere. */}
+            <label
+              htmlFor="business-is-24-7"
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+                padding: '0.9rem 1rem', background: 'var(--admin-bg)',
+                border: `1px solid ${businessForm.is_24_7 ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
+                borderRadius: 'var(--admin-radius-sm)', cursor: 'pointer'
+              }}
+            >
+              <input
+                id="business-is-24-7"
+                name="is_24_7"
+                type="checkbox"
+                checked={businessForm.is_24_7 === true}
+                onChange={(e) => handleInputChange('is_24_7', e.target.checked)}
+                style={{ marginTop: '0.15rem', width: '1.05rem', height: '1.05rem', accentColor: 'var(--admin-brand)', cursor: 'pointer' }}
+              />
+              <span>
+                <span style={{ display: 'block', fontWeight: 900, color: 'var(--admin-text-primary)', fontSize: '0.82rem' }}>
+                  Open 24 hours (24/7)
+                </span>
+                <span style={{ display: 'block', marginTop: '0.2rem', fontSize: '0.7rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                  Bookable every hour of the day. Opening and closing times below are ignored while this is on.
+                </span>
+              </span>
+            </label>
+
             <div style={gridStyle}>
-              <Field label="Opening Time" required>
+              <Field label="Opening Time" required={businessForm.is_24_7 !== true}>
                 <input
+                  id="business-opening-hour"
+                  name="opening_hour"
                   type="time"
+                  disabled={businessForm.is_24_7 === true}
                   value={formatTimeForInput(businessForm.opening_hour)}
                   onChange={(e) => handleInputChange('opening_hour', e.target.value)}
-                  style={inputStyle}
+                  style={{ ...inputStyle, opacity: businessForm.is_24_7 === true ? 0.5 : 1, cursor: businessForm.is_24_7 === true ? 'not-allowed' : 'text' }}
                 />
               </Field>
-              <Field label="Closing Time" required>
+              <Field label="Closing Time" required={businessForm.is_24_7 !== true}>
                 <input
+                  id="business-closing-hour"
+                  name="closing_hour"
                   type="time"
+                  disabled={businessForm.is_24_7 === true}
                   value={formatTimeForInput(businessForm.closing_hour)}
                   onChange={(e) => handleInputChange('closing_hour', e.target.value)}
-                  style={inputStyle}
+                  style={{ ...inputStyle, opacity: businessForm.is_24_7 === true ? 0.5 : 1, cursor: businessForm.is_24_7 === true ? 'not-allowed' : 'text' }}
                 />
               </Field>
-              <Field label="Booking Slots Per Hour" required>
+              <Field label="Max Booking Slots Per Hour" required>
                 <input
+                  id="business-slots-per-hour"
+                  name="slots_per_hour"
                   type="number"
                   min="1"
                   max="10"
@@ -1698,6 +1925,8 @@ export default function BusinessHub() {
               </Field>
               <Field label="Max Vehicles Per Staff Member" required>
                 <input
+                  id="business-max-vehicles-per-staff"
+                  name="max_vehicles_per_staff"
                   type="number"
                   min="1"
                   max="12"
@@ -1708,7 +1937,11 @@ export default function BusinessHub() {
               </Field>
             </div>
             {!sectionValid('hours') && (
-              <Hint>Opening and closing times are required, closing must be after opening, and capacities must be at least 1.</Hint>
+              <Hint>
+                {businessForm.is_24_7 === true
+                  ? 'Capacities must be at least 1.'
+                  : 'Opening and closing times are required, closing must be after opening, and capacities must be at least 1.'}
+              </Hint>
             )}
 
             <SaveBar
@@ -1745,9 +1978,11 @@ export default function BusinessHub() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                  <Field label="Minimum Advance Notice" required>
+                  <Field label="Minimum Advance Notice" required htmlFor="business-lead-time">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                       <input
+                        id="business-lead-time"
+                        name="booking_lead_time_minutes"
                         type="number"
                         min="0"
                         max="43200"
@@ -1763,9 +1998,11 @@ export default function BusinessHub() {
                     </p>
                   </Field>
 
-                  <Field label="Maximum Advance Booking Limit" required>
+                  <Field label="Maximum Advance Booking Limit" required htmlFor="business-advance-days">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                       <input
+                        id="business-advance-days"
+                        name="max_advance_days"
                         type="number"
                         min="1"
                         max="365"
@@ -1847,6 +2084,19 @@ export default function BusinessHub() {
                   <Hint>Lead time must be 0–43,200 minutes and the advance window 1–365 days.</Hint>
                 )}
 
+                {/* Guard against the exact trap that made a 24/7 shop look broken:
+                    the "Hours" tab can enable Open 24 hours, but the booking
+                    calendar still greys out every day past this advance window.
+                    A value of 1 means customers can only ever pick today/tomorrow,
+                    which reads as "only one day is available". */}
+                {Number(businessForm.max_advance_days) <= 1 && (
+                  <Hint>
+                    Heads up: a 1-day advance window means customers can only book today or tomorrow.
+                    Every later date will be greyed out in the booking calendar. Increase this to at
+                    least 30 for a normal booking horizon.
+                  </Hint>
+                )}
+
                 <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.8rem', marginTop: '0.1rem', borderTop: '1px solid var(--admin-border)' }}>
                   <SaveBar
                     canSave={canSave('schedule')}
@@ -1879,8 +2129,10 @@ export default function BusinessHub() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
                   <div>
-                    <label style={labelStyle}>Select Date</label>
+                    <label htmlFor="closure-date" style={labelStyle}>Select Date</label>
                     <input
+                      id="closure-date"
+                      name="closure_date"
                       type="date"
                       value={restrictionDate}
                       onChange={(e) => setRestrictionDate(e.target.value)}
@@ -1889,8 +2141,10 @@ export default function BusinessHub() {
                   </div>
 
                   <div>
-                    <label style={labelStyle}>Closure Type</label>
+                    <label htmlFor="closure-scope" style={labelStyle}>Closure Type</label>
                     <select
+                      id="closure-scope"
+                      name="closure_scope"
                       value={restrictionForm.scope}
                       onChange={(e) => setRestrictionForm((prev) => ({ ...prev, scope: e.target.value }))}
                       style={inputStyle}
@@ -1904,8 +2158,10 @@ export default function BusinessHub() {
                   {restrictionForm.scope === 'range' && (
                     <>
                       <div>
-                        <label style={labelStyle}>Start Date</label>
+                        <label htmlFor="closure-start-date" style={labelStyle}>Start Date</label>
                         <input
+                          id="closure-start-date"
+                          name="closure_start_date"
                           type="date"
                           value={restrictionForm.startDate}
                           onChange={(e) => setRestrictionForm((prev) => ({ ...prev, startDate: e.target.value }))}
@@ -1913,8 +2169,10 @@ export default function BusinessHub() {
                         />
                       </div>
                       <div>
-                        <label style={labelStyle}>End Date</label>
+                        <label htmlFor="closure-end-date" style={labelStyle}>End Date</label>
                         <input
+                          id="closure-end-date"
+                          name="closure_end_date"
                           type="date"
                           value={restrictionForm.endDate}
                           onChange={(e) => setRestrictionForm((prev) => ({ ...prev, endDate: e.target.value }))}
@@ -1927,14 +2185,14 @@ export default function BusinessHub() {
                   {restrictionForm.scope === 'window' && (
                     <>
                       <div>
-                        <label style={labelStyle}>Start Time</label>
+                        <div style={labelStyle}>Start Time</div>
                         <SegmentedTimePicker
                           value={restrictionForm.startTime}
                           onChange={(value) => setRestrictionForm((prev) => ({ ...prev, startTime: value }))}
                         />
                       </div>
                       <div>
-                        <label style={labelStyle}>End Time</label>
+                        <div style={labelStyle}>End Time</div>
                         <SegmentedTimePicker
                           value={restrictionForm.endTime}
                           onChange={(value) => setRestrictionForm((prev) => ({ ...prev, endTime: value }))}
@@ -1944,8 +2202,10 @@ export default function BusinessHub() {
                   )}
 
                   <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={labelStyle}>Reason</label>
+                    <label htmlFor="closure-reason" style={labelStyle}>Reason</label>
                     <input
+                      id="closure-reason"
+                      name="closure_reason"
                       type="text"
                       value={restrictionForm.reason}
                       onChange={(e) => setRestrictionForm((prev) => ({ ...prev, reason: sanitizeBusinessHubValue('reason', e.target.value) }))}
@@ -2023,7 +2283,7 @@ export default function BusinessHub() {
         {currentTab === 'services' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {editingService && editingServiceForm && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '1rem' }}>
+              <div className="app-overlay-layer" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
                 <div style={{ width: '100%', maxWidth: '560px', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', boxShadow: 'var(--modal-shadow)', padding: '1.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem' }}>
                     <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900, color: 'var(--admin-text-primary)' }}>Edit Service</h3>
@@ -2034,17 +2294,37 @@ export default function BusinessHub() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
                     <div style={{ gridColumn: '1 / -1' }}>
-                      <label style={labelStyle}>Service Name</label>
+                      <label htmlFor="edit-service-name" style={labelStyle}>Service Name</label>
                       <input
+                        id="edit-service-name"
+                        name="service_name"
                         type="text"
                         value={editingServiceForm.name}
-                        onChange={(e) => setEditingServiceForm((prev) => ({ ...prev, name: sanitizeBusinessHubValue('name', e.target.value) }))}
+                        onChange={(e) => setEditingServiceForm((prev) => ({ ...prev, name: toTitleCase(sanitizeBusinessHubValue('name', e.target.value)) }))}
                         style={inputStyle}
                       />
                     </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label htmlFor="edit-service-general-service" style={labelStyle}>General Service</label>
+                      <select
+                        id="edit-service-general-service"
+                        name="service_general_service"
+                        value={editingServiceForm.generalService || 'Custom Services'}
+                        onChange={(e) => setEditingServiceForm((prev) => ({ ...prev, generalService: e.target.value }))}
+                        style={inputStyle}
+                      >
+                        {[...new Set(['Custom Services', editingServiceForm.generalService || 'Custom Services', ...getAvailableGeneralServices()])]
+                          .filter(Boolean)
+                          .map((label) => (
+                            <option key={label} value={label}>{label}</option>
+                          ))}
+                      </select>
+                    </div>
                     <div>
-                      <label style={labelStyle}>Price (₱)</label>
+                      <label htmlFor="edit-service-price" style={labelStyle}>Price (₱)</label>
                       <input
+                        id="edit-service-price"
+                        name="service_price"
                         type="text"
                         inputMode="decimal"
                         min="0"
@@ -2054,8 +2334,10 @@ export default function BusinessHub() {
                       />
                     </div>
                     <div>
-                      <label style={labelStyle}>Duration (Minutes)</label>
+                      <label htmlFor="edit-service-duration" style={labelStyle}>Duration (Minutes)</label>
                       <input
+                        id="edit-service-duration"
+                        name="service_duration"
                         type="text"
                         inputMode="numeric"
                         min="1"
@@ -2065,11 +2347,14 @@ export default function BusinessHub() {
                       />
                     </div>
                     <div style={{ gridColumn: '1 / -1' }}>
-                      <label style={labelStyle}>Description</label>
+                      <label htmlFor="edit-service-description" style={labelStyle}>Description <span style={{ color: 'var(--status-danger)' }}>*</span></label>
                       <textarea
+                        id="edit-service-description"
+                        name="service_description"
                         rows={4}
                         value={editingServiceForm.description}
                         onChange={(e) => setEditingServiceForm((prev) => ({ ...prev, description: sanitizeBusinessHubValue('description', e.target.value) }))}
+                        placeholder="Describe the service (required)"
                         style={{ ...inputStyle, resize: 'vertical', minHeight: '100px' }}
                       />
                     </div>
@@ -2102,8 +2387,10 @@ export default function BusinessHub() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
                     <div>
-                      <label style={labelStyle}>Select Vehicle</label>
+                      <label htmlFor="service-vehicle-filter" style={labelStyle}>Select Vehicle</label>
                       <select
+                        id="service-vehicle-filter"
+                        name="service_vehicle_filter"
                         value={selectedVehicleFilter}
                         onChange={(e) => setSelectedVehicleFilter(e.target.value)}
                         style={inputStyle}
@@ -2117,10 +2404,11 @@ export default function BusinessHub() {
                   </div>
 
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '880px' }}>
                       <thead>
                         <tr>
                           <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Service Name</th>
+                          <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>General Service</th>
                           <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Duration (Mins)</th>
                           <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Price (₱)</th>
                           <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Status</th>
@@ -2132,6 +2420,9 @@ export default function BusinessHub() {
                           filteredServices.map((service) => (
                             <tr key={service.id}>
                               <td style={{ padding: '0.9rem 0.5rem', fontSize: '0.8rem', fontWeight: 900, color: 'var(--admin-text-primary)', borderBottom: '1px solid var(--admin-border)' }}>{service.name}</td>
+                              <td style={{ padding: '0.9rem 0.5rem', fontSize: '0.72rem', color: service.generalService || service.category ? 'var(--admin-text-secondary)' : 'var(--admin-text-secondary)', fontWeight: 700, borderBottom: '1px solid var(--admin-border)' }}>
+                                {service.generalService || service.category || (service.source === 'default' ? Object.keys(SERVICES_DATA).find((cat) => (SERVICES_DATA[cat] || []).some((s) => s.name === service.name)) || 'Built-in' : 'Custom Services')}
+                              </td>
                               <td style={{ padding: '0.9rem 0.5rem', fontSize: '0.76rem', color: 'var(--admin-text-secondary)', fontWeight: 700, borderBottom: '1px solid var(--admin-border)' }}>{Number(service.durationMinutes || 60)}</td>
                               <td style={{ padding: '0.9rem 0.5rem', fontSize: '0.78rem', color: 'var(--admin-text-primary)', fontWeight: 900, borderBottom: '1px solid var(--admin-border)' }}>₱{Number(service.price || 0).toLocaleString()}</td>
                               <td style={{ padding: '0.9rem 0.5rem', borderBottom: '1px solid var(--admin-border)' }}>
@@ -2141,17 +2432,18 @@ export default function BusinessHub() {
                               </td>
                               <td style={{ padding: '0.9rem 0.5rem', borderBottom: '1px solid var(--admin-border)', textAlign: 'right' }}>
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                  <button type="button" onClick={() => { setEditingService(service); setEditingServiceForm({ name: service.name || '', price: String(service.price ?? ''), duration: String(service.durationMinutes || 60), description: service.description || '' }); }} style={ghostButton}>Edit</button>
+                                  <button type="button" onClick={() => { setEditingService(service); setEditingServiceForm({ name: service.name || '', price: String(service.price ?? ''), duration: String(service.durationMinutes || 60), description: service.description || '', generalService: service.generalService || service.category || 'Custom Services' }); }} style={ghostButton}>Edit</button>
                                   <button type="button" onClick={() => handleArchiveRestoreService(service)} style={{ ...ghostButton, color: service.is_active === false || service.archived === true ? 'var(--admin-brand)' : 'var(--status-danger)', borderColor: service.is_active === false || service.archived === true ? 'var(--admin-border)' : 'rgba(239,68,68,0.4)' }}>
                                     {service.is_active === false || service.archived === true ? 'Restore' : 'Archive'}
                                   </button>
+                                  <button type="button" onClick={() => requestDeleteService(service)} style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(239,68,68,0.4)' }}>Delete</button>
                                 </div>
                               </td>
                             </tr>
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={5} style={{ padding: '1rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontWeight: 700, fontSize: '0.78rem' }}>
+                            <td colSpan={6} style={{ padding: '1rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontWeight: 700, fontSize: '0.78rem' }}>
                               No services for this vehicle category.
                             </td>
                           </tr>
@@ -2176,8 +2468,10 @@ export default function BusinessHub() {
               {servicePanels.add && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
                   <div>
-                    <label style={labelStyle}>Target Vehicle Category</label>
+                    <label htmlFor="new-service-vehicle-category" style={labelStyle}>Target Vehicle Category</label>
                     <select
+                      id="new-service-vehicle-category"
+                      name="target_vehicle_category"
                       value={newServiceForm.targetVehicleCategory}
                       onChange={(e) => setNewServiceForm((prev) => ({ ...prev, targetVehicleCategory: e.target.value }))}
                       style={inputStyle}
@@ -2187,19 +2481,57 @@ export default function BusinessHub() {
                       ))}
                     </select>
                   </div>
+                  <div>
+                    <label htmlFor="new-service-general-service" style={labelStyle}>General Service</label>
+                    <select
+                      id="new-service-general-service"
+                      name="general_service"
+                      value={newServiceForm.generalService}
+                      onChange={(e) => setNewServiceForm((prev) => ({
+                        ...prev,
+                        generalService: e.target.value,
+                        newGeneralService: e.target.value === GENERAL_SERVICE_NEW ? prev.newGeneralService : ''
+                      }))}
+                      style={inputStyle}
+                    >
+                      <option value={GENERAL_SERVICE_DEFAULT}>Custom Services (default)</option>
+                      {getAvailableGeneralServices().map((label) => (
+                        <option key={label} value={label}>{label}</option>
+                      ))}
+                      <option value={GENERAL_SERVICE_NEW}>+ Create New General Service</option>
+                    </select>
+                  </div>
+                  {newServiceForm.generalService === GENERAL_SERVICE_NEW && (
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label htmlFor="new-general-service-title" style={labelStyle}>New General Service Title</label>
+                      <input
+                        id="new-general-service-title"
+                        name="new_general_service_title"
+                        type="text"
+                        value={newServiceForm.newGeneralService}
+                        onChange={(e) => setNewServiceForm((prev) => ({ ...prev, newGeneralService: toTitleCase(sanitizeBusinessHubValue('name', e.target.value)) }))}
+                        placeholder="e.g. Ceramic & Coating"
+                        style={inputStyle}
+                      />
+                    </div>
+                  )}
                   <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={labelStyle}>Service Name</label>
+                    <label htmlFor="new-service-name" style={labelStyle}>Service Name</label>
                     <input
+                      id="new-service-name"
+                      name="new_service_name"
                       type="text"
                       value={newServiceForm.name}
-                      onChange={(e) => setNewServiceForm((prev) => ({ ...prev, name: sanitizeBusinessHubValue('name', e.target.value) }))}
+                      onChange={(e) => setNewServiceForm((prev) => ({ ...prev, name: toTitleCase(sanitizeBusinessHubValue('name', e.target.value)) }))}
                       placeholder="Premium Ceramic Wash"
                       style={inputStyle}
                     />
                   </div>
                   <div>
-                    <label style={labelStyle}>Price (₱)</label>
+                    <label htmlFor="new-service-price" style={labelStyle}>Price (₱)</label>
                     <input
+                      id="new-service-price"
+                      name="new_service_price"
                       type="text"
                       inputMode="decimal"
                       min="0"
@@ -2210,8 +2542,10 @@ export default function BusinessHub() {
                     />
                   </div>
                   <div>
-                    <label style={labelStyle}>Estimated Duration (Minutes)</label>
+                    <label htmlFor="new-service-duration" style={labelStyle}>Estimated Duration (Minutes)</label>
                     <input
+                      id="new-service-duration"
+                      name="new_service_duration"
                       type="text"
                       inputMode="numeric"
                       min="1"
@@ -2221,12 +2555,14 @@ export default function BusinessHub() {
                     />
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={labelStyle}>Description</label>
+                    <label htmlFor="new-service-description" style={labelStyle}>Description <span style={{ color: 'var(--status-danger)' }}>*</span></label>
                     <textarea
+                      id="new-service-description"
+                      name="new_service_description"
                       rows={4}
                       value={newServiceForm.description}
                       onChange={(e) => setNewServiceForm((prev) => ({ ...prev, description: sanitizeBusinessHubValue('description', e.target.value) }))}
-                      placeholder="Optional description"
+                      placeholder="Describe the service (required)"
                       style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }}
                     />
                   </div>
@@ -2265,15 +2601,51 @@ export default function BusinessHub() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
                     <div style={{ gridColumn: '1 / -1' }}>
-                      <label style={labelStyle}>Vehicle Category Name</label>
+                      <label htmlFor="new-vehicle-category-name" style={labelStyle}>Vehicle Category Name</label>
                       <input
+                        id="new-vehicle-category-name"
+                        name="vehicle_category_name"
                         type="text"
                         value={vehicleCategoryForm.name}
-                        onChange={(e) => setVehicleCategoryForm((prev) => ({ ...prev, name: sanitizeBusinessHubValue('vehicleCategory', e.target.value) }))}
+                        onChange={(e) => setVehicleCategoryForm((prev) => ({ ...prev, name: toTitleCase(sanitizeBusinessHubValue('vehicleCategory', e.target.value)) }))}
                         placeholder="e.g. Van / Minibus, Commercial Truck"
                         style={inputStyle}
                       />
                     </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label htmlFor="new-vehicle-category-general-service" style={labelStyle}>General Service</label>
+                      <select
+                        id="new-vehicle-category-general-service"
+                        name="vehicle_category_general_service"
+                        value={vehicleCategoryForm.generalService}
+                        onChange={(e) => setVehicleCategoryForm((prev) => ({
+                          ...prev,
+                          generalService: e.target.value,
+                          newGeneralService: e.target.value === GENERAL_SERVICE_NEW ? prev.newGeneralService : ''
+                        }))}
+                        style={inputStyle}
+                      >
+                        <option value={GENERAL_SERVICE_DEFAULT}>Custom Services (default)</option>
+                        {getAvailableGeneralServices().map((label) => (
+                          <option key={label} value={label}>{label}</option>
+                        ))}
+                        <option value={GENERAL_SERVICE_NEW}>+ Create New General Service</option>
+                      </select>
+                    </div>
+                    {vehicleCategoryForm.generalService === GENERAL_SERVICE_NEW && (
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <label htmlFor="new-vehicle-category-general-service-title" style={labelStyle}>New General Service Title</label>
+                        <input
+                          id="new-vehicle-category-general-service-title"
+                          name="vehicle_category_new_general_service_title"
+                          type="text"
+                          value={vehicleCategoryForm.newGeneralService}
+                          onChange={(e) => setVehicleCategoryForm((prev) => ({ ...prev, newGeneralService: toTitleCase(sanitizeBusinessHubValue('name', e.target.value)) }))}
+                          placeholder="e.g. Fleet Services"
+                          style={inputStyle}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ ...insetPanelStyle, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -2286,18 +2658,22 @@ export default function BusinessHub() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
                       <div style={{ gridColumn: '1 / -1' }}>
-                        <label style={labelStyle}>Service Name</label>
+                        <label htmlFor="new-vehicle-category-service-name" style={labelStyle}>Service Name</label>
                         <input
+                          id="new-vehicle-category-service-name"
+                          name="vehicle_category_service_name"
                           type="text"
                           value={vehicleCategoryForm.serviceName}
-                          onChange={(e) => setVehicleCategoryForm((prev) => ({ ...prev, serviceName: sanitizeBusinessHubValue('serviceName', e.target.value) }))}
+                          onChange={(e) => setVehicleCategoryForm((prev) => ({ ...prev, serviceName: toTitleCase(sanitizeBusinessHubValue('serviceName', e.target.value)) }))}
                           placeholder="Initial service name"
                           style={inputStyle}
                         />
                       </div>
                       <div>
-                        <label style={labelStyle}>Price (₱)</label>
+                        <label htmlFor="new-vehicle-category-price" style={labelStyle}>Price (₱)</label>
                         <input
+                          id="new-vehicle-category-price"
+                          name="vehicle_category_service_price"
                           type="text"
                           inputMode="decimal"
                           min="0"
@@ -2308,8 +2684,10 @@ export default function BusinessHub() {
                         />
                       </div>
                       <div>
-                        <label style={labelStyle}>Duration (Mins)</label>
+                        <label htmlFor="new-vehicle-category-duration" style={labelStyle}>Duration (Mins)</label>
                         <input
+                          id="new-vehicle-category-duration"
+                          name="vehicle_category_service_duration"
                           type="text"
                           inputMode="numeric"
                           min="1"
@@ -2319,12 +2697,14 @@ export default function BusinessHub() {
                         />
                       </div>
                       <div style={{ gridColumn: '1 / -1' }}>
-                        <label style={labelStyle}>Description</label>
+                        <label htmlFor="new-vehicle-category-description" style={labelStyle}>Description <span style={{ color: 'var(--status-danger)' }}>*</span></label>
                         <textarea
+                          id="new-vehicle-category-description"
+                          name="vehicle_category_description"
                           rows={4}
                           value={vehicleCategoryForm.description}
                           onChange={(e) => setVehicleCategoryForm((prev) => ({ ...prev, description: sanitizeBusinessHubValue('description', e.target.value) }))}
-                          placeholder="Optional description"
+                          placeholder="Describe the service (required)"
                           style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }}
                         />
                       </div>

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import PageHeader from '../../components/PageHeader';
-import { Bell, CheckCircle, Clock, Trash2, Filter, Search, AlertTriangle, X } from 'lucide-react';
+import { Bell, CheckCircle, Clock, Trash2, Filter, Search, AlertTriangle, X, ExternalLink } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from 'react-hot-toast';
 import { logger } from '../../utils/logger';
 import { useAuth } from '../../hooks/useAuth';
 import { BACKEND_URL } from '../../config/api';
+import { useNavigate } from 'react-router-dom';
 import NotificationDetailsModal from '../../components/NotificationDetailsModal';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -96,8 +97,28 @@ const AdminNotifications = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [selectedNotification, setSelectedNotification] = useState(null);
-  
+
+  // Traceability helper (audit finding): a notification must always tell the
+  // admin WHERE the affected record lives. We resolve a target from the explicit
+  // `action_url` first (set by the dispatchers), then from `booking_id`, and
+  // finally from a `#ABCD1234` reference embedded in the message text. Returns
+  // null when the notification genuinely has no record to open (e.g. a general
+  // announcement), so the row renders without a dead "View" affordance.
+  const resolveNotificationTarget = (notif) => {
+    if (!notif) return null;
+    const explicit = notif.action_url || notif.link_url;
+    if (explicit && typeof explicit === 'string') {
+      // Already an absolute in-app path — use it as-is.
+      if (explicit.startsWith('/')) return explicit;
+      return null;
+    }
+    const rawBooking = notif.booking_id || notif.message?.match(/#([A-Za-z0-9_-]{8})/)?.[1];
+    if (rawBooking) return `/admin/bookings/${rawBooking}`;
+    return null;
+  };
+
   const [broadcastForm, setBroadcastForm] = useState({ message: '' });
   const [broadcasting, setBroadcasting] = useState(false);
 
@@ -144,17 +165,24 @@ const AdminNotifications = () => {
   const handleBroadcast = async (e) => {
     e.preventDefault();
     if (!broadcastForm.message.trim()) return;
-    
+
     setBroadcasting(true);
     try {
       logger.admin('Preparing global signal broadcast...');
-      
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user found');
 
+      // 🛡️ TASK 13: authenticated admin call.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Your session has expired. Please sign in again.');
+
       const response = await fetch(`${BACKEND_URL}/api/admin/broadcast`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({
           message: broadcastForm.message,
           actorEmail: user.email
@@ -165,7 +193,7 @@ const AdminNotifications = () => {
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Failed to transmit broadcast');
       }
-      
+
       toast.success(`Broadcast signal transmitted to ${result.receiversCount} receivers`);
       setBroadcastForm({ message: '' });
       fetchNotifications();
@@ -255,7 +283,7 @@ const AdminNotifications = () => {
           onCancel={() => setConfirmDeleteId(null)}
         />
       )}
-      
+
       {/* NOTIFICATION DETAILS MODAL */}
       <NotificationDetailsModal
         notification={selectedNotification}
@@ -278,32 +306,32 @@ const AdminNotifications = () => {
           </div>
         </div>
         <form onSubmit={handleBroadcast} style={{ display: 'flex', gap: '1rem', flexDirection: isMobile ? 'column' : 'row' }}>
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="Type your global announcement here..."
             value={broadcastForm.message}
             onChange={(e) => setBroadcastForm({ message: e.target.value })}
-            style={{ 
-              flex: 1, padding: '0.85rem 1.25rem', background: 'var(--admin-bg)', 
-              border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', 
+            style={{
+              flex: 1, padding: '0.85rem 1.25rem', background: 'var(--admin-bg)',
+              border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)',
               color: 'var(--admin-text-primary)', fontWeight: '700', outline: 'none'
             }}
           />
-          <button 
+          <button
             type="submit"
             disabled={broadcasting || !broadcastForm.message.trim()}
-            style={{ 
-              padding: '0.85rem 2rem', 
-              background: (broadcasting || !broadcastForm.message.trim()) ? '#374151' : 'var(--admin-brand)', 
-              color: (broadcasting || !broadcastForm.message.trim()) ? '#9ca3af' : 'white', 
-              border: 'none', 
-              borderRadius: 'var(--admin-radius-sm)', 
-              fontWeight: '950', 
-              fontSize: '0.75rem', 
-              cursor: (broadcasting || !broadcastForm.message.trim()) ? 'not-allowed' : 'pointer', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.75rem', 
+            style={{
+              padding: '0.85rem 2rem',
+              background: (broadcasting || !broadcastForm.message.trim()) ? '#374151' : 'var(--admin-brand)',
+              color: (broadcasting || !broadcastForm.message.trim()) ? '#9ca3af' : 'white',
+              border: 'none',
+              borderRadius: 'var(--admin-radius-sm)',
+              fontWeight: '950',
+              fontSize: '0.75rem',
+              cursor: (broadcasting || !broadcastForm.message.trim()) ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
               textTransform: 'uppercase',
               opacity: (broadcasting || !broadcastForm.message.trim()) ? 0.5 : 1
             }}
@@ -329,9 +357,11 @@ const AdminNotifications = () => {
         {loading ? (
           [1,2,3].map(i => <div key={i} style={{ height: '100px', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)' }} className="animate-pulse" />)
         ) : filteredNotifications.length > 0 ? (
-          filteredNotifications.map((notif) => (
-            <div 
-              key={notif.id} 
+          filteredNotifications.map((notif) => {
+            const targetUrl = resolveNotificationTarget(notif);
+            return (
+            <div
+              key={notif.id}
               onClick={() => {
                 setSelectedNotification(notif);
                 if (!notif.is_read) handleMarkAsRead(notif.id, true);
@@ -351,6 +381,19 @@ const AdminNotifications = () => {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
+                  {/* Traceability: when this notification concerns a real record
+                      (a booking, or another in-app route), give the admin a
+                      direct jump so an alert never dead-ends. Hidden entirely
+                      when there is genuinely nothing to open. */}
+                  {targetUrl && (
+                    <button
+                      onClick={() => navigate(targetUrl)}
+                      title="Open the record this notification is about"
+                      style={{ background: 'none', border: '1px solid var(--admin-border)', borderRadius: 0, color: 'var(--admin-brand)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '.35rem', padding: '.3rem .55rem', fontSize: '.65rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.04em' }}
+                    >
+                      <ExternalLink size={13} /> View
+                    </button>
+                  )}
                   {/* Clicking trash opens confirmation modal — no direct delete */}
                   <button
                     onClick={() => setConfirmDeleteId(notif.id)}
@@ -364,7 +407,8 @@ const AdminNotifications = () => {
                 </div>
               </div>
             </div>
-          ))
+            );
+          })
         ) : (
           // ── COMPACT EMPTY STATE (REQ #1 equivalent for Notifications) ──────
           // Inline/horizontal layout instead of large billboard

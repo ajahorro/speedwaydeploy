@@ -1,6 +1,25 @@
 @import './styles/responsive.css';
 
 :root {
+  /* ── App-shell header height (ST-1 fix) ──────────────────────────────────
+   * The shell <header> in CustomerLayout / AdminLayout is `position: sticky;
+   * top: 0`, so it occupies the top of the <main> scroll container. Every
+   * in-page sticky element (the booking wizard chrome at z-40, the lifecycle
+   * summary header at z-20) also pins to `top: 0` — which puts it UNDERNEATH
+   * the shell header instead of below it.
+   *
+   * The fix is a single source of truth for the offset: `main` declares
+   * `scroll-padding-top: var(--app-shell-header-height)`. That one declaration
+   * makes every sticky descendant's `top: 0` resolve below the header AND
+   * offsets anchor/scrollIntoView jumps, with no z-index edits and no
+   * per-component changes.
+   *
+   * Value = header content (~44px) + padding (1rem top/bottom on desktop) +
+   * 1px bottom border. The mobile override below trims it to the 0.75rem
+   * padding the same header uses on small screens.
+   * ---------------------------------------------------------------------- */
+  --app-shell-header-height: 76px;
+
   --admin-brand: #E61E2A; /* Aggressive Speedway Red */
   --admin-brand-rgb: 230, 30, 42;
   --admin-bg: #0A0B0D; /* Deep Charcoal */
@@ -332,4 +351,49 @@ img, video {
     size: letter;
     margin: 0.5in;
   }
+}
+
+/* ── Global Overlay Layering Model ────────────────────────
+ * Popups/modals must cover the WHOLE viewport — including the fixed sidebar,
+ * header, and any app chrome — not just the main content area.
+ *
+ * A modal rendered INSIDE .admin-main-wrapper used to be trapped there: the
+ * wrapper carried `z-index: 1`, which created a stacking context, so a child
+ * with `z-index: 10000` could never paint above the sibling sidebar
+ * (`z-index: 1000`). The wrapper no longer sets a z-index (see AdminLayout /
+ * CustomerLayout); these tokens keep every layer predictable from here on.
+ *
+ * RULE OF THUMB when adding a new overlay:
+ *   position: fixed; inset: 0; z-index: var(--z-overlay);
+ * and give it the `app-overlay-layer` class if you want the guaranteed value.
+ * ───────────────────────── */
+:root {
+  --z-content: 1;      /* page content, sticky in-page elements            */
+  --z-sidebar: 1000;   /* fixed sidebar + top header                        */
+  --z-popover: 1100;   /* dropdowns / popovers anchored to the header       */
+  --z-overlay: 9000;   /* modal + drawer backdrops (cover sidebar + header) */
+  --z-toast: 99999;    /* toasts and blocking hero messages (always on top) */
+}
+
+/* Any element opting into the shared overlay layer is guaranteed to sit above
+ * the sidebar/header, regardless of where in the tree it is rendered. */
+.app-overlay-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+}
+
+/* The canonical full-screen backdrop. Covering the sidebar is the whole point,
+ * so this must exceed --z-sidebar (1000). Applied to the shared modal classes
+ * plus any element marked .app-overlay-layer. */
+.modal-overlay,
+.hero-toast-overlay,
+.app-modal-overlay,
+.app-overlay-layer {
+  z-index: var(--z-overlay);
+}
+
+/* Toasts and blocking hero messages always outrank every overlay. */
+.hero-toast-overlay {
+  z-index: var(--z-toast);
 }

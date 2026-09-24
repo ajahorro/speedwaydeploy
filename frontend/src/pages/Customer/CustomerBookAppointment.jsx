@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, Check, CheckCircle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -48,6 +48,11 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
   const [activeVehicleIndex, setActiveVehicleIndex] = useState(0);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Re-entrancy lock. React state (`isSubmitting`) updates asynchronously, so two
+  // clicks in the same tick would both read the stale `false` and fire two
+  // create-booking RPCs (duplicate booking + duplicate payment). A ref flips
+  // synchronously, so the guard below can never be raced by a double-click.
+  const submitInFlight = useRef(false);
   const [isSubTaskActive, setIsSubTaskActive] = useState(false); // Tracks nested views (like Adding a Vehicle)
   const [hasDraftChanges, setHasDraftChanges] = useState(false);
   const [customerDetailsLocked, setCustomerDetailsLocked] = useState(false);
@@ -176,6 +181,9 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
   const prevStep = () => setCurrentStep((prev) => Math.max(prev - 1, 1));
 
   const handleSubmit = async () => {
+    // Synchronous re-entrancy guard FIRST — before any await or setState.
+    if (submitInFlight.current) return;
+    submitInFlight.current = true;
     setIsSubmitting(true);
     try {
       if (adminMode && !bookingData.adminCustomerReady) {
@@ -194,6 +202,11 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
         requestedBays,
         durationMinutes,
         excludeBookingId: isRescheduling ? prefillData?.id : undefined,
+        // Admin/desk bookings (walk-in or for a customer account) confirm
+        // immediately — the customer is already on site — so the customer-facing
+        // minimum advance notice does not apply. Capacity/blocks/closed days are
+        // still enforced by the same engine.
+        skipLeadTime: adminMode === true,
       });
 
       if (!slotCheck.valid) {
@@ -221,7 +234,12 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
       // rgba override was a third styling path and is now removed.
       toast.error(err.message || 'Failed to submit booking.');
     } finally {
+      // Use the functional updater so this only clears the flag if we are still
+      // the in-flight submission (never re-enable Submit for a stale request).
       setIsSubmitting(false);
+      // Release the synchronous lock so the user can legitimately retry after a
+      // validation failure or a transient error.
+      submitInFlight.current = false;
     }
   };
 
@@ -291,52 +309,71 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
         }
       `}</style>
       
-      {/* Header with Back Arrow */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2rem' }}>
-        <button 
-          onClick={() => {
-            if (isSubTaskActive) {
-              setIsSubTaskActive(false); // Close the sub-task first
-            } else if (currentStep > 1) {
-              setCurrentStep(currentStep - 1);
-            } else {
-              requestLeave(() => navigate(adminMode ? '/admin' : '/customer'));
-            }
-          }}
-          className="admin-card-hover"
-          style={{ 
-            background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', 
-            padding: '0.75rem', borderRadius: '50%', color: 'var(--admin-text-primary)', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}
-        >
-          <ArrowLeft size={24} />
-        </button>
+      {/* Static wizard chrome (no longer sticky): the title + the 4-step progress
+          bar scroll away with the step body. The sticky version had to be offset
+          against the app-shell header to avoid overlapping it, which was more
+          complexity than the affordance was worth — so the chrome simply scrolls
+          now. Kept as a plain block so layout/spacing is unchanged. */}
+      <div
+        className="booking-wizard-chrome"
+        style={{
+          position: 'static',
+          background: 'var(--admin-bg)',
+          paddingTop: '0.75rem',
+          paddingBottom: '0.5rem',
+          marginBottom: '1rem',
+        }}
+      >
+      {/* Header. The back arrow is intentionally omitted on the admin walk-in
+          wizard (adminMode): it is a top-level action, not a drill-down, so the
+          redundant arrow would suggest a parent screen that does not exist. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1.5rem' }}>
+        {!adminMode && (
+          <button
+            onClick={() => {
+              if (isSubTaskActive) {
+                setIsSubTaskActive(false); // Close the sub-task first
+              } else if (currentStep > 1) {
+                setCurrentStep(currentStep - 1);
+              } else {
+                requestLeave(() => navigate('/customer'));
+              }
+            }}
+            className="admin-card-hover"
+            style={{
+              background: 'var(--admin-bg)', border: '1px solid var(--admin-border)',
+              padding: '0.75rem', borderRadius: '50%', color: 'var(--admin-text-primary)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}
+          >
+            <ArrowLeft size={24} />
+          </button>
+        )}
         <div>
-          <h1 style={{ margin: 0, fontSize: 'clamp(1.8rem, 5vw, 2.5rem)', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '-1.5px' }}>Book Appointment</h1>
+          <h1 className="text-fluid-h1" style={{ margin: 0, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '-1.5px', lineHeight: 1.1 }}>Book Appointment</h1>
           {isRebooking && <div className="pulse-animation" style={{ fontSize: '0.75rem', color: 'var(--admin-brand)', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '0.2rem' }}>Fast-Track Rebooking Active</div>}
         </div>
       </div>
 
       {/* Progress Steps (Interactive) */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4rem', position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', position: 'relative' }}>
         <div style={{ position: 'absolute', top: '20px', left: '0', right: '0', height: '2px', background: 'var(--admin-border)', zIndex: 0 }} />
         <div style={{ position: 'absolute', top: '20px', left: '0', width: `${((currentStep - 1) / 3) * 100}%`, height: '2px', background: 'var(--admin-brand)', zIndex: 0, transition: 'all 0.5s ease' }} />
-        
+
         {steps.map((step) => (
-          <div 
-            key={step.num} 
+          <div
+            key={step.num}
             onClick={() => {
               if (step.num < currentStep || isRebooking) setCurrentStep(step.num);
             }}
-            style={{ 
+            style={{
               zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem',
               cursor: (step.num < currentStep || isRebooking) ? 'pointer' : 'default',
               opacity: (step.num <= currentStep) ? 1 : 0.4,
               transition: 'all 0.3s ease'
             }}
           >
-            <div style={{ 
+            <div style={{
               width: '40px', height: '40px', borderRadius: '50%', background: step.num === currentStep ? 'var(--admin-brand)' : (step.num < currentStep ? 'var(--admin-brand)' : 'var(--admin-card)'),
               border: `2px solid ${step.num <= currentStep ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center', color: step.num <= currentStep ? '#fff' : 'var(--admin-text-primary)', fontWeight: '900',
@@ -350,12 +387,13 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
           </div>
         ))}
       </div>
+      </div>
 
       {/* Step Content */}
       {adminMode && renderAdminPanel?.({ bookingData, setBookingData: updateBookingData, isCustomerDetailsLocked: customerDetailsLocked })}
-      <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', padding: '2rem', boxShadow: 'var(--admin-card-shadow)' }}>
+      <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 0, padding: '2rem', boxShadow: 'var(--admin-card-shadow)' }}>
         {currentStep === 1 && <Step2Services bookingData={bookingData} setBookingData={updateBookingData} adminMode={adminMode} activeVehicleIndex={activeVehicleIndex} onNext={nextStep} onCancel={handleCancelBooking} />}
-        {currentStep === 2 && <Step1Schedule bookingData={bookingData} setBookingData={updateBookingData} activeVehicleIndex={activeVehicleIndex} onNext={nextStep} onBack={prevStep} onCancel={handleCancelBooking} customerDetailsLocked={customerDetailsLocked} />}
+        {currentStep === 2 && <Step1Schedule bookingData={bookingData} setBookingData={updateBookingData} activeVehicleIndex={activeVehicleIndex} onNext={nextStep} onBack={prevStep} onCancel={handleCancelBooking} customerDetailsLocked={customerDetailsLocked} adminMode={adminMode} />}
         {currentStep === 3 && (
           <Step3FleetEditing 
             bookingData={bookingData} 

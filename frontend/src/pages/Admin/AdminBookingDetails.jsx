@@ -11,7 +11,7 @@ import {
   FileText, Printer, CalendarClock
 } from 'lucide-react';
 import { SERVICES_DATA } from '../../data/servicesCatalog';
-import { calculateOccupancy, filterActiveBookings } from '../../utils/schedulingUtils';
+import { calculateBayUsage, calculateOccupancy, filterActiveBookings } from '../../utils/schedulingUtils';
 import { SHOP_CONFIG } from '../../config/constants';
 import { getStatusColor, isStaffOccupied } from '../../utils/bookingHelpers';
 import { calculateRequiredDownpayment, requiresDownpayment } from '../../utils/paymentUtils';
@@ -90,11 +90,16 @@ const AdminBookingDetails = () => {
   // panel stayed shut, so "Open chat" appeared to do nothing.
   useEffect(() => {
     if (!id || searchParams.get('chat') !== 'open') return;
-    openChatForBooking(id);
+    // Only account-linked bookings have a real conversation. A guest walk-in
+    // (customer_id null) has no profile to send from or receive on, so never
+    // open a chat panel for it. We wait until the booking has loaded so we can
+    // make that call; while loading is pending we simply retry on the next render.
+    if (!booking) return;
+    if (booking.customer_id) openChatForBooking(id);
     const next = new URLSearchParams(searchParams);
     next.delete('chat');
     setSearchParams(next, { replace: true });
-  }, [id, searchParams, openChatForBooking, setSearchParams]);
+  }, [id, booking, searchParams, openChatForBooking, setSearchParams]);
 
   const isMobile = useMediaQuery('(max-width: 1024px)');
 
@@ -463,7 +468,21 @@ const AdminBookingDetails = () => {
   };
 
   const handleRejectPayment = async (p) => {
-    const reason = window.prompt('Reason for rejection:');
+    // Tier 3 / Task 15: reason collected via the styled prompt modal.
+    openModal({
+      title: 'Reject Receipt?',
+      message: 'This payment proof will be rejected and the customer will be asked to re-submit. Please state the reason.',
+      type: 'danger',
+      prompt: true,
+      inputLabel: 'Reason for rejection',
+      inputPlaceholder: 'e.g. Receipt does not match the amount due',
+      confirmText: 'Reject Receipt',
+      cancelText: 'Cancel',
+      onConfirm: (reason) => performRejectPayment(p, reason)
+    });
+  };
+
+  const performRejectPayment = async (p, reason) => {
     if (!reason) return;
     try {
       const { error } = await supabase.from('payments').update({ status: 'REJECTED', rejection_reason: reason }).eq('id', p.id);
@@ -474,6 +493,56 @@ const AdminBookingDetails = () => {
       toast.success('Receipt rejected');
       fetchPayments(); fetchBookingDetails(); fetchAuditLogs();
     } catch (err) { toast.error('Rejection failed'); }
+  };
+
+  // Tier 3 / Task 15: ADMIN FORCE-CONFIRM override runner (was an inline
+  // window.confirm handler). Confirmed through the styled modal instead.
+  const performForceConfirmOverride = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const payment = bookingPayments.find(item => item.status === 'FOR_VERIFICATION');
+    if (!payment) return toast.error('No pending payment found for this booking.');
+    const overrideAmount = Number(payment.detected_amount || payment.amount || 0);
+    const { error } = await supabase.from('payments').update({
+      amount: overrideAmount,
+      status: 'PAID',
+      verified_by: user?.id,
+      verified_at: new Date().toISOString(),
+      notes: `${payment.notes || 'PAYMENT_DIGITAL'} | PAYMENT_DIGITAL_VERIFIED | AI_OVERRIDE | OCR_AMOUNT:${overrideAmount}`
+    }).eq('id', payment.id);
+    if (error) return toast.error('Override failed');
+
+    await supabase.from('audit_logs').insert({
+      booking_id: id,
+      action_type: 'MANUAL_OVERRIDE_CONFIRM',
+      actor_name: user?.email,
+      actor_role: 'ADMIN',
+      details: `Admin manually confirmed flagged payment of ₱${overrideAmount}.`
+    });
+
+    toast.success('Manual Override Successful: Payment Confirmed');
+    sendPaymentReceiptEmail(id, payment.id).catch(console.error);
+    await confirmBookingWhenReady();
+    fetchBookingDetails();
+  };
+
+  // Tier 3 / Task 15: ADMIN manual payment rejection runner (was an inline
+  // window.prompt handler). Reason now comes from the styled prompt modal.
+  const performManualPaymentReject = async (reason) => {
+    if (!reason) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from('bookings').update({ payment_status: 'Payment Rejected' }).eq('id', id);
+    if (error) return toast.error('Rejection failed');
+
+    await supabase.from('audit_logs').insert({
+      booking_id: id,
+      action_type: 'MANUAL_OVERRIDE_REJECT',
+      actor_name: user?.email,
+      actor_role: 'ADMIN',
+      details: `Admin rejected payment. Reason: ${reason}`
+    });
+
+    toast.error('Payment Rejected and Logged');
+    fetchBookingDetails();
   };
 
   const performBookingStatusUpdate = async (status, reason = '') => {
@@ -510,12 +579,19 @@ const AdminBookingDetails = () => {
       type: status === 'cancelled' ? 'danger' : 'info',
       onConfirm: () => {
         if (status === 'cancelled') {
-          const reason = window.prompt('Cancellation reason (required):');
-          if (!reason?.trim()) {
-            toast.error('A cancellation reason is required.');
-            return;
-          }
-          performBookingStatusUpdate(status, reason.trim());
+          // Tier 3 / Task 15: second step uses the styled prompt modal for the
+          // mandatory cancellation reason (no window.prompt).
+          openModal({
+            title: 'Cancellation Reason Required',
+            message: 'Please provide the reason for cancelling this booking. This is recorded in the audit trail.',
+            type: 'danger',
+            prompt: true,
+            inputLabel: 'Cancellation reason',
+            inputPlaceholder: 'e.g. Customer requested cancellation',
+            confirmText: 'Cancel Booking',
+            cancelText: 'Keep Booking',
+            onConfirm: (reason) => performBookingStatusUpdate(status, reason)
+          });
           return;
         }
         performBookingStatusUpdate(status);
@@ -716,21 +792,27 @@ const AdminBookingDetails = () => {
       const newEndDatetime = new Date(new Date(booking.end_datetime).getTime() + extraMinutes * 60000);
       const { data: businessConfig } = await supabase
         .from('business_config')
-        .select('opening_hour, closing_hour, slots_per_hour')
+        .select('opening_hour, closing_hour, slots_per_hour, is_24_7')
         .maybeSingle();
       const parseBusinessHour = (value, fallback) => {
         const parsed = Number(String(value ?? '').split(':')[0]);
         return Number.isFinite(parsed) ? parsed : fallback;
       };
-      const openingHour = parseBusinessHour(businessConfig?.opening_hour, SHOP_CONFIG.OPENING_HOUR);
-      const closingHour = parseBusinessHour(businessConfig?.closing_hour, SHOP_CONFIG.CLOSING_HOUR);
+      // A 24/7 shop has no finite window, so the hours guard never applies.
+      const is247 = businessConfig?.is_24_7 === true;
+      const openingHour = is247 ? 0 : parseBusinessHour(businessConfig?.opening_hour, SHOP_CONFIG.OPENING_HOUR);
+      const closingHour = is247 ? 24 : parseBusinessHour(businessConfig?.closing_hour, SHOP_CONFIG.CLOSING_HOUR);
       const bookingStart = new Date(booking.start_datetime);
       const bookingEnd = new Date(booking.end_datetime);
       const closingBoundary = new Date(bookingEnd);
       closingBoundary.setHours(closingHour, 0, 0, 0);
       const openingBoundary = new Date(bookingStart);
       openingBoundary.setHours(openingHour, 0, 0, 0);
-      const exceedsBusinessHours = bookingStart < openingBoundary || newEndDatetime > closingBoundary || newEndDatetime.getDate() !== bookingEnd.getDate();
+      // Only the day-boundary rule still applies for 24/7 (services stay within a
+      // calendar day because capacity/reporting are day-scoped).
+      const exceedsBusinessHours = is247
+        ? newEndDatetime.getDate() !== bookingEnd.getDate()
+        : bookingStart < openingBoundary || newEndDatetime > closingBoundary || newEndDatetime.getDate() !== bookingEnd.getDate();
 
       // tentative logic: allow a late service only after explicit admin confirmation and only when its bay is otherwise clear.
       if (exceedsBusinessHours && !allowOvernight) {
@@ -969,8 +1051,9 @@ const AdminBookingDetails = () => {
     if (!showRescheduleModal || !rescheduleDate || !booking?.id) return;
     let active = true;
     const durationMinutes = Math.max(60, Math.ceil((new Date(booking.end_datetime) - new Date(booking.start_datetime)) / 60000));
+    const requestedBays = Math.max(1, calculateBayUsage(vehicles || []));
     setRescheduleSlotsLoading(true);
-    getAvailableSlots(rescheduleDate, durationMinutes, vehicles, booking.id)
+    getAvailableSlots(rescheduleDate, durationMinutes, vehicles, booking.id, { requestedBays })
       .then((slots) => {
         if (!active) return;
         setRescheduleSlots(slots || []);
@@ -1092,6 +1175,22 @@ const AdminBookingDetails = () => {
   const anyUnitStarted = vehicleStatuses.includes('IN_PROGRESS');
   const allUnitsFinished = vehicleStatuses.length > 0 && vehicleStatuses.every(s => s === 'COMPLETED' || s === 'CANCELLED');
   const isFullySettled = (booking?.total_amount || 0) > 0 && balance === 0;
+
+  // Package plan frozen onto the booking at creation (see bookingService notes:
+  // "PACKAGES:[...]"). Parsed defensively so a malformed/absent marker never
+  // breaks the page — it just means "no packages on this booking".
+  const bookingPackages = (() => {
+    const notes = String(booking?.notes || '');
+    if (!notes.includes('PACKAGES:')) return [];
+    try {
+      const raw = notes.slice(notes.indexOf('PACKAGES:') + 'PACKAGES:'.length);
+      const json = raw.split(' | ')[0];
+      const parsed = JSON.parse(json);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
 
   let derivedStatus = (booking?.status || 'scheduled').toLowerCase();
   if (anyUnitStarted && derivedStatus === 'scheduled') derivedStatus = 'in_progress';
@@ -1517,20 +1616,37 @@ const AdminBookingDetails = () => {
                     </div>
 
                     {/* SERVICES LIST - REQ-ADM-03 */}
-                    <div style={{ marginTop: '1rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ marginTop: '1rem' }}>
+                      {bookingPackages.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.6rem', padding: '0.4rem 0.6rem', borderRadius: '4px', background: 'rgba(var(--admin-brand-rgb), 0.12)', border: '1px solid rgba(var(--admin-brand-rgb), 0.3)' }}>
+                          <Package size={13} color="var(--admin-brand)" />
+                          <span style={{ fontSize: '0.62rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Package: {bookingPackages.map((p) => p.name).join(', ')}
+                          </span>
+                          <span style={{ fontSize: '0.62rem', fontWeight: '900', color: 'var(--admin-text-secondary)', marginLeft: 'auto' }}>
+                            ₱{Number(bookingPackages.reduce((sum, p) => sum + Number(p.package_price || 0), 0)).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                       {(!v.services || v.services.length === 0) ? (
                         <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.2)', fontWeight: '700', fontStyle: 'italic' }}>No Services Assigned</div>
                       ) : [...(v.services || [])].sort((a, b) => (a.service_name || '').localeCompare(b.service_name || '')).map((s, idx) => (
-                        <div key={`${v.id}-${s.service_name || idx}`} style={{ 
-                          padding: '0.35rem 0.75rem', background: 'rgba(var(--admin-brand-rgb), 0.1)', 
+                        <div key={`${v.id}-${s.service_name || idx}`} style={{
+                          padding: '0.35rem 0.75rem', background: 'rgba(var(--admin-brand-rgb), 0.1)',
                           border: '1px solid rgba(var(--admin-brand-rgb), 0.2)', borderRadius: '4px',
                           display: 'flex', alignItems: 'center', gap: '0.5rem'
                         }}>
                           <div style={{ width: '6px', height: '6px', background: 'var(--admin-brand)', borderRadius: '50%' }} />
                           <span style={{ fontSize: '0.7rem', fontWeight: '900', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>{s.service_name}</span>
-                          <span style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-brand)', marginLeft: '0.5rem', opacity: 0.8 }}>₱{s.price?.toLocaleString()}</span>
+                          {bookingPackages.length > 0 ? (
+                            <span style={{ fontSize: '0.6rem', fontWeight: '800', color: 'var(--admin-text-secondary)', marginLeft: '0.5rem' }}>Included</span>
+                          ) : (
+                            <span style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-brand)', marginLeft: '0.5rem', opacity: 0.8 }}>₱{(s.price ?? s.price_snapshot ?? 0).toLocaleString()}</span>
+                          )}
                         </div>
                       ))}
+                    </div>
                     </div>
 
                     {/* REQ-ADM-15: TECHNICAL DOCUMENTATION (Photos & Notes) */}
@@ -1693,66 +1809,30 @@ const AdminBookingDetails = () => {
                     
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button 
-                        onClick={async () => {
-                          const confirm = window.confirm('FORCE CONFIRM: Are you sure you want to override the AI mismatch and validate this payment?');
-                          if (!confirm) return;
-                          
-                          const { data: { user } } = await supabase.auth.getUser();
-                          const payment = bookingPayments.find(item => item.status === 'FOR_VERIFICATION');
-                          if (!payment) return toast.error('No pending payment found for this booking.');
-                          const overrideAmount = Number(payment.detected_amount || payment.amount || 0);
-                          const { error } = await supabase.from('payments').update({
-                            amount: overrideAmount,
-                            status: 'PAID',
-                            verified_by: user?.id,
-                            verified_at: new Date().toISOString(),
-                            notes: `${payment.notes || 'PAYMENT_DIGITAL'} | PAYMENT_DIGITAL_VERIFIED | AI_OVERRIDE | OCR_AMOUNT:${overrideAmount}`
-                          }).eq('id', payment.id);
-                          if (error) return toast.error('Override failed');
-                          
-                          await supabase.from('audit_logs').insert({
-                            booking_id: id,
-                            action_type: 'MANUAL_OVERRIDE_CONFIRM',
-                            actor_name: user?.email,
-                            actor_role: 'ADMIN',
-                            details: `Admin manually confirmed flagged payment of ₱${overrideAmount}.`
-                          });
-                          
-                          toast.success('Manual Override Successful: Payment Confirmed');
-                          
-                          // 📧 DISPATCH RECEIPT EMAIL (Since this is a manual confirmation of a payment)
-                          // We'll try to find the relevant payment ID if available, 
-                          // but for override it might be complex. 
-                          // For now, let's trigger it if we have a payment in 'FOR_VERIFICATION' status
-                          sendPaymentReceiptEmail(id, payment.id).catch(console.error);
-                          await confirmBookingWhenReady();
-
-                          fetchBookingDetails();
-                        }}
+                        onClick={() => openModal({
+                          title: 'Force Confirm Payment?',
+                          message: 'This overrides the AI mismatch and validates the payment manually. It will be recorded in the audit log.',
+                          type: 'warning',
+                          confirmText: 'Force Confirm',
+                          cancelText: 'Cancel',
+                          onConfirm: performForceConfirmOverride
+                        })}
                         style={{ flex: 1, padding: '0.75rem', background: 'var(--status-success)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.65rem', cursor: 'pointer' }}
                       >
                         FORCE CONFIRM
                       </button>
-                      <button 
-                        onClick={async () => {
-                          const reason = window.prompt('Provide reason for rejection:');
-                          if (!reason) return;
-                          
-                          const { data: { user } } = await supabase.auth.getUser();
-                          const { error } = await supabase.from('bookings').update({ payment_status: 'Payment Rejected' }).eq('id', id);
-                          if (error) return toast.error('Rejection failed');
-                          
-                          await supabase.from('audit_logs').insert({
-                            booking_id: id,
-                            action_type: 'MANUAL_OVERRIDE_REJECT',
-                            actor_name: user?.email,
-                            actor_role: 'ADMIN',
-                            details: `Admin rejected payment. Reason: ${reason}`
-                          });
-                          
-                          toast.error('Payment Rejected and Logged');
-                          fetchBookingDetails();
-                        }}
+                      <button
+                        onClick={() => openModal({
+                          title: 'Reject Payment?',
+                          message: 'Please state the reason for rejecting this payment. It is recorded in the audit log.',
+                          type: 'danger',
+                          prompt: true,
+                          inputLabel: 'Reason for rejection',
+                          inputPlaceholder: 'e.g. Amount does not match the receipt',
+                          confirmText: 'Reject Payment',
+                          cancelText: 'Cancel',
+                          onConfirm: performManualPaymentReject
+                        })}
                         style={{ flex: 1, padding: '0.75rem', background: 'var(--status-danger)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.65rem', cursor: 'pointer' }}
                       >
                         REJECT PAYMENT

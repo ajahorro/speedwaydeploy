@@ -1,0 +1,30 @@
+-- ============================================================================
+-- 20260929000001 - RESERVED / NO-OP (intentionally empty)
+-- ============================================================================
+--
+-- WHY THIS FILE EXISTS AND WHY IT IS A NO-OP
+-- ------------------------------------------
+-- This version slot was reserved for a "QR OTP contract" fix. The actual fix
+-- shipped EARLIER, in 20260927000003_add_qr_photo_url.sql, which redefines
+-- public.verify_qr_change_otp() to require only
+-- (qr_account_name, qr_account_number, payment_qr_url) and to persist the QR
+-- photo URL across all three naming variants (payment_qr_url / gcash_qr_url /
+-- qr_photo_url).
+--
+-- The problem this file previously caused: it was a 0-byte migration occupying a
+-- version slot. Supabase records it as applied while it performs no work, so a
+-- reader auditing the chain would reasonably conclude a required contract fix is
+-- MISSING. It is not missing - it lives in 20260927000003.
+--
+-- This header is the fix: it turns an unexplained empty file into an explicit,
+-- documented no-op. Do NOT add DDL here. If the QR OTP contract must change
+-- again, add a NEW migration with a later timestamp so ordering stays clear.
+--
+-- See also:
+--   20260926000001_task_b_qr_security_ocr_ledger.sql  (original; required the
+--                                                     fallback_receiver_* fields)
+--   20260927000003_add_qr_photo_url.sql               (current contract; drops
+--                                                     that requirement)
+-- ============================================================================
+
+-- (intentionally no statements)

@@ -9,14 +9,17 @@ import { supabase } from '../../lib/supabase';
 
 const AdminProfile = () => {
   const navigate = useNavigate();
-  const { user, profile, updateProfile, verifyPassword, requestPasswordChange } = useAuth();
+  const { user, profile, updateProfile, verifyPassword, requestPasswordChange, resendPasswordChange } = useAuth();
   const isMobile = useMediaQuery('(max-width: 1024px)');
-  
+
   // States
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null); // 'profile' or 'password'
+  // Task 16: track confirmation-email delivery so we can offer a resend instead
+  // of leaving the user waiting on an email that never arrived.
+  const [passwordEmailState, setPasswordEmailState] = useState(null); // { delivered, currentPassword }
 
   const [formData, setFormData] = useState({
     firstName: profile?.first_name || user?.user_metadata?.first_name || '',
@@ -82,8 +85,14 @@ const AdminProfile = () => {
         setIsEditing(false);
         toast.success('Professional identity updated', { id: toastId });
       } else if (pendingAction === 'password') {
-        await requestPasswordChange(formData.currentPassword, formData.newPassword);
-        toast.success('Check your email to confirm the password change', { id: toastId });
+        const result = await requestPasswordChange(formData.currentPassword, formData.newPassword);
+        // Task 16: report whether the email actually left the mail server.
+        if (result?.emailDelivered === false) {
+          toast.error('Password change saved, but the confirmation email could not be sent. Use “Resend confirmation email”.', { id: toastId });
+        } else {
+          toast.success('Check your email to confirm the password change', { id: toastId });
+        }
+        setPasswordEmailState({ delivered: result?.emailDelivered !== false, currentPassword: formData.currentPassword });
         setFormData(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
       }
     } catch (err) {
@@ -101,6 +110,25 @@ const AdminProfile = () => {
     padding: isMobile ? '1.5rem' : '2rem',
     boxShadow: 'var(--admin-card-shadow)',
     position: 'relative'
+  };
+
+  // Task 16: resend the password-change confirmation without retyping fields.
+  const handleResendPasswordEmail = async () => {
+    if (!passwordEmailState?.currentPassword) {
+      return toast.error('Please submit the password change again to resend the email.');
+    }
+    const toastId = toast.loading('Resending confirmation email...');
+    try {
+      const result = await resendPasswordChange(passwordEmailState.currentPassword);
+      if (result?.emailDelivered === false) {
+        toast.error('The confirmation email still could not be sent.', { id: toastId });
+      } else {
+        setPasswordEmailState((prev) => ({ ...prev, delivered: true }));
+        toast.success('Confirmation email resent. Please check your inbox.', { id: toastId });
+      }
+    } catch (err) {
+      toast.error(err.message || 'Unable to resend the confirmation email.', { id: toastId });
+    }
   };
 
   const inputStyle = {
@@ -291,6 +319,23 @@ const AdminProfile = () => {
             {formData.confirmPassword.length > 0 && formData.newPassword !== formData.confirmPassword && (
               <div style={{ fontSize: '0.72rem', color: 'var(--status-danger)', fontWeight: '700', marginTop: '-0.5rem' }}>
                 ✕ Passwords do not match
+              </div>
+            )}
+            {/* Task 16: confirmation-email delivery status + resend option. */}
+            {passwordEmailState && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.85rem 1rem', background: passwordEmailState.delivered ? 'rgba(var(--admin-success-rgb), 0.08)' : 'rgba(245, 158, 11, 0.1)', border: `1px solid ${passwordEmailState.delivered ? 'var(--admin-success)' : 'var(--status-warning)'}`, borderRadius: 'var(--admin-radius-sm)' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: '800', color: passwordEmailState.delivered ? 'var(--admin-success)' : 'var(--status-warning)' }}>
+                  {passwordEmailState.delivered
+                    ? 'Confirmation email sent. Check your inbox (and spam) to complete the change.'
+                    : 'The confirmation email could not be confirmed as sent. Resend it below.'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleResendPasswordEmail}
+                  style={{ padding: '0.5rem 0.9rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.65rem', fontWeight: '950', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  Resend confirmation email
+                </button>
               </div>
             )}
             <button 

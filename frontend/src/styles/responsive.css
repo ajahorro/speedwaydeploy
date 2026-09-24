@@ -68,6 +68,13 @@ html, body {
   button, a, select, input {
     min-height: 44px; /* Apple/Google recommended minimum */
   }
+
+  /* ST-1: the app-shell <header> uses 0.75rem padding on small screens instead
+     of the desktop 1rem, so its sticky offset is proportionally shorter. Keep
+     the scroll-padding token in step with the header it offsets. */
+  :root {
+    --app-shell-header-height: 68px;
+  }
 }
 
 /* --- Visibility Utilities --- */

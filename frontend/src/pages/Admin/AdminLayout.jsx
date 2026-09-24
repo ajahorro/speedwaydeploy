@@ -15,6 +15,7 @@ import NotificationPopover from '../../components/NotificationPopover';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../context/ThemeContext';
 import BrandLogo from '../../components/BrandLogo';
+import toast from 'react-hot-toast';
 
 const AdminLayout = () => {
   const { resolvedTheme } = useTheme();
@@ -69,14 +70,50 @@ const AdminLayout = () => {
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'notifications',
         filter: `user_id=eq.${user?.id}`
-      }, () => fetchUnreadCount())
+      }, (payload) => {
+        fetchUnreadCount();
+
+        // Live toast for a NEW booking landing while the admin is on-screen.
+        // The DB trigger fans one notification row per active admin, so this
+        // fires for every admin, not just the one who happened to be viewing.
+        // Only INSERTs of the NEW_BOOKING type toast — reads/updates stay silent.
+        if (payload?.eventType === 'INSERT' && payload?.new?.notification_type === 'NEW_BOOKING') {
+          const bookingId = payload.new.booking_id;
+          toast(
+            (t) => (
+              <button
+                type="button"
+                onClick={() => { navigate(`/admin/bookings/${bookingId}`); toast.dismiss(t.id); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.6rem',
+                  background: 'var(--admin-card, #1a1a1a)',
+                  color: 'var(--admin-text-primary, #fff)',
+                  border: '1px solid var(--admin-border, #333)',
+                  borderLeft: '3px solid var(--admin-brand, #E61E2A)',
+                  borderRadius: '8px', padding: '0.75rem 1rem',
+                  fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                <Bell size={16} color="var(--admin-brand, #E61E2A)" />
+                <span>
+                  {payload.new.message || 'New booking received.'}
+                  <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 600, opacity: 0.7, marginTop: '0.15rem' }}>
+                    Click to view booking
+                  </span>
+                </span>
+              </button>
+            ),
+            { duration: 8000, position: 'top-right' }
+          );
+        }
+      })
       .subscribe();
 
     return () => {
       window.removeEventListener('notificationsRead', handleNotificationsRead);
       supabase.removeChannel(channel);
     };
-  }, [user?.id, fetchUnreadCount]);
+  }, [user?.id, fetchUnreadCount, navigate]);
 
   // Close sidebar on navigation (mobile)
   useEffect(() => {
@@ -291,7 +328,7 @@ const AdminLayout = () => {
         </div>
       </aside>
 
-      <div className="admin-main-wrapper" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1, maxWidth: '100%', height: '100vh', overflow: 'hidden', marginLeft: isMobile ? 0 : '260px' }}>
+      <div className="admin-main-wrapper" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', position: 'relative', maxWidth: '100%', height: '100vh', overflow: 'hidden', marginLeft: isMobile ? 0 : '260px' }}>
         <header className="no-print" style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -378,7 +415,7 @@ const AdminLayout = () => {
           </div>
         )}
 
-        <main style={{ flex: 1, minHeight: 0, padding: isMobile ? '1.5rem 1rem' : '2.5rem', overflowY: 'auto', background: 'var(--admin-bg)' }}>
+        <main style={{ flex: 1, minHeight: 0, padding: isMobile ? '1.5rem 1rem' : '2.5rem', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', background: 'var(--admin-bg)' }}>
           <Outlet />
         </main>
       </div>

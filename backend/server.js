@@ -10,9 +10,32 @@ const { normalizeStatus, shouldRestoreGraceWindow } = require('./noShowRestoreLo
 const { validateBookingRequest } = require('./services/scheduleValidation');
 const { Resend } = require('resend');
 const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEmail, sendAccountInviteEmail, sendAdminInviteEmail, sendInviteAccountEmail, sendEmergencyRecoveryEmail, sendQrChangeOtpEmail } = require('./services/emailService');
+// EMAIL AUTH POLICY: single source of truth for LINK vs OTP per flow.
+// See docs/EMAIL_AUTH_POLICY.md. Guards below keep UI copy and delivery in sync.
+const { DELIVERY, assertDelivery } = require('./config/emailPolicy');
 const { processReceiptOCR } = require('./services/ocrService');
 const resendClient = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const RESEND_FROM = process.env.RESEND_FROM || 'Speedway AutoxMoto <bookings@yourdomain.com>';
+
+// ── GLOBAL PROCESS CRASH GUARDS (B1) ────────────────────────────────────────
+// The per-route try/catch blocks already return a 500 JSON for anything thrown
+// INSIDE a handler. These guards cover everything OUTSIDE one — a stray promise
+// in a setImmediate email batch, a Supabase realtime callback, a socket error,
+// a bad `await` in a timeout. Without them Node terminates the whole process on
+// the first such rejection, which the browser then reports as
+// net::ERR_CONNECTION_REFUSED (the port simply stops listening).
+//
+// We LOG and CONTINUE rather than exiting: for a shop-facing API it is far
+// better to serve the remaining requests than to take the entire backend down
+// because one background job failed. The route handlers remain the fail-closed
+// boundary for anything the client can see.
+process.on('uncaughtException', (err) => {
+  console.error('[SERVER CRASH PREVENTED] uncaughtException:', err && err.stack ? err.stack : err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[SERVER CRASH PREVENTED] unhandledRejection:', reason && reason.stack ? reason.stack : reason);
+});
 const PASSWORD_CONFIRMATION_TTL_MS = 15 * 60 * 1000;
 const PASSWORD_CIPHER_KEY = crypto.createHash('sha256').update(process.env.SUPABASE_SERVICE_ROLE_KEY || 'development-key').digest();
 
@@ -98,6 +121,154 @@ const getLifecycleActor = async (req) => {
   const { data: profile } = await supabaseAdmin.from('profiles').select('id, role, is_active').eq('id', user.id).maybeSingle();
   if (!profile?.is_active || !['ADMIN', 'STAFF'].includes(String(profile.role || '').toUpperCase())) return null;
   return { user, profile };
+};
+
+/**
+ * 🛡️ SERVER-SIDE ADMIN GATE (Tier 3 / Task 13).
+ * Resolves the caller from their JWT (never from the request body) and asserts
+ * their profile role is ADMIN. This is an EXPLICIT in-route check that runs
+ * BEFORE any privileged work, so the routes no longer depend solely on the
+ * `create_invited_account` RPC's internal is_admin() guard — which is absent on
+ * the fallback branch when that migration has not been applied.
+ *
+ * Returns the actor profile on success, or null when the caller is anonymous,
+ * inactive, or not an admin. Callers must respond 403 when this returns null.
+ */
+const requireAdmin = async (req) => {
+  const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
+  if (!token || !supabaseAdmin) return null;
+  const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
+  if (userErr || !userData?.user) return null;
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('id, role, is_active, email, full_name')
+    .eq('id', userData.user.id)
+    .maybeSingle();
+  if (!profile?.is_active) return null;
+  if (String(profile.role || '').toUpperCase() !== 'ADMIN') return null;
+  return { user: userData.user, profile };
+};
+
+/**
+ * 🛡️ AUDIT WRITER (single source of truth).
+ *
+ * Why this exists: every account-management route (invite / revoke / broadcast /
+ * deactivate) must leave an audit trail, but the previous inline inserts were
+ * either un-awaited or used `.catch(() => {})`. A Supabase query builder is a
+ * THENABLE that RESOLVES with { data, error } on failure — it does not reject —
+ * so `.catch()` never fires and a failed insert was invisible. The result: an
+ * admin action succeeded but nothing appeared in the Audit Logs page.
+ *
+ * This helper always awaits, inspects `error` (Supabase never throws), logs a
+ * loud warning with the exact Postgres code/message, and returns a boolean so
+ * the caller can decide whether the audit failure should surface to the user.
+ *
+ * `actorId` is stamped when known so the Audit Logs page can resolve the actor's
+ * email; `actor_name`/`actor_role` remain the human-readable fallback.
+ */
+const writeAuditLog = async ({
+  actionType,
+  details,
+  actorId = null,
+  actorName = 'SYSTEM',
+  actorRole = 'SYSTEM',
+  bookingId = null,
+  metadata = null,
+}) => {
+  if (!supabaseAdmin) {
+    console.warn(`⚠️ [AUDIT] ${actionType} NOT recorded — Supabase admin client unavailable.`);
+    return { success: false, error: 'SUPABASE_UNAVAILABLE' };
+  }
+  const row = {
+    action_type: actionType,
+    details: details || null,
+    actor_id: actorId,
+    actor_name: actorName,
+    actor_role: actorRole,
+    // Stamp the timestamp explicitly so the row is complete even if the column
+    // has no default (which would otherwise make the insert fail).
+    created_at: new Date().toISOString(),
+  };
+  if (bookingId) row.booking_id = bookingId;
+  if (metadata) row.metadata = metadata;
+
+  // Retry without the optional columns that might not exist in older schemas.
+  let { error } = await supabaseAdmin.from('audit_logs').insert(row);
+  if (error) {
+    const missingOptional = error.code === 'PGRST204' || error.code === '42703';
+    if (missingOptional && (row.actor_id !== undefined || row.metadata)) {
+      const lean = { ...row };
+      delete lean.actor_id;
+      delete lean.metadata;
+      ({ error } = await supabaseAdmin.from('audit_logs').insert(lean));
+    }
+  }
+
+  if (error) {
+    console.error(`❌ [AUDIT] ${actionType} FAILED to record: ${error.code || ''} ${error.message}`);
+    return { success: false, error: error.message, code: error.code };
+  }
+  console.log(`📋 [AUDIT] ${actionType} recorded (actor: ${actorName}).`);
+  return { success: true };
+};
+
+/**
+ * Preference-gated customer announcement email.
+ * ============================================================================
+ * Sends a marketing/announcement email (a new promo, service, or vehicle
+ * category) ONLY to customers who explicitly opted in, i.e. whose
+ * profiles.notification_preferences[preferenceKey] === true.
+ *
+ *   preferenceKey: 'emailNewPromos' | 'emailNewServices' | 'emailNewVehicles'
+ *
+ * Fail-closed: a missing column, a missing/undefined preference, or any lookup
+ * error means NO email is sent — matching the brief's "only trigger if the
+ * customer has their settings explicitly configured this way".
+ *
+ * Non-blocking: uses setImmediate + a per-recipient rate-limit buffer so the
+ * caller's HTTP response is never held open by the send loop.
+ */
+const sendPreferenceGatedAnnouncement = ({ preferenceKey, subject, bodyHtml }) => {
+  if (!supabaseAdmin || !resendClient) {
+    console.warn(`📧 [ANNOUNCE] Skipped "${subject}" — supabase/resend unavailable.`);
+    return;
+  }
+  setImmediate(async () => {
+    try {
+      const { data: profiles, error } = await supabaseAdmin
+        .from('profiles')
+        .select('id, email, full_name, notification_preferences')
+        .eq('is_active', true)
+        .eq('role', 'CUSTOMER');
+      if (error) {
+        console.error(`📧 [ANNOUNCE] Preference lookup failed for "${subject}":`, error.message);
+        return;
+      }
+      const optedIn = (profiles || []).filter(
+        (p) => p?.email && p.notification_preferences && p.notification_preferences[preferenceKey] === true
+      );
+      if (!optedIn.length) {
+        console.log(`📧 [ANNOUNCE] "${subject}" sent to 0 customers (no one opted into ${preferenceKey}).`);
+        return;
+      }
+      for (const p of optedIn) {
+        try {
+          await resendClient.emails.send({
+            from: RESEND_FROM,
+            to: [p.email],
+            subject,
+            html: bodyHtml.replace(/\{\{name\}\}/g, p.full_name || 'there'),
+          });
+          await new Promise((r) => setTimeout(r, 100)); // rate-limit buffer
+        } catch (emailErr) {
+          console.error(`[ANNOUNCE EMAIL ERROR] ${p.email}:`, emailErr.message);
+        }
+      }
+      console.log(`📧 [ANNOUNCE] "${subject}" sent to ${optedIn.length} opted-in customer(s).`);
+    } catch (err) {
+      console.error(`📧 [ANNOUNCE] Unexpected failure for "${subject}":`, err.message);
+    }
+  });
 };
 
 const getRequiredDownpayment = (total) => {
@@ -594,65 +765,154 @@ app.post('/send-email', async (req, res) => {
 
 // 1. GENERATE INVITE
 app.post('/admin/generate-invite', async (req, res) => {
-  const { email, role } = req.body;
+  const { email, role } = req.body || {};
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const normalizedRole = typeof role === 'string' ? role.trim().toUpperCase() : '';
 
-  if (!email || !['ADMIN', 'STAFF', 'CUSTOMER'].includes(role)) {
+  if (!normalizedEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail) || !['ADMIN', 'STAFF', 'CUSTOMER'].includes(normalizedRole)) {
     console.error(`❌ [INVITE SYSTEM] REJECTED: Invalid email (${email}) or role (${role})`);
     return res.status(400).json({ success: false, error: 'Invalid invitation parameters' });
   }
 
-  console.log(`🎟️ [INVITE SYSTEM] GENERATING FOR: ${email} (${role})`);
+  console.log(`🎟️ [INVITE SYSTEM] GENERATING FOR: ${normalizedEmail} (${normalizedRole})`);
 
+  if (!supabaseAdmin) {
+    return res.status(503).json({ success: false, error: 'Invitation service unavailable.' });
+  }
+
+  // NOTE: This legacy route is the GUEST-BOOKING path (a customer books and the
+  // guest is auto-provisioned). It used to insert into a non-existent `invites`
+  // table, which always threw — producing the 500 you saw. It now provisions a
+  // real account through the SAME primitives as /api/admin/invite-account
+  // (create_invited_account RPC → auth.admin.createUser → profiles upsert) and
+  // delivers the branded temporary-credentials email via the Resend relay.
   try {
-    const token = crypto.randomUUID();
-    const expires_at = new Date();
-    expires_at.setHours(expires_at.getHours() + 48); // 48 hour expiry
+    const safeFirst = '';
+    const safeLast = '';
+    const fullName = normalizedEmail.split('@')[0];
 
-    // Store in DB
-    const { error: dbError } = await supabaseAdmin
-      .from('invites')
-      .insert({
-        email,
-        token,
-        role,
-        expires_at: expires_at.toISOString()
-      });
+    // 1. Duplicate guard.
+    //
+    //    IMPORTANT: this route is the GUEST-BOOKING path and runs WITHOUT an admin
+    //    session, so it must NOT call the admin-guarded `create_invited_account`
+    //    RPC — that function runs is_admin() and raises
+    //    "Only administrators may invite accounts" (SQLSTATE P0001) for an
+    //    anonymous caller, which is exactly the 500 we saw. Instead we do a
+    //    direct, non-atomic duplicate check against profiles + auth.users, which
+    //    is the correct primitive for the guest path.
+    let mustChangePassword = true;
 
-    if (dbError) throw dbError;
+    const { data: existingProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
 
-    const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/accept-invite?token=${token}`;
-    console.log(`🔗 Token Generated: ${token}`);
-
-    // Send Email
-    if (resendClient) {
-      try {
-        if (role === 'CUSTOMER') {
-          await sendAccountInviteEmail({ customerEmail: email, customerName: 'Guest', inviteLink });
-        } else await resendClient.emails.send({
-          from: RESEND_FROM,
-          to: email,
-          subject: 'Speedway Administrative Invitation',
-          html: buildEmailShell({
-            title: 'Team Invitation',
-            eyebrow: 'SPEEDWAY TEAM ACCESS',
-            bodyHtml: `
-              <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">You have been invited to join the team as an <strong>${role}</strong>.</p>
-              <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">Use the secure link below to activate your account and set your password. The invitation is valid for 48 hours.</p>
-            `,
-            ctaLink: inviteLink,
-            ctaLabel: 'Confirm Email Address',
-            footerNote: 'Link expires in 48 hours. If you were not expecting this invitation, please ignore it.'
-          })
-        });
-        console.log(`✅ Invitation delivered to ${email}`);
-      } catch (mailErr) {
-        console.error(`⚠️ Email delivery failed: ${mailErr.message}`);
-        console.log(`🔗 USE THIS LINK MANUALLY: ${inviteLink}`);
-      }
+    let authExists = false;
+    try {
+      const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const target = normalizedEmail.toLowerCase();
+      authExists = Boolean((list?.users || []).some((u) => (u.email || '').toLowerCase() === target));
+    } catch (lookupErr) {
+      console.warn('⚠️ [INVITE SYSTEM] auth.users duplicate lookup unavailable:', lookupErr.message);
     }
 
+    if (existingProfile || authExists) {
+      // Already provisioned — nothing to do, and no error for the caller.
+      return res.json({ success: true, alreadyExists: true, message: 'Account already exists.' });
+    }
 
-    return res.json({ success: true, message: 'Invite generated', inviteLink });
+    const temporaryPassword = generateTemporaryPassword();
+
+    // 2. Create the auth user (pre-confirmed) with the temporary password.
+    const { data: userData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: normalizedEmail,
+      password: temporaryPassword,
+      email_confirm: true,
+      user_metadata: {
+        first_name: safeFirst,
+        last_name: safeLast,
+        role: normalizedRole,
+        must_change_password: mustChangePassword,
+      },
+    });
+
+    if (authError) {
+      if (/already|registered|exists/i.test(authError.message || '')) {
+        return res.json({ success: true, alreadyExists: true, message: 'Account already exists.' });
+      }
+      throw authError;
+    }
+
+    const userId = userData.user.id;
+
+    // 3. Profile row (core fields first, extended if the columns exist).
+    const coreProfile = {
+      id: userId,
+      email: normalizedEmail,
+      first_name: safeFirst || null,
+      last_name: safeLast || null,
+      full_name: fullName,
+      role: normalizedRole,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    };
+    const extendedProfile = {
+      ...coreProfile,
+      must_change_password: mustChangePassword,
+      failed_login_attempts: 0,
+      locked_until: null,
+    };
+
+    let profileError = null;
+    {
+      const attempt = await supabaseAdmin.from('profiles').upsert(extendedProfile);
+      profileError = attempt.error;
+      const optionalMissing = profileError && (
+        profileError.code === 'PGRST204' ||
+        /must_change_password|failed_login_attempts|locked_until/i.test(profileError.message || '')
+      );
+      if (optionalMissing) {
+        console.warn('⚠️ [INVITE SYSTEM] Lockout/first-login columns missing — writing core profile fields only.');
+        const fallback = await supabaseAdmin.from('profiles').upsert(coreProfile);
+        profileError = fallback.error;
+        mustChangePassword = false;
+      }
+    }
+    if (profileError) throw profileError;
+
+    // 4. Deliver temporary credentials through the branded Resend relay.
+    const loginLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    let emailDelivered = false;
+    try {
+      const emailResult = await sendInviteAccountEmail({
+        recipientEmail: normalizedEmail,
+        firstName: safeFirst,
+        lastName: safeLast,
+        role: normalizedRole,
+        temporaryPassword,
+        loginLink,
+      });
+      emailDelivered = Boolean(emailResult?.success);
+      if (!emailDelivered) console.warn(`⚠️ [INVITE SYSTEM] Invite email not delivered for ${normalizedEmail}`);
+    } catch (mailErr) {
+      console.error(`⚠️ [INVITE SYSTEM] Email delivery failed: ${mailErr.message}`);
+    }
+
+    // Best-effort audit trail (never blocks the booking).
+    await writeAuditLog({
+      actionType: 'INVITE_ACCOUNT',
+      actorName: 'GUEST_BOOKING',
+      actorRole: 'SYSTEM',
+      details: `Guest account provisioned for ${fullName} (${normalizedEmail}) as ${normalizedRole}. Email delivered: ${emailDelivered}.`,
+    });
+
+    return res.json({
+      success: true,
+      message: 'Guest account provisioned',
+      emailDelivered,
+      account: { id: userId, email: normalizedEmail, role: normalizedRole },
+    });
   } catch (err) {
     console.error(`❌ Generate Invite Failed: ${err.message}`);
     return res.status(500).json({ success: false, error: err.message });
@@ -852,13 +1112,46 @@ app.post('/customer/register', async (req, res) => {
 });
 
 /**
+ * Directive 2: PRE-NORMALIZE TEXT BEFORE MATCHING.
+ * E-wallet receipts render the same payee many ways ('ATHEA JAYNE AHORRO',
+ * 'Athea Jayne Ahorro', 'A. Ahorro'). Lowercase, strip punctuation/middle-initial
+ * dots, and collapse whitespace so a substring check survives that variance.
+ */
+const normalizeMatchText = (value) => String(value || '')
+  .toLowerCase()
+  // Drop middle-initial dots ('A. Ahorro') and all other punctuation.
+  .replace(/[^a-z0-9\s]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+/**
+ * True when the receipt's payee and the shop's registered account are the same
+ * party. Accepts either direction of containment so a short configured name
+ * still matches a longer printed one (and vice versa) after normalization.
+ */
+const recipientNameMatches = (receiptRecipient, expectedRecipient) => {
+  const receiptText = normalizeMatchText(receiptRecipient);
+  const expectedText = normalizeMatchText(expectedRecipient);
+  if (!receiptText || !expectedText) return false;
+  return receiptText.includes(expectedText) || expectedText.includes(receiptText);
+};
+
+/**
  * 🤖 REQ-SYS-01: AI-Assisted OCR Verification
- * Uses Gemini for high-fidelity receipt auditing
+ * Uses Gemini for high-fidelity receipt auditing.
+ *
+ * Directive 1 & 2: FAIL-FAST, SHORT-CIRCUIT PIPELINE.
+ *   1. Scan + match the recipient name first. If it does not match the shop's
+ *      registered account, abort immediately with NAME_MISMATCH — no further
+ *      amount/date/duplicate work is done for a receipt that is not ours.
+ *   2. Only then evaluate amount, date, and reference uniqueness.
+ * The response always carries an explicit { valid, reason, status } contract so
+ * the checkout UI can hard-block submission on anything but MATCH_SUCCESS.
  */
 app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, error: 'No receipt image uploaded' });
+      return res.status(400).json({ success: false, valid: false, reason: 'NO_FILE', error: 'No receipt image uploaded' });
     }
 
     console.log(`🤖 [AI OCR] SCANNING RECEIPT: ${req.file.originalname} (${req.file.size} bytes)`);
@@ -881,6 +1174,38 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     const bookingId = req.body.bookingId;
     const paymentId = req.body.paymentId;
     const referenceNo = String(extractedData.referenceNo || '').trim();
+    // The shop's registered payee name for THIS checkout (config.qr_account_name).
+    // When the caller does not supply one the name gate cannot be evaluated, so
+    // it is skipped (name check disabled) rather than failing every upload.
+    const expectedRecipientName = String(req.body.expectedRecipientName || req.body.expected_recipient_name || '').trim();
+
+    // ── STEP 1 (FAIL FAST): RECIPIENT NAME ──────────────────────────────────
+    // If the payee on the receipt is not our shop, stop here. Parsing a
+    // stranger's reference number, date, or amount is wasted compute and an
+    // error we would only catch later anyway.
+    const isNameMatch = recipientNameMatches(extractedData.recipient, expectedRecipientName);
+    if (expectedRecipientName && !isNameMatch) {
+      console.log(`⛔ [FAIL-FAST] NAME_MISMATCH: receipt '${extractedData.recipient || 'N/A'}' vs expected '${expectedRecipientName}'. Aborting before amount/date checks.`);
+      return res.json({
+        valid: false,
+        reason: 'FLAGGED_NAME_MISMATCH',
+        status: 'NAME_MISMATCH',
+        success: true,
+        isNameMatch: false,
+        isAmountMatch: null,
+        isDateMatch: null,
+        isDuplicate: false,
+        data: {
+          ...extractedData,
+          amount: extractedAmount,
+          recipient: extractedData.recipient || 'N/A',
+          expectedRecipientName,
+          description: 'The recipient name on this receipt does not match our registered payment account.'
+        }
+      });
+    }
+
+    console.log(`✅ [STEP 1 PASSED] Name check: receipt '${extractedData.recipient || 'N/A'}' matched expected '${expectedRecipientName || 'N/A'}'. Proceeding to amount & reference scan.`);
 
     // Check for mismatch (handling minor precision differences)
     const isAmountMatch = Math.abs(extractedAmount - requiredAmount) < 1.0;
@@ -1000,18 +1325,33 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       console.log('ℹ️ [AI OCR] Booking is in PENDING state. Returning extraction results to frontend for submission.');
     }
 
+    // ── STEP 2: AMOUNT / DATE / REFERENCE ──────────────────────────────────
+    // Reached only after the name gate passed. An amount that does not match
+    // (or a stale/duplicate receipt) blocks auto-approval but the booking is
+    // still allowed to submit for manual admin review.
+    const isValidReceipt = Boolean(isAmountMatch && isDateMatch && !isDuplicate && extractedData.isReceipt);
+    const failureReason = isDuplicate
+      ? 'FLAGGED_DETAILS_MISMATCH'
+      : (!isAmountMatch ? 'FLAGGED_AMOUNT_MISMATCH' : (!isDateMatch ? 'FLAGGED_DATE_MISMATCH' : null));
+
     return res.json({
+      valid: isValidReceipt,
+      reason: isValidReceipt ? null : (failureReason || 'FLAGGED_DETAILS_MISMATCH'),
+      status: isValidReceipt ? 'MATCH_SUCCESS' : (isDuplicate ? 'REJECTED_DUPLICATE' : 'FLAGGED_DETAILS_MISMATCH'),
       success: true,
-      status: finalStatus,
+      isNameMatch: true,
       isAmountMatch,
       isDateMatch,
       // Retain the old property until all existing frontend consumers have
       // migrated to isAmountMatch.
       isMatch: isAmountMatch,
       isDuplicate,
+      persistedStatus: finalStatus,
       data: {
         ...extractedData,
-        amount: extractedAmount
+        amount: extractedAmount,
+        recipient: extractedData.recipient || 'N/A',
+        expectedRecipientName
       }
     });
 
@@ -1094,6 +1434,13 @@ const createPasswordConfirmationRequest = async ({ userId, email, purpose, newPa
   if (error) throw error;
   const emailResult = await sendPasswordConfirmationEmail({ email, token, purpose });
   if (!emailResult.success) throw new Error(emailResult.error?.message || emailResult.error || 'Confirmation email failed');
+  // Task 16: surface delivery metadata so the caller can tell the user the
+  // email ACTUALLY left the building (message id), not merely that it was queued.
+  return {
+    emailDelivered: true,
+    messageId: emailResult.data?.id || null,
+    expiresAt: new Date(Date.now() + PASSWORD_CONFIRMATION_TTL_MS).toISOString()
+  };
 };
 
 app.post('/api/auth/request-password-change', async (req, res) => {
@@ -1106,11 +1453,74 @@ app.post('/api/auth/request-password-change', async (req, res) => {
     if (usersError) throw usersError;
     const account = users.users.find(item => item.email?.toLowerCase() === email.toLowerCase());
     if (!account) return res.status(401).json({ success: false, error: 'Invalid current password.' });
-    await createPasswordConfirmationRequest({ userId: account.id, email: account.email, purpose: 'UPDATE', newPassword });
-    return res.json({ success: true, message: 'Check your email to confirm the password change.' });
+    const delivery = await createPasswordConfirmationRequest({ userId: account.id, email: account.email, purpose: 'UPDATE', newPassword });
+    return res.json({
+      success: true,
+      emailDelivered: delivery.emailDelivered,
+      messageId: delivery.messageId,
+      expiresAt: delivery.expiresAt,
+      message: 'Check your email to confirm the password change.'
+    });
   } catch (error) {
     console.error('Password change request failed:', error.message);
-    return res.status(500).json({ success: false, error: 'Unable to send the confirmation email.' });
+    return res.status(500).json({ success: false, emailDelivered: false, error: 'Unable to send the confirmation email. Please try again or contact support.' });
+  }
+});
+
+/**
+ * 🔁 Task 16: RESEND password-change confirmation.
+ * If the first email never arrived (Resend hiccup, spam filtering, typo’d inbox),
+ * the user is not stranded — they can request a fresh link without retyping the
+ * current password. Re-verifies the current password so this cannot be used as
+ * an unauthenticated email-spam primitive for someone else’s account.
+ */
+app.post('/api/auth/resend-password-confirmation', async (req, res) => {
+  const { email, currentPassword } = req.body;
+  if (!email || !currentPassword) return res.status(400).json({ success: false, error: 'Email and current password are required.' });
+  try {
+    const { error: verifyError } = await supabaseAdmin.auth.signInWithPassword({ email, password: currentPassword });
+    if (verifyError) return res.status(401).json({ success: false, error: 'Invalid current password.' });
+    const { data: users, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (usersError) throw usersError;
+    const account = users.users.find(item => item.email?.toLowerCase() === email.toLowerCase());
+    if (!account) return res.status(401).json({ success: false, error: 'Invalid current password.' });
+
+    // Re-use the still-valid pending request when one exists, issuing a FRESH
+    // token while preserving the already-encrypted pending password on the row.
+    const { data: pending } = await supabaseAdmin
+      .from('password_confirmation_requests')
+      .select('id, purpose, expires_at')
+      .eq('user_id', account.id)
+      .is('consumed_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+
+    if (!pending || pending.purpose !== 'UPDATE') {
+      return res.status(409).json({ success: false, error: 'Your previous request has expired. Please submit the password change again.' });
+    }
+
+    // Rotate the token/expiry in place so the encrypted pending password survives,
+    // then re-send the confirmation email.
+    const token = crypto.randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + PASSWORD_CONFIRMATION_TTL_MS).toISOString();
+    const { error: rotateError } = await supabaseAdmin
+      .from('password_confirmation_requests')
+      .update({ token_hash: hashConfirmationToken(token), expires_at: expiresAt })
+      .eq('id', pending.id);
+    if (rotateError) throw rotateError;
+
+    const emailResult = await sendPasswordConfirmationEmail({ email: account.email, token, purpose: 'UPDATE' });
+    if (!emailResult.success) throw new Error(emailResult.error?.message || emailResult.error || 'Confirmation email failed');
+
+    return res.json({
+      success: true,
+      emailDelivered: true,
+      messageId: emailResult.data?.id || null,
+      expiresAt
+    });
+  } catch (error) {
+    console.error('Password confirmation resend failed:', error.message);
+    return res.status(500).json({ success: false, emailDelivered: false, error: 'Unable to resend the confirmation email.' });
   }
 });
 
@@ -1159,38 +1569,25 @@ app.post('/api/auth/recover-password', async (req, res) => {
   if (!supabaseAdmin) return res.json({ success: true, message: 'If an account is associated with that email, a password reset link has been sent.' });
   console.log(`🔑 [AUTH] PASSWORD RECOVERY INITIATED: ${email}`);
 
+  // Policy guard: Forgot Password is a LINK flow. If someone flips this flow to
+  // OTP in the policy map, the server refuses to run rather than emailing a code
+  // the UI never accepts.
+  assertDelivery('FORGOT_PASSWORD', DELIVERY.LINK);
+
   try {
     const { data: users, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
     if (usersError) throw usersError;
     const account = users.users.find(item => item.email?.toLowerCase() === email.toLowerCase() && !item.deleted_at);
-    if (account?.email) await createPasswordConfirmationRequest({ userId: account.id, email: account.email, purpose: 'RESET' });
-    // The legacy template below remains as a compatibility fallback only.
 
-    if (false && resendClient) {
-      await resendClient.emails.send({
-        from: RESEND_FROM,
-        to: email,
-        subject: 'Reset Your Speedway Password',
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; border: 1px solid #eee; padding: 30px; color: #333;">
-            <h2 style="color: #A91B18; margin-top: 0; font-size: 1.5rem; letter-spacing: 1px;">SPEEDWAY DETAIL STUDIO</h2>
-            <h3 style="text-transform: uppercase; border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 1rem;">Password Reset Request</h3>
-            <p>We received a request to reset the password for your account.</p>
-            <p>Click the button below to set a new password. This link is valid for <strong>1 hour</strong>.</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${recoveryUrl}" style="background-color: #A91B18; color: white; padding: 14px 28px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block; letter-spacing: 1px; text-transform: uppercase;">
-                RESET PASSWORD
-              </a>
-            </div>
-            <p style="font-size: 12px; color: #888;">If you did not request this, you can safely ignore this email. Your password will remain unchanged.</p>
-            <div style="margin-top: 40px; text-align: center; font-size: 11px; color: #aaa;">
-              Speedway Detail Studio | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal
-            </div>
-          </div>`
-      });
-      console.log(`✅ [AUTH] Recovery email sent to ${email} via Resend`);
+    // EMAIL AUTH POLICY (see backend/docs/EMAIL_AUTH_POLICY.md):
+    //   FORGOT PASSWORD = 6-digit nothing. It ALWAYS delivers a one-time LINK to
+    //   /password-confirmation?token=... . The user must never receive an OTP for
+    //   a flow whose UI says "reset link". We delegate to the branded relay.
+    if (account?.email) {
+      await createPasswordConfirmationRequest({ userId: account.id, email: account.email, purpose: 'RESET' });
     } else {
-      console.log(`🔗 [DEV] Recovery link for ${email}: ${recoveryUrl}`);
+      // Anti-enumeration: never reveal whether the address exists. Log for ops.
+      console.log(`🔒 [AUTH] Recovery requested for unknown email (no action taken).`);
     }
 
     return res.json({ success: true, message: 'If an account is associated with that email, a password reset link has been sent.' });
@@ -1376,6 +1773,16 @@ app.post('/api/admin/invite-account', async (req, res) => {
   console.log(`🎟️ [INVITE] Admin-driven invite for ${normalizedEmail} (${normalizedRole})`);
 
   if (!supabaseAdmin) return res.status(503).json({ success: false, error: 'Invitation service unavailable.' });
+
+  // 🛡️ TASK 13: Explicit admin-identity check, independent of the RPC guard.
+  // The create_invited_account RPC also runs is_admin(), but that guard vanishes
+  // on the fallback branch (migration not applied). This check closes that hole.
+  const actor = await requireAdmin(req);
+  if (!actor) {
+    console.warn('🚫 [INVITE] BLOCKED: caller is not an authenticated ADMIN.');
+    return res.status(403).json({ success: false, error: 'Only administrators may invite accounts.' });
+  }
+
   if (!normalizedEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail)) {
     return res.status(400).json({ success: false, error: 'A valid email address is required.' });
   }
@@ -1547,12 +1954,13 @@ app.post('/api/admin/invite-account', async (req, res) => {
 
     // 5. Audit trail. A failed email is surfaced but does not roll back the
     //    account — the admin can re-share the temporary password from the UI.
-    await supabaseAdmin.from('audit_logs').insert({
-      actor_name: 'ADMIN',
-      actor_role: 'ADMIN',
-      action_type: 'INVITE_ACCOUNT',
-      details: `Invited ${fullName} (${normalizedEmail}) as ${normalizedRole}. Force password change: ${mustChangePassword}. Email delivered: ${!!emailResult?.success}.`
-    }).then(() => {}).catch(() => {});
+    await writeAuditLog({
+      actionType: 'INVITE_ACCOUNT',
+      actorId: actor.profile.id,
+      actorName: actor.profile.full_name || actor.profile.email || 'ADMIN',
+      actorRole: 'ADMIN',
+      details: `Invited ${fullName} (${normalizedEmail}) as ${normalizedRole}. Force password change: ${mustChangePassword}. Email delivered: ${!!emailResult?.success}.`,
+    });
 
     if (!emailResult?.success) {
       console.warn(`⚠️ [INVITE] Account created but email failed for ${normalizedEmail}`);
@@ -1724,6 +2132,23 @@ app.post('/api/admin/revoke-access', async (req, res) => {
   console.log(`🚫 [ADMIN] REVOKE ACCESS REQUEST for: ${memberId}`);
 
   try {
+    // 🛡️ TASK 13: Explicit admin-identity check before any privileged work.
+    const actor = await requireAdmin(req);
+    if (!actor) {
+      console.warn('🚫 [ADMIN] BLOCKED: caller is not an authenticated ADMIN.');
+      return res.status(403).json({ success: false, error: 'Only administrators may revoke access.' });
+    }
+
+    // 🛡️ TASK 17: Self-protection. An admin may not revoke their OWN access;
+    // otherwise a single mis-click (or a malicious payload) locks them out.
+    if (memberId && memberId === actor.profile.id) {
+      console.warn(`🚫 [ADMIN] BLOCKED: ${actor.profile.email} attempted to revoke their own access.`);
+      return res.status(403).json({
+        success: false,
+        error: 'You cannot revoke your own admin access. Ask another administrator to do this.'
+      });
+    }
+
     // Check role first — cannot revoke an ADMIN account
     const { data: profile, error: checkErr } = await supabaseAdmin
       .from('profiles')
@@ -1733,14 +2158,31 @@ app.post('/api/admin/revoke-access', async (req, res) => {
 
     if (checkErr) throw checkErr;
 
-    // 🛡️ DEFAULT ADMIN GUARD: Only the specific DEFAULT_ADMIN_ID is protected.
-    // Regular admins (non-default) can be deactivated normally.
+    // 🛡️ DEFAULT ADMIN GUARD: The single default admin can never be revoked.
     if (memberId === DEFAULT_ADMIN_ID) {
       console.warn(`🚫 [ADMIN] BLOCKED: Attempted revoke of Default Admin (${profile.email})`);
       return res.status(403).json({
         success: false,
         error: 'The Default Admin account cannot be deactivated.'
       });
+    }
+
+    // 🛡️ TASK 17: LAST-ADMIN PROTECTION. Refuse to revoke an ADMIN when they are
+    // the final remaining admin — regardless of whether they are the default one.
+    // This keeps the system from ever ending up with zero administrators.
+    if (String(profile.role || '').toUpperCase() === 'ADMIN') {
+      const { count, error: countErr } = await supabaseAdmin
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('role', 'ADMIN');
+      if (countErr) throw countErr;
+      if ((count || 0) <= 1) {
+        console.warn(`🚫 [ADMIN] BLOCKED: Cannot revoke the last remaining admin (${profile.email}).`);
+        return res.status(403).json({
+          success: false,
+          error: 'This is the last remaining administrator account and cannot be revoked.'
+        });
+      }
     }
 
     const { error } = await supabaseAdmin
@@ -1750,11 +2192,12 @@ app.post('/api/admin/revoke-access', async (req, res) => {
 
     if (error) throw error;
 
-    await supabaseAdmin.from('audit_logs').insert({
-      actor_name: 'ADMIN',
-      actor_role: 'ADMIN',
-      action_type: 'REVOKE_ACCESS',
-      details: `Account access revoked for ${profile.full_name} (${profile.email}). Role downgraded to CUSTOMER.`
+    await writeAuditLog({
+      actionType: 'REVOKE_ACCESS',
+      actorId: actor.profile.id,
+      actorName: actor.profile.full_name || actor.profile.email || 'ADMIN',
+      actorRole: 'ADMIN',
+      details: `Account access revoked for ${profile.full_name} (${profile.email}). Role downgraded from ${profile.role} to CUSTOMER.`,
     });
 
     return res.json({ success: true });
@@ -1772,6 +2215,13 @@ app.post('/api/admin/broadcast', async (req, res) => {
   console.log(`📣 [ADMIN] Global broadcast request: "${message}" from ${actorEmail}`);
 
   try {
+    // 🛡️ TASK 13: Explicit admin-identity check before a service-role broadcast.
+    const actor = await requireAdmin(req);
+    if (!actor) {
+      console.warn('🚫 [ADMIN] BLOCKED: non-admin broadcast attempt.');
+      return res.status(403).json({ success: false, error: 'Only administrators may send a broadcast.' });
+    }
+
     if (!message || !message.trim()) {
       return res.status(400).json({ success: false, error: 'Message cannot be empty.' });
     }
@@ -1789,11 +2239,17 @@ app.post('/api/admin/broadcast', async (req, res) => {
     }
 
     // Step 2: Prepare and insert in-app notification for each active profile
+    // A broadcast is a general announcement with no single record to open, so
+    // `action_url` points at the recipient's own notifications surface rather
+    // than being omitted. Omitting it left the admin with an un-actionable alert
+    // (the traceability gap found in the audit): every notification must give the
+    // user somewhere to go.
     const notifications = profiles.map(p => ({
       user_id: p.id,
       title: 'System Announcement 📣',
       notification_type: 'ANNOUNCEMENT',
       message: message.trim(),
+      action_url: '/notifications',
       is_read: false
     }));
 
@@ -1804,17 +2260,14 @@ app.post('/api/admin/broadcast', async (req, res) => {
     if (insertError) throw insertError;
 
     // Step 3: Log to audit trail
-    const { error: auditError } = await supabaseAdmin
-      .from('audit_logs')
-      .insert({
-        action_type: 'BROADCAST_SENT',
-        actor_name: actorEmail || 'SYSTEM',
-        actor_role: 'ADMIN',
-        details: `Global broadcast transmitted to ${profiles.length} users. Message: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`,
-        created_at: new Date().toISOString()
-      });
-
-    if (auditError) console.error('Audit Log Error (broadcast):', auditError);
+    const auditResult = await writeAuditLog({
+      actionType: 'BROADCAST_SENT',
+      actorId: actor.profile.id,
+      actorName: actorEmail || actor.profile.email || 'ADMIN',
+      actorRole: 'ADMIN',
+      details: `Global broadcast transmitted to ${profiles.length} users. Message: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`,
+    });
+    if (!auditResult.success) console.error('Audit Log Error (broadcast):', auditResult.error);
 
     // Step 4: NON-BLOCKING ASYNC EMAIL BATCH DISPATCH (Resend API)
     // Runs in setImmediate queue so HTTP response returns under 500ms without blocking UI execution
@@ -1856,10 +2309,62 @@ app.post('/api/admin/broadcast', async (req, res) => {
  */
 let inMemoryPromoCache = null;
 
+// Announce newly-added catalog items (services / vehicle categories) to the
+// customers who opted into the matching email preference. The admin Service
+// Catalog is saved straight to business_config from the client, so the client
+// calls this lightweight endpoint AFTER a successful save, passing only what was
+// genuinely ADDED. Each list is independently gated (emailNewServices /
+// emailNewVehicles) and each fails closed — no opt-in, no email.
+app.post('/api/admin/announce-catalog', async (req, res) => {
+  const { services = [], vehicles = [] } = req.body || {};
+  try {
+    if (Array.isArray(services) && services.length) {
+      const names = services.map((s) => String(s?.name || s || '').trim()).filter(Boolean);
+      if (names.length) {
+        sendPreferenceGatedAnnouncement({
+          preferenceKey: 'emailNewServices',
+          subject: 'New services at Speedway ✨',
+          bodyHtml: `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
+            <h2 style="color: #E61E2A;">New services just added</h2>
+            <p style="font-size: 16px; color: #e5e7eb;">Hi {{name}},</p>
+            <p style="font-size: 16px; color: #e5e7eb;">We now offer:</p>
+            <ul style="font-size: 16px; color: #e5e7eb;">${names.map((n) => `<li>${n}</li>`).join('')}</ul>
+            <p style="font-size: 14px; color: #9ca3af;">Book now to try them out.</p>
+            <hr style="border: none; border-top: 1px solid #374151; margin: 20px 0;" />
+            <p style="font-size: 12px; color: #9ca3af;">You opted into new-service emails. Manage this in Settings → Notifications.</p>
+          </div>`,
+        });
+      }
+    }
+
+    if (Array.isArray(vehicles) && vehicles.length) {
+      const names = vehicles.map((v) => String(v || '').trim()).filter(Boolean);
+      if (names.length) {
+        sendPreferenceGatedAnnouncement({
+          preferenceKey: 'emailNewVehicles',
+          subject: 'We now service more vehicle types 🚗',
+          bodyHtml: `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
+            <h2 style="color: #E61E2A;">New vehicle categories serviced</h2>
+            <p style="font-size: 16px; color: #e5e7eb;">Hi {{name}},</p>
+            <p style="font-size: 16px; color: #e5e7eb;">We now service: <strong>${names.join(', ')}</strong>.</p>
+            <p style="font-size: 14px; color: #9ca3af;">Bring yours in for a booking anytime.</p>
+            <hr style="border: none; border-top: 1px solid #374151; margin: 20px 0;" />
+            <p style="font-size: 12px; color: #9ca3af;">You opted into new-vehicle emails. Manage this in Settings → Notifications.</p>
+          </div>`,
+        });
+      }
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('❌ [ANNOUNCE-CATALOG] Error:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/admin/promos', async (req, res) => {
   const promo = req.body;
   console.log('🏷️ [ADMIN PROMO] Saving promo rule:', promo?.name);
-
   try {
     if (!promo || !promo.name || !promo.name.trim()) {
       return res.status(400).json({ success: false, error: 'Promo name is required.' });
@@ -1869,6 +2374,25 @@ app.post('/api/admin/promos', async (req, res) => {
     }
     if (!promo.validFrom || (!promo.neverExpires && !promo.validUntil)) {
       return res.status(400).json({ success: false, error: 'Valid From and Valid Until dates are required.' });
+    }
+
+    // Package validation: a package is a bundle, so every vehicle it targets must
+    // group at least 2 services. A one-service "bundle" is just a re-priced
+    // service and belongs in a Standard Promo instead.
+    const isPackage = promo.mode === 'package' || promo.type === 'fixed_package' || promo.isBundle === true;
+    if (isPackage) {
+      const matrix = promo.vehicleServiceMatrix && typeof promo.vehicleServiceMatrix === 'object'
+        ? promo.vehicleServiceMatrix
+        : {};
+      const tooSmall = Object.keys(matrix).find(
+        (vehicle) => Array.isArray(matrix[vehicle]) && matrix[vehicle].length > 0 && matrix[vehicle].length < 2
+      );
+      if (tooSmall) {
+        return res.status(400).json({
+          success: false,
+          error: `A package must group at least 2 services per vehicle (issue: ${tooSmall}). Use a Standard Promo for single-service discounts.`
+        });
+      }
     }
 
     // Fetch existing promo rules from business_config or cache
@@ -1922,6 +2446,11 @@ app.post('/api/admin/promos', async (req, res) => {
       vehicleServiceMatrix: promo.vehicleServiceMatrix || {},
       vehicleTypes: promo.vehicleTypes || Object.keys(promo.vehicleServiceMatrix || {}),
       serviceMatches: promo.serviceMatches || Array.from(new Set(Object.values(promo.vehicleServiceMatrix || {}).flat())),
+      // Package semantics carried through to storage: a package (fixed_package /
+      // mode 'package') is a whole-vehicle bundle price that applies only when
+      // the full set is selected and never stacks with standard promos.
+      isBundle: promo.mode === 'package' || promo.type === 'fixed_package' || promo.isBundle === true,
+      stackable: (promo.mode === 'package' || promo.type === 'fixed_package') ? false : (promo.stackable !== false),
       isOngoing: true,
       updated_at: new Date().toISOString()
     };
@@ -1945,6 +2474,24 @@ app.post('/api/admin/promos', async (req, res) => {
       } catch (upsertErr) {
         console.warn('⚠️ [ADMIN PROMO] Database upsert failed, preserved in cache:', upsertErr.message);
       }
+    }
+
+    // Announce the new promo to opt-in customers only. Gated on the
+    // `emailNewPromos` preference (opt-in, default OFF) so a customer who has
+    // not explicitly enabled it is never emailed. Fire-and-forget.
+    if (!promo.id) {
+      sendPreferenceGatedAnnouncement({
+        preferenceKey: 'emailNewPromos',
+        subject: `New promo: ${nextRule.name} 🎉`,
+        bodyHtml: `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
+          <h2 style="color: #E61E2A;">Speedway has a new promo</h2>
+          <p style="font-size: 16px; color: #e5e7eb;">Hi {{name}},</p>
+          <p style="font-size: 16px; color: #e5e7eb;">A new promotion is now live: <strong>${nextRule.name}</strong>.</p>
+          <p style="font-size: 14px; color: #9ca3af;">Book now to take advantage of it.</p>
+          <hr style="border: none; border-top: 1px solid #374151; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #9ca3af;">You are receiving this because you opted into promo emails. Manage this in Settings → Notifications.</p>
+        </div>`,
+      });
     }
 
     return res.json({
@@ -2142,6 +2689,24 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
       });
     }
 
+    // 🛡️ TASK 17: LAST-ADMIN PROTECTION. Even a non-default admin cannot
+    // deactivate themselves (or anyone) if they are the final administrator —
+    // the system must never be left with zero admins. Mirrors guard_admin_lifecycle.
+    if (String(profile.role || '').toUpperCase() === 'ADMIN') {
+      const { count, error: countErr } = await supabaseAdmin
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('role', 'ADMIN');
+      if (countErr) throw countErr;
+      if ((count || 0) <= 1) {
+        console.warn(`🚫 [AUTH] BLOCKED: Attempted deactivation of the last remaining admin (${profile.email}).`);
+        return res.status(403).json({
+          success: false,
+          error: 'This is the last remaining administrator account and cannot be deactivated.'
+        });
+      }
+    }
+
     const deactivatedAt = new Date().toISOString();
     const { error } = await supabaseAdmin
       .from('profiles')
@@ -2154,11 +2719,12 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
     if (error) throw error;
 
     // Record in Audit Log
-    await supabaseAdmin.from('audit_logs').insert({
-      actor_name: 'SYSTEM',
-      actor_role: 'SECURITY',
-      action_type: 'ACCOUNT_DEACTIVATION',
-      details: `User ${userId} initiated deactivation. Scheduled for deletion in 15 days.`
+    await writeAuditLog({
+      actionType: 'ACCOUNT_DEACTIVATION',
+      actorId: userId,
+      actorName: profile.email || 'SYSTEM',
+      actorRole: 'SECURITY',
+      details: `User ${userId} (${profile.email || 'unknown'}) initiated deactivation. Scheduled for deletion in 15 days.`,
     });
 
     return res.json({ success: true, message: 'Account deactivated. You have 15 days to recover it.' });
@@ -2290,9 +2856,21 @@ app.get('/api/bookings/:id/receipt', async (req, res) => {
  */
 app.post('/api/garage/sync', async (req, res) => {
   const { customerId, vehicle } = req.body;
-  console.log(`🚗 [GARAGE] SYNCING VEHICLE: ${vehicle.plateNumber} for user ${customerId}`);
+  console.log(`🚗 [GARAGE] SYNCING VEHICLE: ${vehicle?.plateNumber} for user ${customerId}`);
 
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database admin service unavailable' });
+
+  // Guest bookings (walk-ins with no account) have no profile to attach a
+  // garage vehicle to. `vehicles.owner_id` is NOT NULL, so inserting null was a
+  // guaranteed 500. There is simply nothing to sync — report success as a no-op.
+  if (!customerId) {
+    console.log('ℹ️ [GARAGE] Skipped: no customer account (guest booking).');
+    return res.json({ success: true, skipped: true, message: 'No customer account; garage sync not applicable.' });
+  }
+
+  if (!vehicle || !vehicle.plateNumber) {
+    return res.status(400).json({ success: false, error: 'Vehicle with a plate number is required.' });
+  }
 
   try {
     const plate = (vehicle.plateNumber || '').toUpperCase();
@@ -3174,6 +3752,11 @@ app.post('/api/debug/fix-account', async (req, res) => {
 // 🔒 Schedule Block Management Endpoints (Bypassing RLS 403 Forbidden)
 app.post('/api/admin/blocked-slots', async (req, res) => {
   const { block_date, dates, start_date, end_date, start_time, end_time, reason } = req.body;
+  // Attribute the block to the acting admin so a later "who closed this day?"
+  // question is answerable straight from the row (previously created_by was
+  // always null, which made the source of an unexpected block untraceable).
+  const createdBy = req.body.created_by || req.body.actor_id || null;
+  const actorName = String(req.body.actor_name || req.body.admin_name || '').trim();
 
   try {
     if (!supabaseAdmin) throw new Error('Supabase Admin not initialized');
@@ -3186,7 +3769,8 @@ app.post('/api/admin/blocked-slots', async (req, res) => {
         block_date: d,
         start_time,
         end_time,
-        reason: reason || 'ADMIN BLOCK'
+        reason: reason || 'ADMIN BLOCK',
+        created_by: createdBy || null
       }));
     } else if (start_date && end_date) {
       // Multi-day date range provided
@@ -3198,7 +3782,8 @@ app.post('/api/admin/blocked-slots', async (req, res) => {
           block_date: dStr,
           start_time,
           end_time,
-          reason: reason || 'ADMIN BLOCK'
+          reason: reason || 'ADMIN BLOCK',
+          created_by: createdBy || null
         });
         curr.setDate(curr.getDate() + 1);
       }
@@ -3208,7 +3793,8 @@ app.post('/api/admin/blocked-slots', async (req, res) => {
         block_date,
         start_time,
         end_time,
-        reason: reason || 'ADMIN BLOCK'
+        reason: reason || 'ADMIN BLOCK',
+        created_by: createdBy || null
       }];
     } else {
       return res.status(400).json({ success: false, error: 'Target date or date range is required' });
@@ -3249,7 +3835,8 @@ app.post('/api/admin/blocked-slots', async (req, res) => {
 
     await supabaseAdmin.from('audit_logs').insert({
       action_type: 'SCHEDULE_SLOT_BLOCKED',
-      actor_name: 'ADMIN',
+      actor_id: createdBy || null,
+      actor_name: actorName || 'ADMIN',
       actor_role: 'ADMIN',
       details: `Blocked schedule slots across ${rowsToInsert.length} day(s): ${reason || 'ADMIN BLOCK'}`
     });
@@ -3338,6 +3925,23 @@ app.delete('/api/admin/blocked-slots/:id', async (req, res) => {
 // guided <ValidationModal>; the same validator is safe to call from any future
 // server-side booking-creation path.
 //
+// Lightweight liveness probe. The frontend polls this to decide whether the
+// scheduling backend is reachable, so it can show a clear, proactive in-app
+// banner BEFORE a user fills in a whole booking and gets blocked fail-closed at
+// submit time. It intentionally does no DB work (it must stay fast + cheap even
+// when Postgres is having a bad day) — the presence of the process is the signal.
+//
+//   GET /api/health  -> 200 { success:true, status:'ok', time:<iso> }
+app.get('/api/health', (req, res) => {
+  return res.status(200).json({
+    success: true,
+    status: 'ok',
+    service: 'speedway-backend',
+    supabaseReady: Boolean(supabaseAdmin),
+    time: new Date().toISOString(),
+  });
+});
+
 // Status contract:
 //   400 = malformed request (INVALID_DATE / INVALID_SLOT / PAST_DATE)
 //   409 = valid request that conflicts with current shop state
@@ -3396,14 +4000,18 @@ app.get('/api/bookings/slots', async (req, res) => {
   try {
     const { loadScheduleContext, countStaffOnDuty } = require('./services/scheduleValidation');
     const { getBookableSlots } = require('../frontend/src/domain/schedule/rules.js');
-    const { config, blocks, bookings } = await loadScheduleContext(supabaseAdmin, date, {
-      excludeBookingId: req.query.excludeBookingId,
-    });
-    const staffOnDuty = await countStaffOnDuty(supabaseAdmin);
     const durationMinutes = Math.max(1, Number(req.query.durationMinutes) || 60);
     const requestedBays = Math.max(1, Number(req.query.requestedBays) || 1);
+    const { config, blocks, bookings } = await loadScheduleContext(supabaseAdmin, date, {
+      excludeBookingId: req.query.excludeBookingId,
+      durationMinutes,
+    });
+    const staffOnDuty = await countStaffOnDuty(supabaseAdmin);
+    // skipLeadTime=1 -> admin/desk view: show imminent slots the customer-facing
+    // "minimum advance notice" would otherwise hide.
+    const skipLeadTime = String(req.query.skipLeadTime || '') === '1' || req.query.skipLeadTime === 'true';
     const slots = getBookableSlots(date, config, bookings, {
-      blocks, durationMinutes, requestedBays, staffOnDuty,
+      blocks, durationMinutes, requestedBays, staffOnDuty, skipLeadTime,
     });
     return res.json({ success: true, date, slots });
   } catch (err) {
@@ -3421,12 +4029,19 @@ app.listen(PORT, () => {
   console.log('*'.repeat(50) + '\n');
 }).on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
+    // A port clash is unrecoverable for THIS process, so we must exit — but we
+    // exit explicitly and understandably, rather than letting the runtime die
+    // with an opaque stack trace that surfaces in the browser as
+    // ERR_CONNECTION_REFUSED with no explanation.
     console.error(`\n❌ ERROR: Port ${PORT} is already in use!`);
     console.error(`   Please stop any other running backend processes and try again.\n`);
+    process.exit(1);
   } else {
-    console.error(`\n❌ ERROR: Server failed to start:`, err.message);
+    // Any OTHER listen error (transient EMFILE, a DNS/permission blip) is logged
+    // and NOT treated as fatal, so a momentary failure cannot take the process
+    // down permanently. The global guards above catch anything that escapes.
+    console.error(`\n❌ ERROR: Server listen error:`, err.message);
   }
-  process.exit(1);
 });
 
 

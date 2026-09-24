@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { emitEvent, EVENTS } from './eventEngine';
 import { SHOP_CONFIG } from '../config/constants';
-import { getEffectivePriceForService, calculateBookingDiscountSummary, buildFrozenServiceSnapshot } from '../data/servicesCatalog';
+import { getEffectivePriceForService, calculateBookingDiscountSummary, buildBookingServiceSnapshot } from '../data/servicesCatalog';
 import { getRequiredDownpayment } from '../utils/paymentUtils';
 import { sendStatusEmail } from './notificationService';
 import { calculateBayUsage } from '../utils/schedulingUtils';
@@ -58,6 +58,34 @@ export const createBooking = async (customerId, bookingData) => {
     savings: entry.savings,
   }));
 
+  // Promo/discount snapshot for the ledger + official receipt. Previously these
+  // columns were never written, so a receipt could not show the promo line and
+  // analytics could not attribute savings. We freeze the figures the customer
+  // actually reviewed so they can never drift after the promo window closes.
+  const discountAmountSnapshot = Math.max(0, Number(pricingSummary.totalDiscount || 0));
+  const appliedPackages = pricingSummary.appliedPackages || [];
+  const appliedPromoId = appliedPackages.length
+    ? appliedPackages[0].packageId
+    : (() => {
+        // For standard promos, find the first promo applied on any service line.
+        for (const vehicle of (vehicles || [])) {
+          for (const service of (vehicle.services || [])) {
+            if (service?.applied_promo) return service.applied_promo;
+          }
+        }
+        return null;
+      })();
+  const promoNameSnapshot = appliedPackages.length
+    ? appliedPackages.map((p) => p.name).join(', ')
+    : (() => {
+        for (const vehicle of (vehicles || [])) {
+          for (const service of (vehicle.services || [])) {
+            if (service?.applied_promo) return service.applied_promo;
+          }
+        }
+        return null;
+      })();
+
   // Admin-created walk-in bookings are captured on-site with payment already
   // taken by the admin, so they skip the manual payment-verification pipeline
   // and are scheduled immediately as CONFIRMED. Customer self-service bookings
@@ -69,52 +97,8 @@ export const createBooking = async (customerId, bookingData) => {
   // payment QR the customer sees can never be switched out from under them.
   const qrSnapshot = bookingData.qrSnapshot || null;
 
-  // 1. Insert the master booking record
-  const { data: booking, error: bookingError } = await supabase
-    .from('bookings')
-    .insert({
-      customer_id: bookingCustomerId,
-      customer_name: bookingData.customerName, // Added this field
-      customer_email: bookingData.customerEmail || customerProfile?.email || null,
-      start_datetime: combineDateAndTime(bookingData.date, bookingData.time),
-      end_datetime: calculateEstimatedEnd(bookingData.date, bookingData.time, vehicles),
-      status: initialBookingStatus,
-      total_amount: totalAmount,
-      // Task B: mid-update QR concurrency fallback.
-      active_qr_snapshot: qrSnapshot,
-      qr_snapshot_version: qrSnapshot?.qr_config_version ?? null,
-      notes: [
-        bookingData.notes,
-        bookingData.fleetGroupId ? `FLEET_GROUP:${bookingData.fleetGroupId}` : '',
-        // Package provenance: keeps the applied bundle auditable alongside the
-        // authoritative total_amount without requiring a schema change.
-        packagePlan.length ? `PACKAGES:${JSON.stringify(packagePlan)}` : '',
-      ].filter(Boolean).join(' | '),
-      contact_number: bookingData.contactNumber,
-      ocr_metadata: bookingData.payment?.ocrData || {} // PERSIST OCR RESULTS
-    })
-    .select()
-    .single();
-
-  if (bookingError) {
-    console.error('Master Booking Insert Error:', bookingError);
-    throw new Error(`Master Booking Error: ${bookingError.message}`);
-  }
-
-  if (!bookingCustomerId && bookingData.customerEmail) {
-    try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-      await fetch(`${BACKEND_URL}/admin/generate-invite`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: bookingData.customerEmail, role: 'CUSTOMER' })
-      });
-    } catch (inviteError) {
-      console.warn('Guest account invitation failed:', inviteError);
-    }
-  }
-
-  const bookingRef = booking.id.substring(0, 8).toUpperCase();
+  // Build the immutable per-vehicle service snapshots once — they are reused
+  // both on the booking row (service_snapshot) and on each service line.
   const bookingServiceSnapshot = (vehicles || []).flatMap((vehicle) => (vehicle.services || []).map((service) => {
     const snapshot = buildBookingServiceSnapshot(service, vehicle.type, 'booking');
     return {
@@ -127,108 +111,50 @@ export const createBooking = async (customerId, bookingData) => {
     };
   }));
 
-  // Store an immutable snapshot on the booking itself so later catalog edits
-  // never mutate the historical record for a completed or live booking.
-  await supabase
-    .from('bookings')
-    .update({
-      service_snapshot: bookingServiceSnapshot,
-      service_snapshot_version: 1
+  // Map the wizard payload into the shape expected by create_booking_atomic().
+  const rpcVehicles = (vehicles || []).map((vehicle) => ({
+    vehicle: {
+      vehicle_type: vehicle.type,
+      brand: vehicle.brand,
+      model: vehicle.model,
+      plate_number: vehicle.plateNumber,
+      fleet_group_id: vehicle.fleetGroupId || bookingData.fleetGroupId || null,
+      status: 'SCHEDULED'
+    },
+    services: (vehicle.services || []).map((service) => {
+      const snapshot = buildBookingServiceSnapshot(service, vehicle.type, 'booking');
+      return {
+        service_name: snapshot.service_name,
+        price: snapshot.final_price,
+        final_price: snapshot.final_price,
+        duration_minutes: snapshot.duration_minutes,
+        vehicle_type: snapshot.vehicle_type,
+        service_id: snapshot.service_id,
+        service_snapshot: snapshot.service_snapshot,
+        // Keep the live pricing policy as the fallback path for older schemas.
+        base_price: Number(service.original_price || service.price || 0),
+        price_at_booking: snapshot.final_price
+      };
     })
-    .eq('id', booking.id);
+  }));
 
-  // 2. Insert vehicle(s) into booking_vehicles
-  for (const vehicle of vehicles) {
-    const { data: bv, error: bvError } = await supabase
-      .from('booking_vehicles')
-      .insert({
-        booking_id: booking.id,
-        vehicle_type: vehicle.type,
-        brand: vehicle.brand,
-        model: vehicle.model,
-        plate_number: vehicle.plateNumber,
-        fleet_group_id: vehicle.fleetGroupId || bookingData.fleetGroupId || null,
-        status: 'SCHEDULED'
-      })
-      .select()
-      .single();
-
-    if (bvError) {
-      console.error('Vehicle Insert Error:', bvError);
-      throw new Error(`Vehicle Error: ${bvError.message}`);
-    }
-
-    // REQ-CST-10: POPULATE GARAGE (Silent Backend Sync)
-    try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-      await fetch(`${BACKEND_URL}/api/garage/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId: bookingCustomerId, vehicle })
-      });
-    } catch (garageEx) {
-      console.warn('Silent Garage Sync Failure:', garageEx);
-    }
-
-    // 3. Insert selected services for that vehicle
-    const services = vehicle.services || [];
-    if (services.length > 0) {
-      const serviceRows = services.map((service) => {
-        const snapshot = buildBookingServiceSnapshot(service, vehicle.type, 'booking');
-        return {
-          booking_vehicle_id: bv.id,
-          service_name: snapshot.service_name,
-          price: snapshot.final_price,
-          final_price: snapshot.final_price,
-          duration_minutes: snapshot.duration_minutes,
-          vehicle_type: snapshot.vehicle_type,
-          service_id: snapshot.service_id,
-          service_snapshot: snapshot.service_snapshot,
-          // Keep the live pricing policy as the fallback path for older DB schemas
-          base_price: Number(service.original_price || service.price || 0),
-          price_at_booking: snapshot.final_price
-        };
-      });
-
-      try {
-        const { error: svcError } = await supabase
-          .from('booking_vehicle_services')
-          .insert(serviceRows);
-
-        if (svcError) throw svcError;
-      } catch (svcError) {
-        const legacyRows = serviceRows.map(({ duration_minutes, vehicle_type, service_id, service_snapshot, base_price, price_at_booking, final_price, ...row }) => row);
-        const { error: fallbackError } = await supabase
-          .from('booking_vehicle_services')
-          .insert(legacyRows);
-
-        if (fallbackError) {
-          console.error('Service Insert Error:', fallbackError);
-          throw new Error(`Service Error: ${fallbackError.message}`);
-        }
-      }
-    }
-  }
-
-  // 4. Persist payment against the booking. Digital payments require a receipt;
-  // cash bookings are recorded as pending on-site payment.
+  // Payment payload mirrors the previous post-creation insert logic exactly.
+  let rpcPayment = null;
+  let rpcExcess = 0;
   if ((!bookingData.adminWalkIn && bookingData.payment?.method === 'Cash') || (bookingData.payment?.method === 'GCash' && bookingData.payment.proofOfPayment)) {
-    try {
-      if (bookingData.payment.method === 'Cash') {
-        const cashAmount = bookingData.payment.type === 'Downpayment' ? getRequiredDownpayment(totalAmount) : totalAmount;
-        const { error: cashError } = await supabase.from('payments').insert({
-          booking_id: booking.id,
-          amount: cashAmount,
-          method: 'Cash',
-          payment_type: bookingData.payment.type || 'Full',
-          status: 'PENDING',
-          notes: `PAYMENT_CASH|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${cashAmount}`
-        });
-        if (cashError) throw cashError;
-      } else {
+    if (bookingData.payment.method === 'Cash') {
+      const cashAmount = bookingData.payment.type === 'Downpayment' ? getRequiredDownpayment(totalAmount) : totalAmount;
+      rpcPayment = {
+        amount: cashAmount,
+        method: 'Cash',
+        payment_type: bookingData.payment.type || 'Full',
+        status: 'PENDING',
+        notes: `PAYMENT_CASH|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${cashAmount}`
+      };
+    } else {
       const file = bookingData.payment.proofOfPayment;
       const fileExt = file.name.split('.').pop();
-      const filePath = `receipts/${booking.id}/${Date.now()}.${fileExt}`;
+      const filePath = `receipts/${Date.now()}-${file.name}`;
 
       const { error: uploadError } = await supabase.storage
         .from('payment-receipts')
@@ -251,17 +177,12 @@ export const createBooking = async (customerId, bookingData) => {
       }
 
       // Task B: Net Payment Credit = Total Deducted − Transfer Fee.
-      // A cross-bank / GoTyme transfer lands short by the fee; crediting the raw
-      // detected figure would create a phantom balance. The fee is supplied by
-      // the OCR payload (or 0) and the NET figure is what we credit.
       const transferFee = Math.max(0, Number(bookingData.payment?.ocrData?.transferFee || 0));
       const grossCredited = detectedAmount > 0 ? detectedAmount : paymentAmount;
       const netCredit = Math.max(0, grossCredited - transferFee);
-      // Anything paid above what was required is an overpayment -> excess credit.
-      const excess = Math.max(0, netCredit - paymentAmount);
+      rpcExcess = Math.max(0, netCredit - paymentAmount);
 
-      const { error: payError } = await supabase.from('payments').insert({
-        booking_id: booking.id,
+      rpcPayment = {
         amount: paymentAmount,
         method: 'GCash',
         payment_type: bookingData.payment.type || 'Full',
@@ -272,32 +193,110 @@ export const createBooking = async (customerId, bookingData) => {
         transfer_fee: transferFee,
         net_credit: netCredit,
         notes: `PAYMENT_DIGITAL|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${paymentAmount}|OCR_AMOUNT:${detectedAmount > 0 ? detectedAmount : 'NULL'}|FEE:${transferFee}|NET:${netCredit}`,
-        reference_number: detectedReference || '' // Transaction Reference
-      });
-
-      if (payError) throw payError;
-
-      // Task B: bank any surplus as excess_credit on the ledger (non-fatal).
-      if (excess > 0 && bookingCustomerId) {
-        try {
-          const { recordExcessCredit } = await import('./creditLedgerService');
-          await recordExcessCredit(bookingCustomerId, booking.id, excess, 'Overpayment surplus on GCash receipt');
-        } catch (creditErr) {
-          console.warn('Excess credit recording failed (non-fatal):', creditErr);
-        }
-      }
-
-      // EVENT: Payment Submitted
-      await emitEvent(EVENTS.PAYMENT_SUBMITTED, {
-        userId: bookingCustomerId,
-        bookingId: booking.id,
-        meta: { bookingRef, amount: paymentAmount }
-      });
-      }
-    } catch (payEx) {
-      console.error('Payment Processing Error:', payEx);
-      throw new Error(`Payment processing failed: ${payEx.message}`);
+        reference_number: detectedReference || ''
+      };
     }
+  }
+
+  // 1. Atomically create the master booking, its vehicles, their services, and
+  //    the optional payment in a SINGLE transaction. Either every row lands or
+  //    none do — a failure can never leave a phantom booking with missing
+  //    children (the defect this RPC replaces).
+  const { data: rpcResult, error: rpcError } = await supabase.rpc('create_booking_atomic', {
+    p_payload: {
+      booking: {
+        customer_id: bookingCustomerId,
+        customer_name: bookingData.customerName,
+        customer_email: bookingData.customerEmail || customerProfile?.email || null,
+        start_datetime: combineDateAndTime(bookingData.date, bookingData.time),
+        end_datetime: calculateEstimatedEnd(bookingData.date, bookingData.time, vehicles),
+        status: initialBookingStatus,
+        total_amount: totalAmount,
+        // EC-1: the master bookings.vehicle_type column must be populated. The
+        // RPC derives it from the first vehicle as a fallback, but sending it
+        // explicitly keeps the master row correct even if the vehicle order or
+        // shape changes, and makes the intent unambiguous at the call site.
+        vehicle_type: vehicles[0]?.type || null,
+        applied_promo_id: appliedPromoId || null,
+        promo_name_snapshot: promoNameSnapshot || null,
+        discount_amount_snapshot: discountAmountSnapshot,
+        active_qr_snapshot: qrSnapshot,
+        qr_snapshot_version: qrSnapshot?.qr_config_version ?? null,
+        notes: [
+          bookingData.notes,
+          bookingData.fleetGroupId ? `FLEET_GROUP:${bookingData.fleetGroupId}` : '',
+          packagePlan.length ? `PACKAGES:${JSON.stringify(packagePlan)}` : '',
+        ].filter(Boolean).join(' | '),
+        contact_number: bookingData.contactNumber,
+        ocr_metadata: bookingData.payment?.ocrData || {},
+        service_snapshot: bookingServiceSnapshot,
+        service_snapshot_version: 1,
+        is_walk_in: isAdminWalkIn
+      },
+      vehicles: rpcVehicles,
+      payment: rpcPayment
+    }
+  });
+
+  if (rpcError) {
+    console.error('Atomic Booking RPC Error:', rpcError);
+    throw new Error(`Master Booking Error: ${rpcError.message}`);
+  }
+
+  const booking = rpcResult?.booking;
+  if (!booking?.id) {
+    throw new Error('Master Booking Error: atomic creation returned no booking record.');
+  }
+
+  // Task B: bank any surplus as excess_credit on the ledger (non-fatal). The
+  // payment row was already written transactionally above.
+  if (rpcExcess > 0 && bookingCustomerId) {
+    try {
+      const { recordExcessCredit } = await import('./creditLedgerService');
+      await recordExcessCredit(bookingCustomerId, booking.id, rpcExcess, 'Overpayment surplus on GCash receipt');
+    } catch (creditErr) {
+      console.warn('Excess credit recording failed (non-fatal):', creditErr);
+    }
+  }
+
+  // Populate the customer's garage (non-fatal, per vehicle).
+  if (bookingCustomerId) {
+    for (const vehicle of vehicles) {
+      try {
+        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+        await fetch(`${BACKEND_URL}/api/garage/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerId: bookingCustomerId, vehicle })
+        });
+      } catch (garageEx) {
+        console.warn('Silent Garage Sync Failure:', garageEx);
+      }
+    }
+  }
+
+  if (!bookingCustomerId && bookingData.customerEmail) {
+    try {
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      await fetch(`${BACKEND_URL}/admin/generate-invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: bookingData.customerEmail, role: 'CUSTOMER' })
+      });
+    } catch (inviteError) {
+      console.warn('Guest account invitation failed:', inviteError);
+    }
+  }
+
+  const bookingRef = booking.id.substring(0, 8).toUpperCase();
+
+  // EVENT: Payment Submitted — only for digital receipts awaiting verification.
+  if (rpcPayment && rpcPayment.method === 'GCash') {
+    await emitEvent(EVENTS.PAYMENT_SUBMITTED, {
+      userId: bookingCustomerId,
+      bookingId: booking.id,
+      meta: { bookingRef, amount: rpcPayment.amount }
+    });
   }
 
   // The lifecycle email is the single trigger; the status-email function also

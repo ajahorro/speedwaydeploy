@@ -283,21 +283,32 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  /**
+   * FORGOT PASSWORD → always a NEXUS of the LINK flow (see EMAIL AUTH POLICY below).
+   *
+   * This previously called supabase.auth.resetPasswordForEmail(), which fires
+   * SUPABASE's OWN Auth email template and bypasses our branded Resend relay.
+   * Supabase's default template renders {{ .Token }} — a 6-digit OTP — so users
+   * clicking "Send Recovery Link" received an OTP that no screen ever accepted.
+   * We now delegate to the backend relay, which issues a one-time
+   * /password-confirmation?token=... LINK that this app actually handles.
+   */
   const requestPasswordReset = async (email) => {
     logger.auth('Requesting password reset for:', email);
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login?reset=true`,
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/api/auth/recover-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
     });
-    if (error) {
-      const isServerError = error.status >= 500 || error.message?.toLowerCase().includes('internal');
-      if (isServerError) {
-        throw new Error('SMTP_UNAVAILABLE');
-      }
-      throw new Error(error.message || 'Failed to send reset email');
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.success === false) {
+      throw new Error(result.error || 'Failed to send reset email');
     }
-    return data;
+    return result;
   };
 
+  // Deprecated alias kept only so old call sites don't break — it is the SAME
+  // LINK flow, never Supabase's OTP template. Prefer requestPasswordReset.
   const resetPassword = requestPasswordReset;
 
   const changePassword = async (newPassword) => {
@@ -313,6 +324,24 @@ export const AuthProvider = ({ children }) => {
     });
     const result = await response.json();
     if (!response.ok || !result.success) throw new Error(result.error || 'Unable to send password confirmation email.');
+    // Task 16: result carries { emailDelivered, messageId, expiresAt } so callers
+    // can confirm the email actually sent (and offer a resend if it did not).
+    return result;
+  };
+
+  /**
+   * Task 16: resend the password-change confirmation email for a still-valid
+   * pending request, so a user is never stranded when the first email is lost.
+   */
+  const resendPasswordChange = async (currentPassword) => {
+    if (!user?.email) throw new Error('You must be logged in to resend the confirmation email.');
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/api/auth/resend-password-confirmation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: user.email, currentPassword })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.error || 'Unable to resend the confirmation email.');
     return result;
   };
 
@@ -471,7 +500,7 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={{
       user, profile, loading, isInitialized, signInWithPassword, signOut, resetPassword, requestPasswordReset, changePassword,
-      updateProfile, verifyPassword, requestPasswordChange, requestEmailChange, confirmEmailChange, deactivateAccount, recoverAccount, fetchProfile, setProfile,
+      updateProfile, verifyPassword, requestPasswordChange, resendPasswordChange, requestEmailChange, confirmEmailChange, deactivateAccount, recoverAccount, fetchProfile, setProfile,
       toggleShift
     }}>
       {children}

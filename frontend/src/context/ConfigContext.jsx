@@ -11,6 +11,7 @@ export const ConfigProvider = ({ children }) => {
     MAX_VEHICLES_PER_STAFF: 4,
     OPENING_HOUR: SHOP_CONFIG.OPENING_HOUR,
     CLOSING_HOUR: SHOP_CONFIG.CLOSING_HOUR,
+    IS_24_7: false,
     BUSINESS_NAME: 'SPEEDWAY STUDIO',
     // Tier 2.7: public-facing business identity (Business Hub = single source of
     // truth). Landing renders these so hub edits reflect on the website.
@@ -82,8 +83,13 @@ export const ConfigProvider = ({ children }) => {
         setSettings({
           MAX_BAYS: data.slots_per_hour || SHOP_CONFIG.MAX_BAYS,
           MAX_VEHICLES_PER_STAFF: Number(data.max_vehicles_per_staff) || 4,
-          OPENING_HOUR: parseHour(data.opening_hour, SHOP_CONFIG.OPENING_HOUR),
-          CLOSING_HOUR: parseHour(data.closing_hour, SHOP_CONFIG.CLOSING_HOUR),
+          // When the shop is open 24 hours the whole day is bookable. Report the
+          // window as 0..24 so the existing timeline/grid math (which derives its
+          // hour axis from CLOSING_HOUR - OPENING_HOUR) spans the full day with no
+          // changes to those components.
+          OPENING_HOUR: data.is_24_7 === true ? 0 : parseHour(data.opening_hour, SHOP_CONFIG.OPENING_HOUR),
+          CLOSING_HOUR: data.is_24_7 === true ? 24 : parseHour(data.closing_hour, SHOP_CONFIG.CLOSING_HOUR),
+          IS_24_7: data.is_24_7 === true,
           BUSINESS_NAME: data.business_name || 'SPEEDWAY STUDIO',
           BUSINESS_CONTACT_NUMBER: data.contact_number || '',
           BUSINESS_EMAIL: data.email_address || '',

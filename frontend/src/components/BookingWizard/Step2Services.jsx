@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Car, CheckCircle2, Circle, Layers, Lock, Plus, Trash2, X } from 'lucide-react';
-import { getServiceCatalog, getBestPromoForService, fetchActivePromos } from '../../data/servicesCatalog';
+import { getServiceCatalog, getBestPromoForService, fetchActivePromos, priceVehicleServices } from '../../data/servicesCatalog';
 import { fetchUserGarage, fetchFleetGroups } from '../../services/garageService';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -11,9 +11,22 @@ import { calculateBayUsage } from '../../utils/schedulingUtils';
 const newId = () => crypto.randomUUID ? crypto.randomUUID() : `v_${Math.random().toString(36).slice(2)}`;
 const emptyVehicle = (manual = false) => ({ id: newId(), type: '', brand: '', model: '', plateNumber: '', services: [], locked: false, manual });
 const vehicleServiceNetPrice = (service) => Number(service.price_at_booking ?? service.price ?? 0);
-const unitSubtotal = (vehicle) => (vehicle.services || []).reduce((total, service) => total + vehicleServiceNetPrice(service), 0);
+// A package is a whole-vehicle flat price: when one applies, the unit subtotal is
+// that single figure (NOT the sum of its member services, which are meant to be
+// shown as "included").
+const unitSubtotal = (vehicle) => {
+  if (vehicle?.package_applied && Number.isFinite(Number(vehicle.package_price))) {
+    return Number(vehicle.package_price);
+  }
+  return (vehicle.services || []).reduce((total, service) => total + vehicleServiceNetPrice(service), 0);
+};
 const unitGrossSubtotal = (vehicle) => (vehicle.services || []).reduce((total, service) => total + Number(service.original_price || service.price || service.price_at_booking || 0), 0);
 const isMotorcycle = (type) => type === 'Regular' || type === 'Bigbike';
+// Premise 4: "Promos" is presented as its own SERVICE TYPE in column A, so a
+// vehicle's promotions live behind one predictable entry instead of expanding as
+// full-width blocks that dominated the step. Kept as a single constant so the
+// label can never drift between the type list and the panel that renders it.
+const PROMO_CATEGORY = 'Promos';
 const inputStyle = { width: '100%', padding: '.75rem', background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-input-border)', borderRadius: '6px', fontWeight: '700' };
 // Strips everything except A-Z and 0-9 for collision-proof plate comparison
 const normalizePlate = (plate) => String(plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -134,9 +147,31 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
       toast.error(`This booking cannot exceed the ${maxBays}-bay business limit.`);
       return;
     }
+    // B4: adding a standalone unit must release the current fleet selection.
+    // Leaving fleetGroupId set kept the old fleet card highlighted and made a
+    // later "add fleet" collide with it, producing a spurious
+    // "Every vehicle in this fleet is already included." toast. The fleet is a
+    // unit set, so mixing a manual unit into it is an inconsistent state.
+    setBookingData((current) => (current.fleetGroupId ? { ...current, fleetGroupId: null } : current));
     updateVehicles((current) => current.length === 1 && isUntouchedUnit(current[0]) ? [emptyVehicle(true)] : [...current, emptyVehicle(true)]);
   };
   const isGarageVehicleSelected = (savedVehicle) => vehicles.some((vehicle) => vehicle.garageVehicleId === savedVehicle.id);
+
+  // A blank, manually-added unit the user has not filled in yet (no type/brand/
+  // model/plate/services). This is the unit a mis-click creates and a user most
+  // often wants to back out of — so we surface a prominent Cancel button while
+  // at least one exists.
+  const blankManualUnits = vehicles.filter(
+    (vehicle) => !vehicle.locked && !vehicle.garageVehicleId && isUntouchedUnit(vehicle)
+  );
+  const canCancelAddedVehicle = blankManualUnits.length > 0;
+  const cancelAddedVehicle = () => {
+    updateVehicles((current) => {
+      // Remove every blank, non-locked unit; keep real saved/committed vehicles.
+      const kept = current.filter((vehicle) => vehicle.locked || vehicle.garageVehicleId || !isUntouchedUnit(vehicle));
+      return kept.length ? kept : [emptyVehicle()];
+    });
+  };
 
   const addFleet = async (fleetId = fleetToAddId) => {
     const selectedFleet = fleetGroups.find((group) => group.id === fleetId);
@@ -167,35 +202,62 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
   const removeUnit = (unit) => updateVehicles((current) => current.length === unit.vehicles.length ? [emptyVehicle()] : current.filter((vehicle) => !unit.vehicles.some((member) => member.id === vehicle.id)));
   const categoriesFor = (vehicle) => Object.entries(SERVICE_CATALOG)
     .filter(([category, services]) => (category === 'Motorcycle Specialist') === isMotorcycle(vehicle.type) && services.some((service) => Number(service.prices[vehicle.type]) > 0))
-    .map(([category]) => category);
+    .map(([category]) => category)
+    // Premise 4: "Promos" is a first-class SERVICE TYPE alongside the standard
+    // catalogue categories. It is always appended (even when the vehicle has no
+    // active promo) so the vehicle type always exposes the same, predictable set
+    // of service types — selecting it with nothing configured shows a short
+    // explanation instead of silently changing the column.
+    .concat(PROMO_CATEGORY);
   const categoryFor = (unit) => { const categories = categoriesFor(unit.vehicles[0]); return categories.includes(activeCategories[unit.id]) ? activeCategories[unit.id] : categories[0] || ''; };
+
+  // Premise 4 — promos for ONE vehicle type, resolved from the same active-promo
+  // rules the pricing engine uses. A promo rule may scope to specific vehicle
+  // types, so we only surface the ones that genuinely apply to this vehicle.
+  // Returns [] when nothing is configured, which the UI renders as a compact
+  // "No promos are configured as of now" message rather than an empty column.
+  const promosForVehicle = (vehicleType) => {
+    const type = String(vehicleType || '').trim();
+    if (!type) return [];
+    return (activePromos || []).filter((rule) => {
+      if (!rule || rule.active === false) return false;
+      // Packages are bundles resolved by the pricing engine, not selectable
+      // promo line items — they must not appear in this list.
+      if (rule.isPackage === true || rule.type === 'package' || rule.packagePrice != null) return false;
+      const types = rule.vehicleTypes || rule.vehicle_types;
+      if (Array.isArray(types) && types.length > 0) {
+        return types.some((entry) => String(entry).trim().toLowerCase() === type.toLowerCase());
+      }
+      // A rule with no vehicle scoping applies to every vehicle type.
+      return true;
+    });
+  };
   const toggleService = (unit, service) => {
     const selected = unit.vehicles.every((vehicle) => vehicle.services?.some((item) => item.id === service.id));
-    const price = Number(service.prices[unit.type] || 0);
-    const promoInfo = getBestPromoForService(unit.type, service.name, price);
-    const priceAtBooking = promoInfo ? promoInfo.effectivePrice : price;
-    const discount = promoInfo ? promoInfo.discountAmount : 0;
-    const appliedPromo = promoInfo ? promoInfo.name : null;
 
-    updateVehicles((current) => current.map((vehicle) => unit.vehicles.some((member) => member.id === vehicle.id)
-      ? {
-          ...vehicle,
-          services: selected
-            ? vehicle.services.filter((item) => item.id !== service.id)
-            : [
-                ...(vehicle.services || []),
-                {
-                  ...service,
-                  runtime_uuid: newId(),
-                  price,
-                  original_price: price,
-                  price_at_booking: priceAtBooking,
-                  discount,
-                  applied_promo: appliedPromo
-                }
-              ]
-        }
-      : vehicle));
+    updateVehicles((current) => current.map((vehicle) => {
+      if (!unit.vehicles.some((member) => member.id === vehicle.id)) return vehicle;
+
+      // 1. Apply the raw toggle to this vehicle's service list.
+      const rawServices = selected
+        ? (vehicle.services || []).filter((item) => item.id !== service.id)
+        : [
+            ...(vehicle.services || []),
+            { ...service, runtime_uuid: newId(), price: Number(service.prices[vehicle.type] || 0) },
+          ];
+
+      // 2. Re-price the WHOLE vehicle. This is what lets a package turn on/off
+      //    the moment its required set is completed or broken — a package is a
+      //    whole-vehicle product, not a per-service discount.
+      const { services: pricedServices, package: activePackage } = priceVehicleServices(vehicle.type, rawServices);
+
+      return {
+        ...vehicle,
+        services: pricedServices,
+        package_applied: activePackage ? activePackage.name : null,
+        package_price: activePackage ? activePackage.packagePrice : null,
+      };
+    }));
   };
 
   const hasVehicleSelection = vehicles.some((vehicle) => vehicle.manual || vehicle.garageVehicleId || vehicle.fleetGroupId || Boolean(vehicle.type && vehicle.brand?.trim() && vehicle.model?.trim() && vehicle.plateNumber?.trim()));
@@ -263,11 +325,16 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem' }}>{garageVehicles.map((vehicle) => {
           const selected = isGarageVehicleSelected(vehicle);
           return <button key={vehicle.id} type="button" tabIndex={vehicleAdditionLocked ? -1 : undefined} onClick={() => toggleGarageVehicle(vehicle)} title={selected ? `Remove ${vehicle.brand} ${vehicle.model} from this booking` : `Add ${vehicle.brand} ${vehicle.model}`} className="booking-addable-card" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: `2px solid ${selected ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '6px', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer', textAlign: 'left', opacity: selected ? .9 : 1, transition: 'transform .2s ease, border-color .2s ease, box-shadow .2s ease' }}><Car size={16} color="var(--admin-brand)" /><span><strong style={{ display: 'block' }}>{vehicle.brand} {vehicle.model}</strong><small style={{ color: 'var(--admin-text-secondary)' }}>{selected ? 'Added to booking · click to remove' : `${vehicle.plate_number} · ${vehicle.type}`}</small></span></button>;
-        })}<button type="button" tabIndex={vehicleAdditionLocked ? -1 : undefined} onClick={addManualVehicle} className="booking-addable-card" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'transparent', color: 'var(--admin-brand)', border: '1px dashed var(--admin-brand)', borderRadius: '6px', fontWeight: '900', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer', transition: 'transform .2s ease, border-color .2s ease, box-shadow .2s ease' }}><Plus size={16} /> ADD NEW VEHICLE</button></div>
+        })}<button type="button" tabIndex={vehicleAdditionLocked ? -1 : undefined} onClick={addManualVehicle} className="booking-addable-card" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'transparent', color: 'var(--admin-brand)', border: '1px dashed var(--admin-brand)', borderRadius: '6px', fontWeight: '900', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer', transition: 'transform .2s ease, border-color .2s ease, box-shadow .2s ease' }}><Plus size={16} /> ADD NEW VEHICLE</button>{canCancelAddedVehicle && <button type="button" tabIndex={vehicleAdditionLocked ? -1 : undefined} onClick={cancelAddedVehicle} title="Discard the new vehicle you just added" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'transparent', color: 'var(--status-danger)', border: '1px dashed var(--status-danger)', borderRadius: '6px', fontWeight: '900', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer' }}><X size={16} /> CANCEL NEW VEHICLE</button>}</div>
       </div>
     </section>
     {showServiceConfiguration && <section style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <div><h2 style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase' }}>2. Configure services by unit</h2><p style={{ margin: '.4rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '.8rem' }}>A fleet unit applies its selected services to all of its same-type vehicles.</p></div>
+      {/* Premise 4: the standalone "Available promotions by vehicle" disclosure
+          used to sit here as a full-width block, duplicating - and out-shouting -
+          the actual service selection. Promotions now live INSIDE each unit's
+          "Promos" service type (column A), scoped to that vehicle, so this block
+          is removed to give the necessary controls their space back. */}
       {units.map((unit, index) => {
         const vehicle = unit.vehicles[0]; const complete = Boolean(vehicle.type && vehicle.brand?.trim() && vehicle.model?.trim() && vehicle.plateNumber?.trim().length >= 4);
         const category = categoryFor(unit); const categories = categoriesFor(vehicle); const services = SERVICE_CATALOG[category] || [];
@@ -283,6 +350,51 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
             <div className="booking-unit-column"><p style={{ margin: '0 0 .75rem', fontSize: '.68rem', color: 'var(--admin-text-secondary)', fontWeight: '900', textTransform: 'uppercase' }}>A. Service type</p>{categories.map((item) => <button key={item} type="button" onClick={() => setActiveCategories((current) => ({ ...current, [unit.id]: item }))} style={{ width: '100%', marginBottom: '.5rem', padding: '.75rem', textAlign: 'left', borderRadius: '6px', border: `1px solid ${category === item ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: category === item ? 'var(--admin-brand)' : 'var(--admin-bg)', color: category === item ? '#fff' : 'var(--admin-text-primary)', cursor: 'pointer', fontWeight: '800', fontSize: '.78rem' }}>{item}</button>)}</div>
             <div className="booking-unit-column">
               <p style={{ margin: '0 0 .75rem', fontSize: '.68rem', color: 'var(--admin-text-secondary)', fontWeight: '900', textTransform: 'uppercase' }}>B. Select services</p>
+              {category === PROMO_CATEGORY ? (
+                (() => {
+                  const vehiclePromos = promosForVehicle(unit.vehicles[0]?.type);
+                  if (!vehiclePromos.length) {
+                    return (
+                      <div style={{ padding: '1rem', border: '1px dashed var(--admin-border)', borderRadius: '6px', background: 'var(--admin-bg)' }}>
+                        <p style={{ margin: 0, fontSize: '.78rem', fontWeight: 800, color: 'var(--admin-text-secondary)' }}>
+                          No promos are configured as of now
+                        </p>
+                        <p style={{ margin: '.35rem 0 0', fontSize: '.68rem', fontWeight: 600, color: 'var(--admin-text-secondary)', opacity: .8 }}>
+                          Any active promotions for {unit.vehicles[0]?.type || 'this vehicle type'} will appear here automatically.
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                      {vehiclePromos.map((promo) => {
+                        const label = promo.name || promo.promo_name || 'Promotion';
+                        const summary = promo.discountType === 'PERCENT' || promo.discount_type === 'PERCENT'
+                          ? `${Number(promo.discountValue ?? promo.discount_value ?? 0)}% off`
+                          : (promo.discountValue ?? promo.discount_value) != null
+                            ? `₱${Number(promo.discountValue ?? promo.discount_value).toLocaleString()} off`
+                            : (promo.description || 'Applies automatically at checkout');
+                        return (
+                          <div
+                            key={promo.id || label}
+                            style={{ padding: '.75rem', border: '1px solid var(--admin-border)', borderRadius: '6px', background: 'var(--admin-bg)', display: 'flex', flexDirection: 'column', gap: '.25rem' }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', flexWrap: 'wrap' }}>
+                              <span style={{ background: 'var(--status-success)', color: 'var(--admin-text-on-brand)', fontSize: '.6rem', padding: '.12rem .38rem', borderRadius: '3px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.4px' }}>Active</span>
+                              <strong style={{ fontSize: '.82rem', color: 'var(--admin-text-primary)' }}>{label}</strong>
+                            </div>
+                            <span style={{ fontSize: '.7rem', fontWeight: 700, color: 'var(--status-success)' }}>{summary}</span>
+                            <span style={{ fontSize: '.66rem', fontWeight: 600, color: 'var(--admin-text-secondary)' }}>
+                              Applied automatically to the matching service — no selection needed.
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
+              ) : (
+              <>
               {services.map((service) => {
                 const basePrice = Number(service.prices[vehicle.type] || 0);
                 if (!basePrice) return null;
@@ -335,47 +447,70 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
                   </button>
                 );
               })}
+              </>
+              )}
             </div>
             <aside className="booking-unit-column" style={{ background: 'rgba(var(--admin-brand-rgb), .025)', display: 'flex', flexDirection: 'column' }}>
               <p style={{ margin: '0 0 .75rem', fontSize: '.68rem', color: 'var(--admin-text-secondary)', fontWeight: '900', textTransform: 'uppercase' }}>C. Unit summary</p>
               <strong style={{ color: 'var(--admin-text-primary)', fontSize: '.85rem' }}>{unit.locked ? `${unit.vehicles.length} ${vehicle.type} vehicle${unit.vehicles.length === 1 ? '' : 's'}` : `${vehicle.brand} ${vehicle.model}`}</strong>
               <small style={{ color: 'var(--admin-text-secondary)', marginBottom: '1rem' }}>{unit.locked ? 'The selected services apply to every listed vehicle.' : `${vehicle.plateNumber} · ${vehicle.type}`}</small>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.55rem', flex: 1 }}>
-                {selectedServices.length ? selectedServices.map((service) => {
-                  const sPrice = vehicleServiceNetPrice(service);
-                  return (
-                    <div key={service.id} style={{ display: 'flex', gap: '.5rem', justifyContent: 'space-between', color: 'var(--admin-text-primary)', fontSize: '.78rem' }}>
-                      <span>
-                        {service.name}{unit.vehicles.length > 1 ? ` × ${unit.vehicles.length}` : ''}
-                        {service.applied_promo && (
-                          <span style={{ marginLeft: '.35rem', color: 'var(--status-success)', fontSize: '.7rem', fontWeight: '700' }}>
-                            ({service.applied_promo})
-                          </span>
-                        )}
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                        <span style={{ fontWeight: '700' }}>₱{(sPrice * unit.vehicles.length).toLocaleString()}</span>
-                        <button type="button" onClick={() => toggleService(unit, service)} aria-label={`Remove ${service.name}`} style={{ color: 'var(--status-danger)', background: 'none', border: 0, cursor: 'pointer' }}><X size={15} /></button>
+                {selectedServices.length ? (
+                  vehicle.package_applied ? (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.35)', borderRadius: '6px', padding: '.5rem .6rem', marginBottom: '.35rem' }}>
+                        <Layers size={14} color="var(--status-success)" />
+                        <strong style={{ color: 'var(--status-success)', fontSize: '.78rem' }}>Package: {vehicle.package_applied}</strong>
                       </div>
-                    </div>
-                  );
-                }) : <small style={{ color: 'var(--admin-text-secondary)' }}>No services selected yet.</small>}
+                      <small style={{ color: 'var(--admin-text-secondary)', fontSize: '.68rem', textTransform: 'uppercase', fontWeight: '800' }}>Includes</small>
+                      {selectedServices.map((service) => (
+                        <div key={service.id} style={{ display: 'flex', gap: '.5rem', justifyContent: 'space-between', color: 'var(--admin-text-secondary)', fontSize: '.76rem' }}>
+                          <span>{service.name}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                            <span style={{ textDecoration: 'line-through', opacity: .65 }}>₱{Number(service.original_price || service.price || 0).toLocaleString()}</span>
+                            <button type="button" onClick={() => toggleService(unit, service)} aria-label={`Remove ${service.name}`} style={{ color: 'var(--status-danger)', background: 'none', border: 0, cursor: 'pointer' }}><X size={15} /></button>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    selectedServices.map((service) => {
+                      const sPrice = vehicleServiceNetPrice(service);
+                      return (
+                        <div key={service.id} style={{ display: 'flex', gap: '.5rem', justifyContent: 'space-between', color: 'var(--admin-text-primary)', fontSize: '.78rem' }}>
+                          <span>
+                            {service.name}{unit.vehicles.length > 1 ? ` × ${unit.vehicles.length}` : ''}
+                            {service.applied_promo && (
+                              <span style={{ marginLeft: '.35rem', color: 'var(--status-success)', fontSize: '.7rem', fontWeight: '700' }}>
+                                ({service.applied_promo})
+                              </span>
+                            )}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                            <span style={{ fontWeight: '700' }}>₱{(sPrice * unit.vehicles.length).toLocaleString()}</span>
+                            <button type="button" onClick={() => toggleService(unit, service)} aria-label={`Remove ${service.name}`} style={{ color: 'var(--status-danger)', background: 'none', border: 0, cursor: 'pointer' }}><X size={15} /></button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )
+                ) : <small style={{ color: 'var(--admin-text-secondary)' }}>No services selected yet.</small>}
               </div>
               <div style={{ marginTop: '1rem', paddingTop: '.85rem', borderTop: '1px solid var(--admin-border)' }}>
                 {unitDiscount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.35rem', fontSize: '.75rem', color: 'var(--admin-text-secondary)' }}>
-                    <span>Gross subtotal</span>
+                    <span>{vehicle.package_applied ? 'Services total' : 'Gross subtotal'}</span>
                     <span style={{ textDecoration: 'line-through' }}>₱{unitGross.toLocaleString()}</span>
                   </div>
                 )}
                 {unitDiscount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.35rem', fontSize: '.75rem', color: 'var(--status-success)', fontWeight: '800' }}>
-                    <span>Promo Discount</span>
+                    <span>{vehicle.package_applied ? 'Package savings' : 'Promo Discount'}</span>
                     <span>-₱{unitDiscount.toLocaleString()}</span>
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ fontSize: '.7rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Unit subtotal</span>
+                  <span style={{ fontSize: '.7rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>{vehicle.package_applied ? 'Package price' : 'Unit subtotal'}</span>
                   <strong style={{ color: 'var(--admin-brand)', fontSize: '1.2rem' }}>₱{total.toLocaleString()}</strong>
                 </div>
               </div>

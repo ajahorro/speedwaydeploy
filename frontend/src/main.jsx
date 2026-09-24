@@ -40,6 +40,7 @@ import StaffSettings from './pages/Staff/StaffSettings';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
+import BackendStatusBanner from './components/BackendStatusBanner';
 import CustomerLayout from './pages/Customer/CustomerLayout';
 import CustomerDashboard from './pages/Customer/CustomerDashboard';
 import CustomerBookAppointment from './pages/Customer/CustomerBookAppointment';
@@ -98,6 +99,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <UnifiedProvider>
               <BrowserRouter>
                 <UIProvider>
+                {/* Proactive "backend offline" signal. Booking submission is
+                    fail-closed, so surfacing an unreachable scheduling server
+                    BEFORE the user fills in the wizard (instead of a scary
+                    console refusal at submit time) is the right UX. */}
+                <BackendStatusBanner />
                 <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<Landing />} />

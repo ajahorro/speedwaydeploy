@@ -24,12 +24,19 @@ export const ChatProvider = ({ children }) => {
     // Pull the unread rows grouped per booking so one round trip feeds both the
     // global launcher badge and every per-thread counter. Rows the user already
     // has open are excluded from the badge but still counted on their thread.
+    //
+    // Guests / accountless walk-ins (bookings.customer_id is null) can never have
+    // a real conversation: booking_messages.sender_id is NOT NULL FK -> profiles,
+    // so there is no customer profile to send from and no receiver. Their threads
+    // are therefore excluded from every badge/list — chat only exists once the
+    // walk-in is linked to a registered account.
     const { data, error } = await supabase
       .from('booking_messages')
-      .select('id, booking_id')
+      .select('id, booking_id, booking:bookings!inner(customer_id)')
       .neq('message_type', 'system')
       .eq('is_read', false)
-      .neq('sender_id', user.id);
+      .neq('sender_id', user.id)
+      .not('booking.customer_id', 'is', null);
 
     if (error) return;
 

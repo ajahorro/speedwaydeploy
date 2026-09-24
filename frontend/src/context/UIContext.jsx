@@ -6,18 +6,30 @@ import { toastChrome } from '../utils/toastChrome';
 const UIContext = createContext();
 
 export const UIProvider = ({ children }) => {
-  const [modal, setModal] = useState(null); // { title, message, onConfirm, onCancel, confirmText, cancelText, type }
+  const [modal, setModal] = useState(null); // { title, message, onConfirm, onCancel, confirmText, cancelText, type, prompt }
+  // Tier 3 / Task 15: the value typed into a prompt-style modal. Kept in its own
+  // state so re-renders of the modal don't wipe what the user is typing.
+  const [promptValue, setPromptValue] = useState('');
 
   // Modal actions
   const openModal = useCallback((options) => {
+    setPromptValue(options.inputValue || '');
     setModal({
       title: options.title || 'Are you sure?',
       message: options.message || '',
       confirmText: options.confirmText || 'Confirm',
-      cancelText: options.cancelText || 'Cancel',
+      // `cancelText: null` intentionally renders a SINGLE-action info modal
+      // (no cancel button) — used by read-only dialogs like the Legal documents.
+      cancelText: options.cancelText === undefined ? 'Cancel' : options.cancelText,
       onConfirm: options.onConfirm || null,
       onCancel: options.onCancel || null,
       type: options.type || 'info', // 'danger' | 'warning' | 'info' | 'success'
+      // Tier 3 / Task 15: when true the modal renders a text input and passes the
+      // entered string to onConfirm(value), replacing native window.prompt().
+      prompt: Boolean(options.prompt),
+      inputLabel: options.inputLabel || '',
+      inputPlaceholder: options.inputPlaceholder || '',
+      inputRequired: options.inputRequired !== false,
     });
   }, []);
 
@@ -135,7 +147,7 @@ export const UIProvider = ({ children }) => {
             animation: 'modalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
           }}>
             {/* Top right X close icon - acts as cancel/dismiss */}
-            <button 
+            <button
               onClick={() => closeModal(true)}
               style={{
                 position: 'absolute',
@@ -165,7 +177,7 @@ export const UIProvider = ({ children }) => {
             </button>
 
             {/* Modal Content */}
-            <div className="app-modal-content" style={{ padding: '2rem 2rem 1.5rem 2rem' }}>
+            <div className="app-modal-content" style={{ padding: '2rem 2rem 1.5rem 2rem', maxHeight: '65vh', overflowY: 'auto' }}>
               <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
                 {getModalStyles(modal.type).icon}
                 <div style={{ flex: 1 }}>
@@ -188,6 +200,46 @@ export const UIProvider = ({ children }) => {
                   }}>
                     {modal.message}
                   </div>
+
+                  {/* Tier 3 / Task 15: inline reason input, replacing window.prompt(). */}
+                  {modal.prompt && (
+                    <div style={{ marginTop: '1rem' }}>
+                      {modal.inputLabel && (
+                        <label style={{
+                          display: 'block',
+                          fontSize: '0.65rem',
+                          fontWeight: '900',
+                          color: 'var(--admin-text-secondary)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '1px',
+                          marginBottom: '0.5rem'
+                        }}>
+                          {modal.inputLabel}
+                        </label>
+                      )}
+                      <textarea
+                        autoFocus
+                        value={promptValue}
+                        onChange={(e) => setPromptValue(e.target.value)}
+                        placeholder={modal.inputPlaceholder}
+                        rows={3}
+                        style={{
+                          width: '100%',
+                          boxSizing: 'border-box',
+                          padding: '0.75rem 1rem',
+                          background: 'var(--admin-input-bg, var(--admin-bg))',
+                          color: 'var(--admin-text-primary)',
+                          border: '1px solid var(--admin-input-border, var(--admin-border))',
+                          borderRadius: '6px',
+                          fontSize: '0.85rem',
+                          fontWeight: '600',
+                          fontFamily: 'inherit',
+                          resize: 'vertical',
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -201,6 +253,7 @@ export const UIProvider = ({ children }) => {
               gap: '0.75rem',
               borderTop: '1px solid var(--admin-border)'
             }}>
+              {modal.cancelText !== null && (
               <button
                 onClick={() => {
                   if (modal.onCancel) modal.onCancel();
@@ -229,9 +282,16 @@ export const UIProvider = ({ children }) => {
               >
                 {modal.cancelText}
               </button>
+              )}
               <button
                 onClick={() => {
-                  if (modal.onConfirm) modal.onConfirm();
+                  // Tier 3 / Task 15: a prompt modal refuses to submit an empty
+                  // value so the reason can never be silently blank.
+                  if (modal.prompt && modal.inputRequired !== false && !promptValue.trim()) {
+                    toast.error('Please enter a reason before continuing.');
+                    return;
+                  }
+                  if (modal.onConfirm) modal.onConfirm(modal.prompt ? promptValue.trim() : undefined);
                   closeModal();
                 }}
                 style={{

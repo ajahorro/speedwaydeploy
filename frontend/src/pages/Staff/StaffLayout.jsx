@@ -282,7 +282,7 @@ const StaffLayout = () => {
       </aside>
 
       {/* Main Content */}
-      <main style={{ flex: 1, minWidth: 0, height: '100vh', overflowY: 'auto', position: 'relative', background: 'var(--admin-bg)' }}>
+      <main style={{ flex: 1, minWidth: 0, height: '100vh', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', position: 'relative', background: 'var(--admin-bg)' }}>
         {/* Top Header */}
         <header style={{
           height: '70px', background: 'var(--admin-card)', backdropFilter: 'blur(10px)',

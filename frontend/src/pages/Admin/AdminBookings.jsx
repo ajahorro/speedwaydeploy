@@ -154,17 +154,17 @@ const AdminBookings = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
                   <div>
                     <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '950', fontSize: '0.65rem', letterSpacing: '0.5px' }}>#{booking.id.substring(0, 8).toUpperCase()}</span>
-                    <h3 style={{ margin: '0.25rem 0 0 0', fontSize: '1rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>{booking.customer?.full_name || 'Unknown'}</h3>
+                    <h3 style={{ margin: '0.25rem 0 0 0', fontSize: '1rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>{booking.customer?.full_name || booking.customer_name || 'Unknown'}</h3>
                   </div>
-                  <div style={{ 
-                    background: 'var(--admin-bg)', color: getStatusColor(booking.status), padding: '0.4rem 0.8rem', 
+                  <div style={{
+                    background: 'var(--admin-bg)', color: getStatusColor(booking.status), padding: '0.4rem 0.8rem',
                     borderRadius: 'var(--admin-radius-sm)', fontSize: '0.65rem', fontWeight: '950',
                     border: '1px solid currentColor', textTransform: 'uppercase'
                   }}>
                     {booking.status?.toUpperCase()}
                   </div>
                 </div>
-                
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1rem 0', borderTop: '1px solid var(--admin-border)', borderBottom: '1px solid var(--admin-border)' }}>
                   <div>
                     <p style={{ margin: 0, fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Vehicle</p>
@@ -212,7 +212,7 @@ const AdminBookings = () => {
                       </span>
                     </td>
                     <td style={{ padding: '1.25rem 1.5rem' }}>
-                      <span style={{ fontWeight: '950', color: 'var(--admin-text-primary)', fontSize: '0.85rem', textTransform: 'uppercase' }}>{booking.customer?.full_name || 'Unknown'}</span>
+                      <span style={{ fontWeight: '950', color: 'var(--admin-text-primary)', fontSize: '0.85rem', textTransform: 'uppercase' }}>{booking.customer?.full_name || booking.customer_name || 'Unknown'}</span>
                     </td>
                      <td style={{ padding: '1.25rem 1.5rem' }}>
                       <div style={{ fontWeight: '800', color: 'var(--admin-text-primary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>

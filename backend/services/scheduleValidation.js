@@ -68,6 +68,8 @@ const NON_BLOCKING_STATUSES = ['cancelled', 'completed', 'flagged_noshow', 'rele
  * @param {string} dateStr - 'YYYY-MM-DD' the validation targets.
  * @param {object} [opts]
  * @param {string} [opts.excludeBookingId] - ignore this booking (reschedules).
+ * @param {number} [opts.durationMinutes] - service length; widens the fetched
+ *   range so a multi-day service sees every day's blocks/bookings it overlaps.
  * @returns {Promise<{config:object, blocks:Array, bookings:Array}>}
  */
 async function loadScheduleContext(supabaseAdmin, dateStr, opts = {}) {
@@ -77,7 +79,7 @@ async function loadScheduleContext(supabaseAdmin, dateStr, opts = {}) {
   const { data: config, error: configError } = await supabaseAdmin
     .from('business_config')
     .select(
-      'opening_hour, closing_hour, slots_per_hour, max_vehicles_per_staff, ' +
+      'opening_hour, closing_hour, is_24_7, slots_per_hour, max_vehicles_per_staff, ' +
       'booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity'
     )
     .order('id', { ascending: true })
@@ -85,25 +87,33 @@ async function loadScheduleContext(supabaseAdmin, dateStr, opts = {}) {
     .maybeSingle();
   if (configError) throw configError;
 
-  // Admin blocks for the target day (+ the following day so multi-day services
-  // that spill over a day boundary still see the next day's block).
-  const nextDay = new Date(`${dateStr}T00:00:00`);
-  nextDay.setDate(nextDay.getDate() + 1);
-  const nextDayStr = nextDay.toISOString().split('T')[0];
+  // How many calendar days the requested service spans. A 2-day staging job must
+  // see day+2's blocks/bookings, not just the start day. Always fetch at least
+  // the day after (historical behaviour) so a midnight crossing is covered.
+  const durationMinutes = Math.max(1, Number(opts.durationMinutes) || 60);
+  const spanDays = Math.max(1, Math.ceil(durationMinutes / (24 * 60)));
+
+  const baseDay = new Date(`${dateStr}T00:00:00`);
+  const dayKeys = [];
+  for (let i = 0; i <= spanDays; i += 1) {
+    const d = new Date(baseDay);
+    d.setDate(d.getDate() + i);
+    dayKeys.push(d.toISOString().split('T')[0]);
+  }
 
   const { data: blocks, error: blocksError } = await supabaseAdmin
     .from('blocked_slots')
     .select('id, block_date, start_time, end_time, reason')
-    .in('block_date', [dateStr, nextDayStr]);
+    .in('block_date', dayKeys);
   if (blocksError) {
     // blocked_slots must exist for enforcement to be meaningful; surface it.
     throw blocksError;
   }
 
-  // Existing bookings overlapping [day, day+1) plus their vehicles for the
-  // weighted bay-usage calculation.
+  // Existing bookings overlapping [start day, last spanned day] plus their
+  // vehicles for the weighted bay-usage calculation.
   const rangeStart = `${dateStr}T00:00:00`;
-  const rangeEnd = `${nextDayStr}T23:59:59`;
+  const rangeEnd = `${dayKeys[dayKeys.length - 1]}T23:59:59`;
 
   const { data: bookings, error: bookingsError } = await supabaseAdmin
     .from('bookings')
@@ -174,7 +184,11 @@ function normalizeRequest(body = {}) {
   const slot = parseTimeOfDay(body.time ?? body.slot);
   const durationMinutes = Math.max(1, Number(body.durationMinutes) || 60);
   const requestedBays = Math.max(1, Number(body.requestedBays) || 1);
-  return { dateStr, slot, durationMinutes, requestedBays };
+  // Admin/desk bookings confirm immediately: the customer is physically present,
+  // so the customer-facing minimum advance notice does not apply. Everything
+  // else (capacity, blocks, closed days, past date) is still enforced.
+  const skipLeadTime = body.skipLeadTime === true;
+  return { dateStr, slot, durationMinutes, requestedBays, skipLeadTime };
 }
 
 /**
@@ -189,7 +203,7 @@ function normalizeRequest(body = {}) {
  * }>}
  */
 async function validateBookingRequest(supabaseAdmin, body = {}) {
-  const { dateStr, slot, durationMinutes, requestedBays } = normalizeRequest(body);
+  const { dateStr, slot, durationMinutes, requestedBays, skipLeadTime } = normalizeRequest(body);
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     return {
@@ -212,6 +226,7 @@ async function validateBookingRequest(supabaseAdmin, body = {}) {
 
   const { config, blocks, bookings } = await loadScheduleContext(supabaseAdmin, dateStr, {
     excludeBookingId: body.excludeBookingId,
+    durationMinutes,
   });
 
   // 1. Date-level gate.
@@ -227,6 +242,7 @@ async function validateBookingRequest(supabaseAdmin, body = {}) {
     durationMinutes,
     requestedBays,
     staffOnDuty,
+    skipLeadTime,
   });
 
   return buildResult(slotDecision, {

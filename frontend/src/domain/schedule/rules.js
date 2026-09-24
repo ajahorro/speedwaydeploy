@@ -46,7 +46,7 @@ export const SCHEDULE_DECISION_CODES = Object.freeze({
 // ─── Defaults (must mirror the SQL defaults in the migration) ────────────────
 
 export const SCHEDULE_DEFAULTS = Object.freeze({
-  booking_lead_time_minutes: 120,
+  booking_lead_time_minutes: 5,
   max_advance_days: 30,
   closed_weekdays: [],
   enforce_capacity: true,
@@ -54,7 +54,15 @@ export const SCHEDULE_DEFAULTS = Object.freeze({
   max_vehicles_per_staff: 4,
   opening_hour: 7,
   closing_hour: 21,
+  is_24_7: false,
 });
+
+// A 24/7 shop occupies the whole day. We express that as opening=0, closing=24
+// where closing=24 means "the end of the day" (1440 minutes). Keeping it as a
+// derived pair — rather than special-casing every consumer — means the slot
+// generator ([open, close)) and the "finishes within hours" check both just work.
+const FULL_DAY_OPEN_HOUR = 0;
+const FULL_DAY_CLOSE_HOUR = 24;
 
 const MS_PER_MINUTE = 60 * 1000;
 const MS_PER_DAY = 24 * 60 * MS_PER_MINUTE;
@@ -105,6 +113,13 @@ export const normalizeConfig = (config) => {
   const weekdays = Array.isArray(cfg.closed_weekdays)
     ? cfg.closed_weekdays.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)
     : [];
+
+  // 24/7 wins over any stored hours: derive a full-day window so every hour is
+  // bookable and the stored opening_hour/closing_hour are ignored.
+  const is247 = cfg.is_24_7 === true;
+  const openingHour = is247 ? FULL_DAY_OPEN_HOUR : hour(cfg.opening_hour, SCHEDULE_DEFAULTS.opening_hour);
+  const closingHour = is247 ? FULL_DAY_CLOSE_HOUR : hour(cfg.closing_hour, SCHEDULE_DEFAULTS.closing_hour);
+
   return {
     booking_lead_time_minutes: Math.max(0, int(cfg.booking_lead_time_minutes, SCHEDULE_DEFAULTS.booking_lead_time_minutes)),
     max_advance_days: Math.max(1, int(cfg.max_advance_days, SCHEDULE_DEFAULTS.max_advance_days)),
@@ -112,8 +127,10 @@ export const normalizeConfig = (config) => {
     enforce_capacity: cfg.enforce_capacity !== false, // default ON unless explicitly false
     slots_per_hour: Math.max(1, int(cfg.slots_per_hour, SCHEDULE_DEFAULTS.slots_per_hour)),
     max_vehicles_per_staff: Math.max(1, int(cfg.max_vehicles_per_staff, SCHEDULE_DEFAULTS.max_vehicles_per_staff)),
-    opening_hour: hour(cfg.opening_hour, SCHEDULE_DEFAULTS.opening_hour),
-    closing_hour: hour(cfg.closing_hour, SCHEDULE_DEFAULTS.closing_hour),
+    opening_hour: openingHour,
+    // closing_hour may legitimately be 24 for a 24/7 shop (end of day).
+    closing_hour: closingHour,
+    is_24_7: is247,
   };
 };
 
@@ -163,19 +180,34 @@ const slotToDate = (day, hour, minute) =>
   new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, minute, 0, 0);
 
 /**
- * Does the requested [start, end) window overlap a blocked_slots row?
+ * Does the requested window overlap a blocked_slots row ON A GIVEN DAY?
  * A row with no start_time is a whole-day block.
+ *
+ * `dayOffset` lets a multi-day service check the FOLLOWING day's blocks when it
+ * crosses midnight: the caller passes the rows for that day plus its offset.
  */
-const isWindowBlocked = (startMinutes, durationMinutes, blocks) => {
-  const endMinutes = startMinutes + durationMinutes;
-  return (blocks || []).some((block) => {
+const isWindowBlockedOnDay = (startMinutes, endMinutes, blocks, dayOffset) =>
+  (blocks || []).some((block) => {
     if (!block) return false;
     const blockStart = parseTimeToMinutes(block.start_time);
     const blockEnd = parseTimeToMinutes(block.end_time);
     if (blockStart == null) return true; // whole-day block
     const end = blockEnd == null ? 24 * 60 : blockEnd;
-    return startMinutes < end && endMinutes > blockStart;
+    // Shift the block into the same "minutes since the service start day"
+    // coordinate space by adding the day offset.
+    const offset = dayOffset * 24 * 60;
+    return startMinutes < end + offset && endMinutes > blockStart + offset;
   });
+
+/**
+ * Does the requested [start, end) window overlap a block, across every calendar
+ * day the window touches? `blocksByDay` is [{ offset, blocks }] where offset is
+ * days from the start day (0 = start day, 1 = next day, ...).
+ */
+const isWindowBlocked = (startMinutes, durationMinutes, blocksByDay) => {
+  const endMinutes = startMinutes + durationMinutes;
+  return (blocksByDay || []).some((entry) =>
+    isWindowBlockedOnDay(startMinutes, endMinutes, entry?.blocks || [], entry?.offset || 0));
 };
 
 const normalizeStatus = (status) => String(status || '').toLowerCase();
@@ -258,6 +290,12 @@ export const isDateBookable = (date, config, options = {}) => {
  * Assumes the date itself is bookable (call isDateBookable first) but re-checks
  * the date so a caller cannot skip it by accident.
  *
+ * Spanning: a service may run past closing, cross midnight, or span multiple
+ * days. For a 24/7 shop (is_24_7) NO closing bound applies; for a finite shop the
+ * service must still finish by closing time on the START day. Admin blocks and
+ * capacity are always evaluated across EVERY calendar day the window touches,
+ * so the caller must pass the blocks and bookings for the whole span.
+ *
  * Capacity model:
  *   - `slots_per_hour`  = total bookable bays/slots per hourly bucket.
  *   - `max_vehicles_per_staff` = per-staff ceiling; combined with staff on duty
@@ -267,12 +305,17 @@ export const isDateBookable = (date, config, options = {}) => {
  * @param {string|Date} date
  * @param {{hour:number, minute?:number}|string} slot
  * @param {object} config
- * @param {Array}  [existingBookings] - bookings overlapping `date`.
+ * @param {Array}  [existingBookings] - bookings overlapping the requested span.
  * @param {object} [options]
- * @param {Array}  [options.blocks] - blocked_slots rows for `date`.
+ * @param {Array}  [options.blocks] - blocked_slots rows for every day in the span.
  * @param {number} [options.durationMinutes=60] - requested service duration.
  * @param {number} [options.staffOnDuty=1] - staff available (for per-staff cap).
  * @param {number} [options.requestedBays=1] - bays this new booking needs.
+ * @param {boolean} [options.skipLeadTime=false] - admin/desk path: the customer is
+ *   physically present, so the customer-facing "minimum advance notice" does not
+ *   apply. A hard floor at `now` still does: the slot may not start earlier than
+ *   the current instant (no same-day back-dating). Capacity, blocks, closed days
+ *   and past-date are also still enforced.
  * @param {Date}   [options.now]
  * @returns {{ bookable: boolean, code: string, reason: string|null, remaining?: number }}
  */
@@ -282,6 +325,7 @@ export const isSlotBookable = (date, slot, config, existingBookings = [], option
   const blocks = options.blocks || [];
   const durationMinutes = Math.max(1, Number(options.durationMinutes) || 60);
   const requestedBays = Math.max(1, Number(options.requestedBays) || 1);
+  const skipLeadTime = options.skipLeadTime === true;
 
   // Date-level gate first (re-checked defensively).
   const dateCheck = isDateBookable(date, cfg, { blocks, now });
@@ -295,29 +339,58 @@ export const isSlotBookable = (date, slot, config, existingBookings = [], option
   const startMinutes = parsed.hour * 60 + parsed.minute;
   const slotEnd = new Date(slotStart.getTime() + durationMinutes * MS_PER_MINUTE);
 
-  // 1. Lead time: the slot must be at least `booking_lead_time_minutes` away.
-  const leadMs = cfg.booking_lead_time_minutes * MS_PER_MINUTE;
-  if (slotStart.getTime() < now.getTime() + leadMs) {
-    const hours = Math.round((cfg.booking_lead_time_minutes / 60) * 10) / 10;
-    return no(
-      SCHEDULE_DECISION_CODES.LEAD_TIME,
-      `Bookings need at least ${hours} hour(s) of lead time. Please pick a later slot.`
-    );
+  // 1. Lead time. Two regimes:
+  //    - Customer path: the slot must be at least `booking_lead_time_minutes`
+  //      away (a strict buffer absorbs the seconds between clicking "book" and
+  //      the slot start, so a booking made at 4:59:50 for 5:00 is rejected).
+  //    - Admin/desk path (skipLeadTime): the customer-facing notice window is
+  //      waived, BUT a hard floor at `now` still applies — an admin can never
+  //      schedule a time earlier than the current instant, even later today.
+  //      Back-dating would corrupt capacity math and technician shift tracking.
+  if (skipLeadTime) {
+    if (slotStart.getTime() < now.getTime()) {
+      return no(
+        SCHEDULE_DECISION_CODES.LEAD_TIME,
+        'That time has already passed. Choose the current time or later.'
+      );
+    }
+  } else {
+    const leadMs = cfg.booking_lead_time_minutes * MS_PER_MINUTE;
+    if (slotStart.getTime() < now.getTime() + leadMs) {
+      const hours = Math.round((cfg.booking_lead_time_minutes / 60) * 10) / 10;
+      return no(
+        SCHEDULE_DECISION_CODES.LEAD_TIME,
+        `Bookings need at least ${hours} hour(s) of lead time. Please pick a later slot.`
+      );
+    }
   }
 
-  // 2. Slot must finish within operating hours.
-  if (slotEnd.getTime() > slotToDate(day, cfg.closing_hour, 0).getTime()) {
+  // 2. Operating-hours bound.
+  //    - Finite shop: the service must finish by closing time on the START day
+  //      (a 7-21 shop cannot run a 4-hour job from 20:00 to midnight).
+  //    - 24/7 shop: there is no closing time, so a service MAY cross midnight and
+  //      may span multiple days (a vehicle staged for 2+ days). No bound applies.
+  if (!cfg.is_24_7 && slotEnd.getTime() > slotToDate(day, cfg.closing_hour, 0).getTime()) {
     return no(
       SCHEDULE_DECISION_CODES.SLOT_BLOCKED,
       `The service would run past closing time (${cfg.closing_hour}:00). Please choose an earlier slot.`
     );
   }
 
-  // 3. Partial admin blocks over this window.
-  const relevantBlocks = (blocks || []).filter(
-    (b) => b && String(b.block_date || '').slice(0, 10) === dateKey(day)
-  );
-  if (isWindowBlocked(startMinutes, durationMinutes, relevantBlocks)) {
+  // 3. Admin blocks across EVERY day the service touches (a midnight-spanning or
+  //    multi-day service must respect the next day's blocks too). We build the
+  //    { offset, blocks } list from the rows the caller supplied (which cover the
+  //    full span — see loadScheduleContext / scheduleService).
+  const spanDays = Math.floor((startMinutes + durationMinutes - 1) / (24 * 60));
+  const blocksByDay = [];
+  for (let offset = 0; offset <= spanDays; offset += 1) {
+    const dayKey = dateKey(new Date(day.getTime() + offset * MS_PER_DAY));
+    blocksByDay.push({
+      offset,
+      blocks: (blocks || []).filter((b) => b && String(b.block_date || '').slice(0, 10) === dayKey),
+    });
+  }
+  if (isWindowBlocked(startMinutes, durationMinutes, blocksByDay)) {
     return no(SCHEDULE_DECISION_CODES.SLOT_BLOCKED, 'This time has been blocked by the shop.');
   }
 

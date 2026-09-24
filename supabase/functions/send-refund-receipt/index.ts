@@ -83,7 +83,12 @@ serve(async (req) => {
     if (!customerEmail) throw new Error('No customer email found for this booking.');
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
     if (!resendApiKey) throw new Error('Missing RESEND_API_KEY environment variable.');
-    const resendFrom = Deno.env.get('RESEND_FROM') || 'Speedway AutoXMoto <billing@speedwayautoxmoto.com>';
+    // Honour the configured sender. Falls back to the shop's verified sending
+    // address — Resend rejects any `from` whose domain is not verified, so this
+    // must match a domain in the Resend account (see RESEND_FROM secret).
+    const resendFrom = Deno.env.get('RESEND_FROM')
+      || Deno.env.get('RESEND_SENDER_EMAIL')
+      || 'Speedway AutoXMoto <notifications@speedway-autoxmoto.xyz>';
 
     const serviceHtml = serviceNames.length
       ? `<p><strong>Services:</strong> ${serviceNames.map(escapeHtml).join(', ')}</p>`
@@ -101,7 +106,7 @@ serve(async (req) => {
         <div style="padding: 20px;">
           <p>Hi ${escapeHtml(customerName)},</p>
           <p>We have successfully processed a refund for your recent cancellation. Please find the details of your refund below:</p>
-          
+
           <div style="background-color: #f9fafb; padding: 15px; border-radius: 6px; margin: 20px 0;">
             <p style="margin: 5px 0;"><strong>Original Invoice ID:</strong> INV-${bookingId.substring(0, 8).toUpperCase()}</p>
             <p style="margin: 5px 0;"><strong>Refund Reference:</strong> ${escapeHtml(refundReference)}</p>
@@ -114,7 +119,7 @@ serve(async (req) => {
           </div>
 
           <p>This amount has been reverted to your original payment method. Depending on your bank or payment provider, it may take 3-5 business days to reflect in your account.</p>
-          
+
           <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">This is an automated message. Please do not reply to this email.</p>
         </div>
       </div>
@@ -127,7 +132,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${resendApiKey}`
       },
       body: JSON.stringify({
-        from: 'Speedway AutoXMoto <billing@speedwayautoxmoto.com>',
+        from: resendFrom,
         to: [customerEmail],
         subject: `Refund Processed: INV-${bookingId.substring(0, 8).toUpperCase()}`,
         html: emailHtml

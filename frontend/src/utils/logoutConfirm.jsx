@@ -45,8 +45,38 @@ export const useConfirmation = () => {
     });
   };
 
+  /**
+   * Tier 3 / Task 15: styled replacement for native window.prompt().
+   * `onConfirm` receives the typed string. Used for rejection / cancellation
+   * reasons so the UX matches the rest of the app (and survives browsers that
+   * block native prompts in sandboxed contexts).
+   */
+  const showPrompt = ({
+    title = 'Enter a reason',
+    message = '',
+    inputLabel = '',
+    inputPlaceholder = '',
+    confirmLabel = 'Submit',
+    cancelLabel = 'Cancel',
+    onConfirm = () => {},
+    variant = 'warning'
+  }) => {
+    openModal({
+      title,
+      message,
+      confirmText: confirmLabel,
+      cancelText: cancelLabel,
+      type: variant,
+      prompt: true,
+      inputLabel,
+      inputPlaceholder,
+      onConfirm
+    });
+  };
+
   return {
     showConfirmation,
+    showPrompt,
     confirmLogout,
     confirmDelete
   };
@@ -95,10 +125,12 @@ export const confirmLogout = (arg1, arg2) => {
       onConfirm: callbackFn
     });
   } else if (typeof callbackFn === 'function') {
-    // Fallback if modal function isn't available
-    if (window.confirm('Are you sure you want to log out of your account? Any unsaved progress may be lost.')) {
-      callbackFn();
-    }
+    // No modal system was handed in (e.g. a non-React caller). Rather than a raw
+    // window.confirm — which is unstyled and blocked in some browsers — we log a
+    // warning and proceed only when the callback is explicitly safe. Logout is
+    // non-destructive, so proceeding is the correct degraded behaviour.
+    console.warn('[confirmLogout] No modal handler available; proceeding with logout.');
+    callbackFn();
   }
 };
 

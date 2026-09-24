@@ -235,7 +235,7 @@ const CustomerLayout = () => {
         </div>
       </aside>
 
-      <div className="admin-main-wrapper" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1, maxWidth: '100%', height: '100vh', overflow: 'hidden', marginLeft: isMobile ? 0 : '260px' }}>
+      <div className="admin-main-wrapper" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', position: 'relative', maxWidth: '100%', height: '100vh', overflow: 'hidden', marginLeft: isMobile ? 0 : '260px' }}>
         <header className="no-print" style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -322,7 +322,7 @@ const CustomerLayout = () => {
           </div>
         )}
 
-        <main style={{ flex: 1, minHeight: 0, padding: isMobile ? '1.5rem 1rem' : '2.5rem', overflowY: 'auto', background: 'var(--admin-bg)' }}>
+        <main style={{ flex: 1, minHeight: 0, padding: isMobile ? '1.5rem 1rem' : '2.5rem', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', background: 'var(--admin-bg)' }}>
           <Outlet />
         </main>
       </div>

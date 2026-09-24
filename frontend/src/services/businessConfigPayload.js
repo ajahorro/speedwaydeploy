@@ -16,6 +16,9 @@ export const buildBusinessConfigUpdatePayload = (form, {
     business_address: form.business_address,
     opening_hour: form.opening_hour,
     closing_hour: form.closing_hour,
+    // 24/7 flag (migration 20261001000005). Sent unconditionally; a DB that has
+    // not yet applied the migration is handled by stripUnsupportedBusinessConfigColumns.
+    is_24_7: Boolean(form.is_24_7),
     qr_account_name: form.qr_account_name,
     qr_account_number: form.qr_account_number,
     fallback_receiver_name: '',
@@ -52,6 +55,8 @@ export const stripUnsupportedBusinessConfigColumns = (payload, error) => {
   if (isMissingColumnError(error, 'custom_services')) unsupported.push('custom_services');
   if (isMissingColumnError(error, 'vehicle_types')) unsupported.push('vehicle_types');
   if (isMissingColumnError(error, 'faqs')) unsupported.push('faqs');
+
+  if (isMissingColumnError(error, 'is_24_7')) unsupported.push('is_24_7');
 
   if (unsupported.length === 0) return payload;
 

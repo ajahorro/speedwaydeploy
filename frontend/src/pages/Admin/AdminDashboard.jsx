@@ -78,7 +78,7 @@ const AdminDashboard = () => {
       releaseBay: 0,
       successRate: 0,
       shopLoad: 0
-      ,lifecycle: { pending: 0, inProgress: 0, qualityCheck: 0, completed: 0, activeBays: 0 }
+      ,lifecycle: { pending: 0, inProgress: 0, completed: 0, activeBays: 0 }
     },
     priorityItems: [],
     priorityLoading: true,
@@ -177,12 +177,14 @@ const AdminDashboard = () => {
       const activeUnits = allVehicles?.filter(v => v.status === 'IN_PROGRESS').length || 0;
       const sLoad = Math.round((activeUnits / totalUnits) * 100);
       const normalizedStatuses = (allVehicles || []).map(vehicle => String(vehicle.status || '').toUpperCase());
+      // Real vehicle-status lifecycle only. There is no QUALITY_CHECK /
+      // READY_FOR_PICKUP / FOR_RELEASE state in the schema — those were dead
+      // references that permanently reported 0 and inflated the active-bay count.
       const lifecycle = {
         pending: normalizedStatuses.filter(status => ['QUEUED', 'PENDING'].includes(status)).length,
         inProgress: normalizedStatuses.filter(status => ['IN_PROGRESS', 'ONGOING'].includes(status)).length,
-        qualityCheck: normalizedStatuses.filter(status => ['QUALITY_CHECK', 'READY_FOR_PICKUP', 'FOR_RELEASE'].includes(status)).length,
         completed: normalizedStatuses.filter(status => ['COMPLETED', 'RELEASED'].includes(status)).length,
-        activeBays: normalizedStatuses.filter(status => ['IN_PROGRESS', 'ONGOING', 'QUALITY_CHECK', 'READY_FOR_PICKUP'].includes(status)).length
+        activeBays: normalizedStatuses.filter(status => ['IN_PROGRESS', 'ONGOING'].includes(status)).length
       };
 
       // 4. Needs Attention - Pending Payments

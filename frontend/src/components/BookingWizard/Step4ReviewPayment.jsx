@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Upload, CheckCircle2, Wallet, Banknote, ShieldAlert, AlertTriangle, Package as PackageIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useConfig } from '../../context/ConfigContext';
@@ -17,6 +17,10 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  // Synchronous submit lock (defence in depth). The parent's `isSubmitting` prop
+  // is async, so this ref guarantees `onSubmit` can fire at most once even if the
+  // confirm button is double-clicked or double-tapped in the same tick.
+  const confirmInFlight = useRef(false);
 
   // Task B: freeze the QR target for THIS checkout session.
   // Captured once when the payment step mounts. A mid-update QR change by an
@@ -89,11 +93,16 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
       try {
         const targetAmount = bookingData.payment.type === 'Full' ? grandTotal : getRequiredDownpayment(grandTotal);
+        // The shop's registered payee for THIS checkout (config.qr_account_name).
+        // The backend compares the receipt's recipient against this BEFORE it
+        // parses amounts, so a wrong payee aborts the scan immediately.
+        const expectedRecipientName = qrTarget?.QR_ACCOUNT_NAME || settings.qr_account_name || settings.QR_ACCOUNT_NAME || settings.PAYMENT_ACCOUNT_NAME || '';
 
         const formData = new FormData();
         formData.append('receipt', file);
         formData.append('bookingId', bookingData.id || 'PENDING');
         formData.append('requiredAmount', targetAmount);
+        formData.append('expectedRecipientName', expectedRecipientName);
 
         let result;
         try {
@@ -115,12 +124,20 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           result = await response.json();
           console.log('🤖 [AI AUDIT] Gemini Result Received:', result);
         } catch (geminiErr) {
-          console.warn('⚠️ [AI AUDIT] Gemini Service Offline. Defaulting to manual verification state:', geminiErr.message);
+          console.warn('⚠️ [AI AUDIT] Gemini Service Offline. Allowing MANUAL REVIEW path (submit stays enabled):', geminiErr.message);
           result = {
             success: true,
+            // The OCR engine could not run, so nothing can be auto-verified.
+            // This is the ONLY case that does NOT hard-block: the receipt is
+            // accepted for MANUAL admin review so a Gemini outage never strands
+            // the customer. `manualReviewAllowed` is what lets it through.
+            valid: false,
+            reason: 'VERIFICATION_UNAVAILABLE',
             status: 'Flagged for Review',
             isMatch: false,
             isManualReview: true,
+            verificationUnavailable: true,
+            manualReviewAllowed: true,
             data: {
               referenceNo: 'MANUAL_AUDIT_PENDING',
               amount: 0,
@@ -137,6 +154,9 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         const extractedData = result.data;
 
         // 🛡️ THESIS FLOW: Use the Authoritative Backend Status
+        // `valid` is the fail-fast verdict: true only on MATCH_SUCCESS.
+        const isValidReceipt = result.valid === true;
+        const isNameMatched = result.isNameMatch !== false;
         const isAmountMatched = result.isAmountMatch ?? result.isMatch;
         const isDateMatched = result.isDateMatch !== false; // fail-open only when the field is absent (manual mode)
         const isDuplicate = Boolean(result.isDuplicate);
@@ -144,22 +164,43 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         setScanStep('FINALIZING AUDIT...');
         await new Promise(resolve => setTimeout(resolve, 800));
 
+        // A rejected receipt (bad payee, wrong amount, stale date, or reuse) is
+        // reported so the UI hard-blocks the submit button and offers a re-upload.
+        // EXCEPTION: when the OCR engine itself was unreachable, the receipt is
+        // accepted for manual review and submit stays enabled.
+        const manualReviewAllowed = Boolean(result.manualReviewAllowed);
         const resultObj = {
+          valid: isValidReceipt,
+          reason: result.reason || null,
           referenceNo: extractedData.referenceNo,
           amount: extractedData.amount,
           requiredAmount: targetAmount,
           date: extractedData.date,
-          status: isDuplicate ? 'DUPLICATE_DETECTED' : (!isDateMatched ? 'DATE_MISMATCH' : (isAmountMatched ? 'MATCHED' : 'MISMATCHED')),
+          status: manualReviewAllowed
+            ? 'MANUAL_REVIEW'
+            : (isValidReceipt
+              ? 'MATCHED'
+              : (isDuplicate
+                ? 'DUPLICATE_DETECTED'
+                : (!isNameMatched
+                  ? 'NAME_MISMATCH'
+                  : (!isDateMatched ? 'DATE_MISMATCH' : (!isAmountMatched ? 'MISMATCHED' : 'REJECTED'))))),
+          isNameMatch: isNameMatched,
           isDuplicate,
           isDateMatch: isDateMatched,
           isManualReview: Boolean(result.isManualReview),
+          verificationUnavailable: Boolean(result.verificationUnavailable),
+          manualReviewAllowed,
           recipient: extractedData.recipient || 'N/A',
-          recipientMatch: extractedData.isReceipt,
+          expectedRecipientName,
+          recipientMatch: isNameMatched,
           description: isDuplicate
             ? 'This reference number has already been used for another booking. Please upload the correct proof of payment.'
-            : (!isDateMatched
-              ? 'The payment date on this receipt is not today. Please upload a receipt dated today.'
-              : (extractedData.description || 'No additional receipt notes were extracted.'))
+            : (!isNameMatched
+              ? 'The recipient name on this receipt does not match our registered payment account.'
+              : (!isDateMatched
+                ? 'The payment date on this receipt is not today. Please upload a receipt dated today.'
+                : (extractedData.description || 'No additional receipt notes were extracted.')))
         };
 
         setReceiptDetails(resultObj);
@@ -186,6 +227,20 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   const isGcash = bookingData.payment.method === 'GCash';
   const isDuplicateReceipt = Boolean(receiptDetails?.isDuplicate);
   const isDatedWrong = receiptDetails?.isDateMatch === false;
+  const isNameMismatch = receiptDetails?.isNameMatch === false;
+  const isReceiptRejected = receiptDetails?.status === 'REJECTED';
+  // DIRECTIVE 1: HARD-BLOCKING VALIDATION — with one exception.
+  // A GCash (digital) booking may only be submitted once the receipt is EITHER
+  // auto-verified (MATCH_SUCCESS) OR the OCR engine was unreachable and the
+  // receipt was accepted for MANUAL admin review. Any real mismatch still keeps
+  // the submit button disabled. Admin-created bookings bypass this gate.
+  const manualReviewAllowedReceipt = Boolean(receiptDetails?.manualReviewAllowed);
+  const receiptVerified = Boolean(receiptDetails?.valid === true) || manualReviewAllowedReceipt;
+  // A completed scan that did NOT verify AND is not a manual-review pass drives
+  // the red inline alert + Re-upload action. A Gemini outage is NOT shown as a
+  // failure — it is a neutral "pending manual review" state.
+  const receiptVerificationFailed = Boolean(receiptDetails) && !receiptVerified;
+  const isReceiptBlocked = !adminMode && receiptDetails && !receiptVerified;
   const downpaymentAmount = getRequiredDownpayment(grandTotal);
   const isUnderpaidReceipt = Boolean(
     !adminMode &&
@@ -195,24 +250,37 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
     Number.isFinite(Number(receiptDetails.amount)) &&
     Number(receiptDetails.amount) < downpaymentAmount
   );
-  const isWarningReceipt = isDuplicateReceipt || isDatedWrong || ['REJECTED', 'MISMATCHED'].includes(receiptDetails?.status);
+  const isWarningReceipt = isDuplicateReceipt || isDatedWrong || isNameMismatch || ['REJECTED', 'MISMATCHED', 'NAME_MISMATCH', 'DATE_MISMATCH', 'MANUAL_REVIEW'].includes(receiptDetails?.status);
   const hasReceiptNotes = Boolean(receiptDetails?.description && receiptDetails.description !== 'No additional receipt notes were extracted.');
   const manualAmount = Number(bookingData.payment.manualAmount || 0);
   // TIGHTENED LOGIC: must have terms AND (either Cash OR GCash with Proof)
-  // Added !isUploading to ensure OCR finishes before submission is allowed
+  // Added !isUploading to ensure OCR finishes before submission is allowed.
+  // Added `receiptVerified` so the ON-PAGE SUBMIT button stays hard-disabled
+  // (grayed out) until the receipt passes validation OR a manual-review pass.
   const adminPaymentValid = !adminMode || (
     ['Downpayment', 'Full', 'Manual'].includes(bookingData.payment.type) &&
     (bookingData.payment.type !== 'Manual' || (manualAmount > 0 && manualAmount <= grandTotal))
   );
-  const isValid = (adminMode || termsAccepted) && !receiptDetails?.isDuplicate && !isDatedWrong && !isUnderpaidReceipt && adminPaymentValid && (
-    adminMode || !isGcash || (bookingData.payment.proofOfPayment !== null && !isUploading)
+  // A manual-review pass skips the mismatch guards (there is nothing to compare
+  // against) but still requires a receipt file to be attached.
+  const isValid = (adminMode || termsAccepted) && !isUnderpaidReceipt && adminPaymentValid && (
+    adminMode || !isGcash || (receiptVerified && bookingData.payment.proofOfPayment !== null && !isUploading)
+  ) && (
+    manualReviewAllowedReceipt || (!receiptDetails?.isDuplicate && !isDatedWrong && !isNameMismatch && !isReceiptRejected)
   );
 
   const handleConfirmSubmit = () => {
-    if (isSubmitting || isUnderpaidReceipt) return;
+    if (confirmInFlight.current || isSubmitting || isUnderpaidReceipt) return;
+    confirmInFlight.current = true;
     setShowConfirm(false);
     onSubmit();
   };
+
+  // Release the local submit lock once the parent finishes a submission attempt
+  // (success OR failure), so a retry after a validation error is never blocked.
+  useEffect(() => {
+    if (!isSubmitting) confirmInFlight.current = false;
+  }, [isSubmitting]);
 
   // Business Logic Constants
   const CASH_DISABLED_THRESHOLD = 1000;
@@ -292,11 +360,19 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
               </span>
             </div>
 
-            {vehicles.map((v, idx) => (
+            {vehicles.map((v, idx) => {
+              // A package is a whole-vehicle flat price. Match the vehicle to the
+              // package the pricing summary resolved for it (by type) so the
+              // breakdown shows "Includes …" instead of itemised prices that no
+              // longer reflect what is charged.
+              const vehiclePackage = (promoSummary.appliedPackages || []).find(
+                (entry) => String(entry.vehicleType || '').toLowerCase() === String(v.type || '').toLowerCase()
+              ) || null;
+              return (
               <div key={v.id} style={{ borderBottom: idx === vehicles.length - 1 ? 'none' : '1px solid var(--admin-border)', paddingBottom: '1rem' }}>
-                {v.packageId && (
+                {vehiclePackage && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.4rem', color: 'var(--admin-brand)', fontSize: '.68rem', fontWeight: '900', textTransform: 'uppercase' }}>
-                    <PackageIcon size={13} /> {v.packageName || 'Package bundle'} · fixed rate
+                    <PackageIcon size={13} /> {vehiclePackage.name} · fixed package price
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
@@ -308,13 +384,24 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                   {(v.services || []).map(s => (
                     <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                      <span style={{ color: 'var(--admin-text-primary)', fontWeight: '600' }}>• {s.name}</span>
-                      <span style={{ color: 'var(--admin-text-primary)', fontWeight: '800' }}>₱{s.price.toLocaleString()}</span>
+                      <span style={{ color: 'var(--admin-text-primary)', fontWeight: '600' }}>• {s.name}{vehiclePackage ? ' (included)' : ''}</span>
+                      {vehiclePackage ? (
+                        <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700', textDecoration: 'line-through' }}>₱{Number(s.original_price || s.price || 0).toLocaleString()}</span>
+                      ) : (
+                        <span style={{ color: 'var(--admin-text-primary)', fontWeight: '800' }}>₱{Number(s.price_at_booking ?? s.price ?? 0).toLocaleString()}</span>
+                      )}
                     </div>
                   ))}
+                  {vehiclePackage && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginTop: '.2rem', paddingTop: '.35rem', borderTop: '1px dashed var(--admin-border)' }}>
+                      <span style={{ color: 'var(--admin-brand)', fontWeight: '900', textTransform: 'uppercase', fontSize: '.7rem' }}>Package price</span>
+                      <span style={{ color: 'var(--admin-brand)', fontWeight: '900' }}>₱{Number(vehiclePackage.packagePrice || 0).toLocaleString()}</span>
+                    </div>
+                  )}
                 </div>
               </div>
-            ))}
+              );
+            })}
 
             {promoSummary.totalDiscount > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem', paddingTop: '.85rem', borderTop: '1px solid var(--admin-border)' }}>
@@ -503,8 +590,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                             <div style={{ position: 'absolute', inset: '10px', background: 'var(--admin-brand)', opacity: 0.1, borderRadius: '50%', animation: 'pulse 1.5s ease-in-out infinite' }} />
                           </div>
                           <div>
-                            <div style={{ color: 'var(--admin-brand)', fontWeight: '950', fontSize: '1rem', marginBottom: '0.5rem', letterSpacing: '1px' }}>{scanStep}</div>
-                            <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '800', textTransform: 'uppercase' }}>Precision Matrix Scan in Progress</div>
+                            <div style={{ color: 'var(--admin-brand)', fontWeight: '950', fontSize: '1rem', marginBottom: '0.5rem', letterSpacing: '1px' }}>⏳ Verifying receipt details...</div>
+                            <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '800', textTransform: 'uppercase' }}>{scanStep}</div>
                           </div>
                         </div>
                       ) : (
@@ -544,11 +631,15 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                             {isWarningReceipt ? <AlertTriangle size={20} color="#fff" /> : <CheckCircle2 size={20} color="#fff" />}
                           </div>
                           <div>
-                            <div style={{ color: receiptDetails.status === 'REJECTED' || isDuplicateReceipt ? 'var(--status-danger)' : ((receiptDetails.status === 'MISMATCHED' || isDatedWrong) ? 'var(--status-warning)' : 'var(--admin-success)'), fontWeight: '950', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                              {isDuplicateReceipt ? 'Duplicate Receipt Detected' : (receiptDetails.status === 'REJECTED' ? 'Verification Failed' : (isDatedWrong ? 'Receipt Date Mismatch' : (receiptDetails.status === 'MISMATCHED' ? 'Amount Discrepancy' : 'AI Audit Verified')))}
+                            <div style={{ color: receiptDetails.status === 'REJECTED' || isDuplicateReceipt ? 'var(--status-danger)' : ((receiptDetails.status === 'MISMATCHED' || isDatedWrong || isNameMismatch || manualReviewAllowedReceipt) ? 'var(--status-warning)' : 'var(--admin-success)'), fontWeight: '950', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                              {manualReviewAllowedReceipt
+                                ? 'Pending Manual Review'
+                                : (isDuplicateReceipt ? 'Duplicate Receipt Detected' : (receiptDetails.status === 'REJECTED' ? 'Verification Failed' : (isNameMismatch ? 'Recipient Name Mismatch' : (isDatedWrong ? 'Receipt Date Mismatch' : (receiptDetails.status === 'MISMATCHED' ? 'Amount Discrepancy' : 'AI Audit Verified')))))}
                             </div>
                             <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '800' }}>
-                              {isDuplicateReceipt ? 'SYSTEM ALERT: REFERENCE ALREADY USED' : (receiptDetails.status === 'REJECTED' ? 'SYSTEM ALERT: INVALID FORMAT' : (isDatedWrong ? 'WARNING: RECEIPT NOT DATED TODAY' : (receiptDetails.status === 'MISMATCHED' ? 'WARNING: PRICE MISMATCH' : 'SECURITY SIGNATURE: GEMINI OCR')))}
+                              {manualReviewAllowedReceipt
+                                ? 'AI SERVICE OFFLINE: STAFF WILL VERIFY MANUALLY'
+                                : (isDuplicateReceipt ? 'SYSTEM ALERT: REFERENCE ALREADY USED' : (receiptDetails.status === 'REJECTED' ? 'SYSTEM ALERT: INVALID FORMAT' : (isNameMismatch ? 'WARNING: RECIPIENT DOES NOT MATCH SHOP' : (isDatedWrong ? 'WARNING: RECEIPT NOT DATED TODAY' : (receiptDetails.status === 'MISMATCHED' ? 'WARNING: PRICE MISMATCH' : 'SECURITY SIGNATURE: GEMINI OCR')))))}
                             </div>
                           </div>
                         </div>
@@ -568,6 +659,32 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                           fontStyle: 'italic',
                           fontWeight: receiptDetails.status === 'REJECTED' ? '700' : 'normal'
                         }}>{receiptDetails.description}</div>}
+
+                        {/* Directive 1: verdict banners. Green = auto-verified,
+                            amber = accepted for manual review (OCR unavailable),
+                            red = validation failed. */}
+                        {!adminMode && isGcash && receiptVerified && !manualReviewAllowedReceipt && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '1rem', background: 'rgba(var(--admin-success-rgb), 0.1)', border: '1px solid var(--admin-success)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-success)', fontWeight: '900', fontSize: '.85rem' }}>
+                            <CheckCircle2 size={18} /> Receipt verified successfully!
+                          </div>
+                        )}
+                        {!adminMode && isGcash && manualReviewAllowedReceipt && (
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', padding: '1rem', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid var(--status-warning)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-warning)', fontWeight: '800', fontSize: '.85rem', lineHeight: 1.5 }}>
+                            <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
+                            <span>Our receipt-verification service is temporarily unavailable, so this receipt will be <strong>manually reviewed by our staff</strong>. You may submit your booking — no action needed from you.</span>
+                          </div>
+                        )}
+                        {!adminMode && isGcash && receiptVerificationFailed && (
+                          <div style={{ padding: '1.25rem', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid var(--status-danger)', borderRadius: 'var(--admin-radius-sm)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div style={{ display: 'flex', gap: '.75rem', alignItems: 'flex-start' }}>
+                              <ShieldAlert size={22} style={{ flexShrink: 0, color: 'var(--status-danger)' }} />
+                              <div style={{ fontSize: '.85rem', fontWeight: '800', color: 'var(--status-danger)', lineHeight: 1.5 }}>
+                                Validation Failed: The recipient name or amount on this receipt does not match our shop payment details. Please check your upload and try again.
+                              </div>
+                            </div>
+                            <button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} style={{ alignSelf: 'flex-start', padding: '.75rem 1.25rem', background: 'var(--status-danger)', border: 'none', color: '#fff', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}>Re-upload Receipt</button>
+                          </div>
+                        )}
 
                         {receiptDetails.status !== 'REJECTED' ? (
                           <>
@@ -602,9 +719,9 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                                 <div style={{ color: 'var(--admin-text-primary)', fontSize: '1.5rem', fontWeight: '950' }}>₱{Number(receiptDetails.requiredAmount || 0).toLocaleString()}</div>
                               </div>
                               <div>
-                                <div style={{ fontSize: '0.65rem', fontWeight: '900', color: receiptDetails.status === 'MISMATCHED' ? 'var(--status-warning)' : 'var(--admin-success)', textTransform: 'uppercase' }}>Status</div>
-                                <div style={{ color: receiptDetails.status === 'MISMATCHED' ? 'var(--status-warning)' : 'var(--admin-success)', fontSize: '0.85rem', fontWeight: '950', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                  {receiptDetails.status} {receiptDetails.status === 'MATCHED' ? <CheckCircle2 size={16} /> : <ShieldAlert size={16} />}
+                                <div style={{ fontSize: '0.65rem', fontWeight: '900', color: (receiptDetails.status === 'MISMATCHED' || manualReviewAllowedReceipt) ? 'var(--status-warning)' : 'var(--admin-success)', textTransform: 'uppercase' }}>Status</div>
+                                <div style={{ color: (receiptDetails.status === 'MISMATCHED' || manualReviewAllowedReceipt) ? 'var(--status-warning)' : 'var(--admin-success)', fontSize: '0.85rem', fontWeight: '950', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  {manualReviewAllowedReceipt ? 'MANUAL REVIEW' : receiptDetails.status} {receiptDetails.status === 'MATCHED' ? <CheckCircle2 size={16} /> : <ShieldAlert size={16} />}
                                 </div>
                               </div>
                             </div>
@@ -612,7 +729,9 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                         ) : (
                           <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed var(--status-danger)', textAlign: 'center' }}>
                             <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '800', color: 'var(--status-danger)' }}>
-                              AI analysis inconclusive. You may proceed, and our staff will manually verify this receipt before your appointment.
+                              {adminMode
+                                ? 'AI analysis inconclusive. You may proceed, and our staff will manually verify this receipt before the appointment.'
+                                : 'This receipt could not be verified. Please re-upload a clear photo of your payment receipt to continue.'}
                             </p>
                           </div>
                         )}
@@ -738,6 +857,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
             setShowConfirm(true);
           }}
           disabled={!isValid || isSubmitting}
+          title={isReceiptBlocked ? 'Receipt must be verified before submitting.' : (isUploading ? 'Verifying receipt details...' : undefined)}
           style={{
             padding: '1rem 2rem',
             background: isValid ? 'var(--admin-brand)' : 'var(--admin-bg)',
@@ -747,12 +867,15 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
             fontWeight: '950',
             fontSize: '1rem',
             cursor: isValid ? 'pointer' : 'not-allowed',
+            opacity: isValid ? 1 : 0.65,
             textTransform: 'uppercase',
             letterSpacing: '1px',
             transition: 'all 0.3s ease'
           }}
         >
-          {isSubmitting ? 'Submitting...' : 'Submit Booking'}
+          {isSubmitting
+            ? 'Submitting...'
+            : (isUploading ? '⏳ Verifying receipt details...' : (isReceiptBlocked ? '⛔ Receipt Not Verified' : 'Submit Booking'))}
         </button>
       </div>
 

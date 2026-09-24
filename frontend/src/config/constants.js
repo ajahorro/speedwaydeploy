@@ -95,6 +95,25 @@ export const sanitizeAddress = (value = '') =>
 
 export const sanitizePhone = (value = '') => stripDangerous(value).replace(/\D/g, '').slice(0, 15);
 
+// Title Case helper for name/title-style inputs: capitalises the first letter of
+// every word while preserving the rest of each word exactly as typed (so
+// "SUPreme wash" → "SUPreme Wash"). Slash/plus-joined tokens keep their inner
+// casing; only the leading character of each whitespace-delimited word is forced
+// upper-case. Used by service name, general-service name and vehicle-category
+// name inputs.
+export const toTitleCase = (value = '') =>
+  String(value).replace(/(^|\s)(\S)/g, (match, sep, firstChar) => sep + firstChar.toUpperCase());
+
+// Prose sanitizer for human-readable sentences (FAQ questions/answers, service
+// descriptions, promo names). Allows the punctuation real sentences use —
+// ? ! , . ; : ( ) [ ] - _ @ & % + / = # * ' " ₱ — while still stripping the
+// HTML-dangerous angle brackets/backtick/quote set first, so a `<script>` or
+// attribute-injection payload can never survive. Collapses runs of whitespace.
+export const sanitizeProse = (value = '') => {
+  const DISALLOWED = /[^a-zA-Z0-9\s?!,.;:()\-_@&%+/=#*\u20B1]/g;
+  return stripDangerous(value).replace(DISALLOWED, '').replace(/\s+/g, ' ');
+};
+
 // Same alphanumeric policy as sanitizeAlphaNum but named for field-type clarity.
 export const sanitizeText = (value = '') => sanitizeAlphaNum(value);
 
@@ -103,6 +122,7 @@ export const sanitizeText = (value = '') => sanitizeAlphaNum(value);
 export const FIELD_SANITIZERS = Object.freeze({
   text: sanitizeText,
   alphaNum: sanitizeAlphaNum,
+  prose: sanitizeProse,
   plate: sanitizeVehiclePlate,
   model: sanitizeVehicleText,
   email: sanitizeEmail,

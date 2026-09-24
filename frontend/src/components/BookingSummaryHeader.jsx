@@ -10,12 +10,21 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
   const currentStepIndex = Math.max(0, LIFECYCLE_STEPS.indexOf(normalizedStatus));
 
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', gap: '1.5rem',
-      backgroundColor: 'var(--admin-card)', border: '1px solid var(--admin-border)',
-      borderRadius: 'var(--admin-radius)', padding: '1.5rem',
-      boxShadow: 'var(--admin-card-shadow)', width: '100%', marginBottom: '0.25rem', paddingBottom: '1rem'
-    }}>
+    <div
+      className="booking-summary-sticky"
+      style={{
+        // Pin the lifecycle/status header to the top while the detail body below
+        // scrolls. zIndex keeps it above the content; the background is opaque so
+        // scrolled content passes behind it cleanly.
+        position: 'sticky',
+        top: 0,
+        zIndex: 20,
+        display: 'flex', flexDirection: 'column', gap: '1.5rem',
+        backgroundColor: 'var(--admin-card)', border: '1px solid var(--admin-border)',
+        borderRadius: 'var(--admin-radius)', padding: '1.5rem',
+        boxShadow: 'var(--admin-card-shadow)', width: '100%', marginBottom: '0.25rem', paddingBottom: '1rem'
+      }}
+    >
       <div style={{
         display: 'flex', flexWrap: 'wrap', gap: '1.5rem', justifyContent: 'space-between',
         borderBottom: '1px solid var(--admin-border)', paddingBottom: '1.5rem'

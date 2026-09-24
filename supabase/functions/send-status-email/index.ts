@@ -32,7 +32,9 @@ const escapeHtml = (value: unknown) => String(value ?? '')
   .replaceAll('"', '&quot;')
   .replaceAll("'", '&#039;')
 
-const lifecycleSteps = ['SCHEDULED', 'CONFIRMED', 'IN PROGRESS', 'QUALITY CHECK', 'COMPLETED', 'RELEASED']
+// Lifecycle mirrors the statuses that actually exist in the system. There is no
+// 'QUALITY CHECK' state — it was a stale label that never had a backing status.
+const lifecycleSteps = ['SCHEDULED', 'CONFIRMED', 'IN PROGRESS', 'COMPLETED', 'RELEASED']
 
 const renderLifecycle = (statusKey: string) => {
   const normalized = statusKey === 'ONGOING' ? 'IN PROGRESS' : statusKey.replaceAll('_', ' ')
