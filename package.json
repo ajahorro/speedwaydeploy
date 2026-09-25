@@ -1,6 +1,7 @@
 {
   "scripts": {
     "test": "node tests/booking_atomic.test.js && node tests/promo_package_semantics.test.js",
+    "preflight": "node scripts/preflight-migrations.mjs",
     "sync-secrets": "node scripts/sync-secrets.mjs",
     "deploy-functions": "supabase functions deploy send-refund-receipt send-status-email send-notification-email"
   },

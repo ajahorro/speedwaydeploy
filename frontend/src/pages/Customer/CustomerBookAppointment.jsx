@@ -11,6 +11,7 @@ import Step4ReviewPayment from '../../components/BookingWizard/Step4ReviewPaymen
 import BookingSuccess from '../../components/BookingWizard/BookingSuccess';
 import ValidationModal from '../../components/ValidationModal';
 import { validateSlot } from '../../services/scheduleValidationService';
+import { classifyScheduleError } from '../../utils/errorRouting';
 import { calculateBayUsage, calculateTotalDuration } from '../../utils/schedulingUtils';
 import { SERVICES_DATA } from '../../data/servicesCatalog';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
@@ -230,9 +231,26 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
       setIsSubmitted(true);
     } catch (err) {
       console.error('Booking submission error:', err);
-      // Standard error chrome from the global <Toaster>; the previous inline
-      // rgba override was a third styling path and is now removed.
-      toast.error(err.message || 'Failed to submit booking.');
+      // 🛡️ SCENARIO 2 — LAST-SLOT RACE (loser path).
+      // Two customers confirm the same final slot in the same millisecond. The
+      // database serializes the decision and the second writer loses with a
+      // capacity check_violation ("The selected time is full..."). Without this
+      // classification the loser saw a raw toast carrying a database string.
+      // We route any schedule/capacity failure through the SAME guided
+      // <ValidationModal> the pre-flight validator uses, so the loser is told
+      // "this slot was just taken" and offered another time — never a stack
+      // trace. (Standard promos are client-side modifiers that consume no
+      // server state, so the loser's promo is simply still valid on retry; no
+      // promo state is consumed by a failed slot write.)
+      const scheduleCode = classifyScheduleError(err);
+      if (scheduleCode) {
+        setValidationIssue({
+          code: scheduleCode,
+          message: err?.message || 'That appointment time is no longer available.',
+        });
+      } else {
+        toast.error(err.message || 'Failed to submit booking.');
+      }
     } finally {
       // Use the functional updater so this only clears the flag if we are still
       // the in-flight submission (never re-enable Submit for a stale request).

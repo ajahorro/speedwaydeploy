@@ -60,14 +60,35 @@ const BookingChat = ({ bookingId }) => {
 
   useEffect(() => {
     if (!bookingId || !user?.id) return undefined;
+    // 🛡️ SCENARIO 6 — ACCOUNT REVOCATION.
+    // If the profile reports the account is inactive (banned) or missing
+    // (deleted), do NOT open a realtime channel at all. Previously the socket
+    // was created regardless and every subsequent RLS-rejected read/write logged
+    // an error, producing the infinite console loop this scenario describes.
+    // An inactive account simply unmounts the conversation.
+    const isRevoked = !profile || profile.is_active === false;
+    if (isRevoked) {
+      setMessages([]);
+      reportThreadUnread(bookingId, 0);
+      return undefined;
+    }
     let active = true;
     let channel;
     const startChat = async () => {
-      const { data: booking } = await supabase
+      const { data: booking, error: bookingError } = await supabase
         .from('bookings')
         .select('customer_id')
         .eq('id', bookingId)
         .maybeSingle();
+      // Scenario 6: an RLS/authorization failure here means the session is no
+      // longer entitled to this booking (revoked/banned). Do not retry and do
+      // not open a channel — surface a single, calm state instead of looping.
+      if (bookingError) {
+        console.warn('[Chat] Conversation unavailable (session revoked or access denied).');
+        setMessages([]);
+        reportThreadUnread(bookingId, 0);
+        return;
+      }
       if (!active || !booking?.customer_id) {
         setMessages([]);
         reportThreadUnread(bookingId, 0);
@@ -116,7 +137,7 @@ const BookingChat = ({ bookingId }) => {
       active = false;
       if (channel) supabase.removeChannel(channel);
     };
-  }, [bookingId, user?.id, refreshUnreadCount, reportThreadUnread]);
+  }, [bookingId, user?.id, profile, refreshUnreadCount, reportThreadUnread]);
 
   // Smart Auto-scroll (REQ-NFR-30)
   const prevMsgCount = useRef(0);

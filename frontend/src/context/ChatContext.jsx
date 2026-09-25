@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 const ChatContext = createContext(null);
 
 export const ChatProvider = ({ children }) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [activeBookingId, setActiveBookingId] = useState(null);
   const [globalUnreadCount, setGlobalUnreadCount] = useState(0);
@@ -13,6 +13,23 @@ export const ChatProvider = ({ children }) => {
   // could not tell a user WHICH booking was waiting on them once more than one
   // conversation existed.
   const [threadUnread, setThreadUnread] = useState({});
+
+  // 🛡️ SCENARIO 6 — CHAT DEEP LINK DURING ACCOUNT REVOCATION.
+  //
+  // A customer opens the chat via an email deep link (?chat=open) and, mid-
+  // conversation, an admin bans/deletes their account. The auth JWT is NOT
+  // revoked by an is_active flip, so `onAuthStateChange` may never fire — the
+  // chat widget stayed MOUNTED with a live realtime socket and kept trying to
+  // read/write, each attempt rejected by RLS, producing an endless console
+  // error loop while the user stared at a dead panel.
+  //
+  // The single source of revocation truth is the profile row. When it reports
+  // the account is gone (profile === null while a user exists) or inactive
+  // (is_active === false), we tear the whole chat down: close the panel, drop
+  // the active thread, clear counters, and (below) the effect early-returns so
+  // no channel is ever created again. The route guard in the app shell then
+  // redirects to the landing page.
+  const accountRevoked = Boolean(user?.id) && (profile === null || profile?.is_active === false);
 
   const refreshUnreadCount = useCallback(async () => {
     if (!user?.id) {
@@ -62,7 +79,8 @@ export const ChatProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    if (!user?.id) {
+    // Scenario 6: a revoked account must never hold a realtime socket open.
+    if (!user?.id || accountRevoked) {
       setGlobalUnreadCount(0);
       setThreadUnread({});
       setActiveBookingId(null);
@@ -105,10 +123,10 @@ export const ChatProvider = ({ children }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, activeBookingId, refreshUnreadCount]);
+  }, [user?.id, activeBookingId, refreshUnreadCount, accountRevoked]);
 
   const openChatForBooking = async (bookingId) => {
-    if (!bookingId) return;
+    if (!bookingId || accountRevoked) return;
     const { data: booking } = await supabase
       .from('bookings')
       .select('customer_id')

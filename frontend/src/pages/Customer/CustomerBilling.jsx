@@ -3,6 +3,7 @@ import { CreditCard, FileText, Clock, Printer } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import OfficialReceipt from '../../components/OfficialReceipt';
+import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 
 const CustomerBilling = () => {
   const { user } = useAuth();
@@ -96,7 +97,7 @@ const CustomerBilling = () => {
       ? [{ name: 'Service Installment / Settlement Payment', amount: Number(selectedPayment.amount || 0) }]
       : (receipt.vehicles || []).flatMap((v) => (v.services || []).map((s) => ({
           name: s.service_name || s.service_name_snapshot || 'Service',
-          amount: Number(s.price || s.price_snapshot || 0)
+          amount: resolveFrozenServicePrice(s)
         })));
 
     const popup = window.open('', '_blank', 'width=900,height=900');
@@ -158,13 +159,13 @@ const CustomerBilling = () => {
 
   const getReceiptStatusText = (receipt) => {
     if (!receipt) return '';
-    
+
     // REQ-ADM-10: Hardened check for refund state
     if (receipt.refund_status === 'PROCESSED') return 'REFUNDED & CLOSED';
-    
+
     const paidAmount = (receipt.payments || []).filter(p => p.status === 'PAID').reduce((s, p) => s + Number(p.amount), 0);
     const remaining = Math.max(0, receipt.total_amount - paidAmount);
-    
+
     if (!canAccessReceipt(receipt)) return 'AWAITING VERIFICATION';
     if (remaining <= 0) return 'PAID IN FULL';
     if (paidAmount > 0) return 'PARTIAL PAYMENT';
@@ -188,7 +189,7 @@ const CustomerBilling = () => {
                 {s.service_name || s.service_name_snapshot}
               </td>
               <td style={{ padding: '5px 5px', textAlign: 'right', fontSize: '0.85rem', color: '#333' }}>
-                {formatCurrency(s.price || s.price_snapshot)}
+                {formatCurrency(resolveFrozenServicePrice(s))}
               </td>
             </tr>
           ))}

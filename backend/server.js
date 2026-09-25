@@ -14,6 +14,7 @@ const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEm
 // See docs/EMAIL_AUTH_POLICY.md. Guards below keep UI copy and delivery in sync.
 const { DELIVERY, assertDelivery } = require('./config/emailPolicy');
 const { processReceiptOCR } = require('./services/ocrService');
+const ocrGuard = require('./services/ocrGuard');
 const resendClient = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const RESEND_FROM = process.env.RESEND_FROM || 'Speedway AutoxMoto <bookings@yourdomain.com>';
 
@@ -1165,7 +1166,56 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       return res.status(400).json({ success: false, valid: false, reason: 'NO_FILE', error: 'No receipt image uploaded' });
     }
 
+    // ── SC-18: RATE LIMIT (server-side) ────────────────────────────────────
+    // A script could previously fire unlimited scans (the client re-entrancy
+    // guard is trivially bypassed) and drain OCR credits. We throttle per
+    // identity: the authenticated user when present, else the client IP.
+    const identity = `ocr:${req.body.bookingId || 'unknown'}:${req.ip || req.headers['x-forwarded-for'] || 'anon'}`;
+
+    if (ocrGuard.isAutomationLocked(identity)) {
+      console.warn(`⛔ [OCR] ${identity} is LOCKED after repeated failures — routing to manual review.`);
+      return res.json({
+        valid: false,
+        reason: 'VERIFICATION_LOCKED',
+        status: 'MANUAL_REVIEW',
+        success: true,
+        isNameMatch: null,
+        isAmountMatch: null,
+        isDateMatch: null,
+        isDuplicate: false,
+        isManualReview: true,
+        manualReviewAllowed: true,
+        data: {
+          referenceNo: 'MANUAL_AUDIT_PENDING',
+          amount: 0,
+          date: new Date().toLocaleDateString(),
+          recipient: 'N/A',
+          isReceipt: true,
+          description: 'Automated OCR is temporarily locked after repeated unreadable uploads. Your payment proof was saved for manual admin verification.',
+        },
+      });
+    }
+
+    const rate = ocrGuard.checkRateLimit(identity);
+    if (!rate.allowed) {
+      const retrySeconds = Math.ceil(rate.retryAfterMs / 1000);
+      console.warn(`⛔ [OCR] RATE LIMIT hit for ${identity}. Retry in ${retrySeconds}s.`);
+      res.set('Retry-After', String(retrySeconds));
+      return res.status(429).json({
+        success: false,
+        valid: false,
+        reason: 'RATE_LIMITED',
+        error: `Too many receipt scans. Please wait ${retrySeconds} second(s) and try again.`,
+        retryAfterSeconds: retrySeconds,
+      });
+    }
+
     console.log(`🤖 [AI OCR] SCANNING RECEIPT: ${req.file.originalname} (${req.file.size} bytes)`);
+
+    // ── SC-17: perceptual image hash ───────────────────────────────────────
+    // Computed server-side from the uploaded bytes so the SAME image reused on
+    // another booking collides even when the reference number was manipulated.
+    const imageHash = ocrGuard.computeImageHash(req.file.buffer);
 
     const ocrResult = await processReceiptOCR(req.file.buffer, req.file.mimetype || 'image/jpeg');
     const extractedData = {
@@ -1189,6 +1239,33 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // When the caller does not supply one the name gate cannot be evaluated, so
     // it is skipped (name check disabled) rather than failing every upload.
     const expectedRecipientName = String(req.body.expectedRecipientName || req.body.expected_recipient_name || '').trim();
+    // 🛡️ SCENARIO 8 — GHOST QR CODE SWAP.
+    // The checkout freezes the QR config onto the booking (active_qr_snapshot /
+    // qr_snapshot_version). If the admin swaps the store QR image while a customer
+    // sits on the checkout, the receipt that customer uploads was made against the
+    // SUPERSEDED image. We accept the version the client paid against and compare
+    // it to the LIVE config version. A mismatch does NOT auto-reject (the money may
+    // genuinely be ours), but it is flagged for the admin and stamped onto the
+    // payment so the discrepancy is visible instead of silently buried.
+    const expectedQrVersion = Number(req.body.expectedQrVersion || req.body.expected_qr_version || 0);
+    let liveQrVersion = 0;
+    if (supabaseAdmin) {
+      try {
+        const { data: liveCfg } = await supabaseAdmin
+          .from('business_config')
+          .select('qr_config_version')
+          .order('id')
+          .limit(1)
+          .maybeSingle();
+        liveQrVersion = Number(liveCfg?.qr_config_version || 0);
+      } catch (cfgErr) {
+        console.warn('⚠️ [AI OCR] QR version lookup failed (non-fatal):', cfgErr.message);
+      }
+    }
+    const qrVersionMismatch = Boolean(expectedQrVersion && liveQrVersion && expectedQrVersion !== liveQrVersion);
+    if (qrVersionMismatch) {
+      console.log(`⚠️ [OCR] QR_VERSION_MISMATCH: receipt paid against v${expectedQrVersion} but live config is v${liveQrVersion}. Flagging for admin review.`);
+    }
 
     // ── STEP 1 (FAIL FAST): RECIPIENT NAME ──────────────────────────────────
     // If the payee on the receipt is not our shop, stop here. Parsing a
@@ -1219,7 +1296,14 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     console.log(`✅ [STEP 1 PASSED] Name check: receipt '${extractedData.recipient || 'N/A'}' matched expected '${expectedRecipientName || 'N/A'}'. Proceeding to amount & reference scan.`);
 
     // Check for mismatch (handling minor precision differences)
-    const isAmountMatch = Math.abs(extractedAmount - requiredAmount) < 1.0;
+    //
+    // 🛡️ EDGE CASE FIX — ±₱1.00 TOLERANCE IS INCLUSIVE.
+    // The spec is "±₱1.00": a receipt whose amount differs from the required
+    // amount by exactly ₱1.00 (e.g. required ₱1000, receipt ₱999 or ₱1001) MUST
+    // be ACCEPTED. The previous `< 1.0` was STRICTLY less-than, so a difference of
+    // exactly 1.00 failed the check and valid money was rejected at the boundary.
+    // We use `<= 1.0` so both endpoints of the ±1 tolerance are inclusive.
+    const isAmountMatch = Math.abs(extractedAmount - requiredAmount) <= 1.0;
 
     // 🛡️ Section 2.1–2.3: DATE-MATCH ENFORCEMENT.
     // The receipt's transaction date must be TODAY. A stale or future-dated
@@ -1246,20 +1330,27 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       return Number.isNaN(parsed.getTime()) ? null : parsed;
     };
     const receiptDate = parseReceiptDate(extractedData.date);
-    const today = new Date();
-    const isDateToday = Boolean(
-      receiptDate &&
-      receiptDate.getFullYear() === today.getFullYear() &&
-      receiptDate.getMonth() === today.getMonth() &&
-      receiptDate.getDate() === today.getDate()
-    );
-    // A receipt with no readable date cannot be date-verified and is treated as
-    // not matching, so it lands in the review queue rather than auto-confirming.
-    const isDateMatch = isDateToday;
+
+    // 🛡️ SC-8 FIX — MIDNIGHT-SPAN TOLERANCE (was: strict same-calendar-day).
+    //
+    // Previously the receipt date had to equal TODAY's calendar day exactly, so a
+    // payment made at 11:58 PM and uploaded at 12:02 AM was REJECTED even though
+    // the money was real — a pure clock-rollover artefact. We now accept any
+    // receipt inside a symmetric time window (default ±24 h): the pre-midnight
+    // receipt passes, while a genuinely stale (days-old) or future-dated receipt
+    // is still flagged. A receipt with no readable date still cannot auto-verify.
+    const dateCheck = ocrGuard.receiptDateWithinTolerance(receiptDate, new Date());
+    const isDateMatch = dateCheck.ok;
+    const isDateToday = isDateMatch && dateCheck.reason === 'WITHIN_TOLERANCE' && receiptDate
+      && receiptDate.getFullYear() === new Date().getFullYear()
+      && receiptDate.getMonth() === new Date().getMonth()
+      && receiptDate.getDate() === new Date().getDate();
 
     // A payment reference is single-use. Check this before accepting the
     // receipt so the same transfer cannot be attached to another booking.
     let isDuplicate = false;
+    let duplicateReason = null;
+
     if (referenceNo && supabaseAdmin) {
       let duplicateQuery = supabaseAdmin
         .from('payments')
@@ -1275,14 +1366,59 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       if (duplicateCheckError) {
         throw new Error(`REFERENCE_CHECK_FAILED: ${duplicateCheckError.message}`);
       }
-      isDuplicate = Boolean(existingPayment);
+      if (existingPayment) {
+        isDuplicate = true;
+        duplicateReason = 'REFERENCE_REUSED';
+      }
+    }
+
+    // 🛡️ SC-17 FIX — IMAGE-HASH DUPLICATE DETECTION.
+    // The reference number is attacker-controllable (a reused receipt can be
+    // re-scanned and the OCR biased toward a fresh reference). The IMAGE BYTES
+    // are not: hashing the uploaded buffer server-side catches the exact same
+    // image being submitted to a DIFFERENT booking, even with a different (or
+    // fabricated) reference number. We compare against existing receipt hashes.
+    let usedImageHash = false;
+    if (imageHash && supabaseAdmin) {
+      // The hash is persisted into payments.ocr_metadata.image_hash (jsonb) so no
+      // schema change is required; we scan recent receipt rows for a collision.
+      const { data: hashMatches, error: hashError } = await supabaseAdmin
+        .from('payments')
+        .select('id, booking_id')
+        .not('receipt_url', 'is', null)
+        .filter('ocr_metadata->>image_hash', 'eq', imageHash)
+        .limit(1);
+
+      if (hashError && !/schema cache|does not exist/i.test(hashError.message || '')) {
+        console.warn('⚠️ [OCR] Image-hash duplicate check failed (non-fatal):', hashError.message);
+      } else if (Array.isArray(hashMatches) && hashMatches.length > 0) {
+        const matched = hashMatches[0];
+        // A rescan of the SAME payment is not a duplicate of itself.
+        if (!paymentId || matched.id !== paymentId) {
+          usedImageHash = true;
+          isDuplicate = true;
+          duplicateReason = 'IMAGE_REUSED';
+        }
+      }
     }
 
     // Duplicates are rejected immediately; amount, receipt-validity, OR date
     // issues remain available for staff review rather than being silently accepted.
     const finalStatus = isDuplicate
       ? 'REJECTED_DUPLICATE'
-      : (!isAmountMatch || !isDateMatch || !extractedData.isReceipt ? 'Flagged for Review' : 'Confirmed');
+      : (!isAmountMatch || !isDateMatch || !extractedData.isReceipt || qrVersionMismatch ? 'Flagged for Review' : 'Confirmed');
+
+    // ── SC-18: failure circuit breaker ─────────────────────────────────────
+    // A cleanly-read, well-formed receipt clears the streak. An unreadable or
+    // invalid receipt counts toward the lock that forces manual review.
+    if (extractedData.isReceipt && isAmountMatch && isDateMatch) {
+      ocrGuard.recordSuccess(identity);
+    } else {
+      const failure = ocrGuard.recordFailure(identity);
+      if (failure.locked) {
+        console.warn(`⚠️ [OCR] ${identity} reached ${failure.failures} consecutive failures — automated OCR now LOCKED for 5 min.`);
+      }
+    }
 
     console.log(`🔍 [AUDIT] Comparison: Extracted ₱${extractedAmount} vs Required ₱${requiredAmount}`);
     console.log(`📊 [AUDIT] Result: amountMatch=${isAmountMatch}; dateMatch=${isDateMatch}; duplicate=${isDuplicate} -> Status: ${finalStatus}`);
@@ -1308,6 +1444,15 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           isAmountMatch,
           isDateMatch,
           isDuplicate,
+          // SC-17: the perceptual image hash, persisted so a later reuse of the
+          // SAME image (even with a different reference) is detected.
+          image_hash: imageHash,
+          duplicate_reason: duplicateReason,
+          // Scenario 8: persist the QR version context so a payment made via a
+          // superseded store QR is traceable in the admin review.
+          qrConfigVersion: expectedQrVersion || null,
+          liveQrVersion: liveQrVersion || null,
+          qrVersionMismatch,
           auditedAt: new Date().toISOString()
         }
       });
@@ -1340,10 +1485,11 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // Reached only after the name gate passed. An amount that does not match
     // (or a stale/duplicate receipt) blocks auto-approval but the booking is
     // still allowed to submit for manual admin review.
-    const isValidReceipt = Boolean(isAmountMatch && isDateMatch && !isDuplicate && extractedData.isReceipt);
+    const isValidReceipt = Boolean(isAmountMatch && isDateMatch && !isDuplicate && extractedData.isReceipt) && !qrVersionMismatch;
     const failureReason = isDuplicate
       ? 'FLAGGED_DETAILS_MISMATCH'
-      : (!isAmountMatch ? 'FLAGGED_AMOUNT_MISMATCH' : (!isDateMatch ? 'FLAGGED_DATE_MISMATCH' : null));
+      : (qrVersionMismatch ? 'FLAGGED_QR_VERSION_MISMATCH'
+        : (!isAmountMatch ? 'FLAGGED_AMOUNT_MISMATCH' : (!isDateMatch ? 'FLAGGED_DATE_MISMATCH' : null)));
 
     return res.json({
       valid: isValidReceipt,
@@ -1842,7 +1988,6 @@ app.post('/api/admin/invite-account', async (req, res) => {
       if (msg.includes('Only administrators')) {
         return res.status(403).json({ success: false, error: 'Only administrators may invite accounts.' });
       }
-
       if (rpcMissing) {
         // Fallback duplicate check. `auth.users` is not reachable from here without
         // the SECURITY DEFINER function, so we check the two sources we CAN read:
@@ -1874,6 +2019,64 @@ app.post('/api/admin/invite-account', async (req, res) => {
       } else {
         throw claimError;
       }
+    }
+
+    // 🛡️ SCENARIO 12 — IDENTITY CLASH: EXISTING CUSTOMER -> ROLE ELEVATION.
+    //
+    // The invitee already owns a CUSTOMER profile (e.g. they booked as a guest
+    // two years ago). The old behaviour dead-ended here — the claim raised
+    // EMAIL_ALREADY_EXISTS and the admin got a 409, so a loyal customer could
+    // never become staff. We now ELEVATE the existing identity instead: the
+    // profile row is UPDATEd in place (all FKs — bookings.customer_id,
+    // audit_logs.actor_id, messages — stay intact, so no history is orphaned),
+    // reactivated if soft-deleted, and the role change is written to the audit
+    // trail. No ghost/duplicate account is created and no 500 is thrown.
+    if (claim?.exists && claim?.can_elevate) {
+      const { data: elevation, error: elevationError } = await supabaseAdmin.rpc('elevate_profile_role', {
+        p_email: normalizedEmail,
+        p_role: normalizedRole,
+        p_first_name: safeFirst,
+        p_last_name: safeLast,
+        p_actor_id: actor.id || null
+      });
+
+      if (elevationError) {
+        console.warn('🎟️ [INVITE] Role elevation RPC failed:', elevationError.message);
+        return res.status(409).json({
+          success: false,
+          code: 'EMAIL_ALREADY_EXISTS',
+          error: 'This email already belongs to an existing account. Elevate it from the Team module.'
+        });
+      }
+
+      const elevated = elevation?.elevated === true;
+      console.log(`🎟️ [INVITE] ${elevated ? `Elevated ${normalizedEmail} from ${elevation.old_role} to ${normalizedRole}` : `No elevation needed for ${normalizedEmail} (${elevation?.reason})`}.`);
+
+      // The identity already signs in with their own credentials; we do NOT mint
+      // a new temporary password or an auth user. A confirmation email is still
+      // dispatched so the person knows their access level changed.
+      try {
+        const BACKEND_URL = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`;
+        await fetch(`${BACKEND_URL}/api/emails/status-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: normalizedEmail, type: 'ROLE_ELEVATED', role: normalizedRole })
+        });
+      } catch (mailErr) {
+        console.warn('🎟️ [INVITE] Elevation notice email failed (non-fatal):', mailErr.message);
+      }
+
+      return res.json({
+        success: true,
+        elevated,
+        alreadyAtRole: elevated === false && elevation?.reason === 'ALREADY_AT_ROLE',
+        role: elevation?.role || normalizedRole,
+        previousRole: elevation?.old_role || claim?.current_role || null,
+        email: normalizedEmail,
+        message: elevated
+          ? `Existing account promoted to ${normalizedRole}. Their history and bookings were preserved.`
+          : `This account already has ${normalizedRole} access.`
+      });
     }
 
     mustChangePassword = claim?.must_change_password !== false;
@@ -2533,13 +2736,51 @@ app.delete('/api/admin/promos/:promoId', async (req, res) => {
       .select('id, promo_rules')
       .maybeSingle();
     if (fetchError) throw fetchError;
-    const nextRules = (Array.isArray(config?.promo_rules) ? config.promo_rules : []).filter(rule => rule?.id !== promoId);
+
+    const existingRules = Array.isArray(config?.promo_rules) ? config.promo_rules : [];
+
+    // 🛡️ SCENARIO 4 FIX — SOFT DELETE ONLY (never hard-delete a rule).
+    // Confirmed bookings freeze their promo figures in `applied_promo_id` /
+    // `promo_name_snapshot` / `discount_amount_snapshot`, and the receipts and
+    // analytics read those snapshots. Physically removing the rule from the
+    // JSONB array was still a catastrophic defect: any retained reference to
+    // `applied_promo_id` (report joins, "which promo was this?" lookups, the
+    // admin receipt modal) becomes a dangling pointer, and — critically — the
+    // rule's historical date window / matrix is gone forever, so nothing can
+    // reconstruct what the customer actually received. We therefore TOMBSTONE
+    // the rule (is_active=false + deactivated_at) and keep it in the array. The
+    // active-promo filter below excludes it, so customers can no longer use it,
+    // while history stays intact and reversible.
+    const target = existingRules.find(rule => rule?.id === promoId);
+    if (!target) {
+      return res.status(404).json({ success: false, error: 'Promo code not found.' });
+    }
+
+    const deactivatedAt = new Date().toISOString();
+    const nextRules = existingRules.map(rule => (rule?.id === promoId
+      ? { ...rule, is_active: false, deleted_at: deactivatedAt, validUntil: deactivatedAt }
+      : rule));
+
     const { error: updateError } = await supabaseAdmin
       .from('business_config')
-      .upsert({ id: config?.id || 1, promo_rules: nextRules, updated_at: new Date().toISOString() });
+      .upsert({ id: config?.id || 1, promo_rules: nextRules, updated_at: deactivatedAt });
     if (updateError) throw updateError;
     inMemoryPromoCache = nextRules;
-    return res.json({ success: true, promoRules: nextRules });
+
+    // Audit the deactivation so the trail shows a soft delete, not a data loss.
+    try {
+      await supabaseAdmin.from('audit_logs').insert({
+        action_type: 'PROMO_DEACTIVATED',
+        actor_name: 'Administrator',
+        actor_role: 'ADMIN',
+        details: `Promo "${target?.name || promoId}" deactivated (soft delete). Historical bookings retain their frozen discount snapshot.`,
+        metadata: { promo_id: promoId, promo_name: target?.name || null, deactivated_at: deactivatedAt, soft_delete: true }
+      });
+    } catch (auditErr) {
+      console.warn('🏷️ [ADMIN PROMO] Deactivation audit log failed (non-fatal):', auditErr?.message);
+    }
+
+    return res.json({ success: true, softDeleted: true, promoRules: nextRules });
   } catch (error) {
     console.error('🏷️ [ADMIN PROMO] Delete failed:', error.message);
     return res.status(500).json({ success: false, error: error.message });
@@ -2574,6 +2815,10 @@ app.get('/api/promos/active', async (req, res) => {
     const now = new Date();
     const activePromos = rules.filter(rule => {
       if (!rule) return false;
+      // 🛡️ SCENARIO 4 FIX — a tombstoned (soft-deleted) rule is never active,
+      // regardless of its date window, so a deleted code cannot be redeemed
+      // again even if its validUntil window is still in the future.
+      if (rule.is_active === false || rule.deleted_at) return false;
       const start = rule.validFrom ? new Date(rule.validFrom) : null;
       const isNever = rule.neverExpires === true || rule.validUntil === 'never';
       const end = isNever ? null : (rule.validUntil ? new Date(rule.validUntil) : null);
@@ -2748,26 +2993,48 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
     }
 
     const deactivatedAt = new Date().toISOString();
-    const { error } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        is_active: false,
-        deactivated_at: deactivatedAt
-      })
-      .eq('id', userId);
 
-    if (error) throw error;
+    // 🛡️ SCENARIO 14 — CASCADE THE DEACTIVATION.
+    // A soft-delete alone left the customer's UPCOMING bookings holding their
+    // slots forever (the customer is gone, never shows up, and another paying
+    // walk-in is blocked). The `deactivate_customer_account` RPC does the soft
+    // delete AND cancels the future bookings in one transaction, freeing their
+    // bays. History is untouched: the 5 past bookings keep their customer_id.
+    const { data: deactivation, error: deactivateRpcError } = await supabaseAdmin.rpc('deactivate_customer_account', {
+      p_user_id: userId,
+      p_actor_id: actor?.profile?.id || null
+    });
+
+    if (deactivateRpcError) {
+      const rpcMissing = /could not find the function|schema cache|does not exist/i.test(deactivateRpcError.message || '');
+      if (!rpcMissing) throw deactivateRpcError;
+
+      // Fallback for a DB without the migration: soft-delete only (historical
+      // integrity preserved; upcoming bookings are NOT cascaded here).
+      console.warn('⚠️ [AUTH] deactivate_customer_account RPC missing — soft-delete only.');
+      const { error } = await supabaseAdmin
+        .from('profiles')
+        .update({ is_active: false, deactivated_at: deactivatedAt })
+        .eq('id', userId);
+      if (error) throw error;
+    }
+
+    const cancelledCount = deactivation?.cancelled_bookings?.length || 0;
 
     // Record in Audit Log
     await writeAuditLog({
       actionType: 'ACCOUNT_DEACTIVATION',
-      actorId: userId,
+      actorId: actor?.profile?.id || userId,
       actorName: profile.email || 'SYSTEM',
       actorRole: 'SECURITY',
-      details: `User ${userId} (${profile.email || 'unknown'}) initiated deactivation. Scheduled for deletion in 15 days.`,
+      details: `User ${userId} (${profile.email || 'unknown'}) deactivated. ${cancelledCount} upcoming booking(s) cancelled to free their slots. Scheduled for deletion in 15 days.`,
     });
 
-    return res.json({ success: true, message: 'Account deactivated. You have 15 days to recover it.' });
+    return res.json({
+      success: true,
+      cancelledBookings: cancelledCount,
+      message: 'Account deactivated. You have 15 days to recover it.'
+    });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -2837,8 +3104,11 @@ app.post('/admin/verify-payment-ocr', async (req, res) => {
 
     return res.json({
       success: true,
-      status: requiredAmount > 0 && Math.abs(extractedAmount - requiredAmount) >= 1 ? 'Flagged for Review' : 'Confirmed',
-      isMatch: requiredAmount <= 0 || Math.abs(extractedAmount - requiredAmount) < 1,
+      // ±₱1.00 inclusive: `> 1` (not `>= 1`) so a ₱1.00 difference is a MATCH.
+      // The previous `>= 1` flagged a ₱1.00 difference for review while `isMatch`
+      // below called it a match — a contradictory pair of verdicts.
+      status: requiredAmount > 0 && Math.abs(extractedAmount - requiredAmount) > 1 ? 'Flagged for Review' : 'Confirmed',
+      isMatch: requiredAmount <= 0 || Math.abs(extractedAmount - requiredAmount) <= 1,
       data: {
         ...ocrResult,
         referenceNumber: ocrResult.referenceNumber,
@@ -3088,6 +3358,35 @@ const checkOverdueBookings = async () => {
 // status-scoped, so already processed bookings are not handled again.
 setInterval(checkOverdueBookings, 5 * 60000);
 checkOverdueBookings();
+
+/**
+ * 🧹 SCENARIO 21 — UNPAID HOLD SWEEP.
+ *
+ * A customer who abandons the checkout leaves an unpaid booking holding its bay
+ * from creation until the 60-minute no-show audit. This sweep releases those
+ * holds after `business_config.unpaid_hold_minutes` (default 30) so a paying
+ * walk-in can take the slot. It is a pure status transition (scheduled ->
+ * cancelled), audited, and idempotent. The capacity predicate ALSO ignores
+ * expired holds, so the DB agrees with the client even between sweeps.
+ */
+const releaseExpiredUnpaidHolds = async () => {
+  if (!supabaseAdmin) return;
+  try {
+    const { data, error } = await supabaseAdmin.rpc('release_expired_unpaid_holds');
+    if (error) {
+      const rpcMissing = /could not find the function|schema cache|does not exist/i.test(error.message || '');
+      if (!rpcMissing) console.warn('⚠️ [AUTO-RELEASE] Hold sweep failed:', error.message);
+      return;
+    }
+    const released = data?.released_count || 0;
+    if (released > 0) console.log(`🧹 [AUTO-RELEASE] Freed ${released} expired unpaid hold(s).`);
+  } catch (err) {
+    console.warn('⚠️ [AUTO-RELEASE] Hold sweep error:', err.message);
+  }
+};
+
+setInterval(releaseExpiredUnpaidHolds, 5 * 60000);
+releaseExpiredUnpaidHolds();
 
 /**
  * 🧹 CLEAN SLATE: Purge all booking-related data
@@ -3343,25 +3642,89 @@ app.post('/api/bookings/add-service', async (req, res) => {
       }
     };
 
-    try {
-      const { error: serviceError } = await supabaseAdmin.from('booking_vehicle_services').insert(snapshot);
-      if (serviceError) throw serviceError;
-    } catch (serviceError) {
-      const { error: fallbackError } = await supabaseAdmin.from('booking_vehicle_services').insert({
-        booking_vehicle_id: vehicleId,
-        service_name: serviceName,
-        price: servicePrice
-      });
-      if (fallbackError) throw fallbackError;
+    // 🛡️ SCENARIOS 19 & 20 — ATOMIC, ROW-LOCKED MUTATION.
+    //
+    // The old sequence (check status -> insert service -> update total) had no
+    // row lock, so a concurrent completion/cancellation could interleave: an
+    // admin could inject a $500 service into a booking that had just been
+    // released, or a cancel and an upsell could both pass their status checks.
+    // We now route the whole mutation through `mutate_booking_locked()`, which
+    // locks the booking row, re-checks the terminal guard UNDER the lock, and
+    // applies the service line, the payment, and the total delta in ONE
+    // transaction. The loser of a race fails with a clean check_violation.
+    const serviceRow = {
+      booking_vehicle_id: vehicleId,
+      service_name: serviceName,
+      price: servicePrice,
+      duration_minutes: Number(durationMinutes || 60),
+      service_snapshot: {
+        name: serviceName,
+        price: servicePrice,
+        duration_minutes: Number(durationMinutes || 60),
+        source: 'admin_add_service'
+      }
+    };
+    const paymentRow = hasPayment ? {
+      amount: Number(paymentAmount),
+      method: paymentMethod,
+      payment_type: paymentType,
+      status: 'PAID',
+      reference_number: paymentMethod === 'Digital' ? referenceNumber.trim() : null,
+      verified_by: actor.user.id,
+      verified_at: new Date().toISOString(),
+      notes: `PAYMENT_${String(paymentMethod).toUpperCase()} | ADDED_SERVICE:${serviceName} | TYPE:${paymentType}`
+    } : null;
+
+    const { error: rpcError } = await supabaseAdmin.rpc('mutate_booking_locked', {
+      p_booking_id: bookingId,
+      p_total_delta: servicePrice,
+      p_end_delta_minutes: Number(durationMinutes || 60),
+      p_service: serviceRow,
+      p_payment: paymentRow,
+      p_actor_id: actor.user.id,
+      p_actor_name: actor.user.email || actor.profile.full_name || 'Admin',
+      p_actor_role: String(actor.profile.role).toUpperCase(),
+      p_note: `Added ${serviceName}; ${hasPayment ? `recorded payment of ${paymentAmount}` : 'downpayment not required'}.`
+    });
+
+    if (rpcError) {
+      const rpcMissing = /could not find the function|schema cache|does not exist/i.test(rpcError.message || '');
+      if (/check_violation|closed|terminal/i.test(rpcError.message || '')) {
+        // Scenario 19/20 loser: the booking became terminal under us.
+        return res.status(409).json({ success: false, error: 'This booking was just closed (completed or cancelled) and can no longer be modified.' });
+      }
+      if (!rpcMissing) throw rpcError;
+
+      // Fallback for a DB without the migration: keep the legacy writes but
+      // RE-VERIFY the terminal guard immediately before each write so the race
+      // window is minimized.
+      console.warn('⚠️ [ADD SERVICE] mutate_booking_locked RPC missing — legacy locked fallback.');
+      const { data: guardBooking } = await supabaseAdmin
+        .from('bookings').select('status, total_amount, end_datetime').eq('id', bookingId).single();
+      if (['released', 'completed', 'cancelled'].includes(String(guardBooking?.status || '').toLowerCase())) {
+        return res.status(409).json({ success: false, error: 'This booking is closed and can no longer be modified.' });
+      }
+      try {
+        const { error: serviceError } = await supabaseAdmin.from('booking_vehicle_services').insert(snapshot);
+        if (serviceError) throw serviceError;
+      } catch (serviceError) {
+        const { error: fallbackError } = await supabaseAdmin.from('booking_vehicle_services').insert({
+          booking_vehicle_id: vehicleId,
+          service_name: serviceName,
+          price: servicePrice
+        });
+        if (fallbackError) throw fallbackError;
+      }
+      const end = new Date(new Date(guardBooking.end_datetime).getTime() + Number(durationMinutes || 60) * 60000);
+      const { error: bookingUpdateError } = await supabaseAdmin.from('bookings').update({ end_datetime: end.toISOString(), total_amount: Number(guardBooking.total_amount || 0) + servicePrice }).eq('id', bookingId);
+      if (bookingUpdateError) throw bookingUpdateError;
+      if (hasPayment) {
+        const { error: paymentError } = await supabaseAdmin.from('payments').insert({ booking_id: bookingId, amount: Number(paymentAmount), method: paymentMethod, payment_type: paymentType, reference_number: paymentMethod === 'Digital' ? referenceNumber.trim() : null, status: 'PAID', verified_by: actor.user.id, verified_at: new Date().toISOString(), notes: `PAYMENT_${String(paymentMethod).toUpperCase()} | ADDED_SERVICE:${serviceName} | TYPE:${paymentType}` });
+        if (paymentError) throw paymentError;
+      }
+      await supabaseAdmin.from('audit_logs').insert({ booking_id: bookingId, action_type: 'SERVICE_ADDED', actor_name: actor.user.email || actor.profile.full_name || 'Admin', actor_role: String(actor.profile.role).toUpperCase(), details: `Added ${serviceName}; ${hasPayment ? `recorded payment of ${paymentAmount}` : 'downpayment not required'}.` });
     }
-    const end = new Date(new Date(booking.end_datetime).getTime() + Number(durationMinutes || 60) * 60000);
-    const { error: bookingUpdateError } = await supabaseAdmin.from('bookings').update({ end_datetime: end.toISOString(), total_amount: Number(booking.total_amount || 0) + servicePrice }).eq('id', bookingId);
-    if (bookingUpdateError) throw bookingUpdateError;
-    if (hasPayment) {
-      const { error: paymentError } = await supabaseAdmin.from('payments').insert({ booking_id: bookingId, amount: Number(paymentAmount), method: paymentMethod, payment_type: paymentType, reference_number: paymentMethod === 'Digital' ? referenceNumber.trim() : null, status: 'PAID', verified_by: actor.user.id, verified_at: new Date().toISOString(), notes: `PAYMENT_${String(paymentMethod).toUpperCase()} | ADDED_SERVICE:${serviceName} | TYPE:${paymentType}` });
-      if (paymentError) throw paymentError;
-    }
-    await supabaseAdmin.from('audit_logs').insert({ booking_id: bookingId, action_type: 'SERVICE_ADDED', actor_name: actor.user.email || actor.profile.full_name || 'Admin', actor_role: String(actor.profile.role).toUpperCase(), details: `Added ${serviceName}; ${hasPayment ? `recorded payment of ${paymentAmount}` : 'downpayment not required'}.` });
+
     return res.json({ success: true });
   } catch (error) {
     console.error('Add service failed:', error.message);

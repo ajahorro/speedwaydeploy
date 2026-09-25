@@ -29,11 +29,34 @@ const parseJsonResponse = (text) => {
  * financial ledger, booking confirmation), so this routine is deliberately
  * resilient: it discovers models at runtime, tries EVERY operational candidate,
  * and only fails once all of them have been exhausted.
+ *
+ * 🛠️ HOTFIX (Gross vs Net fee deduction):
+ * E-wallet / cross-bank receipts show a GROSS total the customer sent (e.g.
+ * ₱1,110) plus a separate "Transfer Fee" / "Convenience Fee" line (e.g. ₱30).
+ * The shop only RECEIVES the net (₱1,080). Comparing the gross against the
+ * expected amount produced false NAME_MISMATCH/amount-mismatch failures and
+ * overstated the ledger. The prompt now demands the fee AND the net, and the
+ * caller enforces `net === gross - fee` itself rather than trusting the model.
  */
 async function processReceiptOCR(imageBuffer, mimeType = 'image/jpeg') {
   if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-  const prompt = `Analyze this proof of payment carefully. Return ONLY a valid JSON object with these exact keys: amount (number or null), referenceNumber (string or null), timestamp (string or null), isValidReceipt (boolean), recipient (string or null), description (string or null). The timestamp must be the payment date/time printed on the receipt, not the date this scan was performed.`;
+  const prompt = `Analyze this proof of payment (GCash / bank / e-wallet receipt) very carefully.
+Return ONLY a valid JSON object with these exact keys:
+  amount (number or null)          -> the NET amount the RECIPIENT actually received
+  grossAmount (number or null)     -> the total the sender PAID (before any fee)
+  transferFee (number or null)     -> any 'Transfer Fee', 'Convenience Fee', 'Service Fee', 'InstaPay/PESONet fee' line item, else 0
+  referenceNumber (string or null) -> the transaction reference / trace number
+  timestamp (string or null)       -> the payment date/time printed on the receipt
+  isValidReceipt (boolean)
+  recipient (string or null)       -> the account NAME that received the money
+  description (string or null)
+
+CRITICAL RULES:
+1. If you detect a 'Transfer Fee' or 'Convenience Fee' line item, you MUST subtract that fee from the Total Paid. The 'amount' you return MUST be the NET amount received by the shop, NOT the gross amount paid by the customer.
+2. amount = grossAmount - transferFee (when a fee exists). If no fee line is present, amount = grossAmount and transferFee = 0.
+3. Report the fee you subtracted in 'transferFee' so the ledger can show the deduction. Never leave transferFee null when a fee line is visible.
+4. The timestamp must be the payment date/time printed on the receipt, not the date this scan was performed.`;
   const imagePart = { inlineData: { data: imageBuffer.toString('base64'), mimeType } };
   let lastError;
   const now = Date.now();
@@ -118,8 +141,40 @@ async function processReceiptOCR(imageBuffer, mimeType = 'image/jpeg') {
       const parsed = parseJsonResponse(rawText);
 
       console.log(`[OCR] Receipt scan succeeded with ${modelName}.`);
+
+      // 🛠️ HOTFIX — ENFORCE the net = gross − fee arithmetic OURSELVES.
+      //
+      // The LLM is instructed to return the NET amount, but a model can still
+      // hand back the gross total (this was the ₱1,110-vs-₱980 failure). We do
+      // not trust it: whenever a fee was detected we recompute the net from the
+      // gross and the fee, so the value that reaches the ledger is always the
+      // money the shop actually received. Only when the model returns NEITHER a
+      // gross nor a fee do we fall back to its `amount`.
+      const toNum = (value) => {
+        const n = Number(String(value ?? '').replace(/[^0-9.]/g, ''));
+        return Number.isFinite(n) ? n : null;
+      };
+      const parsedAmount = toNum(parsed.amount);
+      const parsedGross = toNum(parsed.grossAmount ?? parsed.gross_amount ?? parsed.totalPaid ?? parsed.total);
+      const parsedFee = toNum(parsed.transferFee ?? parsed.transfer_fee ?? parsed.fee);
+
+      const fee = parsedFee !== null && parsedFee > 0 ? parsedFee : 0;
+      const gross = parsedGross !== null && parsedGross > 0
+        ? parsedGross
+        : (parsedAmount !== null ? parsedAmount + fee : null);
+      // The authoritative NET the shop receives.
+      const netAmount = gross !== null
+        ? Math.max(0, Math.round((gross - fee) * 100) / 100)
+        : parsedAmount;
+
+      if (fee > 0) {
+        console.log(`[OCR] Fee deduction applied: gross ₱${gross} − fee ₱${fee} = net ₱${netAmount}`);
+      }
+
       return {
-        amount: parsed.amount ?? null,
+        amount: netAmount,
+        grossAmount: gross,
+        transferFee: fee,
         referenceNumber: parsed.referenceNumber ?? parsed.referenceNo ?? null,
         timestamp: parsed.timestamp ?? parsed.date ?? null,
         isValidReceipt: Boolean(parsed.isValidReceipt ?? parsed.isReceipt),

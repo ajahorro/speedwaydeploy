@@ -37,6 +37,13 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
   const [garageVehicles, setGarageVehicles] = useState([]);
   const [fleetGroups, setFleetGroups] = useState([]);
   const [fleetToAddId, setFleetToAddId] = useState('');
+  // 🛠️ HOTFIX Fix 1 (UX Separation) — TABBED ADDITION MODE.
+  // The user asked for a CLEAN separation between choosing a FLEET and choosing
+  // INDIVIDUAL vehicles. Previously fleets, garage cars and the "Add New Vehicle"
+  // card were all dumped into one dense grid, blurring the fleet/individual
+  // boundary. "Book by Fleet" now shows ONLY fleet cards; "Individual Vehicles"
+  // shows ONLY saved cars + Add New Vehicle.
+  const [additionMode, setAdditionMode] = useState('individual');
   const [activeCategories, setActiveCategories] = useState({});
   const [maxBays, setMaxBays] = useState(SHOP_CONFIG.MAX_BAYS);
   const [activePromos, setActivePromos] = useState([]);
@@ -119,7 +126,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
 
   const addGarageVehicle = (savedVehicle) => {
     if (vehicles.some((vehicle) => vehicle.garageVehicleId === savedVehicle.id)) {
-      toast.error('This saved vehicle is already included in the booking.');
+      toast.error('This saved vehicle is already included in the booking.', { id: 'garage-dup-error' });
       return;
     }
     const committedVehicles = vehicles.filter((vehicle) => !isUntouchedUnit(vehicle));
@@ -157,6 +164,48 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
   };
   const isGarageVehicleSelected = (savedVehicle) => vehicles.some((vehicle) => vehicle.garageVehicleId === savedVehicle.id);
 
+  // ── FLEET TOGGLE (HOTFIX 1) ────────────────────────────────────────────
+  // True when this fleet is the ACTIVE selection. Used for the card outline, so
+  // the red border reflects real toggle state instead of a stale .some() check.
+  const isFleetSelected = (fleetId) => bookingData.fleetGroupId === fleetId;
+
+  /**
+   * Deselect a fleet: remove exactly the vehicles that belong to it (matched by
+   * their `fleet:${fleetId}:...` unit key) and clear fleetGroupId. Leaves any
+   * independently-added vehicles untouched.
+   */
+  const removeFleet = (fleetId) => {
+    const selectedFleet = fleetGroups.find((group) => group.id === fleetId);
+    const fleetVehicleIds = new Set((selectedFleet?.vehicles || []).map((vehicle) => vehicle.id));
+    updateVehicles((current) => {
+      const remaining = current.filter((vehicle) => !(vehicle.fleetGroupId === fleetId || fleetVehicleIds.has(vehicle.garageVehicleId)));
+      return remaining.length ? remaining : [emptyVehicle()];
+    });
+    setBookingData((current) => ({ ...current, fleetGroupId: null }));
+    toast.success(`${selectedFleet?.name || 'Fleet'} removed from the booking.`, { id: 'fleet-toggle' });
+  };
+
+  /**
+   * Fleet card click handler — a REAL toggle.
+   *   selected  -> remove the fleet (outline vanishes instantly)
+   *   unselected -> add the fleet
+   *
+   * HOTFIX: error/success toasts carry a STATIC id, so repeated clicks OVERWRITE
+   * the existing popup instead of stacking 5+ identical "already included"
+   * toasts. The previous handler re-invoked addFleet on an already-selected
+   * fleet, which returned early via the duplicate branch BEFORE any state write —
+   * so nothing cleared and the red outline stuck permanently.
+   */
+  const handleFleetToggle = async (fleetId) => {
+    if (vehicleAdditionLocked) return;
+    if (isFleetSelected(fleetId)) {
+      removeFleet(fleetId);
+      return;
+    }
+    setFleetToAddId(fleetId);
+    await addFleet(fleetId);
+  };
+
   const addFleet = async (fleetId = fleetToAddId) => {
     const selectedFleet = fleetGroups.find((group) => group.id === fleetId);
     const fleetVehicles = selectedFleet?.vehicles || [];
@@ -175,14 +224,45 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
     }
     const existingGarageIds = new Set(vehicles.map((vehicle) => vehicle.garageVehicleId).filter(Boolean));
     const newFleetVehicles = fleetVehicles.filter((vehicle) => !existingGarageIds.has(vehicle.id));
-    if (!newFleetVehicles.length) return toast.error('Every vehicle in this fleet is already included.');
+    if (!newFleetVehicles.length) {
+      // Static toast id: repeated clicks overwrite one popup instead of stacking.
+      return toast.error('Every vehicle in this fleet is already included.', { id: 'fleet-dup-error' });
+    }
     const groupedVehicles = newFleetVehicles.map((vehicle) => garageVehicleToBookingVehicle(vehicle, `fleet:${fleetId}:type:${vehicle.type}`));
     updateVehicles((current) => current.length === 1 && isUntouchedUnit(current[0]) ? groupedVehicles : [...current, ...groupedVehicles]);
     setBookingData((current) => ({ ...current, fleetGroupId: fleetId }));
-    toast.success(`${newFleetVehicles.length} fleet vehicle${newFleetVehicles.length === 1 ? '' : 's'} added in ${new Set(newFleetVehicles.map((vehicle) => vehicle.type)).size} service unit${new Set(newFleetVehicles.map((vehicle) => vehicle.type)).size === 1 ? '' : 's'}.`);
+    toast.success(`${newFleetVehicles.length} fleet vehicle${newFleetVehicles.length === 1 ? '' : 's'} added in ${new Set(newFleetVehicles.map((vehicle) => vehicle.type)).size} service unit${new Set(newFleetVehicles.map((vehicle) => vehicle.type)).size === 1 ? '' : 's'}.`, { id: 'fleet-toggle' });
   };
 
   const updateUnit = (unit, patch) => updateVehicles((current) => current.map((vehicle) => unit.vehicles.some((member) => member.id === vehicle.id) ? { ...vehicle, ...patch } : vehicle));
+
+  // 🛡️ SCENARIO 5 — WIZARD BACK-BUTTON / VEHICLE DOWNGRADE STATE CORRUPTION.
+  //
+  // Puppeteered flow: the customer selects an SUV + expensive packages in Step 3,
+  // proceeds to Checkout (Step 4), presses the browser Back button and downgrades
+  // the vehicle to a Motorcycle. A generic `updateUnit(unit, { type, services: [] })`
+  // cleared `services` but LEFT `package_applied` / `package_price` on the vehicle,
+  // so the Step 3/4 cards kept a GHOST package (e.g. "Package: SUV Detailing") and
+  // `unitSubtotal()` returned the stale SUV package price for a motorcycle. The
+  // grand total then disagreed with the re-derived line items.
+  //
+  // The correct rule: changing the vehicle TYPE must wipe EVERY type-scoped
+  // artefact in one atomic update — the services, the package binding, the
+  // package price, and any cached subtotal — because a service/package priced for
+  // an SUV is not valid for a motorcycle. Services are re-chosen from scratch.
+  const changeUnitType = (unit, nextType) => updateVehicles((current) => current.map((vehicle) => (
+    unit.vehicles.some((member) => member.id === vehicle.id)
+      ? {
+          ...vehicle,
+          type: nextType,
+          services: [],
+          package_applied: null,
+          package_price: null,
+          subtotal: 0,
+        }
+      : vehicle
+  )));
+
   const removeUnit = (unit) => updateVehicles((current) => current.length === unit.vehicles.length ? [emptyVehicle()] : current.filter((vehicle) => !unit.vehicles.some((member) => member.id === vehicle.id)));
   const categoriesFor = (vehicle) => Object.entries(SERVICE_CATALOG)
     .filter(([category, services]) => (category === 'Motorcycle Specialist') === isMotorcycle(vehicle.type) && services.some((service) => Number(service.prices[vehicle.type]) > 0))
@@ -304,12 +384,136 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
         style={{ pointerEvents: vehicleAdditionLocked ? 'none' : undefined }}
       >
         <h2 style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase' }}>1. Add vehicle units</h2>
-        <p style={{ margin: '.4rem 0 1rem', color: 'var(--admin-text-secondary)', fontSize: '.8rem' }}>Add a saved vehicle, add a fleet, or create a new vehicle. A fleet shares one service unit for every matching vehicle type.</p>
-        {fleetGroups.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: '.65rem', marginBottom: '1rem' }}><div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}><Layers size={16} color="var(--admin-brand)" /><label style={{ color: 'var(--admin-text-secondary)', fontSize: '.72rem', fontWeight: '900', textTransform: 'uppercase' }}>Fleets</label></div><div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem' }}>{fleetGroups.map((group) => <button key={group.id} type="button" tabIndex={vehicleAdditionLocked ? -1 : undefined} onClick={() => { setFleetToAddId(group.id); addFleet(group.id); }} className="booking-addable-card" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: `2px solid ${bookingData.fleetGroupId === group.id ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '6px', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer', textAlign: 'left' }}><Layers size={16} color="var(--admin-brand)" /><span><strong style={{ display: 'block' }}>{group.name}</strong><small style={{ color: 'var(--admin-text-secondary)' }}>{group.vehicles?.length || 0} vehicle units</small></span></button>)}</div></div>}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem' }}>{garageVehicles.map((vehicle) => {
-          const selected = isGarageVehicleSelected(vehicle);
-          return <button key={vehicle.id} type="button" tabIndex={vehicleAdditionLocked ? -1 : undefined} onClick={() => toggleGarageVehicle(vehicle)} title={selected ? `Remove ${vehicle.brand} ${vehicle.model} from this booking` : `Add ${vehicle.brand} ${vehicle.model}`} className="booking-addable-card" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: `2px solid ${selected ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '6px', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer', textAlign: 'left', opacity: selected ? .9 : 1, transition: 'transform .2s ease, border-color .2s ease, box-shadow .2s ease' }}><Car size={16} color="var(--admin-brand)" /><span><strong style={{ display: 'block' }}>{vehicle.brand} {vehicle.model}</strong><small style={{ color: 'var(--admin-text-secondary)' }}>{selected ? 'Added to booking · click to remove' : `${vehicle.plate_number} · ${vehicle.type}`}</small></span></button>;
-        })}<button type="button" tabIndex={vehicleAdditionLocked ? -1 : undefined} onClick={addManualVehicle} className="booking-addable-card" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'transparent', color: 'var(--admin-brand)', border: '1px dashed var(--admin-brand)', borderRadius: '6px', fontWeight: '900', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer', transition: 'transform .2s ease, border-color .2s ease, box-shadow .2s ease' }}><Plus size={16} /> ADD NEW VEHICLE</button>{onCancelNewVehicle && <button type="button" onClick={onCancelNewVehicle} title="Cancel adding this vehicle" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'transparent', color: 'var(--status-danger)', border: '1px dashed var(--status-danger)', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}><X size={16} /> CANCEL ADD NEW VEHICLE</button>}</div>
+        <p style={{ margin: '.4rem 0 1rem', color: 'var(--admin-text-secondary)', fontSize: '.8rem' }}>Choose how to add units: book an entire saved FLEET at once, or add INDIVIDUAL vehicles one by one.</p>
+
+        {/* 🛠️ Fix 1: explicit Fleet / Individual mode switch (clean separation). */}
+        <div role="tablist" aria-label="Vehicle addition mode" style={{ display: 'flex', gap: '.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--admin-border)' }}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={additionMode === 'fleet'}
+            disabled={vehicleAdditionLocked || fleetGroups.length === 0}
+            onClick={() => setAdditionMode('fleet')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '.5rem',
+              padding: '.7rem 1.1rem', background: 'transparent', border: 'none',
+              borderBottom: `3px solid ${additionMode === 'fleet' ? 'var(--admin-brand)' : 'transparent'}`,
+              color: additionMode === 'fleet' ? 'var(--admin-brand)' : 'var(--admin-text-secondary)',
+              fontWeight: 950, fontSize: '.72rem', textTransform: 'uppercase', letterSpacing: '.5px',
+              cursor: (vehicleAdditionLocked || fleetGroups.length === 0) ? 'not-allowed' : 'pointer',
+              opacity: fleetGroups.length === 0 ? .45 : 1,
+            }}
+          >
+            <Layers size={15} /> Book by Fleet
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={additionMode === 'individual'}
+            disabled={vehicleAdditionLocked}
+            onClick={() => setAdditionMode('individual')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '.5rem',
+              padding: '.7rem 1.1rem', background: 'transparent', border: 'none',
+              borderBottom: `3px solid ${additionMode === 'individual' ? 'var(--admin-brand)' : 'transparent'}`,
+              color: additionMode === 'individual' ? 'var(--admin-brand)' : 'var(--admin-text-secondary)',
+              fontWeight: 950, fontSize: '.72rem', textTransform: 'uppercase', letterSpacing: '.5px',
+              cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <Car size={15} /> Individual Vehicles
+          </button>
+        </div>
+
+        {/* ── TAB A: BOOK BY FLEET ─────────────────────────────────────── */}
+        {additionMode === 'fleet' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.65rem', marginBottom: '1rem' }}>
+            <label style={{ color: 'var(--admin-text-secondary)', fontSize: '.72rem', fontWeight: '900', textTransform: 'uppercase' }}>Your fleets</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem' }}>
+              {fleetGroups.map((group) => {
+                const active = bookingData.fleetGroupId === group.id;
+                return (
+                  <button
+                    key={group.id}
+                    type="button"
+                    tabIndex={vehicleAdditionLocked ? -1 : undefined}
+                    aria-pressed={active}
+                    title={active ? `Remove ${group.name} from this booking` : `Add ${group.name}`}
+                    onClick={() => handleFleetToggle(group.id)}
+                    className="booking-addable-card"
+                    style={{
+                      padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem',
+                      background: active ? 'rgba(var(--admin-brand-rgb), 0.08)' : 'var(--admin-bg)',
+                      color: 'var(--admin-text-primary)',
+                      border: `2px solid ${active ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
+                      borderRadius: '6px', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer',
+                      textAlign: 'left', transition: 'border-color .2s ease, background .2s ease',
+                    }}
+                  >
+                    <Layers size={16} color="var(--admin-brand)" />
+                    <span>
+                      <strong style={{ display: 'block' }}>{group.name}</strong>
+                      <small style={{ color: 'var(--admin-text-secondary)' }}>
+                        {active ? 'Added to booking · click to remove' : `${group.vehicles?.length || 0} vehicle units`}
+                      </small>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB B: INDIVIDUAL VEHICLES ───────────────────────────────── */}
+        {additionMode === 'individual' && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem' }}>
+            {garageVehicles.map((vehicle) => {
+              const selected = isGarageVehicleSelected(vehicle);
+              return (
+                <button
+                  key={vehicle.id}
+                  type="button"
+                  tabIndex={vehicleAdditionLocked ? -1 : undefined}
+                  aria-pressed={selected}
+                  onClick={() => toggleGarageVehicle(vehicle)}
+                  title={selected ? `Remove ${vehicle.brand} ${vehicle.model} from this booking` : `Add ${vehicle.brand} ${vehicle.model}`}
+                  className="booking-addable-card"
+                  style={{
+                    padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem',
+                    background: selected ? 'rgba(var(--admin-brand-rgb), 0.08)' : 'var(--admin-bg)',
+                    color: 'var(--admin-text-primary)',
+                    border: `2px solid ${selected ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
+                    borderRadius: '6px', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer',
+                    textAlign: 'left', opacity: selected ? .9 : 1,
+                    transition: 'transform .2s ease, border-color .2s ease, box-shadow .2s ease',
+                  }}
+                >
+                  <Car size={16} color="var(--admin-brand)" />
+                  <span>
+                    <strong style={{ display: 'block' }}>{vehicle.brand} {vehicle.model}</strong>
+                    <small style={{ color: 'var(--admin-text-secondary)' }}>
+                      {selected ? 'Added to booking · click to remove' : `${vehicle.plate_number} · ${vehicle.type}`}
+                    </small>
+                  </span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              tabIndex={vehicleAdditionLocked ? -1 : undefined}
+              onClick={addManualVehicle}
+              className="booking-addable-card"
+              style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'transparent', color: 'var(--admin-brand)', border: '1px dashed var(--admin-brand)', borderRadius: '6px', fontWeight: '900', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer', transition: 'transform .2s ease, border-color .2s ease, box-shadow .2s ease' }}
+            >
+              <Plus size={16} /> ADD NEW VEHICLE
+            </button>
+            {onCancelNewVehicle && (
+              <button type="button" onClick={onCancelNewVehicle} title="Cancel adding this vehicle" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'transparent', color: 'var(--status-danger)', border: '1px dashed var(--status-danger)', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}>
+                <X size={16} /> CANCEL ADD NEW VEHICLE
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </section>
     {showServiceConfiguration && <section style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -329,7 +533,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
 
         return <article key={unit.id} style={{ overflow: 'hidden', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: 'var(--admin-card-shadow)' }}>
           <header style={{ padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', background: 'var(--admin-sidebar)', borderBottom: '1px solid var(--admin-border)' }}><div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', minWidth: 0 }}><span style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', padding: '.2rem .45rem', borderRadius: '4px', fontSize: '.68rem', fontWeight: '900' }}>UNIT {index + 1}</span><Car size={17} color="var(--admin-brand)" /><strong style={{ color: 'var(--admin-text-primary)' }}>{unit.locked ? `${unit.vehicles.length} saved ${vehicle.type || 'vehicle'}${unit.vehicles.length === 1 ? '' : 's'}` : (vehicle.brand && vehicle.model ? `${vehicle.brand} ${vehicle.model}` : 'New vehicle details required')}</strong></div><button type="button" onClick={() => removeUnit(unit)} aria-label={`Remove unit ${index + 1}`} style={{ background: 'transparent', color: 'var(--status-danger)', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '.35rem', fontWeight: '800', fontSize: '.72rem' }}><Trash2 size={15} /> REMOVE</button></header>
-          {unit.locked ? <div style={{ padding: '1rem 1.25rem', background: 'var(--admin-bg)', borderBottom: '1px solid var(--admin-border)' }}><div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', color: 'var(--admin-text-secondary)', fontSize: '.7rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '.6rem' }}><Lock size={14} /> Saved vehicle details are locked</div>{unit.vehicles.map((member) => <div key={member.id} style={{ color: 'var(--admin-text-primary)', fontSize: '.8rem', lineHeight: 1.7 }}>{member.brand} {member.model} · {member.plateNumber} · {member.type}</div>)}</div> : <div style={{ padding: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '.75rem', borderBottom: '1px solid var(--admin-border)' }}><select aria-label="Vehicle type" value={vehicle.type} onChange={(event) => updateUnit(unit, { type: event.target.value, services: [] })} style={inputStyle}><option value="">Vehicle type</option>{VEHICLE_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><input aria-label="Vehicle brand" value={vehicle.brand} onChange={(event) => updateUnit(unit, { brand: sanitizeVehicleText(event.target.value) })} placeholder="Brand" style={inputStyle} /><input aria-label="Vehicle model" value={vehicle.model} onChange={(event) => updateUnit(unit, { model: sanitizeVehicleText(event.target.value) })} placeholder="Model" style={inputStyle} /><div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}><input aria-label="Vehicle plate number" value={vehicle.plateNumber} onChange={(event) => updateUnit(unit, { plateNumber: sanitizeVehiclePlate(event.target.value) })} onBlur={() => {/* duplicate check fires via useMemo on every render */}} placeholder="Plate number" style={{ ...inputStyle, ...(plateDuplicateMap[unit.id] ? { border: '1.5px solid #ef4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.15)', outline: 'none' } : {}) }} />{plateDuplicateMap[unit.id] && <span role="alert" style={{ display: 'block', fontSize: '.65rem', color: 'var(--status-danger)', fontWeight: '800', lineHeight: 1.35, paddingTop: '.1rem' }}>Duplicate Entry: Plate number &lsquo;{plateDuplicateMap[unit.id].conflictPlate}&rsquo; is already assigned to Unit {plateDuplicateMap[unit.id].conflictUnitIndex}.</span>}</div></div>}
+          {unit.locked ? <div style={{ padding: '1rem 1.25rem', background: 'var(--admin-bg)', borderBottom: '1px solid var(--admin-border)' }}><div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', color: 'var(--admin-text-secondary)', fontSize: '.7rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '.6rem' }}><Lock size={14} /> Saved vehicle details are locked</div>{unit.vehicles.map((member) => <div key={member.id} style={{ color: 'var(--admin-text-primary)', fontSize: '.8rem', lineHeight: 1.7 }}>{member.brand} {member.model} · {member.plateNumber} · {member.type}</div>)}</div> : <div style={{ padding: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '.75rem', borderBottom: '1px solid var(--admin-border)' }}><select aria-label="Vehicle type" value={vehicle.type} onChange={(event) => changeUnitType(unit, event.target.value)} style={inputStyle}><option value="">Vehicle type</option>{VEHICLE_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><input aria-label="Vehicle brand" value={vehicle.brand} onChange={(event) => updateUnit(unit, { brand: sanitizeVehicleText(event.target.value) })} placeholder="Brand" style={inputStyle} /><input aria-label="Vehicle model" value={vehicle.model} onChange={(event) => updateUnit(unit, { model: sanitizeVehicleText(event.target.value) })} placeholder="Model" style={inputStyle} /><div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}><input aria-label="Vehicle plate number" value={vehicle.plateNumber} onChange={(event) => updateUnit(unit, { plateNumber: sanitizeVehiclePlate(event.target.value) })} onBlur={() => {/* duplicate check fires via useMemo on every render */}} placeholder="Plate number" style={{ ...inputStyle, ...(plateDuplicateMap[unit.id] ? { border: '1.5px solid #ef4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.15)', outline: 'none' } : {}) }} />{plateDuplicateMap[unit.id] && <span role="alert" style={{ display: 'block', fontSize: '.65rem', color: 'var(--status-danger)', fontWeight: '800', lineHeight: 1.35, paddingTop: '.1rem' }}>Duplicate Entry: Plate number &lsquo;{plateDuplicateMap[unit.id].conflictPlate}&rsquo; is already assigned to Unit {plateDuplicateMap[unit.id].conflictUnitIndex}.</span>}</div></div>}
           <div className="booking-unit-columns" style={{ opacity: complete ? 1 : .45, pointerEvents: complete ? 'auto' : 'none' }}>
             <div className="booking-unit-column"><p style={{ margin: '0 0 .75rem', fontSize: '.68rem', color: 'var(--admin-text-secondary)', fontWeight: '900', textTransform: 'uppercase' }}>A. Service type</p>{categories.map((item) => <button key={item} type="button" onClick={() => setActiveCategories((current) => ({ ...current, [unit.id]: item }))} style={{ width: '100%', marginBottom: '.5rem', padding: '.75rem', textAlign: 'left', borderRadius: '6px', border: `1px solid ${category === item ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: category === item ? 'var(--admin-brand)' : 'var(--admin-bg)', color: category === item ? '#fff' : 'var(--admin-text-primary)', cursor: 'pointer', fontWeight: '800', fontSize: '.78rem' }}>{item}</button>)}</div>
             <div className="booking-unit-column">

@@ -14,6 +14,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { getAuditCompliantTransactions } from '../../utils/bookingHelpers';
 import { sendPaymentReceiptEmail, sendBookingConfirmationEmail } from '../../services/notificationService';
 import { calculateRequiredDownpayment } from '../../utils/paymentUtils';
+import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import { useUI } from '../../context/UIContext';
 
@@ -192,16 +193,36 @@ const AdminPayments = () => {
           : null
       ].filter(Boolean).join('|');
 
-      const { error } = await supabase.from('payments').update({
-        amount: verifiedAmount,
-        status: 'PAID',
-        verified_by: verifier?.id,
-        verified_at: new Date().toISOString(),
-        notes: verificationNote,
-        ...(ocrReference ? { reference_number: ocrReference } : {})
-      }).eq('id', payment.id);
+      const { error } = await supabase.rpc('admin_override_payment_to_paid', {
+        p_payment_id: payment.id,
+        p_booking_id: payment.booking_id,
+        p_verified_amount: verifiedAmount,
+        p_note: state.overrideAI
+          ? `[AI_OVERRIDE] Admin ID: ${verifier?.id || 'UNKNOWN'} | Required: ₱${requiredDownpayment} | Detected: ₱${ocrAmount || 'NULL'}`
+          : null
+      });
 
-      if (error) throw error;
+      // Fallback for a database that has not yet received migration
+      // 20261018000001: preserve the old write path, but STILL stamp the override
+      // lock columns so a delayed OCR webhook cannot overwrite the human
+      // decision (Scenario 11).
+      if (error) {
+        if (!/admin_override_payment_to_paid|schema cache|does not exist/i.test(error.message || '')) throw error;
+        console.warn('[AdminPayments] Override RPC unavailable — using locked fallback write.');
+        const { error: fallbackError } = await supabase.from('payments').update({
+          amount: verifiedAmount,
+          status: 'PAID',
+          verified_by: verifier?.id,
+          verified_at: new Date().toISOString(),
+          notes: verificationNote,
+          manual_override: true,
+          ocr_locked: true,
+          overridden_by: verifier?.id,
+          overridden_at: new Date().toISOString(),
+          ...(ocrReference ? { reference_number: ocrReference } : {})
+        }).eq('id', payment.id);
+        if (fallbackError) throw fallbackError;
+      }
 
       // 📧 DISPATCH RECEIPT EMAIL (REQ-FIN-01)
       if (!isCashPayment) {
@@ -246,7 +267,7 @@ const AdminPayments = () => {
 
   const performRejectPayment = async (payment, reason) => {
     if (!reason) return;
-    
+
     const toastId = toast.loading('Rejecting transaction...');
     try {
       const bookingTotal = Number(payment.booking?.total_amount || 0);
@@ -258,12 +279,12 @@ const AdminPayments = () => {
       const rejectionStatus = submittedAmount > 0 ? 'REFUND_PENDING' : 'REJECTED';
       const rejectionNote = `${payment.notes || 'PAYMENT_DIGITAL'}|REJECTED_AMOUNT:${submittedAmount}|REJECTION_REASON:${reason}`;
 
-      const { error } = await supabase.from('payments').update({ 
+      const { error } = await supabase.from('payments').update({
         status: rejectionStatus,
         rejection_reason: reason,
         notes: rejectionNote
       }).eq('id', payment.id);
-      
+
       if (error) throw error;
 
       if (submittedAmount > 0) {
@@ -275,15 +296,15 @@ const AdminPayments = () => {
         }).eq('id', payment.booking_id);
         if (refundQueueError) throw refundQueueError;
       }
-      
+
       toast.error(
         submittedAmount > 0 ? 'Payment rejected and refund queued' : 'Payment rejected',
         { id: toastId }
       );
       fetchPayments();
       setState(prev => ({ ...prev, selectedItem: null }));
-    } catch (err) { 
-      toast.error('Rejection failed', { id: toastId }); 
+    } catch (err) {
+      toast.error('Rejection failed', { id: toastId });
     }
   };
 
@@ -291,7 +312,7 @@ const AdminPayments = () => {
     if (!receiptUrl) return;
     setState(prev => ({ ...prev, isScanning: true }));
     const toastId = toast.loading('AI is scanning receipt...');
-    
+
     try {
       const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
       const receiptResponse = await fetch(receiptUrl);
@@ -320,11 +341,11 @@ const AdminPayments = () => {
       // Auto-update the payment with detected info (simulated for now)
       const referenceNumber = result.data.referenceNo || result.data.referenceNumber || 'N/A';
       toast.success(`AI Scan Complete: Ref ${referenceNumber}`, { id: toastId });
-      
+
       // We highlight the reference number field or update it if needed
       // For this demo, we'll just show the "AI Verified" state in the UI
-      setState(prev => ({ 
-        ...prev, 
+      setState(prev => ({
+        ...prev,
         isScanning: false,
         selectedItem: {
           ...prev.selectedItem,
@@ -355,10 +376,10 @@ const AdminPayments = () => {
 
   const getReceiptStatusText = (receipt) => {
     if (!receipt) return '';
-    
+
     // REQ-ADM-10: Hardened check for refund state
     if (receipt.refund_status === 'PROCESSED') return 'REFUNDED & CLOSED';
-    
+
     const paidAmount = (receipt.payments || []).filter(p => p.status === 'PAID').reduce((s, p) => s + Number(p.amount), 0);
     const remaining = Math.max(0, receipt.total_amount - paidAmount);
     if (!canAccessReceipt(receipt)) return 'AWAITING VERIFICATION';
@@ -372,11 +393,11 @@ const AdminPayments = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-      
+
       if (profile?.role !== 'ADMIN') {
         throw new Error('ACCESS DENIED: Administrator clearance required.');
       }
-      
+
       toast.dismiss(toastId);
       setReceiptBooking(payment.booking);
       setReceiptPayment(payment);
@@ -395,7 +416,7 @@ const AdminPayments = () => {
     const subtotal = total > 0 ? total / 1.12 : 0;
     const vat = total > 0 ? total - subtotal : 0;
     const items = (receiptBooking.vehicles && receiptBooking.vehicles.length > 0
-      ? receiptBooking.vehicles.flatMap(v => (v.services || []).map(s => ({ name: s.service_name || s.service_name_snapshot || 'Service', amount: Number(s.price || s.price_snapshot || 0) })))
+      ? receiptBooking.vehicles.flatMap(v => (v.services || []).map(s => ({ name: s.service_name || s.service_name_snapshot || 'Service', amount: resolveFrozenServicePrice(s) })))
       : [{ name: 'Booking Service Summary', amount: Number(receiptBooking.total_amount || 0) }]);
 
     const popup = window.open('', '_blank', 'width=900,height=900');

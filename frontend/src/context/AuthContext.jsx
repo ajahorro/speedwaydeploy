@@ -348,9 +348,55 @@ export const AuthProvider = ({ children }) => {
   const updateProfile = async (updates) => {
     if (!user) return;
     logger.auth('Updating user profile...');
+
+    // 🛡️ SCENARIO 16 — STRICT FIELD ALLOWLIST (defence in depth).
+    //
+    // Previously the raw `updates` object was passed straight to `.update()`.
+    // A customer who intercepted their own request could inject
+    // `{ role: 'ADMIN' }` and — if RLS were ever permissive — escalate to admin
+    // silently. The database now has a column guard (migration
+    // 20261018000009), but the client must ALSO refuse to send privileged keys so
+    // the widened payload never leaves the browser. We whitelist the exact
+    // fields a user may change and strip everything else.
+    const SAFE_PROFILE_FIELDS = [
+      'first_name', 'last_name', 'phone_number',
+      'push_notifications_enabled', 'email_change_temp'
+    ];
+    const safeUpdates = Object.fromEntries(
+      Object.entries(updates || {}).filter(([key]) => SAFE_PROFILE_FIELDS.includes(key))
+    );
+
+    const blockedKeys = Object.keys(updates || {}).filter((key) => !SAFE_PROFILE_FIELDS.includes(key));
+    if (blockedKeys.length) {
+      logger.warn(`[Auth] Ignored non-permitted profile field(s): ${blockedKeys.join(', ')}`);
+    }
+
+    if (Object.keys(safeUpdates).length === 0) {
+      return profile;
+    }
+
+    // Prefer the explicit safe RPC (accepts only safe fields by construction).
+    const { data: rpcData, error: rpcError } = await supabase.rpc('update_my_profile', {
+      p_first_name: safeUpdates.first_name ?? null,
+      p_last_name: safeUpdates.last_name ?? null,
+      p_phone_number: safeUpdates.phone_number ?? null,
+      p_push_notifications_enabled: safeUpdates.push_notifications_enabled ?? null
+    });
+
+    if (!rpcError) {
+      // Refresh the full profile from the DB so we keep fields the RPC does not
+      // return (and stay in sync with role_version).
+      await fetchProfile(user.id, 'PROFILE_UPDATE');
+      return rpcData;
+    }
+
+    const rpcMissing = /could not find the function|schema cache|does not exist/i.test(rpcError.message || '');
+    if (!rpcMissing) throw rpcError;
+
+    // Fallback for an un-migrated DB: write only the allow-listed fields.
     const { data, error } = await supabase
       .from('profiles')
-      .update(updates)
+      .update(safeUpdates)
       .eq('id', user.id)
       .select()
       .single();
@@ -426,11 +472,35 @@ export const AuthProvider = ({ children }) => {
 
   const recoverAccount = async (userId) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ is_active: true, deactivated_at: null })
-        .eq('id', userId);
-      if (error) throw error;
+      // 🛡️ SCENARIO 14 — SERVER-AUTHORITATIVE RECOVERY.
+      //
+      // The previous version wrote `is_active: true` directly to profiles from
+      // the browser. That meant a deactivated account could self-reactivate at
+      // ANY time — including long past the 15-day grace window — provided RLS
+      // allowed the self-write, and the grace deadline was never actually
+      // enforced. The `recover_account()` RPC now owns the decision server-side
+      // (window-checked, own-account only, audited). We fall back to the legacy
+      // direct write ONLY if the RPC is not yet deployed, so an un-migrated DB
+      // still works.
+      const { data, error } = await supabase.rpc('recover_account');
+
+      if (error) {
+        const rpcMissing = /could not find the function|schema cache|does not exist/i.test(error.message || '');
+        if (!rpcMissing) {
+          // A real rejection (e.g. grace window expired) — surface it, do NOT
+          // silently reactivate.
+          return { success: false, error: error.message };
+        }
+        console.warn('[Auth] recover_account RPC unavailable — using legacy direct recovery.');
+        const { error: legacyError } = await supabase
+          .from('profiles')
+          .update({ is_active: true, deactivated_at: null })
+          .eq('id', userId);
+        if (legacyError) throw legacyError;
+      } else if (data && data.recovered === false) {
+        return { success: false, error: 'This account is already active.' };
+      }
+
       await fetchProfile(userId, 'ACCOUNT_RECOVERY');
       toast.success('Account successfully recovered!');
       return { success: true };
@@ -496,6 +566,69 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: err.message };
     }
   };
+
+  // 🛡️ SCENARIO 13 — MID-SHIFT ROLE REVOCATION WATCHDOG.
+  //
+  // A super-admin can demote a STAFF member to CUSTOMER (or revoke access) while
+  // that member is mid-shift. The database already denies the next privileged
+  // call (is_admin() reads the LIVE role), but the browser keeps a STALE role in
+  // memory — so the UI still showed Admin/Staff controls and the user only found
+  // out mid-action. This watchdog polls the live access context (cheap SECURITY
+  // DEFINER RPC) and, the moment the role changes or the account is deactivated,
+  // tears the session down and sends the user to login WITHOUT an error loop.
+  useEffect(() => {
+    if (!user?.id) return undefined;
+
+    let cancelled = false;
+    const cachedRole = String(profile?.role || '').toUpperCase();
+    const cachedVersion = Number(profile?.role_version || 1);
+
+    const checkAccess = async () => {
+      try {
+        const { data, error } = await supabase.rpc('my_access_context');
+        if (cancelled || error || !data) return;
+
+        const liveRole = String(data.role || '').toUpperCase();
+        const liveVersion = Number(data.role_version || 1);
+        const liveActive = data.is_active !== false;
+
+        const roleChanged = cachedRole && liveRole && liveRole !== cachedRole;
+        const versionBumped = liveVersion > cachedVersion;
+        const deactivated = !liveActive;
+
+        if (deactivated || versionBumped || roleChanged) {
+          // Revoked mid-session: boot gracefully. A demoted STAFF becomes a
+          // CUSTOMER silently (no error); a deactivated account is signed out.
+          toast.error(deactivated
+            ? 'Your account access was revoked. Please sign in again.'
+            : `Your access level changed to ${liveRole}. Refreshing your session…`);
+          if (deactivated) {
+            await signOut();
+          } else if (typeof window !== 'undefined') {
+            window.location.reload();
+          }
+        }
+      } catch {
+        // Never surface a watchdog failure — a transient RPC error must not log
+        // the user out or spam the console.
+      }
+    };
+
+    // Check on mount, on focus/visibility (a user returning to a backgrounded
+    // tab), and on a slow interval.
+    checkAccess();
+    const interval = setInterval(checkAccess, 60000);
+    const onFocus = () => checkAccess();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [user?.id, profile?.role, profile?.role_version, signOut]);
 
   return (
     <AuthContext.Provider value={{

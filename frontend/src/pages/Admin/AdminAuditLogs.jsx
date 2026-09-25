@@ -285,6 +285,36 @@ const AdminAuditLogs = () => {
   //   3. NO NULL CLUTTER. Fields with no value are omitted entirely rather than
   //      printed as `"old_value": null`, which padded every non-diff action
   //      (invites, broadcasts, logins) with meaningless rows.
+  //
+  // 🛡️ SCENARIO 7 FIX — NO NESTED JSON BLOB IN THE UI.
+  // The bulk cron job inserts `metadata.old_values` / `new_values` as NESTED
+  // JSON with null members (e.g. { total_amount: 150, staff_id: null }). The
+  // previous code did `JSON.stringify(value)` for any object, so the drawer
+  // showed a raw `{"total_amount":150,"staff_id":null}` string in a monospace
+  // cell. We now FLATTEN one level into human sub-rows (`total_amount → 150`),
+  // drop null/empty members, and only fall back to a compact string for arrays
+  // or deeply-nested leftovers — never a dump of the whole payload.
+  const flattenObjectRows = (prefix, value, sink) => {
+    if (value === null || value === undefined || value === '') return;
+    if (Array.isArray(value)) {
+      if (value.length === 0) return;
+      sink.push({ label: `${prefix}`, value: value.map((entry) => (entry && typeof entry === 'object' ? compactEntry(entry) : String(entry))).join(', ') });
+      return;
+    }
+    if (typeof value === 'object') {
+      Object.entries(value)
+        .filter(([, member]) => member !== null && member !== undefined && member !== '')
+        .forEach(([key, member]) => flattenObjectRows(prefix ? `${prefix} · ${key.replace(/_/g, ' ')}` : key.replace(/_/g, ' '), member, sink));
+      return;
+    }
+    sink.push({ label: prefix || 'value', value: String(value) });
+  };
+
+  const compactEntry = (entry) => Object.entries(entry)
+    .filter(([, member]) => member !== null && member !== undefined && member !== '')
+    .map(([key, member]) => `${key.replace(/_/g, ' ')}: ${typeof member === 'object' ? JSON.stringify(member) : member}`)
+    .join(' · ');
+
   const technicalRows = (log) => {
     const rows = [];
     const push = (label, value) => {
@@ -299,14 +329,15 @@ const AdminAuditLogs = () => {
     push('Action', log.action_type || log.event_type);
 
     // Old/new values only exist for diff-style actions, so they appear only when
-    // the action actually captured them.
+    // the action actually captured them. Nested objects are FLATTENED into
+    // readable sub-rows rather than dumped as a JSON string (Scenario 7).
     const oldValues = log.metadata?.old_values;
     const newValues = log.metadata?.new_values;
     if (oldValues !== undefined && oldValues !== null) {
-      push('Old value', typeof oldValues === 'object' ? JSON.stringify(oldValues) : String(oldValues));
+      flattenObjectRows('Old · ', oldValues, rows);
     }
     if (newValues !== undefined && newValues !== null) {
-      push('New value', typeof newValues === 'object' ? JSON.stringify(newValues) : String(newValues));
+      flattenObjectRows('New · ', newValues, rows);
     }
 
     push('Booking', log.booking_id);
@@ -319,10 +350,11 @@ const AdminAuditLogs = () => {
       Object.entries(meta)
         .filter(([key, value]) => !['old_values', 'new_values'].includes(key)
           && value !== null && value !== undefined && value !== '')
-        .forEach(([key, value]) => push(
-          key.replace(/_/g, ' '),
-          typeof value === 'object' ? JSON.stringify(value) : String(value)
-        ));
+        .forEach(([key, value]) => {
+          // Scenario 7: a nested object is flattened into `key · child` rows so
+          // the UI never shows a raw JSON blob (and null children are dropped).
+          flattenObjectRows(key.replace(/_/g, ' '), value, rows);
+        });
     }
 
     return rows;

@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { Download, Printer, ShieldCheck, X } from 'lucide-react';
+import { resolveFrozenServicePrice } from '../data/servicesCatalog';
 
 const currency = (value) => new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -55,7 +56,7 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
     : effectiveVehicles.flatMap((vehicle) => (vehicle.services || []).map((service, index) => ({
       key: service.id || `${vehicle.id}-${index}`,
       description: `${vehicle.brand || ''} ${vehicle.model || ''} - ${service.service_name || service.service_name_snapshot || 'Service'}`,
-      price: Number(service.price || service.price_snapshot || 0),
+      price: resolveFrozenServicePrice(service),
     })));
   if (!rows.length) rows.push({ description: booking?.service_package || 'Professional Auto Detail & Care Package', price: total });
 

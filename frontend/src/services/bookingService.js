@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { emitEvent, EVENTS } from './eventEngine';
 import { SHOP_CONFIG } from '../config/constants';
-import { getEffectivePriceForService, calculateBookingDiscountSummary, buildBookingServiceSnapshot } from '../data/servicesCatalog';
+import { getEffectivePriceForService, calculateBookingDiscountSummary, buildBookingServiceSnapshot, validateServiceRequirements, describeServiceRequirementViolation } from '../data/servicesCatalog';
 import { getRequiredDownpayment } from '../utils/paymentUtils';
 import { sendStatusEmail } from './notificationService';
 import { calculateBayUsage } from '../utils/schedulingUtils';
@@ -24,13 +24,62 @@ const normalizeServiceId = (value) => {
  *   bookings -> booking_vehicles -> booking_vehicle_services
  */
 export const createBooking = async (customerId, bookingData) => {
-  const bookingCustomerId = Object.prototype.hasOwnProperty.call(bookingData || {}, 'customerId')
+  let bookingCustomerId = Object.prototype.hasOwnProperty.call(bookingData || {}, 'customerId')
     ? (bookingData.customerId ?? null)
     : (customerId ?? null);
   const vehicles = bookingData.vehicles || [];
+
+  // 🛡️ SCENARIO 1 — GUEST-TO-CUSTOMER IDENTITY COLLISION (last-line safety net).
+  //
+  // An admin can create a walk-in guest booking while typing an email that
+  // secretly belongs to an existing VIP customer. The AdminWalkInWizard UI
+  // already detects and offers to link the account, but that is a best-effort
+  // CLIENT prompt: a dismissed prompt, an un-resolved debounce, an impatient
+  // admin, or any OTHER caller of createBooking() could still submit with
+  // customer_id = null and a real registered email.
+  //
+  // The result was an orphaned booking: no account link, so it is invisible in
+  // the customer's portal, cannot be chatted on, and — because
+  // bookings.customer_id stayed NULL — a later admin re-invite of the same
+  // email could collide with the unique profiles.email constraint (the
+  // "duplicate constraint crash" this scenario describes).
+  //
+  // We resolve the identity ONCE, here, at the single write boundary, using a
+  // case-insensitive match, so every caller converges on the same account. An
+  // explicit customerId always wins (the admin/UI decision is authoritative).
+  if (!bookingCustomerId && bookingData.customerEmail) {
+    const normalizedEmail = String(bookingData.customerEmail).trim().toLowerCase();
+    if (normalizedEmail.includes('@')) {
+      const { data: matchedProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'CUSTOMER')
+        .ilike('email', normalizedEmail)
+        .maybeSingle();
+      if (matchedProfile?.id) {
+        bookingCustomerId = matchedProfile.id;
+        console.info('[Booking] Guest email matched an existing customer account — linking booking instead of orphaning it.');
+      }
+    }
+  }
+
   const { data: customerProfile } = bookingCustomerId
     ? await supabase.from('profiles').select('email').eq('id', bookingCustomerId).maybeSingle()
     : { data: null };
+
+  // 🛡️ SC-22 — PREREQUISITE INTEGRITY SHIELD.
+  //
+  // A add-on like "Waxx Add-on" declares `requires: [wash...]`. A stale tab or a
+  // crafted payload could remove the wash while keeping the add-on, and nothing
+  // used to stop it — the booking was accepted. We validate the dependency at
+  // THIS write boundary (mirrors the client check in Step 4) so an isolated
+  // dependent service is rejected with a clean, human message rather than
+  // silently accepted or surfaced as a raw SQL error downstream.
+  const requirementCheck = validateServiceRequirements(vehicles);
+  if (!requirementCheck.ok) {
+    throw new Error(describeServiceRequirementViolation(requirementCheck.violations)
+      || 'A selected service is missing its required prerequisite.');
+  }
 
   // 🛡️ INTEGRITY SHIELD: Prevent 'Ghost Bookings' (REQ-SYS-01)
   if (vehicles.length === 0) {
@@ -178,7 +227,13 @@ export const createBooking = async (customerId, bookingData) => {
       const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(filePath);
 
       const paymentAmount = bookingData.payment.type === 'Full' ? totalAmount : getRequiredDownpayment(totalAmount);
+      // 🛠️ HOTFIX (Gross vs Net): the OCR now returns `amount` as the NET the
+      // shop receives, plus the `grossAmount` the customer sent and the
+      // `transferFee` that was deducted. We compare the NET against the required
+      // amount (that is the real money), and we must NOT subtract the fee a
+      // SECOND time when computing the net credit.
       const detectedAmount = Number(bookingData.payment?.ocrData?.amount || 0);
+      const detectedGross = Number(bookingData.payment?.ocrData?.grossAmount || 0);
       const detectedReference = bookingData.payment?.ocrData?.referenceNo || null;
       const requiredDownpayment = getRequiredDownpayment(totalAmount);
       if (
@@ -189,10 +244,15 @@ export const createBooking = async (customerId, bookingData) => {
         throw new Error(`The detected payment amount must be at least ₱${requiredDownpayment.toLocaleString()} for the required downpayment.`);
       }
 
-      // Task B: Net Payment Credit = Total Deducted − Transfer Fee.
+      // Task B: Net Payment Credit = the money the shop ACTUALLY received.
+      // `detectedAmount` is ALREADY net (the OCR/service enforced gross − fee), so
+      // we must not deduct the fee again. We only fall back to subtracting the fee
+      // when the OCR gave us a GROSS figure without a net (legacy shape).
       const transferFee = Math.max(0, Number(bookingData.payment?.ocrData?.transferFee || 0));
-      const grossCredited = detectedAmount > 0 ? detectedAmount : paymentAmount;
-      const netCredit = Math.max(0, grossCredited - transferFee);
+      const netReceived = detectedAmount > 0
+        ? detectedAmount
+        : (detectedGross > 0 ? Math.max(0, detectedGross - transferFee) : paymentAmount);
+      const netCredit = netReceived;
       rpcExcess = Math.max(0, netCredit - paymentAmount);
 
       rpcPayment = {
@@ -205,7 +265,7 @@ export const createBooking = async (customerId, bookingData) => {
         detected_ref: detectedReference,
         transfer_fee: transferFee,
         net_credit: netCredit,
-        notes: `PAYMENT_DIGITAL|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${paymentAmount}|OCR_AMOUNT:${detectedAmount > 0 ? detectedAmount : 'NULL'}|FEE:${transferFee}|NET:${netCredit}`,
+        notes: `PAYMENT_DIGITAL|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${paymentAmount}|OCR_NET:${detectedAmount > 0 ? detectedAmount : 'NULL'}|GROSS:${detectedGross > 0 ? detectedGross : 'NULL'}|FEE:${transferFee}|NET:${netCredit}`,
         reference_number: detectedReference || ''
       };
     }
@@ -289,13 +349,26 @@ export const createBooking = async (customerId, bookingData) => {
   }
 
   if (!bookingCustomerId && bookingData.customerEmail) {
+    // Only invite an account-less guest when no existing profile already owns
+    // that email — otherwise we would re-invite an existing customer and hit
+    // the profiles email uniqueness constraint (Scenario 1).
+    const normalizedEmail = String(bookingData.customerEmail).trim().toLowerCase();
     try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-      await fetch(`${BACKEND_URL}/admin/generate-invite`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: bookingData.customerEmail, role: 'CUSTOMER' })
-      });
+      const { data: existingAccount } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('email', normalizedEmail)
+        .maybeSingle();
+      if (existingAccount?.id) {
+        console.warn('[Booking] Skipped guest invite — email already belongs to a registered account.');
+      } else {
+        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+        await fetch(`${BACKEND_URL}/admin/generate-invite`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: bookingData.customerEmail, role: 'CUSTOMER' })
+        });
+      }
     } catch (inviteError) {
       console.warn('Guest account invitation failed:', inviteError);
     }

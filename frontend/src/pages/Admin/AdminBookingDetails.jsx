@@ -10,7 +10,7 @@ import {
   Send, ShieldCheck, ShieldAlert, Image as ImageIcon, Plus, Zap, TrendingUp,
   FileText, Printer, CalendarClock
 } from 'lucide-react';
-import { SERVICES_DATA } from '../../data/servicesCatalog';
+import { SERVICES_DATA, resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import { calculateBayUsage, calculateOccupancy, filterActiveBookings } from '../../utils/schedulingUtils';
 import { SHOP_CONFIG } from '../../config/constants';
 import { getStatusColor, isStaffOccupied } from '../../utils/bookingHelpers';
@@ -187,7 +187,7 @@ const AdminBookingDetails = () => {
       // 🧮 CALCULATION FIX: Enforce snapshot-based calculation
       const processedVehicles = vehiclesWithServices.map(v => {
         const snapshotSubtotal = (v.services || []).reduce((sum, s) => {
-          const price = Number(s.price || s.price_snapshot || 0);
+          const price = resolveFrozenServicePrice(s);
           return sum + price;
         }, 0);
         return {
@@ -211,7 +211,12 @@ const AdminBookingDetails = () => {
       const logs = auditData ? auditData.map(log => ({
         ...log,
         event_type: log.action_type,
-        metadata: { details: log.details },
+        // 🛡️ SCENARIO 7 — preserve the STRUCTURED metadata. The previous mapping
+        // replaced `metadata` with `{ details }`, discarding the real
+        // old_values/new_values diff the Task B RPCs (and the bulk cron) write,
+        // so BookingAuditTrail could only ever show the flat sentence. We keep
+        // the real metadata and add `details` only when it is missing.
+        metadata: { ...(log.metadata || {}), details: log.metadata?.details ?? log.details },
         actor: { full_name: log.actor_name, role: log.actor_role }
       })) : [];
 
@@ -299,7 +304,8 @@ const AdminBookingDetails = () => {
     const logs = data ? data.map(log => ({
       ...log,
       event_type: log.action_type,
-      metadata: { details: log.details },
+      // Scenario 7: keep the structured metadata (old_values/new_values) intact.
+      metadata: { ...(log.metadata || {}), details: log.metadata?.details ?? log.details },
       actor: { full_name: log.actor_name, role: log.actor_role }
     })) : [];
 
@@ -1129,7 +1135,7 @@ const AdminBookingDetails = () => {
   const getReceiptStatusText = () => {
     // REQ-ADM-10: Hardened check for refund state
     if (booking.refund_status === 'PROCESSED') return 'REFUNDED & CLOSED';
-    
+
     const paidAmount = bookingPayments.filter(p => p.status === 'PAID').reduce((s, p) => s + Number(p.amount), 0);
     const remaining = Math.max(0, booking.total_amount - paidAmount);
     if (!canAccessReceipt()) return 'AWAITING VERIFICATION';
@@ -1175,7 +1181,7 @@ const AdminBookingDetails = () => {
   const paymentSummary = calculatePaymentSummary({ ...booking, payments: bookingPayments });
   const totalPaid = paymentSummary.totalPaid;
   const balance = paymentSummary.balance;
-  
+
   // 🚀 DERIVED STATUS & LOCK LOGIC
   const vehicleStatuses = (vehicles || []).map(v => v.status?.toUpperCase());
   const anyUnitStarted = vehicleStatuses.includes('IN_PROGRESS');
@@ -1242,25 +1248,25 @@ const AdminBookingDetails = () => {
   const surplus = Math.max(0, totalPaid - (booking.total_amount || 0));
   return (
     <>
-      <div style={{ 
-      width: '100%', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      gap: '1.5rem', 
+      <div style={{
+      width: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '1.5rem',
       padding: '0 0 10rem 0',
       position: 'relative'
     }}>
-      
+
       {/* 1. HEADER & BREADCRUMBS */}
       <div style={{ marginBottom: '2.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.5rem' }}>
         <div>
-          <button 
+          <button
             onClick={() => navigate(-1)}
-            style={{ 
-              display: 'flex', alignItems: 'center', gap: '0.4rem', 
-              background: 'none', color: 'var(--admin-text-secondary)', 
-              border: 'none', padding: 0, 
-              fontWeight: '900', cursor: 'pointer', 
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.4rem',
+              background: 'none', color: 'var(--admin-text-secondary)',
+              border: 'none', padding: 0,
+              fontWeight: '900', cursor: 'pointer',
               fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1.5px',
               marginBottom: '1rem', opacity: 0.6
             }}
@@ -1269,7 +1275,7 @@ const AdminBookingDetails = () => {
           >
             <ArrowLeft size={14} /> ADMINISTRATIVE CONSOLE
           </button>
-          
+
           <h1 style={{ margin: 0, fontSize: '2.8rem', fontWeight: '950', color: 'var(--admin-text-primary)', letterSpacing: '-2px', textTransform: 'uppercase', lineHeight: 1 }}>
             {booking.booking_id || `SW-BKG-${id.slice(0, 8).toUpperCase()}`}
           </h1>
@@ -1398,15 +1404,15 @@ const AdminBookingDetails = () => {
         </div>
       )}
 
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: isMobile ? '1fr' : '7.5fr 2.5fr', 
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : '7.5fr 2.5fr',
         gap: '0.75rem',
         alignItems: 'start'
       }}>
-        
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: 0 }}>
-          
+
           <div style={cardStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -1414,7 +1420,7 @@ const AdminBookingDetails = () => {
                 <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase', color: 'var(--admin-text-primary)', letterSpacing: '1px' }}>Financial Ledger</h3>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                <button 
+                <button
                   onClick={handleViewReceipt}
                   style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', padding: '0.5rem 1rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px', transition: 'all 0.2s ease' }}
                   onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--admin-bg)'; e.currentTarget.style.color = 'var(--admin-brand)'; }}
@@ -1454,7 +1460,7 @@ const AdminBookingDetails = () => {
                       </td>
                       <td style={{ padding: '1.25rem 0.75rem', verticalAlign: 'middle', textAlign: 'left', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>{p.method}</td>
                       <td style={{ padding: '1.25rem 0.75rem', verticalAlign: 'middle', textAlign: 'left' }}>
-                        <span style={{ 
+                        <span style={{
                           fontSize: '0.55rem', fontWeight: '950', padding: '0.3rem 0.6rem', borderRadius: '2px',
                           background: p.status === 'PAID' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
                           color: p.status === 'PAID' ? '#10b981' : '#f59e0b',
@@ -1485,16 +1491,16 @@ const AdminBookingDetails = () => {
             </div>
 
             {/* 💰 DYNAMIC FINANCIAL LEDGER - REQ-ADM-05 */}
-            <div style={{ 
-              padding: '1rem', 
-              background: isLocked ? 'rgba(255, 255, 255, 0.05)' : (surplus > 0 ? 'rgba(59, 130, 246, 0.05)' : (balance <= 0 ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)')), 
-              borderRadius: '4px', 
-              textAlign: 'center', 
+            <div style={{
+              padding: '1rem',
+              background: isLocked ? 'rgba(255, 255, 255, 0.05)' : (surplus > 0 ? 'rgba(59, 130, 246, 0.05)' : (balance <= 0 ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)')),
+              borderRadius: '4px',
+              textAlign: 'center',
               border: `1px solid ${isLocked ? 'rgba(255, 255, 255, 0.2)' : (surplus > 0 ? 'rgba(59, 130, 246, 0.3)' : (balance <= 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'))}`,
-              color: isLocked ? '#a0a0a0' : (surplus > 0 ? '#3b82f6' : (balance <= 0 ? '#10b981' : '#ef4444')), 
-              fontSize: '0.8rem', 
+              color: isLocked ? '#a0a0a0' : (surplus > 0 ? '#3b82f6' : (balance <= 0 ? '#10b981' : '#ef4444')),
+              fontSize: '0.8rem',
               fontWeight: '950',
-              textTransform: 'uppercase', 
+              textTransform: 'uppercase',
               letterSpacing: '0.8px',
               display: 'flex',
               flexDirection: 'column',
@@ -1519,7 +1525,7 @@ const AdminBookingDetails = () => {
                 )}
               </div>
               {balance <= 0 && !isLocked && (
-                <button 
+                <button
                   onClick={() => setShowManualInput(!showManualInput)}
                   style={{ background: 'transparent', border: 'none', color: 'inherit', fontSize: '0.6rem', fontWeight: '950', textDecoration: 'underline', cursor: 'pointer', opacity: 0.6, marginTop: '0.25rem' }}
                 >
@@ -1533,17 +1539,17 @@ const AdminBookingDetails = () => {
               <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.75rem', animation: 'fadeIn 0.3s ease' }}>
                 <div style={{ flex: 1, position: 'relative' }}>
                   <div style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-brand)', fontWeight: '950' }}>₱</div>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     className="no-spinner"
                     placeholder={balance > 0 ? "Record Top-up Payment..." : "Record Manual Override..."}
-                    value={paymentAmount} 
+                    value={paymentAmount}
                     onChange={(e) => setPaymentAmount(e.target.value)}
                     style={{ width: '100%', padding: '0.85rem 0.85rem 0.85rem 2rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '0.5rem', color: 'var(--admin-text-primary)', fontWeight: '900', outline: 'none' }}
                   />
                 </div>
-                <button 
-                  onClick={handleRecordPayment} 
+                <button
+                  onClick={handleRecordPayment}
                   disabled={submittingPayment}
                   style={{ padding: '0 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: submittingPayment ? 0.5 : 1 }}
                 >
@@ -1584,18 +1590,18 @@ const AdminBookingDetails = () => {
                         <div style={{ textAlign: isMobile ? 'left' : 'right', minWidth: 0 }}>
                           <div style={{ fontWeight: '950', color: 'var(--admin-brand)', fontSize: '1.1rem', marginBottom: '0.25rem' }}>{formatCurrency(v.subtotal)}</div>
                           <div style={{ display: 'flex', gap: '0.5rem', width: isMobile ? '100%' : 'auto', flexWrap: 'wrap' }}>
-                            <button 
+                            <button
                               onClick={() => setServiceModal({ open: true, vehicleId: v.id })}
                               disabled={isLocked}
-                              style={{ 
-                                background: 'transparent', border: '1px solid #444', 
+                              style={{
+                                background: 'transparent', border: '1px solid #444',
                                 padding: '0.4rem 0.6rem', borderRadius: '4px', color: 'var(--admin-text-secondary)', flex: isMobile ? '1 1 80px' : '0 0 auto', minWidth: 0,
                                 cursor: 'pointer', fontSize: '0.6rem', fontWeight: '950', display: 'flex', alignItems: 'center', gap: '0.3rem'
                               }}
                             >
                               <Plus size={12} /> ADD
                             </button>
-                            <button 
+                            <button
                               onClick={() => {
                                 const currentStatus = v.status?.toUpperCase();
                                 if (currentStatus === 'SCHEDULED' || !currentStatus) {
@@ -1605,8 +1611,8 @@ const AdminBookingDetails = () => {
                                 }
                               }}
                               disabled={isLocked || v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' ? !canCompleteService : !canStartService)}
-                              style={{ 
-                                background: v.status?.toUpperCase() === 'COMPLETED' ? 'rgba(255, 255, 255, 0.05)' : (v.status?.toUpperCase() === 'IN_PROGRESS' ? (canCompleteService ? '#10b981' : 'var(--admin-border)') : (canStartService ? 'var(--admin-brand)' : 'var(--admin-border)')), 
+                              style={{
+                                background: v.status?.toUpperCase() === 'COMPLETED' ? 'rgba(255, 255, 255, 0.05)' : (v.status?.toUpperCase() === 'IN_PROGRESS' ? (canCompleteService ? '#10b981' : 'var(--admin-border)') : (canStartService ? 'var(--admin-brand)' : 'var(--admin-border)')),
                                 border: v.status?.toUpperCase() === 'COMPLETED' ? '1px solid var(--admin-border)' : 'none',
                                 padding: '0.45rem 1rem', borderRadius: '4px', color: (v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' ? !canCompleteService : !canStartService)) ? 'var(--admin-text-secondary)' : 'white', flex: isMobile ? '1 1 150px' : '0 0 auto', minWidth: 0,
                                 cursor: (isLocked || v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' ? !canCompleteService : !canStartService)) ? 'not-allowed' : 'pointer', fontSize: '0.65rem', fontWeight: '950', display: 'flex', alignItems: 'center', gap: '0.4rem',
@@ -1648,7 +1654,7 @@ const AdminBookingDetails = () => {
                           {bookingPackages.length > 0 ? (
                             <span style={{ fontSize: '0.6rem', fontWeight: '800', color: 'var(--admin-text-secondary)', marginLeft: '0.5rem' }}>Included</span>
                           ) : (
-                            <span style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-brand)', marginLeft: '0.5rem', opacity: 0.8 }}>₱{(s.price ?? s.price_snapshot ?? 0).toLocaleString()}</span>
+                            <span style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-brand)', marginLeft: '0.5rem', opacity: 0.8 }}>₱{resolveFrozenServicePrice(s).toLocaleString()}</span>
                           )}
                         </div>
                       ))}

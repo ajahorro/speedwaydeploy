@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Upload, CheckCircle2, Wallet, Banknote, ShieldAlert, AlertTriangle, Package as PackageIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useConfig } from '../../context/ConfigContext';
-import { calculateBookingDiscountSummary } from '../../data/servicesCatalog';
+import { calculateBookingDiscountSummary, validateServiceRequirements, describeServiceRequirementViolation } from '../../data/servicesCatalog';
 import { getRequiredDownpayment, requiresDownpayment } from '../../utils/paymentUtils';
 import QRMagnifier from '../QRMagnifier';
 import { captureQrSnapshot } from '../../services/qrSecurityService';
 import { computeNetCredit } from '../../services/creditLedgerService';
 import { sanitizeCurrency } from '../../config/constants';
 import { logger } from '../../utils/logger';
+import toast from 'react-hot-toast';
 
 const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, onNext, onBack, onSubmit, isSubmitting, onCancel }) => {
   const { settings } = useConfig();
@@ -37,6 +38,35 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
       QR_CONFIG_VERSION: settings.QR_CONFIG_VERSION ?? 1,
     };
     setQrTarget(snapshot);
+
+    // 🛡️ SCENARIO 8 — FREEZE THE QR TARGET ON A BRAND-NEW BOOKING TOO.
+    // Previously the snapshot was only persisted when a booking row already
+    // existed (reschedule/admin). For a brand-new customer booking the row is
+    // created at submit time and read `bookingData.qrSnapshot` — which nothing
+    // ever set, so `active_qr_snapshot` landed NULL and the checkout fell back to
+    // the LIVE config. A mid-checkout QR swap therefore silently changed the
+    // target the customer was about to scan. We now park the frozen snapshot on
+    // the wizard state so the booking is created already locked to the QR the
+    // customer was shown.
+    if (!existingBookingId) {
+      setBookingData((current) => {
+        if (current.qrSnapshot?.qr_config_version === snapshot.QR_CONFIG_VERSION && current.qrSnapshot?.qr_account_number === snapshot.QR_ACCOUNT_NUMBER) {
+          return current;
+        }
+        return {
+          ...current,
+          qrSnapshot: {
+            qr_account_name: snapshot.QR_ACCOUNT_NAME,
+            qr_account_number: snapshot.QR_ACCOUNT_NUMBER,
+            payment_qr_url: snapshot.PAYMENT_QR_URL,
+            gcash_qr_url: snapshot.PAYMENT_QR_URL,
+            qr_photo_url: snapshot.PAYMENT_QR_URL,
+            qr_config_version: snapshot.QR_CONFIG_VERSION,
+            captured_at: new Date().toISOString(),
+          },
+        };
+      });
+    }
 
     // Persist the snapshot onto the booking row when we already have one
     // (reschedule / admin / draft). For a brand-new customer booking the row is
@@ -103,6 +133,16 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         formData.append('bookingId', bookingData.id || 'PENDING');
         formData.append('requiredAmount', targetAmount);
         formData.append('expectedRecipientName', expectedRecipientName);
+        // 🛡️ SCENARIO 8 — GHOST QR CODE SWAP.
+        // The customer has been sitting on this checkout for minutes; the admin
+        // just swapped the store QR image. The customer scanned the QR that was ON
+        // THEIR SCREEN (frozen by captureQrSnapshot into this booking), so we tell
+        // the verifier WHICH QR config version this receipt must belong to. The
+        // backend flags a receipt whose payee does not match the frozen snapshot's
+        // account, and the version is persisted so the admin can see the customer
+        // paid a now-superseded QR instead of silently accepting a receipt for an
+        // image the shop no longer displays.
+        formData.append('expectedQrVersion', String(qrTarget?.QR_CONFIG_VERSION ?? ''));
 
         let result;
         try {
@@ -118,6 +158,28 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
             });
           } finally {
             window.clearTimeout(timeoutId);
+          }
+
+          // 🛡️ SC-18 — RATE LIMIT (429) SURFACING.
+          // The server now throttles scans and locks automation after repeated
+          // failures. A 429 must tell the user exactly how long to wait instead
+          // of silently collapsing into the generic "service unavailable" path.
+          if (response.status === 429) {
+            const errData = await response.json().catch(() => ({}));
+            const waitSeconds = Number(errData.retryAfterSeconds || 30);
+            setScanStep('');
+            setIsUploading(false);
+            setReceiptDetails({
+              valid: false,
+              status: 'RATE_LIMITED',
+              reason: 'RATE_LIMITED',
+              amount: 0,
+              referenceNo: null,
+              description: `Too many receipt scans in a short period. Please wait ${waitSeconds} second(s) before trying again.`,
+              manualReviewAllowed: false,
+            });
+            toast.error(`Please wait ${waitSeconds}s before scanning another receipt.`);
+            return;
           }
 
           if (!response.ok) {
@@ -197,6 +259,9 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           manualReviewAllowed,
           recipient: extractedData.recipient || 'N/A',
           expectedRecipientName,
+          // Scenario 8: record the frozen QR version this receipt was checked
+          // against, so a payment made via a superseded QR is traceable.
+          qrConfigVersion: qrTarget?.QR_CONFIG_VERSION ?? null,
           recipientMatch: isNameMatched,
           description: isDuplicate
             ? 'This reference number has already been used for another booking. Please upload the correct proof of payment.'
@@ -265,9 +330,17 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
     ['Downpayment', 'Full', 'Manual'].includes(bookingData.payment.type) &&
     (bookingData.payment.type !== 'Manual' || (manualAmount > 0 && manualAmount <= grandTotal))
   );
+  // 🛡️ SC-22 — PREREQUISITE GATE.
+  // A dependent add-on (e.g. "Waxx Add-on") requires a wash on the same vehicle.
+  // A stale tab or a manipulated payload could strip the prerequisite while
+  // keeping the add-on; this blocks the submit and explains the fix. The SAME
+  // check runs at the write boundary in bookingService.createBooking().
+  const requirementCheck = validateServiceRequirements(vehicles);
+  const requirementMessage = describeServiceRequirementViolation(requirementCheck.violations);
+
   // A manual-review pass skips the mismatch guards (there is nothing to compare
   // against) but still requires a receipt file to be attached.
-  const isValid = (adminMode || termsAccepted) && !isUnderpaidReceipt && adminPaymentValid && (
+  const isValid = requirementCheck.ok && (adminMode || termsAccepted) && !isUnderpaidReceipt && adminPaymentValid && (
     adminMode || !isGcash || (receiptVerified && bookingData.payment.proofOfPayment !== null && !isUploading)
   ) && (
     manualReviewAllowedReceipt || (!receiptDetails?.isDuplicate && !isDatedWrong && !isNameMismatch && !isReceiptRejected)
@@ -785,6 +858,15 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
               </div>
             )}
           </div>
+
+          {!requirementCheck.ok && (
+            <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.4)', padding: '1rem 1.25rem', borderRadius: 'var(--admin-radius-md)', color: 'var(--status-danger)', display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
+              <ShieldAlert size={20} style={{ flexShrink: 0, marginTop: '1px' }} />
+              <div style={{ fontSize: '0.85rem', fontWeight: '700', lineHeight: 1.5 }}>
+                {requirementMessage}
+              </div>
+            </div>
+          )}
 
           {!adminMode && <div style={{ padding: '1rem', background: termsAccepted ? 'rgba(var(--admin-brand-rgb), 0.05)' : 'transparent', borderRadius: 'var(--admin-radius-md)', border: `1px solid ${termsAccepted ? 'var(--admin-brand)' : 'var(--admin-border)'}`, transition: 'all 0.2s' }}>
             <label style={{ display: 'flex', gap: '1rem', cursor: 'pointer', alignItems: 'flex-start' }}>

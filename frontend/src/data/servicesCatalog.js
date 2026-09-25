@@ -37,9 +37,15 @@ export const SERVICES_DATA = {
     { id: "moto_5", name: "Moto 3-Step Detailing", desc: "Comprehensive cutting, polishing, and finishing for bike paintwork.", prices: { Regular: 2500, Bigbike: 3500 }, estTime: "5 Hours", durationMinutes: 300 },
   ],
   "Add-on Treatments": [
-    { id: "add_1", name: "Waxx Add-on", desc: "Extra layer of protective wax for an enhanced reflective shine.", prices: { Sedan: 200, SUV: 300, "Van/L300": 400 }, estTime: "30 Mins", durationMinutes: 30 },
-    { id: "add_2", name: "Highgloss Add-on", desc: "Intense gloss enhancer for that wet-look finish.", prices: { Sedan: 200, SUV: 300, "Van/L300": 400 }, estTime: "30 Mins", durationMinutes: 30 },
-    { id: "add_3", name: "Degreaser Add-on", desc: "Heavy-duty degreasing for underchassis or specific dirty areas.", prices: { Sedan: 200, SUV: 300, "Van/L300": 400 }, estTime: "30 Mins", durationMinutes: 30 },
+    // 🛡️ SC-22 — SERVICE PREREQUISITES.
+    // `requires` lists sibling service NAMES that must be present on the SAME
+    // vehicle for this service to be valid. It is validated by
+    // validateServiceRequirements() at the checkout boundary (client AND the
+    // booking RPC), so an isolated dependent service (e.g. an add-on with no
+    // wash) is rejected with a clean message rather than silently accepted.
+    { id: "add_1", name: "Waxx Add-on", desc: "Extra layer of protective wax for an enhanced reflective shine.", prices: { Sedan: 200, SUV: 300, "Van/L300": 400 }, estTime: "30 Mins", durationMinutes: 30, requires: ["Regular Wash", "Supreme Wash"] },
+    { id: "add_2", name: "Highgloss Add-on", desc: "Intense gloss enhancer for that wet-look finish.", prices: { Sedan: 200, SUV: 300, "Van/L300": 400 }, estTime: "30 Mins", durationMinutes: 30, requires: ["Regular Wash", "Supreme Wash"] },
+    { id: "add_3", name: "Degreaser Add-on", desc: "Heavy-duty degreasing for underchassis or specific dirty areas.", prices: { Sedan: 200, SUV: 300, "Van/L300": 400 }, estTime: "30 Mins", durationMinutes: 30, requires: ["Regular Wash", "Supreme Wash"] },
   ]
 };
 
@@ -499,3 +505,79 @@ export const calculateBookingDiscountSummary = (vehicles = [], atDate = null) =>
 
 export const applyPromoRules = (basePrice, serviceName = '', vehicleType = '') => getEffectivePriceForService(basePrice, vehicleType, serviceName);
 
+/**
+ * Scenario 9 — resolve the IMMUTABLE booking-time price for a persisted service
+ * line.
+ *
+ * A retroactive catalog price change (₱100 → ₱150) is a catastrophic LOGICAL
+ * error if any display/receipt/total path reads the mutable live price. The
+ * persisted line carries several frozen columns; this helper applies ONE
+ * canonical precedence, identical to the SQL view public.booking_service_lines
+ * (`effective_price`) so the two can never disagree:
+ *
+ *   price_at_booking → final_price → price_snapshot → live `price` → 0
+ *
+ * The live `price` column is intentionally LAST: it is the only one a later
+ * catalog edit can move, so it is used only as a last-resort fallback for legacy
+ * rows that predate the snapshot columns.
+ */
+export const resolveFrozenServicePrice = (service = {}) => {
+  const candidates = [
+    service.price_at_booking,
+    service.final_price,
+    service.price_snapshot,
+  ];
+  for (const candidate of candidates) {
+    const value = Number(candidate);
+    if (Number.isFinite(value) && value !== 0) return value;
+  }
+  const fallback = Number(service.price ?? 0);
+  return Number.isFinite(fallback) ? fallback : 0;
+};/**
+ * Scenario 22 — Service prerequisite validation.
+ *
+ * A service may declare `requires: [<service names>]` meaning at least ONE of
+ * the listed siblings must be present on the SAME vehicle. Example: the
+ * "Waxx Add-on" requires a wash ("Regular Wash" or "Supreme Wash").
+ *
+ * This is enforced at the checkout boundary so a stale tab or a hand-crafted
+ * payload cannot strip the prerequisite while keeping the dependent service.
+ *
+ * @param {Array} vehicles  the booking's vehicle list, each with `services`
+ * @returns {{ ok: boolean, violations: Array<{ vehicleIndex, serviceName, requires }> }}
+ */
+export const validateServiceRequirements = (vehicles = []) => {
+  const violations = [];
+
+  (vehicles || []).forEach((vehicle, vehicleIndex) => {
+    const serviceNames = (vehicle.services || [])
+      .map((s) => String(s.name || s.service_name || '').trim().toLowerCase())
+      .filter(Boolean);
+
+    (vehicle.services || []).forEach((service) => {
+      const required = service.requires || service.requires_services || [];
+      if (!Array.isArray(required) || required.length === 0) return;
+
+      // Satisfied when at least ONE listed prerequisite is present on this vehicle.
+      const satisfied = required.some((req) =>
+        serviceNames.includes(String(req).trim().toLowerCase()));
+
+      if (!satisfied) {
+        violations.push({
+          vehicleIndex,
+          serviceName: service.name || service.service_name || 'Service',
+          requires: required.slice(),
+        });
+      }
+    });
+  });
+
+  return { ok: violations.length === 0, violations };
+};
+
+/** Human-readable message for the FIRST violation, or null when none. */
+export const describeServiceRequirementViolation = (violations = []) => {
+  if (!violations.length) return null;
+  const { serviceName, requires } = violations[0];
+  return `"${serviceName}" requires ${requires.map((r) => `"${r}"`).join(' or ')} on the same vehicle. Please add the prerequisite or remove the add-on.`;
+};

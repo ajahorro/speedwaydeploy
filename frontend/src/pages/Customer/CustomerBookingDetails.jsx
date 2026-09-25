@@ -22,6 +22,7 @@ import ValidationModal from '../../components/ValidationModal';
 import { classifyScheduleError, toCleanMessage } from '../../utils/errorRouting';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { calculatePaymentSummary } from '../../utils/paymentUtils';
+import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import { getAvailableSlots, getBusinessHours } from '../../services/scheduleService';
 
 const CustomerBookingDetails = () => {
@@ -79,7 +80,7 @@ const CustomerBookingDetails = () => {
     : vehicles.flatMap((v) => (v.services || []).map((s) => ({
         id: s.id || `${v.id}-${s.service_name || s.service_name_snapshot || 'service'}`,
         name: s.service_name || s.service_name_snapshot || 'Service',
-        price: Number(s.price || s.price_snapshot || 0),
+        price: resolveFrozenServicePrice(s),
       })));
 
   // confirmCancellation now lives INSIDE the component where it has access to all state and hooks!
@@ -503,14 +504,14 @@ const CustomerBookingDetails = () => {
                       <Package size={14} color="var(--admin-brand)" />
                       <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--admin-text-primary)' }}>{s.service_name || s.service_name_snapshot}</span>
                     </div>
-                    <span style={{ fontSize: '0.95rem', fontWeight: '950', color: 'var(--admin-brand)' }}>₱{(s.price || s.price_snapshot || 0).toLocaleString()}</span>
+                    <span style={{ fontSize: '0.95rem', fontWeight: '950', color: 'var(--admin-brand)' }}>₱{resolveFrozenServicePrice(s).toLocaleString()}</span>
                   </div>
                 ))}
               </div>
               {/* Vehicle Subtotal */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px dashed var(--admin-border)' }}>
                 <span style={{ fontSize: '1.1rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>
-                  Vehicle Total: ₱{(v.subtotal || (v.services || []).reduce((sum, s) => sum + Number(s.price || s.price_snapshot || 0), 0)).toLocaleString()}
+                  Vehicle Total: ₱{(v.subtotal || (v.services || []).reduce((sum, s) => sum + resolveFrozenServicePrice(s), 0)).toLocaleString()}
                 </span>
               </div>
 
