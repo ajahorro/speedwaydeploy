@@ -104,14 +104,39 @@ export const calculateAdjustmentCredit = (booking = {}, newTotalAmount = null) =
 
 export const requiresDownpayment = (totalAmount) => Number(totalAmount || 0) >= 1000;
 
-export const calculateRequiredDownpayment = (totalAmount) => {
-  const total = Number(totalAmount || 0);
-  const percentage = total >= 2000 ? 50 : 30;
+/**
+ * 🔧 DEFECT A1 FIX — DOWNPAYMENT TIER BASIS.
+ *
+ * The 30% vs 50% TIER must be decided by the AGGREGATE CART TOTAL of the whole
+ * booking, never by an individual line item. Previously the tier was computed
+ * from whatever number was passed in, so adding a ₱500 service to a ₱2,300 cart
+ * evaluated the tier against ₱500 (30%) instead of the ₱2,300 cart total (50%) —
+ * the wrong tier on the wrong basis.
+ *
+ * @param {number} amountToCover  the figure the percentage is APPLIED to
+ *                                (the outstanding balance for that line/service)
+ * @param {number} [cartTotal]    the booking's GRAND TOTAL used to choose the
+ *                                tier. Defaults to `amountToCover` so existing
+ *                                single-argument callers keep working, but every
+ *                                add-service path MUST pass the cart total.
+ */
+export const calculateRequiredDownpayment = (amountToCover, cartTotal = null) => {
+  const base = Number(amountToCover || 0);
+  // The tier is chosen from the CART total when supplied, else the base.
+  const tierBasis = cartTotal === null || cartTotal === undefined
+    ? base
+    : Number(cartTotal || 0);
+  const percentage = tierBasis >= 2000 ? 50 : 30;
   return {
     percentage,
-    amount: Math.round(total * (percentage / 100) * 100) / 100
+    basis: tierBasis,
+    amount: Math.round(base * (percentage / 100) * 100) / 100
   };
 };
+
+/** Convenience: downpayment for a line item, tiered by the booking's cart total. */
+export const getRequiredDownpaymentForCart = (amountToCover, cartTotal) =>
+  calculateRequiredDownpayment(amountToCover, cartTotal).amount;
 
 export const getRequiredDownpayment = (totalAmount) => calculateRequiredDownpayment(totalAmount).amount;
 

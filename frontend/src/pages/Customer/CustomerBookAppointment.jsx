@@ -210,13 +210,25 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
         skipLeadTime: adminMode === true,
       });
 
-      if (!slotCheck.valid) {
+      // 🔧 TRANSPORT vs BUSINESS DECISION.
+      //
+      // `reachable:false` means we could not CONTACT the validator (backend down
+      // / wrong host) — it is NOT a business-rule rejection. Hard-blocking on it
+      // made booking impossible whenever the backend was unreachable. We warn and
+      // proceed: the authoritative guard is the DB capacity trigger inside
+      // create_booking_atomic, which still rejects an over-sold slot (the error
+      // is mapped to the guided modal in the catch below). Only a genuine
+      // server-side REJECTION (reachable:true, valid:false) stops the submit.
+      if (!slotCheck.valid && !slotCheck.reachable) {
+        console.warn('[Booking] Slot validator unreachable — proceeding; the database capacity guard is still enforced.', slotCheck.details);
+        toast('Could not pre-check the slot (scheduling service offline). Continuing — a final capacity check still runs on save.', { icon: '⚠️' });
+      } else if (!slotCheck.valid) {
         setValidationIssue({
           code: slotCheck.code,
           message: slotCheck.message,
           details: slotCheck.details,
         });
-        return; // Do not create the booking.
+        return; // Server said NO — do not create the booking.
       }
 
       if (isRescheduling && prefillData?.id) {

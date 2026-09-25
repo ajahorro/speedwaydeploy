@@ -925,77 +925,122 @@ const AdminBookingDetails = () => {
       return;
     }
 
-    const downpayment = calculateRequiredDownpayment(price).amount;
+    // ───────────────────────────────────────────────────────────────────────
+    // OPTION 2 — FULL-COST ABSORPTION + DEFECT A1 (CART-TOTAL TIERING)
+    // ───────────────────────────────────────────────────────────────────────
+    //
+    // POLICY (Option 2): existing ledger credit is applied to the FULL PRICE of
+    // the newly added service — not merely to its downpayment — until the credit
+    // is exhausted at exactly ₱0. Only the remaining shortfall is then prompted.
+    //
+    // Worked example (Scenario A): ₱1000 booked, ₱2000 paid → ₱1000 credit.
+    //   +₱500 wax     : credit 1000 → 500 (full price absorbed)
+    //   +₱800 ceramic : credit  500 → 0   (500 absorbed), prompt 300
+    //   ⇒ total 2300, paid 2000, owed 300, parked credit 0. ✔
+    //
+    // TIER BASIS (Defect A1): the 30% vs 50% tier is decided by the booking's
+    // AGGREGATE CART TOTAL, never the isolated line price. A ₱500 service added
+    // to a ₱2,300 cart therefore uses the 50% tier, not 30%.
+    //
+    // The prompt amount is the amount still owed on the cart AFTER credit:
+    //   requiredNow = max(0, (cartTotal + price) − netPaid − remainingCredit)
+    // which keeps the customer's obligation and the parked credit perfectly
+    // reconciled (no phantom credit, no negative prompt).
+    const cartTotalBefore = Number(booking?.total_amount || 0);
+    const cartTotalAfter = Math.round((cartTotalBefore + price) * 100) / 100;
 
-    // 🛡️ HOTFIX Fix 2 (corrected) — CREDIT COVERS THE NEW DOWNPAYMENT.
-    //
-    // If the customer already has credit on account, the shop is HOLDING their
-    // money and charging a fresh downpayment for an added service would
-    // double-charge. We query the CUSTOMER-level ledger
-    // (`customer_excess_credit` — the same single source of truth the
-    // `apply_service_downpayment` RPC consumes from) and, when it covers the
-    // whole new downpayment, we skip the "Payment Required" prompt and add the
-    // service against funds already on account.
-    //
-    // WHY THE CUSTOMER LEDGER AND NOT THE BOOKING SUMMARY:
-    // The booking-scoped `calculatePaymentSummary().credit` reflects the
-    // RAW overpayment (Net Paid − total_amount), which is NOT decremented when a
-    // no-payment service is added. Using it here caused a DOUBLE-COUNT: after
-    // consuming ₱500 of credit on the wax, a subsequent ₱800 service saw the
-    // stale ₱500 booking-credit and produced a NEGATIVE shortfall prompt
-    // (₱240 − ₱500). The customer ledger is decremented by the RPC on every
-    // absorption, so it always reflects spendable credit.
-    //
-    // `fetchExcessCredit` fails closed to 0, so an unavailable ledger simply
-    // falls back to the normal shortfall prompt — never an under-charge.
+    // Spendable credit comes from the CUSTOMER ledger (`customer_excess_credit`),
+    // which is decremented by the absorb RPC on every consumption.
+    // The booking-scoped summary.credit is the RAW overpayment and is NOT
+    // decremented — using it caused a double-count (negative shortfall prompt).
     let existingCredit = 0;
-    const creditCustomerId = booking?.customer_id;
-    if (creditCustomerId) {
+    const customerId = booking?.customer_id;
+    if (customerId) {
       try {
-        existingCredit = Math.max(0, Number(await fetchExcessCredit(creditCustomerId) || 0));
+        existingCredit = Math.max(0, Number(await fetchExcessCredit(customerId) || 0));
       } catch (creditLookupErr) {
-        logger.warn('Excess-credit lookup failed; falling back to the shortfall prompt.', creditLookupErr);
+        logger.warn('Excess-credit lookup failed; falling back to the full prompt.', creditLookupErr);
         existingCredit = 0;
       }
     }
 
-    if (existingCredit >= downpayment && downpayment > 0) {
-      toast.success(`₱${existingCredit.toLocaleString()} of credit on account covers this downpayment — no new payment required.`);
-      // Add the service with no additional payment collected. We still run the
-      // absorb RPC so the customer ledger is decremented by this downpayment.
-      if (creditCustomerId) {
-        try {
-          await applyServiceDownpayment(creditCustomerId, id, downpayment);
-        } catch (absorbErr) {
-          logger.warn('Credit absorb on covered service failed (non-fatal).', absorbErr);
-        }
-      }
-      handleAddService(vehicleId, service, null);
-      return;
-    }
+    // Tier is chosen from the CART TOTAL after this service lands on it.
+    const downpayment = calculateRequiredDownpayment(price, cartTotalAfter).amount;
 
-    // Task B: dynamic overpayment ledger. Auto-absorb available excess_credit
-    // against the downpayment D. If D <= excess_credit the prompt is zero; if
-    // D > excess_credit we prompt only for the net shortfall.
-    let requiredNow = downpayment;
-    let creditUsed = existingCredit;
-    const customerId = booking?.customer_id;
-    if (customerId) {
+    // OPTION 2: apply available credit to the FULL COST of this service.
+    //
+    // NOTE: we compute netPaid locally from `booking` + `bookingPayments` rather
+    // than reading the render-scope `totalPaid` constant — this handler is
+    // defined ABOVE that declaration, so referencing it would hit the temporal
+    // dead zone and throw a ReferenceError at click time.
+    const netPaid = Math.max(0, Number(
+      calculatePaymentSummary({ ...booking, payments: bookingPayments })?.totalPaid || 0
+    ));
+
+    // ── ORDERING IS DELIBERATE — compute the cap, absorb exactly it, prompt ──
+    //
+    // OPTION 2 (full-cost absorption) with a RECONCILIATION-GUARANTEED cap:
+    //
+    //     creditUsed = min(existingCredit, owedOnCartAfter)
+    //     requiredNow = owedOnCartAfter − creditUsed
+    //
+    // where owedOnCartAfter = max(0, cartTotalAfter − netPaid).
+    //
+    // WHY THE CAP IS THE OUTSTANDING DEBT, NOT THE RAW SERVICE PRICE:
+    // capping at `price` over-consumes credit whenever the cart is already partly
+    // covered by cash. In Scenario A the ceramic step has cartTotal 2300, cash
+    // 2000 ⇒ owed 300 but price 800; absorbing min(500, 800)=500 would apply
+    // ₱200 of credit to a ₱0 debt, making cash+credit = ₱2,500 against a ₱2,300
+    // cart. Capping at `owedOnCartAfter` keeps the ledger exact:
+    //
+    //     netPaid + creditUsed + requiredNow === cartTotalAfter   (must hold)
+    //
+    // Credit is still burnt down by the FULL SERVICE COST whenever the cart owes
+    // at least that much (Scenario A step 2: owed 1500, price 500 ⇒ absorb 500),
+    // which is exactly the behaviour Option 2 requires. Only the excess above the
+    // cart's true debt is left parked, and it remains spendable on future cart
+    // additions rather than being destroyed.
+    //
+    // Flagged: if the business instead wants credit destroyed whenever it exceeds
+    // the debt, set `burnExcessCredit` — but that silently consumes customer
+    // money with no offsetting charge, so it is NOT the default.
+    const owedOnCartAfter = Math.max(0, Math.round((cartTotalAfter - netPaid) * 100) / 100);
+    const creditCoveringThisCart = Math.min(existingCredit, owedOnCartAfter);
+    const requiredNow = Math.max(0, Math.round((owedOnCartAfter - creditCoveringThisCart) * 100) / 100);
+
+    if (customerId && creditCoveringThisCart > 0) {
       try {
-        const result = await applyServiceDownpayment(customerId, id, downpayment);
-        requiredNow = Number(result?.shortfall ?? downpayment);
-        creditUsed = Number(result?.credit_used ?? 0);
-        if (creditUsed > 0) {
-          toast.success(`₱${creditUsed.toLocaleString()} of excess credit applied automatically.`);
-        }
-      } catch (creditErr) {
-        // Fail-closed to the full downpayment if the ledger is unavailable.
-        logger.warn('Excess-credit lookup failed; using full downpayment.', creditErr);
-        requiredNow = downpayment;
+        await applyServiceDownpayment(customerId, id, creditCoveringThisCart);
+        const remainingCredit = Math.max(0, Math.round((existingCredit - creditCoveringThisCart) * 100) / 100);
+        toast.success(`₱${creditCoveringThisCart.toLocaleString()} of credit applied to this service — ₱${remainingCredit.toLocaleString()} credit remaining.`);
+      } catch (absorbErr) {
+        // Fail-closed: if the absorb RPC fails we must NOT under-charge, so the
+        // prompt reverts to the full outstanding amount.
+        logger.warn('Full-cost credit absorb failed; prompting the full outstanding amount.', absorbErr);
+        setPendingService({
+          vehicleId,
+          service,
+          price,
+          downpayment,
+          creditUsed: 0,
+          requiredNow: owedOnCartAfter,
+        });
+        setServicePaymentType('Downpayment');
+        setServicePaymentAmount(String(owedOnCartAfter));
+        setServicePaymentMethod('Cash');
+        setServiceReferenceNumber('');
+        return;
       }
     }
 
-    setPendingService({ vehicleId, service, price, downpayment, creditUsed, requiredNow });
+    setPendingService({
+      vehicleId,
+      service,
+      price,
+      downpayment,
+      creditUsed: creditCoveringThisCart,
+      requiredNow,
+    });
     setServicePaymentType('Downpayment');
     setServicePaymentAmount(String(requiredNow));
     setServicePaymentMethod('Cash');
