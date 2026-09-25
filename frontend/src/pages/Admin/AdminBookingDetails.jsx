@@ -15,7 +15,7 @@ import { calculateBayUsage, calculateOccupancy, filterActiveBookings } from '../
 import { SHOP_CONFIG } from '../../config/constants';
 import { getStatusColor, isStaffOccupied } from '../../utils/bookingHelpers';
 import { calculatePaymentSummary, calculateRequiredDownpayment, requiresDownpayment } from '../../utils/paymentUtils';
-import { applyServiceDownpayment } from '../../services/creditLedgerService';
+import { applyServiceDownpayment, fetchExcessCredit } from '../../services/creditLedgerService';
 import toast from 'react-hot-toast';
 import BookingAuditTrail from '../../components/BookingAuditTrail';
 import BookingSummaryHeader from '../../components/BookingSummaryHeader';
@@ -927,28 +927,49 @@ const AdminBookingDetails = () => {
 
     const downpayment = calculateRequiredDownpayment(price).amount;
 
-    // 🛡️ HOTFIX Fix 2 — EXISTING OVERPAYMENT COVERS THE NEW DOWNPAYMENT.
+    // 🛡️ HOTFIX Fix 2 (corrected) — CREDIT COVERS THE NEW DOWNPAYMENT.
     //
-    // If the customer already overpaid the booking (Net Paid > Total Cost), the
-    // shop is HOLDING their money. Charging them a fresh downpayment for an
-    // added service would double-charge. We compute the booking's current credit
-    // from the same signed summary the ledger uses and, when it covers the whole
-    // new downpayment, we skip the "Payment Required" prompt entirely — the
-    // service is added against funds already on account.
+    // If the customer already has credit on account, the shop is HOLDING their
+    // money and charging a fresh downpayment for an added service would
+    // double-charge. We query the CUSTOMER-level ledger
+    // (`customer_excess_credit` — the same single source of truth the
+    // `apply_service_downpayment` RPC consumes from) and, when it covers the
+    // whole new downpayment, we skip the "Payment Required" prompt and add the
+    // service against funds already on account.
     //
-    // Only the SHORTFALL (if any) is then requested from the customer, so a
-    // ₱1,020 credit fully covers a ₱500 downpayment and leaves ₱520 on account.
+    // WHY THE CUSTOMER LEDGER AND NOT THE BOOKING SUMMARY:
+    // The booking-scoped `calculatePaymentSummary().credit` reflects the
+    // RAW overpayment (Net Paid − total_amount), which is NOT decremented when a
+    // no-payment service is added. Using it here caused a DOUBLE-COUNT: after
+    // consuming ₱500 of credit on the wax, a subsequent ₱800 service saw the
+    // stale ₱500 booking-credit and produced a NEGATIVE shortfall prompt
+    // (₱240 − ₱500). The customer ledger is decremented by the RPC on every
+    // absorption, so it always reflects spendable credit.
     //
-    // NOTE: we compute this from `booking` + `bookingPayments` directly rather
-    // than from the render-scope `paymentSummary` constant, because this handler
-    // is defined ABOVE that declaration — referencing it here would hit the
-    // temporal dead zone and throw a ReferenceError at click time.
-    const existingCredit = Math.max(0, Number(
-      calculatePaymentSummary({ ...booking, payments: bookingPayments })?.credit || 0
-    ));
+    // `fetchExcessCredit` fails closed to 0, so an unavailable ledger simply
+    // falls back to the normal shortfall prompt — never an under-charge.
+    let existingCredit = 0;
+    const creditCustomerId = booking?.customer_id;
+    if (creditCustomerId) {
+      try {
+        existingCredit = Math.max(0, Number(await fetchExcessCredit(creditCustomerId) || 0));
+      } catch (creditLookupErr) {
+        logger.warn('Excess-credit lookup failed; falling back to the shortfall prompt.', creditLookupErr);
+        existingCredit = 0;
+      }
+    }
+
     if (existingCredit >= downpayment && downpayment > 0) {
-      toast.success(`₱${existingCredit.toLocaleString()} of overpaid balance covers this downpayment — no new payment required.`);
-      // Add the service with no additional payment collected.
+      toast.success(`₱${existingCredit.toLocaleString()} of credit on account covers this downpayment — no new payment required.`);
+      // Add the service with no additional payment collected. We still run the
+      // absorb RPC so the customer ledger is decremented by this downpayment.
+      if (creditCustomerId) {
+        try {
+          await applyServiceDownpayment(creditCustomerId, id, downpayment);
+        } catch (absorbErr) {
+          logger.warn('Credit absorb on covered service failed (non-fatal).', absorbErr);
+        }
+      }
       handleAddService(vehicleId, service, null);
       return;
     }
