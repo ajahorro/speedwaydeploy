@@ -52,7 +52,22 @@ export const calculatePaymentSummary = (booking = {}) => {
     || payments.some(payment => String(payment.status || '').toUpperCase() === 'REFUNDED');
   const isPendingVerification = payments.some(payment => String(payment.status || '').toUpperCase() === 'FOR_VERIFICATION');
   const requiredDownpayment = calculateRequiredDownpayment(totalAmount).amount;
-  const balance = Math.max(0, totalAmount - totalPaid);
+
+  // 🛡️ HOTFIX Fix 2 — SIGNED BALANCE + CREDIT CARRY-FORWARD.
+  //
+  // `balance` used to be clamped with Math.max(0, ...), which SILENTLY DISCARDED
+  // an overpayment: a customer who paid ₱2,000 against a ₱980 bill reported
+  // balance 0 — indistinguishable from exactly-paid, and the ₱1,020 credit was
+  // invisible to every caller (including the Add-Service coverage check).
+  //
+  // We now return THREE distinct figures so no caller can conflate them:
+  //   balance   : still OWED by the customer (clamped at 0 — never negative)
+  //   credit    : overpaid amount the shop holds for the customer (>= 0)
+  //   netBalance: SIGNED truth (totalAmount − totalPaid); negative = credit
+  const rawBalance = Math.round((totalAmount - totalPaid) * 100) / 100;
+  const balance = Math.max(0, rawBalance);
+  const credit = Math.max(0, -rawBalance);
+  const netBalance = rawBalance;
 
   let status = 'UNPAID';
   // A refunded booking is only fully REFUNDED when the net credit has been
@@ -66,7 +81,7 @@ export const calculatePaymentSummary = (booking = {}) => {
   else if (totalPaid >= requiredDownpayment) status = 'DOWNPAYMENT_PAID';
   else if (hasProcessedRefund) status = 'PARTIALLY_REFUNDED';
 
-  return { status, totalAmount, totalPaid, processedRefunds, balance, hasProcessedRefund };
+  return { status, totalAmount, totalPaid, processedRefunds, balance, credit, netBalance, hasProcessedRefund, isOverpaid: credit > 0 };
 };
 
 /**

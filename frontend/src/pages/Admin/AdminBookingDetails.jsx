@@ -927,11 +927,37 @@ const AdminBookingDetails = () => {
 
     const downpayment = calculateRequiredDownpayment(price).amount;
 
+    // 🛡️ HOTFIX Fix 2 — EXISTING OVERPAYMENT COVERS THE NEW DOWNPAYMENT.
+    //
+    // If the customer already overpaid the booking (Net Paid > Total Cost), the
+    // shop is HOLDING their money. Charging them a fresh downpayment for an
+    // added service would double-charge. We compute the booking's current credit
+    // from the same signed summary the ledger uses and, when it covers the whole
+    // new downpayment, we skip the "Payment Required" prompt entirely — the
+    // service is added against funds already on account.
+    //
+    // Only the SHORTFALL (if any) is then requested from the customer, so a
+    // ₱1,020 credit fully covers a ₱500 downpayment and leaves ₱520 on account.
+    //
+    // NOTE: we compute this from `booking` + `bookingPayments` directly rather
+    // than from the render-scope `paymentSummary` constant, because this handler
+    // is defined ABOVE that declaration — referencing it here would hit the
+    // temporal dead zone and throw a ReferenceError at click time.
+    const existingCredit = Math.max(0, Number(
+      calculatePaymentSummary({ ...booking, payments: bookingPayments })?.credit || 0
+    ));
+    if (existingCredit >= downpayment && downpayment > 0) {
+      toast.success(`₱${existingCredit.toLocaleString()} of overpaid balance covers this downpayment — no new payment required.`);
+      // Add the service with no additional payment collected.
+      handleAddService(vehicleId, service, null);
+      return;
+    }
+
     // Task B: dynamic overpayment ledger. Auto-absorb available excess_credit
     // against the downpayment D. If D <= excess_credit the prompt is zero; if
     // D > excess_credit we prompt only for the net shortfall.
     let requiredNow = downpayment;
-    let creditUsed = 0;
+    let creditUsed = existingCredit;
     const customerId = booking?.customer_id;
     if (customerId) {
       try {

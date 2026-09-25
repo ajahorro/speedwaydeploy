@@ -1297,13 +1297,27 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
 
     // Check for mismatch (handling minor precision differences)
     //
-    // 🛡️ EDGE CASE FIX — ±₱1.00 TOLERANCE IS INCLUSIVE.
-    // The spec is "±₱1.00": a receipt whose amount differs from the required
-    // amount by exactly ₱1.00 (e.g. required ₱1000, receipt ₱999 or ₱1001) MUST
-    // be ACCEPTED. The previous `< 1.0` was STRICTLY less-than, so a difference of
-    // exactly 1.00 failed the check and valid money was rejected at the boundary.
-    // We use `<= 1.0` so both endpoints of the ±1 tolerance are inclusive.
-    const isAmountMatch = Math.abs(extractedAmount - requiredAmount) <= 1.0;
+    // 🛡️ HOTFIX — FLOOR CHECK (overpayments are ACCEPTED).
+    //
+    // The previous symmetric check `Math.abs(extracted - required) <= 1.0`
+    // treated a receipt ABOVE the required amount as a MISMATCH, so a genuine
+    // overpayment (net ₱2,000 extracted against a ₱980 requirement) was flagged
+    // and the booking completion was halted over money that had actually been
+    // received. That is wrong: paying MORE than required is never a payment
+    // failure.
+    //
+    // The correct rule is a FLOOR with tolerance: the receipt passes when
+    //     extractedAmount >= requiredAmount - 1.00
+    // i.e. any amount at or above (required − ₱1.00) is accepted, while a true
+    // shortfall (₱978 vs ₱980, or a ₱10 scan of a ₱980 bill) is still flagged.
+    // The overage itself is banked as excess credit by the ledger (see
+    // `rpcExcess` in bookingService and the creditLedgerService).
+    const AMOUNT_TOLERANCE = 1.0;
+    const isAmountMatch = extractedAmount >= (requiredAmount - AMOUNT_TOLERANCE);
+    const overpaymentAmount = Math.max(0, Math.round((extractedAmount - requiredAmount) * 100) / 100);
+    if (overpaymentAmount > 0) {
+      console.log(`💰 [OCR] OVERPAYMENT accepted: ₱${extractedAmount} vs required ₱${requiredAmount} → ₱${overpaymentAmount} surplus banked as credit.`);
+    }
 
     // 🛡️ Section 2.1–2.3: DATE-MATCH ENFORCEMENT.
     // The receipt's transaction date must be TODAY. A stale or future-dated
@@ -1442,6 +1456,10 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           ...extractedData,
           requiredAmount,
           isAmountMatch,
+          // HOTFIX: persist the surplus explicitly so the ledger/UI can show
+          // "₱X credit" rather than treating an overpayment as a mismatch.
+          overpaymentAmount,
+          isOverpayment: overpaymentAmount > 0,
           isDateMatch,
           isDuplicate,
           // SC-17: the perceptual image hash, persisted so a later reuse of the
