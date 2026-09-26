@@ -92,7 +92,7 @@ export const getEffectiveQrTarget = async (bookingId) => {
 
 // ── OTP flow ────────────────────────────────────────────────────────────────
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
 
 /** Generate a cryptographically-random 6-digit code. */
 const generateOtp = () => {

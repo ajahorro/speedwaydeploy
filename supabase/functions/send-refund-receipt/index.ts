@@ -149,9 +149,17 @@ serve(async (req) => {
       status: 200,
     })
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    const isAuthorizationFailure = /Authentication|Authenticated user|Administrator access/i.test(error?.message || '')
+    return new Response(JSON.stringify({
+      error: error.message,
+      ...(isAuthorizationFailure ? {} : { emailPending: true }),
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
+      // A refund is already committed before this function is called. Return
+      // a structured pending result for delivery/configuration failures so the
+      // admin UI can keep the refund and offer retry without a misleading
+      // generic network failure. Authentication/authorization still fail hard.
+      status: isAuthorizationFailure ? 403 : 200,
     })
   }
 })

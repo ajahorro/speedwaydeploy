@@ -70,8 +70,61 @@ export const subscribeToNotifications = (userId, callback) => {
     .subscribe(); // .subscribe() MUST be at the very end!
 };
 
+/**
+ * Send the single lifecycle email for a booking event.
+ *
+ * ONE dispatch point for every customer booking email. The function itself owns
+ * the templates, the money model and the exactly-once guard, so the client only
+ * says WHICH event happened — it never assembles or de-duplicates mail.
+ *
+ * Events this client fires:
+ *   'booking_created'   — on submit. Carries the payment-as-submitted and what
+ *                         the OCR read. No receipt (money not verified yet).
+ *   'booking_confirmed' — on admin verification. Carries the receipt PDF.
+ *   a raw status        — on any other status change.
+ *
+ * @param {string} bookingId
+ * @param {string} event  lifecycle keyword or raw status
+ * @param {object} [opts] { remarks, reminder, eventKey }
+ */
+export const sendStatusEmail = async (bookingId, event, opts = {}) => {
+  try {
+    const { data, error } = await supabase.functions.invoke('booking-lifecycle', {
+      body: {
+        bookingId,
+        event,
+        // Kept for backwards compatibility with callers that pass a status.
+        newStatus: typeof opts === 'string' ? opts : opts.newStatus,
+        remarks: typeof opts === 'string' ? '' : (opts.remarks || ''),
+        reminder: typeof opts === 'string' ? false : Boolean(opts.reminder),
+        eventKey: typeof opts === 'string' ? undefined : opts.eventKey,
+      }
+    });
+
+    if (error) throw error;
+    if (data?.skipped) {
+      console.info(`[NotificationService] ${event} email already sent for ${bookingId} — duplicate suppressed.`);
+    }
+    return data;
+  } catch (error) {
+    console.error('[NotificationService] Error:', error);
+    return { error: error.message };
+  }
+};
+
 export const sendBookingConfirmationEmail = async (bookingId) => {
-  return sendStatusEmail(bookingId, 'CONFIRMED');
+  // The confirmation event is the one that carries the official receipt PDF.
+  return sendStatusEmail(bookingId, 'booking_confirmed');
+};
+
+/**
+ * Trigger the post-verification confirmation + receipt email.
+ * Idempotent at the DATABASE level: a second call for the same booking is
+ * refused by booking_email_deliveries, so an admin retrying a verification that
+ * already mailed the receipt will not mail it twice.
+ */
+export const sendPaymentVerifiedEmail = async (bookingId) => {
+  return sendStatusEmail(bookingId, 'booking_confirmed');
 };
 
 export const sendPaymentReceiptEmail = async (bookingId, paymentId) => {
@@ -94,14 +147,20 @@ export const sendPaymentReceiptEmail = async (bookingId, paymentId) => {
 
 /**
  * REQ-SYS-02: Automated Status Notification Trigger
- * Calls the Supabase Edge Function to dispatch professional emails.
+ *
+ * Delegates to the booking-lifecycle edge function, which is the SINGLE source
+ * of truth for booking emails. It owns the templates, the money model and the
+ * exactly-once guard, so no caller can produce a duplicate or a mail that
+ * disagrees with the portal's figures.
+ *
+ * @deprecated prefer the named helpers below, which state the EVENT rather than
+ * a bare status string. Kept so existing call sites keep working.
  */
-export const sendStatusEmail = async (bookingId, newStatus, remarks = '') => {
+export const sendStatusEmailLegacy = async (bookingId, newStatus, remarks = '') => {
   try {
-    const { data, error } = await supabase.functions.invoke('send-status-email', {
-      body: { bookingId, newStatus, remarks }
+    const { data, error } = await supabase.functions.invoke('booking-lifecycle', {
+      body: { bookingId, event: newStatus, newStatus, remarks }
     });
-
     if (error) throw error;
     return data;
   } catch (error) {

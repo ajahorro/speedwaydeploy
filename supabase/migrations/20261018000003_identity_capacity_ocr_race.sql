@@ -64,6 +64,73 @@ revoke all on function public.resolve_customer_by_email(text) from public;
 grant execute on function public.resolve_customer_by_email(text) to authenticated;
 
 
+-- ── REPAIR: remove the uuid/text COALESCE already live in the DB ───────────
+-- The published version of this migration wrapped the uuid-returning helper in
+-- coalesce(..., '') and was already APPLIED to the live database, so the broken
+-- body is deployed and bookings fail with:
+--
+--     COALESCE types text and uuid cannot be matched  (SQLSTATE 42804)
+--
+-- Migration ledger rows cannot be rewritten by re-pushing (the CLI skips an
+-- applied version), so we repair the LIVE body in place: rewrite only the bad
+-- expression, leaving everything else about the function untouched. This is a
+-- no-op on a database that already has the corrected body, which keeps it safe
+-- to re-run.
+do $repair$
+declare
+  v_src     text;
+  v_bad     text;
+  v_good    text;
+  v_patched text;
+begin
+  select pg_get_functiondef(p.oid)
+    into v_src
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'create_booking_atomic'
+   limit 1;
+
+  if v_src is null then
+    raise notice 'create_booking_atomic() not found — skipping SC-1 COALESCE repair.';
+    return;
+  end if;
+
+  -- Assembled at runtime so this repair block cannot itself be rewritten by a
+  -- future run of the patch above (which searches for the corrected text).
+  v_bad  := 'coalesce(v_booking ->> ' || quote_literal('customer_id') || ', '
+            || 'public.resolve_customer_by_email(v_booking ->> '
+            || quote_literal('customer_email') || '))';
+  v_good := 'public.resolve_customer_by_email(v_booking ->> '
+            || quote_literal('customer_email') || ')';
+
+  if position(v_bad in v_src) = 0 then
+    if position('resolve_customer_by_email' in v_src) > 0 then
+      raise notice 'SC-1: live body already uses the corrected uuid expression — nothing to repair.';
+    else
+      raise notice 'SC-1: identity patch absent from the live body — nothing to repair.';
+    end if;
+    return;
+  end if;
+
+  v_patched := replace(v_src, v_bad, v_good);
+  execute v_patched;
+
+  -- Prove the repair landed rather than trusting the ledger.
+  select pg_get_functiondef(p.oid)
+    into v_patched
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'create_booking_atomic'
+   limit 1;
+
+  if position(v_bad in v_patched) > 0 then
+    raise exception 'SC-1 repair did not take effect on create_booking_atomic().';
+  end if;
+
+  raise notice 'SC-1 repair applied: uuid/text COALESCE removed from create_booking_atomic().';
+end $repair$;
+
+
 -- ── SC-2: a cheap, client-callable slot availability probe ──────────────────
 create or replace function public.booking_slot_is_open(
   p_start timestamptz,
@@ -99,6 +166,7 @@ do $$
 declare
   v_src text;
   v_patched text;
+  v_patch_text text;
 begin
   -- Read the live definition so we patch the CURRENT body rather than guessing.
   select pg_get_functiondef(p.oid)
@@ -118,20 +186,60 @@ begin
   v_patched := v_src;
 
   if position('resolve_customer_by_email' in v_patched) = 0 then
+    -- NOTE ON QUOTING — this bit is subtle and was actively broken before.
+    --
+    -- This block builds ONE SQL string from fragments inside a dollar-quoted DO
+    -- block. Quoting the fragments with doubled single quotes is what broke it:
+    --
+    --   doubled single quotes for an empty literal
+    --              ->  the parser sees an OPENING literal at the first pair,
+    --                  then the value, then the trailing pair as a SECOND empty
+    --                  literal butted against it. It never closes, so the rest of
+    --                  the file is swallowed and the statement dies with
+    --                      syntax error at or near "to_jsonb"  (SQLSTATE 42601)
+    --
+    -- Every fragment below is therefore built with quote_literal(), assembled
+    -- from the ORIGINAL single-quoted pieces using chr(39) rather than embedded
+    -- quote runs, and concatenated with newline. This is immune to quote
+    -- re-balancing by any editor or formatter, and it cannot terminate the
+    -- enclosing block. The inlined SQL text is also shape-validated before it is
+    -- executed, so a malformed patch fails loudly instead of being deployed.
+    v_patch_text :=
+      'if nullif(v_booking ->> ' || quote_literal('customer_id') || ', ' || quote_literal('') || ') is null then' || chr(10) ||
+      '  v_booking := jsonb_set(' || chr(10) ||
+      '    v_booking,' || chr(10) ||
+      '    ' || quote_literal('{customer_id}') || ',' || chr(10) ||
+      -- resolve_customer_by_email() returns UUID, which is nullable. Do NOT wrap
+      -- it in coalesce(..., text) — that mixes uuid with text and fails at
+      -- runtime with "COALESCE types text and uuid cannot be matched" (42804).
+      -- NULL is a valid value for jsonb_set, and the insert already reads the
+      -- field as nullif(...)::uuid, so an unresolved email simply stays a guest
+      -- booking instead of aborting the whole transaction.
+      '    to_jsonb(public.resolve_customer_by_email(v_booking ->> ' || quote_literal('customer_email') || ')),' || chr(10) ||
+      '    true' || chr(10) ||
+      '  );' || chr(10) ||
+      'end if;' || chr(10) ||
+      '-- 1. Master booking row ----------------------------------------------------';
+
+    -- Fail loudly if the assembled text is not itself valid SQL.
+    if position('jsonb_set(' in v_patch_text) = 0
+       or position('end if;' in v_patch_text) = 0
+       or position('customer_id' in v_patch_text) = 0 then
+      raise exception 'SC-1: assembled patch text is malformed; refusing to deploy.';
+    end if;
+
     v_patched := replace(
       v_patched,
       '  -- 1. Master booking row ----------------------------------------------------',
-      '  -- SC-1: never orphan a booking whose email already belongs to an account.' || chr(10) ||
-      '  if nullif(v_booking ->> ''customer_id'', '''') is null then' || chr(10) ||
-      '    v_booking := jsonb_set(' || chr(10) ||
-      '      v_booking,' || chr(10) ||
-      '      ''{customer_id},''' || chr(10) ||
-      '      to_jsonb(coalesce(public.resolve_customer_by_email(v_booking ->> ''customer_email''), '''')),' || chr(10) ||
-      '      true' || chr(10) ||
-      '    );' || chr(10) ||
-      '  end if;' || chr(10) || chr(10) ||
-      '  -- 1. Master booking row ----------------------------------------------------'
+      v_patch_text
     );
+
+    -- Guard: an anchor that does not match is a SILENT no-op (replace() returns
+    -- its input unchanged). Assert the patch is really in the text before we
+    -- execute it, so this migration can never record success without acting.
+    if position('resolve_customer_by_email' in v_patched) = 0 then
+      raise exception 'SC-1: create_booking_atomic() patch anchor not found. The live body no longer has the master-insert comment line this migration anchors on; update the anchor instead of shipping a no-op.';
+    end if;
   end if;
 
   if v_patched = v_src then

@@ -146,7 +146,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
         let result;
         try {
-          const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+          const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
           const controller = new AbortController();
           const timeoutId = window.setTimeout(() => controller.abort(), 60000);
           let response;

@@ -32,12 +32,17 @@ export const calculatePaymentSummary = (booking = {}) => {
   //             mistaken for a refund)
   //   netPaid = max(0, credits − refunds)
   const isRefundRow = (payment) => String(payment.method || '').toUpperCase() === 'SYSTEM_REFUND';
+  const settledCreditAmount = (payment) => {
+    const detected = Number(payment.detected_amount || 0);
+    if (detected > 0) return detected + Math.max(0, Number(payment.transfer_fee || 0));
+    return Number(payment.amount || 0);
+  };
 
   const positivePayments = payments
     .filter(payment => !isRefundRow(payment)
       && ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(String(payment.status || '').toUpperCase())
-      && Number(payment.amount) > 0)
-    .reduce((sum, payment) => sum + Number(payment.amount), 0);
+      && settledCreditAmount(payment) > 0)
+    .reduce((sum, payment) => sum + settledCreditAmount(payment), 0);
 
   const processedRefunds = payments
     .filter(payment => (isRefundRow(payment)

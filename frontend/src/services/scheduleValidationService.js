@@ -12,7 +12,7 @@ import { logger } from '../utils/logger';
  * <ValidationModal>.
  */
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
 
 /**
  * Asks the server whether a booking request is allowed.

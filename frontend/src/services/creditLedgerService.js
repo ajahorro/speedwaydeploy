@@ -61,28 +61,34 @@ export const fetchCreditLedger = async (customerId) => {
 
 /**
  * Record an overpayment's surplus into the ledger.
+ *
  * Called right after a payment is verified when net_credit > amount_due.
+ *
+ * This used to INSERT into customer_credit_ledger directly from the browser,
+ * which RLS rejects for every non-admin with 42501 — silently losing the
+ * customer's credit. Writes now go through public.record_excess_credit(),
+ * which authorizes the caller, serializes per customer, computes the running
+ * balance inside the transaction, and is idempotent per booking (so a retried
+ * submit cannot credit the same surplus twice).
  */
 export const recordExcessCredit = async (customerId, bookingId, amount, note = '') => {
   const value = Number(amount) || 0;
   if (value <= 0) return { recorded: 0 };
+  if (!customerId) return { recorded: 0 };
 
-  const current = await fetchExcessCredit(customerId);
-  const balanceAfter = current + value;
-
-  const { error } = await supabase.from('customer_credit_ledger').insert({
-    customer_id: customerId,
-    booking_id: bookingId || null,
-    entry_type: 'EXCESS',
-    amount: value,
-    balance_after: balanceAfter,
-    note: note || 'Overpayment surplus recorded as excess credit',
+  const { data, error } = await supabase.rpc('record_excess_credit', {
+    p_customer_id: customerId,
+    p_booking_id: bookingId || null,
+    p_amount: value,
+    p_note: note || null,
   });
+
   if (error) {
     logger.error('Failed to record excess credit', error);
     throw new Error('Could not record the overpayment credit. Please contact an administrator.');
   }
-  return { recorded: value, balanceAfter };
+
+  return { recorded: Number(data?.recorded) || 0, balanceAfter: Number(data?.balance_after) || 0, alreadyRecorded: data?.already_recorded };
 };
 
 /**

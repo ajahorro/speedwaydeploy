@@ -15,6 +15,9 @@ const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEm
 const { DELIVERY, assertDelivery } = require('./config/emailPolicy');
 const { processReceiptOCR } = require('./services/ocrService');
 const ocrGuard = require('./services/ocrGuard');
+// ONE money model shared by the receipt email, the receipt PDF and the portal,
+// plus the OCR-vs-recorded reconciliation that surfaces amount drift.
+const { resolveTransactionAmounts, reconcileOcrAmounts, formatPeso } = require('./services/transactionAmounts');
 const resendClient = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const RESEND_FROM = process.env.RESEND_FROM || 'Speedway AutoxMoto <bookings@yourdomain.com>';
 
@@ -353,12 +356,12 @@ const formatCurrency = (value) => new Intl.NumberFormat('en-PH', {
 
 const escapePdfText = (value = '') => String(value).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 
-const buildReceiptPdfBuffer = ({ receiptNumber, customerName, bookingReference, issuedAt, paymentMethod, processedBy, customerContact, customerAddress, customerTaxId, items = [], subtotal = 0, discountAmount = 0, vatRate = 0.12 }) => {
-  const safeSubtotal = Number(subtotal || 0);
-  const safeDiscount = Number(discountAmount || 0);
-  const vatableSales = Math.max(0, safeSubtotal - safeDiscount);
-  const vatAmount = Math.max(0, vatableSales * vatRate);
-  const totalDue = safeSubtotal - safeDiscount + vatAmount;
+const buildReceiptPdfBuffer = ({ receiptNumber, customerName, bookingReference, issuedAt, paymentMethod, processedBy, customerContact, customerAddress, customerTaxId, items = [], subtotal = 0, discountAmount = 0, vatRate = 0.12, amounts = null }) => {
+  // The attached PDF is the "official receipt" — it MUST agree with the email
+  // that carries it. Both now render from the shared amount model. Previously
+  // this function independently ADDED 12% VAT to the booking total, so the PDF
+  // and the email could quote different totals for the very same payment.
+  const a = amounts || resolveTransactionAmounts({ total_amount: subtotal }, null);
   const dateString = issuedAt ? new Date(issuedAt).toLocaleString() : new Date().toLocaleString();
 
   const lines = [
@@ -385,11 +388,18 @@ const buildReceiptPdfBuffer = ({ receiptNumber, customerName, bookingReference, 
       return `${label} ${service} ${qty} ${formatCurrency(unitPrice)} ${formatCurrency(lineTotal)}`;
     }),
     '',
-    `Subtotal: ${formatCurrency(safeSubtotal)}`,
-    `Discount / Promo: -${formatCurrency(safeDiscount)}`,
-    `Vatable Sales: ${formatCurrency(vatableSales)}`,
-    `VAT (12%): ${formatCurrency(vatAmount)}`,
-    `Total Amount Due: ${formatCurrency(totalDue)}`,
+    ...(a.transferFee > 0 ? [`Transfer Fee (absorbed): ${formatCurrency(a.transferFee)}`] : []),
+    ...(a.creditApplied > 0 ? [`Credit Applied: -${formatCurrency(a.creditApplied)}`] : []),
+    `Amount Paid: ${formatCurrency(a.grossPaid)}`,
+    `Amount Received: ${formatCurrency(a.netReceived)}`,
+    `Amount Credited to Booking: ${formatCurrency(a.creditedToBooking)}`,
+    ...(a.excessCredit > 0 ? [`Recorded as Excess Credit: ${formatCurrency(a.excessCredit)}`] : []),
+    `Booking Total: ${formatCurrency(a.totalDue)}`,
+    ...(a.remainingBalance > 0 ? [`Balance Still Due: ${formatCurrency(a.remainingBalance)}`] : []),
+    // VAT is INCLUDED in the published prices and broken out for compliance —
+    // it is never added on top of what the customer already paid.
+    `VAT (12%, included): ${formatCurrency(a.vatIncluded)}`,
+    `Net of VAT: ${formatCurrency(a.vatExclusiveSales)}`,
     '',
     'This receipt is valid for tax and audit purposes.'
   ];
@@ -422,7 +432,8 @@ const buildReceiptPdfBuffer = ({ receiptNumber, customerName, bookingReference, 
   return Buffer.from(pdf, 'binary');
 };
 
-const buildReceiptEmailHtml = ({ customerName, bookingReference, receiptNumber, paidAmount, paymentMethod, issuedAt, items, subtotal, discountAmount, vatAmount, totalDue }) => {
+const buildReceiptEmailHtml = ({ customerName, bookingReference, receiptNumber, amounts, paymentMethod, issuedAt, items, pendingLabel, receiptNarrative }) => {
+  const a = amounts;
   const itemRows = (items || []).map((item) => `
     <tr>
       <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: top;">
@@ -434,6 +445,26 @@ const buildReceiptEmailHtml = ({ customerName, bookingReference, receiptNumber, 
       <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 12px; color: #111827; font-weight: 700; font-feature-settings: 'tnum' 1; font-variant-numeric: tabular-nums;">${formatCurrency(item.lineTotal ?? item.unitPrice ?? 0)}</td>
     </tr>
   `).join('');
+
+  // Totals are rendered from the SHARED amount model, so the email and the PDF
+  // can never quote different numbers. VAT is shown as INCLUDED (broken out of
+  // a VAT-inclusive price), never added on top — adding it on top is what
+  // turned a ₱250 payment into a ₱280 demand.
+  const totalRows = [
+    `<div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #4b5563;"><span>Booking Total</span><span>${formatCurrency(a.totalDue)}</span></div>`,
+    a.transferFee > 0
+      ? `<div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #4b5563;"><span>Transfer Fee (absorbed)</span><span>${formatCurrency(a.transferFee)}</span></div>`
+      : '',
+    a.creditApplied > 0
+      ? `<div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #4b5563;"><span>Credit Applied</span><span>- ${formatCurrency(a.creditApplied)}</span></div>`
+      : '',
+    `<div style="display: flex; justify-content: space-between; padding-top: 8px; font-size: 18px; font-weight: 800; color: #111827;"><span>${a.remainingBalance > 0 ? 'Balance Still Due' : 'Amount Paid'}</span><span>${formatCurrency(a.remainingBalance > 0 ? a.remainingBalance : a.creditedToBooking)}</span></div>`,
+    `<div style="display: flex; justify-content: space-between; padding: 6px 0 0; font-size: 11px; color: #6b7280;"><span>VAT (12%, included in the total above)</span><span>${formatCurrency(a.vatIncluded)}</span></div>`,
+  ].filter(Boolean).join('');
+
+  const pendingBanner = pendingLabel
+    ? `<div style="margin: 0 0 16px; padding: 12px 14px; background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 6px; font-size: 13px; color: #92400e;"><strong>${pendingLabel}</strong></div>`
+    : '';
 
   return `
     <div style="font-family: Inter, system-ui, sans-serif; max-width: 640px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; color: #111827;">
@@ -487,21 +518,117 @@ const buildReceiptEmailHtml = ({ customerName, bookingReference, receiptNumber, 
           </tbody>
         </table>
 
-        <div style="max-width: 260px; margin-left: auto; border-top: 2px solid #111827; padding-top: 12px;">
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #4b5563;"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #4b5563;"><span>Discount / Promo</span><span>- ${formatCurrency(discountAmount)}</span></div>
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #4b5563;"><span>Vatable Sales</span><span>${formatCurrency(subtotal - discountAmount)}</span></div>
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #4b5563;"><span>VAT (12%)</span><span>${formatCurrency(vatAmount)}</span></div>
-          <div style="display: flex; justify-content: space-between; padding-top: 8px; font-size: 18px; font-weight: 800; color: #111827;"><span>Total Amount Due</span><span>${formatCurrency(totalDue)}</span></div>
+        <div style="max-width: 300px; margin-left: auto; border-top: 2px solid #111827; padding-top: 12px;">
+          ${totalRows}
         </div>
       </div>
       <div style="padding: 0 24px 24px; font-size: 12px; color: #4b5563; line-height: 1.6;">
+        ${pendingBanner}
         <p style="margin: 0;">Hi ${customerName},</p>
-        <p style="margin: 10px 0 0;">Thank you for your payment. Your transaction has been processed successfully and the receipt is attached below for your records.</p>
+        <p style="margin: 10px 0 0;">${receiptNarrative}</p>
       </div>
     </div>
   `;
 };
+
+// A receipt must never read as "paid in full" while the money is still sitting
+// in the verification queue. The narrative sentence is derived from the SAME
+// amount model as the totals table, so the two cannot contradict each other.
+const buildReceiptNarrative = (amounts, isPending) => {
+  const received = formatPeso(amounts.creditedToBooking);
+  const balance = formatPeso(amounts.remainingBalance);
+
+  if (isPending) {
+    return `We have received ${received} against this booking and it is now queued for verification. ` +
+      (amounts.remainingBalance > 0
+        ? `A balance of ${balance} remains on the booking. `
+        : '') +
+      'You will receive a final confirmation once our team has verified the payment. Please keep this copy for your records.';
+  }
+
+  if (amounts.remainingBalance > 0) {
+    return `We have recorded ${received} against this booking. A balance of ${balance} remains payable. ` +
+      'This receipt covers the amount received to date and is attached for your records.';
+  }
+
+  if (amounts.excessCredit > 0) {
+    return `We have received ${received} in full payment for this booking. This is ${formatPeso(amounts.excessCredit)} ` +
+      `more than the booking total; the surplus has been banked as credit on your account. Receipt attached.`;
+  }
+
+  return `We have received ${received} in full payment for this booking. Your official receipt is attached below for your records.`;
+};
+
+/**
+ * Record a material OCR-vs-recorded amount divergence so it can be reconciled
+ * rather than silently shipped. Without this the receipt quoted one figure and
+ * the booking ledger another, and nothing anywhere recorded the disagreement.
+ * Best-effort: a failure to log must not fail the receipt.
+ */
+const auditOcrMismatch = async ({ bookingId, paymentId, reconciliation, booking }) => {
+  try {
+    await supabaseAdmin.from('audit_logs').insert({
+      booking_id: bookingId,
+      action_type: 'OCR_AMOUNT_MISMATCH',
+      details:
+        `Recorded amount ${formatPeso(reconciliation.declared)} does not match the OCR-read amount ` +
+        `${formatPeso(reconciliation.detected)} (difference ${formatPeso(reconciliation.difference)}). ` +
+        `Severity: ${reconciliation.severity}. The recorded amount remains authoritative; review the receipt.`,
+      actor_name: 'SYSTEM',
+      actor_role: 'SYSTEM',
+      metadata: {
+        payment_id: paymentId,
+        declared: reconciliation.declared,
+        detected: reconciliation.detected,
+        difference: reconciliation.difference,
+        severity: reconciliation.severity,
+        booking_total: Number(booking?.total_amount || 0),
+      },
+    });
+  } catch (err) {
+    console.warn('Could not write OCR_AMOUNT_MISMATCH audit row:', err?.message);
+  }
+};
+
+/**
+ * The booking's OVERALL FINANCIAL LEDGER.
+ *
+ * One place that answers "where does this booking stand financially?", composed
+ * from the same rule the UI uses (settled = PAID-family only) PLUS the
+ * OCR-attributed money that the ledger deliberately excludes while it awaits
+ * verification.
+ *
+ * The OCR output previously reached payments.detected_amount and
+ * bookings.ocr_metadata but appeared in NO financial total, because an unverified
+ * receipt must never count as recognised revenue. This endpoint surfaces it as a
+ * named, separate figure (with the declared-vs-OCR variance) so a reconciliation
+ * can see it without inflating the books.
+ */
+app.get('/api/bookings/:bookingId/financial-ledger', async (req, res) => {
+  const { bookingId } = req.params;
+  try {
+    const { data, error } = await supabaseAdmin.rpc('booking_financial_ledger', {
+      p_booking_id: bookingId,
+    });
+
+    if (error) {
+      // A missing booking is a client error, not a server fault.
+      const notFound = error.code === 'P0002' || /not found/i.test(error.message || '');
+      return res.status(notFound ? 404 : 500).json({ success: false, error: error.message });
+    }
+
+    return res.json({
+      success: true,
+      ledger: data,
+      // Explicit so no consumer has to re-derive the accounting rule:
+      // unverified money is reported, never recognised.
+      note: 'settled_amount counts verified money only; pending_verification is claimed but unverified and is NOT revenue.',
+    });
+  } catch (err) {
+    console.error('❌ Financial ledger lookup failed:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 app.post('/api/emails/booking-confirmation', async (req, res) => {
   const { bookingId } = req.body;
@@ -642,11 +769,33 @@ app.post('/api/emails/payment-receipt', async (req, res) => {
     const customerTaxId = booking.customer_tax_id || 'N/A';
     const receiptNumber = payment.reference_number || `INV-${String(paymentId || bookingId).slice(0, 8).toUpperCase()}`;
     const issuedAt = payment.created_at || booking.created_at;
-    const subtotal = Number(payment.amount || booking.total_amount || 0);
-    const discountAmount = Number(payment.discount_amount || 0);
-    const vatRate = 0.12;
-    const vatAmount = Math.max(0, (subtotal - discountAmount) * vatRate);
-    const totalDue = subtotal - discountAmount + vatAmount;
+
+    // ONE money model for the email, the PDF and the portal. Previously the
+    // receipt took `payment.amount || booking.total_amount` and then ADDED 12%
+    // VAT on top, so a customer who paid ₱250 was emailed a ₱280 demand in a
+    // shop whose prices already include VAT.
+    const amounts = resolveTransactionAmounts(booking, payment);
+
+    // The customer paid the GROSS; the shop received the NET. Quote the gross
+    // as "paid" so the receipt never reads as short-paid.
+    const paidAmount = amounts.grossPaid;
+
+    // RECONCILE the recorded figure against what the AI actually read.
+    // These two were drifting silently — the receipt quoted one and the booking
+    // ledger another. We surface the divergence for an admin instead of
+    // pretending they agree; the recorded amount stays authoritative so the
+    // system's own numbers remain self-consistent.
+    const reconciliation = reconcileOcrAmounts(amounts.declared, num(payment.detected_amount));
+    if (!reconciliation.matches) {
+      console.warn(
+        `⚠️ [OCR RECONCILE] Booking ${bookingId} / payment ${paymentId}: ` +
+        `recorded ₱${reconciliation.declared} vs OCR ₱${reconciliation.detected} ` +
+        `(diff ₱${reconciliation.difference}, ${reconciliation.severity}).`
+      );
+      auditOcrMismatch({ bookingId, paymentId, reconciliation, booking }).catch(() => {});
+    }
+
+    const isPendingVerification = String(payment.status || '').toUpperCase() === 'FOR_VERIFICATION';
 
     const items = booking.booking_vehicles?.flatMap((vehicle) => (vehicle.booking_vehicle_services || []).map((service) => ({
       vehicle: `${vehicle.brand || ''} ${vehicle.model || ''}`.trim() || 'Vehicle Unit',
@@ -658,22 +807,22 @@ app.post('/api/emails/payment-receipt', async (req, res) => {
       vehicle: 'Booking Summary',
       service: 'Booking Service Summary',
       qty: 1,
-      unitPrice: subtotal,
-      lineTotal: subtotal,
+      unitPrice: amounts.totalDue,
+      lineTotal: amounts.totalDue,
     }];
 
     const receiptHtml = buildReceiptEmailHtml({
       customerName,
       bookingReference: booking.booking_id || bookingId,
       receiptNumber,
-      paidAmount: subtotal,
+      amounts,
       paymentMethod: payment.method || booking.payment_method || 'Digital / Online Payment',
       issuedAt,
       items,
-      subtotal,
-      discountAmount,
-      vatAmount,
-      totalDue,
+      pendingLabel: isPendingVerification
+        ? 'Payment received and queued for verification. This is not yet an official receipt.'
+        : null,
+      receiptNarrative: buildReceiptNarrative(amounts, isPendingVerification),
     });
 
     const pdfBuffer = buildReceiptPdfBuffer({
@@ -687,9 +836,13 @@ app.post('/api/emails/payment-receipt', async (req, res) => {
       customerAddress,
       customerTaxId,
       items,
-      subtotal,
-      discountAmount,
-      vatRate,
+      subtotal: amounts.totalDue,
+      discountAmount: 0,
+      amounts,
+      paidAmount,
+      vatRate: 0.12,
+      vatAmount: amounts.vatIncluded,
+      totalDue: amounts.totalDue,
     });
 
     const attachments = [{

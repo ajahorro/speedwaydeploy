@@ -239,10 +239,7 @@ const Landing = () => {
         justifyContent: 'center',
         overflow: 'hidden'
       }}>
-        <video autoPlay muted loop playsInline style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0 }}>
-          <source src="/hero-bg.mp4" type="video/mp4" />
-        </video>
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'linear-gradient(rgba(10, 11, 13, 0.4), rgba(10, 11, 13, 0.8))', zIndex: 1 }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #17191d 0%, #0a0b0d 55%, #3a1115 100%)', zIndex: 0 }} />
         <div className="hero-content" style={{ position: 'relative', zIndex: 2, textAlign: 'center', maxWidth: '900px', padding: '0 2rem' }}>
           <h1 className="text-fluid-h1" style={{ fontWeight: '950', lineHeight: '0.9', textTransform: 'uppercase', marginBottom: '1.5rem', letterSpacing: '-2px' }}>
             TURN THE COLOR <br />

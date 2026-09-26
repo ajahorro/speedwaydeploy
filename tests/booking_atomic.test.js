@@ -34,6 +34,9 @@ const enumCastsFixFile = '20261016000002_fix_create_booking_atomic_enum_casts.sq
 const vehicleTypeFixFile = '20261016000003_fix_create_booking_atomic_vehicle_type_enum.sql';
 // Promo/discount snapshot persistence (ledger + receipt correctness).
 const promoSnapshotFile = '20261016000004_create_booking_atomic_promo_snapshot.sql';
+// OCR is authoritative for settled ledger totals when the submitted amount is stale.
+const financialLedgerFile = '20261019000005_booking_financial_ledger.sql';
+const ocrTruthLedgerFile = '20261019000006_ocr_truth_settled_ledger.sql';
 
 // Shims mirror the REAL columns probed from the live Supabase DB.
 const SHIMS = `
@@ -197,6 +200,22 @@ const count = async (db, table, where = '') =>
     // ---------- Apply the promo-snapshot migration ----------
     await db.exec(fs.readFileSync(path.join(dir, promoSnapshotFile), 'utf8'));
     console.log(`PASS  ${promoSnapshotFile} (parsed + executed)`);
+
+    await db.exec(fs.readFileSync(path.join(dir, financialLedgerFile), 'utf8'));
+    console.log(`PASS  ${financialLedgerFile} (parsed + executed)`);
+
+    await db.exec(fs.readFileSync(path.join(dir, ocrTruthLedgerFile), 'utf8'));
+    console.log(`PASS  ${ocrTruthLedgerFile} (parsed + executed)`);
+
+    const ocrTruthBookingId = '00000000-0000-0000-0000-00000000b001';
+    const ocrTruthPaymentId = '00000000-0000-0000-0000-00000000b002';
+    await db.query(`insert into public.bookings (id, total_amount) values ($1, 10000)`, [ocrTruthBookingId]);
+    await db.query(`insert into public.payments (id, booking_id, amount, detected_amount, status, method) values ($1, $2, 3000, 10000, 'PAID', 'GCash')`, [ocrTruthPaymentId, ocrTruthBookingId]);
+    const ocrNetPaid = await db.query(`select public.booking_net_paid($1) as amount`, [ocrTruthBookingId]);
+    const ocrLedger = await db.query(`select public.booking_financial_ledger($1) as ledger`, [ocrTruthBookingId]);
+    asserts.push(['OCR truth: stale submitted amount is replaced in booking_net_paid()', Number(ocrNetPaid.rows[0]?.amount) === 10000]);
+    asserts.push(['OCR truth: financial ledger reports the detected settled amount', Number(ocrLedger.rows[0]?.ledger?.settled_amount) === 10000]);
+    await db.query(`delete from public.bookings where id = $1`, [ocrTruthBookingId]);
 
     // After the fix, the exact same payload must succeed.
     const fixedProbe = await db.query(`select public.create_booking_atomic($1::jsonb) as r`, [JSON.stringify(enumProbePayload)]);

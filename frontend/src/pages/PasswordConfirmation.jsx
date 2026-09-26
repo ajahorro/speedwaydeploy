@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Lock, ShieldCheck, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
 
 const PasswordConfirmation = () => {
   const token = new URLSearchParams(window.location.search).get('token');

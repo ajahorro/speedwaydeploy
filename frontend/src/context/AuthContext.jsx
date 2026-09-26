@@ -295,7 +295,7 @@ export const AuthProvider = ({ children }) => {
    */
   const requestPasswordReset = async (email) => {
     logger.auth('Requesting password reset for:', email);
-    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/api/auth/recover-password`, {
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || window.location.origin}/api/auth/recover-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
@@ -317,7 +317,7 @@ export const AuthProvider = ({ children }) => {
 
   const requestPasswordChange = async (currentPassword, newPassword) => {
     if (!user?.email) throw new Error('You must be logged in to change your password.');
-    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/api/auth/request-password-change`, {
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || window.location.origin}/api/auth/request-password-change`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: user.email, currentPassword, newPassword })
@@ -335,7 +335,7 @@ export const AuthProvider = ({ children }) => {
    */
   const resendPasswordChange = async (currentPassword) => {
     if (!user?.email) throw new Error('You must be logged in to resend the confirmation email.');
-    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/api/auth/resend-password-confirmation`, {
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || window.location.origin}/api/auth/resend-password-confirmation`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: user.email, currentPassword })

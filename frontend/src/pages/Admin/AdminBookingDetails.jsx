@@ -455,7 +455,7 @@ const AdminBookingDetails = () => {
       await notifyUser(booking.customer_id, 'Payment Verified', `Your payment of ₱${p.amount.toLocaleString()} has been approved. Thank you!`, 'PAYMENT_APPROVED', `/customer/bookings/${id}`);
 
       // 🚀 AUTOMATIC LIFECYCLE SYNC via Backend Propagator
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
       await fetch(`${BACKEND_URL}/api/bookings/update-status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -560,7 +560,7 @@ const AdminBookingDetails = () => {
     const toastId = toast.loading(`Marking session as ${status.toUpperCase()}...`);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/api/bookings/update-master-status`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || window.location.origin}/api/bookings/update-master-status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
         body: JSON.stringify({ bookingId: id, status, reason })
@@ -686,7 +686,7 @@ const AdminBookingDetails = () => {
     setUndoNoShowModal(prev => ({ ...prev, isSubmitting: true, validationMessage: '' }));
 
     try {
-      const backendBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const backendBaseUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
       const response = await fetch(`${backendBaseUrl}/api/bookings/undo-no-show`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -886,7 +886,7 @@ const AdminBookingDetails = () => {
       }
 
       const { data: { session } } = await supabase.auth.getSession();
-      const serviceResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/api/bookings/add-service`, {
+      const serviceResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL || window.location.origin}/api/bookings/add-service`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
         body: JSON.stringify({ bookingId: id, vehicleId, serviceName: service.name, price, durationMinutes: extraMinutes, paymentAmount: paymentAmountOverride ?? null, paymentType, paymentMethod, referenceNumber })
@@ -895,9 +895,11 @@ const AdminBookingDetails = () => {
       if (!serviceResponse.ok || !serviceResult.success) throw new Error(serviceResult.error || 'Service addition was rejected by lifecycle validation.');
 
       toast.success(`Service Added: ${service.name}. Total updated.`, { id: toastId });
-      fetchBookingDetails();
-      fetchPayments(); // Refresh balance
-      setServiceModal({ open: false, vehicleId: null });
+      // Keep the picker open so the admin can add another service without
+      // reopening the modal. Refresh first so the newly added service is
+      // immediately disabled in the catalog.
+      await fetchBookingDetails();
+      await fetchPayments(); // Refresh balance
       setPendingService(null);
       setServicePaymentAmount('');
       setServicePaymentMethod('Cash');
@@ -1079,7 +1081,7 @@ const AdminBookingDetails = () => {
     const v = vehicles.find(item => item.id === vehicleId);
     const toastId = toast.loading(`Updating ${v?.brand || 'unit'} status...`);
 
-    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
     try {
       const response = await fetch(`${BACKEND_URL}/api/bookings/update-status`, {
         method: 'POST',
@@ -2080,14 +2082,14 @@ const AdminBookingDetails = () => {
                           key={s.id} 
                           type="button"
                           onClick={() => handleSelectService(serviceModal.vehicleId, s)}
-                          disabled={alreadyAssigned || isUpdatingDuration}
+                          disabled={alreadyAssigned || isUpdatingDuration || Boolean(pendingService)}
                           title={alreadyAssigned ? 'Already assigned to this vehicle' : `Add ${s.name}`}
-                          style={{ width: '100%', minHeight: '92px', textAlign: 'left', background: alreadyAssigned ? 'rgba(var(--admin-brand-rgb), 0.08)' : 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: `1px solid ${alreadyAssigned ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '4px', padding: '1rem', cursor: alreadyAssigned || isUpdatingDuration ? 'not-allowed' : 'pointer', opacity: alreadyAssigned ? 0.7 : 1, touchAction: 'manipulation' }}
+                          style={{ width: '100%', minHeight: '92px', textAlign: 'left', background: alreadyAssigned ? 'rgba(107, 114, 128, 0.12)' : 'var(--admin-bg)', color: alreadyAssigned ? 'var(--admin-text-secondary)' : 'var(--admin-text-primary)', border: `1px solid ${alreadyAssigned ? '#6b7280' : 'var(--admin-border)'}`, borderRadius: '4px', padding: '1rem', cursor: alreadyAssigned || isUpdatingDuration || pendingService ? 'not-allowed' : 'pointer', opacity: alreadyAssigned || pendingService ? 0.65 : 1, touchAction: 'manipulation' }}
                         >
                           <div style={{ fontWeight: '950', fontSize: '0.85rem', marginBottom: '0.25rem' }}>{s.name}</div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: '0.65rem', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>{s.estTime}</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-brand)' }}>{alreadyAssigned ? 'ADDED' : isUpdatingDuration ? 'ADDING...' : `₱${price.toLocaleString()}`}</span>
+                            <span style={{ fontSize: '0.9rem', fontWeight: '950', color: alreadyAssigned ? 'var(--admin-text-secondary)' : 'var(--admin-brand)' }}>{alreadyAssigned ? 'ADDED' : isUpdatingDuration ? 'ADDING...' : `₱${price.toLocaleString()}`}</span>
                           </div>
                         </button>
                       );

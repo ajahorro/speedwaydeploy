@@ -187,11 +187,11 @@ async function viewExists(name) {
   for (const fn of POSTCONDITIONS.functions) {
     const probeArgs = fn === 'booking_net_paid' ? { p_booking_id: '00000000-0000-0000-0000-000000000000' }
       : fn === 'resolve_customer_by_email' ? { p_email: 'x@example.com' }
-      : fn === 'booking_slot_is_open' ? { p_start: new Date(Date.now() + 864e5).toISOString(), p_end: new Date(Date.now() + 864e5 + 36e5).toISOString(), p_requested_bays: 1 }
-      : fn === 'booking_total_changed_since_ocr' ? { p_payment_id: '00000000-0000-0000-0000-000000000000' }
-      : fn === 'persist_ocr_result' ? { p_booking_id: '00000000-0000-0000-0000-000000000000', p_payment_id: '00000000-0000-0000-0000-000000000000', p_detected_amount: 0, p_detected_ref: null, p_payment_status: 'unpaid', p_ocr_metadata: {} }
-      : fn === 'admin_override_payment_to_paid' ? { p_payment_id: '00000000-0000-0000-0000-000000000000', p_booking_id: '00000000-0000-0000-0000-000000000000', p_verified_amount: 1 }
-      : {};
+        : fn === 'booking_slot_is_open' ? { p_start: new Date(Date.now() + 864e5).toISOString(), p_end: new Date(Date.now() + 864e5 + 36e5).toISOString(), p_requested_bays: 1 }
+          : fn === 'booking_total_changed_since_ocr' ? { p_payment_id: '00000000-0000-0000-0000-000000000000' }
+            : fn === 'persist_ocr_result' ? { p_booking_id: '00000000-0000-0000-0000-000000000000', p_payment_id: '00000000-0000-0000-0000-000000000000', p_detected_amount: 0, p_detected_ref: null, p_payment_status: 'unpaid', p_ocr_metadata: {} }
+              : fn === 'admin_override_payment_to_paid' ? { p_payment_id: '00000000-0000-0000-0000-000000000000', p_booking_id: '00000000-0000-0000-0000-000000000000', p_verified_amount: 1 }
+                : {};
     const ok = await functionExists(fn, probeArgs);
     if (!ok) postFail += 1;
     console.log(`  ${ok ? '✓' : '✗'} public.${fn}()`);

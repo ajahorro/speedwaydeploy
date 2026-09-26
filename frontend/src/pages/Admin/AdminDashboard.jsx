@@ -284,7 +284,7 @@ const AdminDashboard = () => {
       type: 'success',
       onConfirm: async () => {
         try {
-          const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/api/bookings/release`, {
+          const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || window.location.origin}/api/bookings/release`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ bookingId })

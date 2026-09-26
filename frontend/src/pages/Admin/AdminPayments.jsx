@@ -152,6 +152,12 @@ const AdminPayments = () => {
     // Auto-confirm previously changed status silently, so the customer never
     // received a CONFIRMED email. Dispatch it here to match the manual confirm
     // path in AdminBookingDetails. Failure must not roll back the status write.
+    //
+    // 'booking_confirmed' is the event that carries the OFFICIAL RECEIPT (PDF).
+    // A receipt may only be issued against VERIFIED money, so it belongs here
+    // rather than on the submission mail. Duplicate sends are refused by the
+    // database (booking_email_deliveries), so retrying a verification cannot
+    // mail the receipt twice.
     try {
       await sendBookingConfirmationEmail(bookingId);
     } catch (emailError) {
@@ -314,7 +320,7 @@ const AdminPayments = () => {
     const toastId = toast.loading('AI is scanning receipt...');
 
     try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
       const receiptResponse = await fetch(receiptUrl);
       if (!receiptResponse.ok) throw new Error('Receipt image could not be downloaded');
       const receiptBlob = await receiptResponse.blob();

@@ -132,7 +132,7 @@ const AdminRefunds = () => {
       }
 
       const refundEmail = item.customer?.email || item.customer_email;
-      const { error: emailError } = refundEmail
+      const { data: refundEmailData, error: emailError } = refundEmail
         ? await supabase.functions.invoke('send-refund-receipt', {
             body: {
               bookingId: item.id,
@@ -141,9 +141,13 @@ const AdminRefunds = () => {
           })
         : { error: new Error('Customer email not found') };
 
-      if (emailError) {
+      if (emailError || refundEmailData?.emailPending) {
         await supabase.from('bookings').update({ refund_status: 'EMAIL_PENDING' }).eq('id', item.id);
-        throw new Error(`Refund saved, but email is pending: ${emailError.message}`);
+        const emailReason = emailError?.message || refundEmailData?.error || 'The email provider did not accept the message.';
+        toast.error(`Refund saved, but email is pending: ${emailReason}`, { id: toastId });
+        await fetchRefundData();
+        setState(prev => ({ ...prev, selectedItem: null, confirmRefundItem: null, refundReason: '', refundAmount: 0 }));
+        return;
       }
 
       if (item.refundStatus === 'EMAIL_PENDING') {

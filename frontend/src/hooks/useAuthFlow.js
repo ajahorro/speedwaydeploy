@@ -129,7 +129,7 @@ export const useAuthFlow = () => {
     setIsLoading(true);
     try {
       // Route through backend relay for branded Resend delivery
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
       const res = await fetch(`${BACKEND_URL}/api/auth/recover-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -167,7 +167,7 @@ export const useAuthFlow = () => {
     }
     setIsLoading(true);
     try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
       const res = await fetch(`${BACKEND_URL}/api/auth/emergency-recovery/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -203,7 +203,7 @@ export const useAuthFlow = () => {
     }
     setIsLoading(true);
     try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
       const res = await fetch(`${BACKEND_URL}/api/auth/emergency-recovery/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

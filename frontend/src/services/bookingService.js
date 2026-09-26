@@ -336,7 +336,7 @@ export const createBooking = async (customerId, bookingData) => {
   if (bookingCustomerId) {
     for (const vehicle of vehicles) {
       try {
-        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
         await fetch(`${BACKEND_URL}/api/garage/sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -362,7 +362,7 @@ export const createBooking = async (customerId, bookingData) => {
       if (existingAccount?.id) {
         console.warn('[Booking] Skipped guest invite — email already belongs to a registered account.');
       } else {
-        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
         await fetch(`${BACKEND_URL}/admin/generate-invite`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -376,30 +376,80 @@ export const createBooking = async (customerId, bookingData) => {
 
   const bookingRef = booking.id.substring(0, 8).toUpperCase();
 
-  // EVENT: Payment Submitted — only for digital receipts awaiting verification.
-  if (rpcPayment && rpcPayment.method === 'GCash') {
-    await emitEvent(EVENTS.PAYMENT_SUBMITTED, {
-      userId: bookingCustomerId,
-      bookingId: booking.id,
-      meta: { bookingRef, amount: rpcPayment.amount }
-    });
-  }
-
-  // The lifecycle email is the single trigger; the status-email function also
-  // creates the in-app notification once delivery succeeds. Walk-ins are already
-  // confirmed, so they dispatch CONFIRMED instead of SCHEDULED.
-  const lifecycleStatus = isAdminWalkIn ? 'confirmed' : 'scheduled';
-  const lifecycleEmailResult = await sendStatusEmail(booking.id, lifecycleStatus);
+  // ONE email for this whole submission.
+  //
+  // This used to dispatch a "Payment Submitted" notification email AND a
+  // separate SCHEDULED lifecycle email — two mails for one booking, quoting two
+  // different amounts. The lifecycle email now carries the payment block and the
+  // OCR detail, and the database enforces exactly-once per (booking, event), so
+  // a retry or a double-tap cannot send it twice.
+  //
+  // The in-app notification is created by the same function, so the bell and
+  // the inbox can never describe the same event differently.
+  const lifecycleEmailResult = await sendStatusEmail(booking.id, 'booking_created');
   if (lifecycleEmailResult?.error) {
-    console.warn(`[Booking] ${lifecycleStatus} lifecycle email failed for ${booking.id}:`, lifecycleEmailResult.error);
+    console.warn(`[Booking] Creation lifecycle email failed for ${booking.id}:`, lifecycleEmailResult.error);
   }
 
   return booking;
 };
 
 /**
- * Fetch all bookings for a specific customer, with vehicles and payments.
+ * The booking's OVERALL FINANCIAL LEDGER, resolved server-side.
+ *
+ * Why this exists rather than being derived in the component:
+ *
+ * `calculatePaymentSummary` above is the canonical rule for RECOGNISED money and
+ * it is correct — money only counts once it is PAID-family, never while
+ * FOR_VERIFICATION. The consequence is that a customer's OCR-scanned receipt
+ * contributes ₱0 to every financial total until an admin verifies it, so the
+ * scan was effectively invisible to anyone looking only at the ledger.
+ *
+ * `booking_financial_ledger()` returns BOTH layers separately:
+ *   settled_amount / outstanding_amount  -> recognised money (unchanged rule)
+ *   pending_verification / pending_ocr_detected / ocr_variance
+ *                                        -> claimed-but-unverified money,
+ *                                           attributed and NOT counted as revenue
+ *
+ * Read-only. Returns null when the RPC is unavailable so a caller must decide
+ * explicitly what to show, instead of silently rendering an empty ledger.
  */
+export const fetchBookingFinancialLedger = async (bookingId) => {
+  if (!bookingId) return null;
+  const { data, error } = await supabase.rpc('booking_financial_ledger', { p_booking_id: bookingId });
+  if (error) {
+    console.error('[FinancialLedger] Failed to resolve the booking ledger:', {
+      code: error.code,
+      message: error.message,
+    });
+    return null;
+  }
+  return data || null;
+};
+
+/** Convenience: is there OCR-attributed money awaiting a human decision? */
+export const hasPendingVerification = (ledger) => Boolean(ledger?.has_pending_verification);
+
+/**
+ * A short, unambiguous label for the ledger state, so the UI and any email say
+ * the same thing. Deliberately never returns 'PAID' for unverified money.
+ */
+export const describeLedgerState = (ledger) => {
+  if (!ledger) return { label: 'LEDGER UNAVAILABLE', tone: 'neutral' };
+  if (ledger.has_discrepancy) {
+    return { label: 'VERIFYING — DISCREPANCY', tone: 'warning' };
+  }
+  if (ledger.has_pending_verification) return { label: 'VERIFYING', tone: 'pending' };
+  if (ledger.fully_settled) return { label: 'FULLY PAID', tone: 'success' };
+  if (Number(ledger.net_settled) > 0) return { label: 'PARTIALLY PAID', tone: 'pending' };
+  return { label: 'UNPAID', tone: 'danger' };
+};
+
+export default {
+  fetchBookingFinancialLedger,
+  hasPendingVerification,
+  describeLedgerState,
+};
 export const fetchCustomerBookings = async (customerId) => {
   const { data, error } = await supabase
     .from('bookings')

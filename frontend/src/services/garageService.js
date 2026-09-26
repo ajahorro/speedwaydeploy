@@ -65,7 +65,7 @@ export const updateFleetGroup = async (groupId, name) => {
 
 export const addVehicleToGarage = async (userId, vehicle) => {
   try {
-    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
     const response = await fetch(`${BACKEND_URL}/api/garage/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

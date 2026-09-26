@@ -139,7 +139,7 @@ export const getPromoRules = () => {
 
 export const fetchActivePromos = async () => {
   try {
-    const BACKEND_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || 'http://localhost:3000';
+    const BACKEND_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || window.location.origin;
     const res = await fetch(`${BACKEND_URL}/api/promos/active`);
     if (res.ok) {
       const json = await res.json();
