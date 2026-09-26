@@ -272,14 +272,167 @@ export const getPackageServicesForVehicle = (rule, vehicleType) => {
 
 const normalizeServiceName = (name) => String(name || '').trim().toLowerCase();
 
-// True when `selectedNames` contains every service required by the package set.
+/**
+ * Does `selected` satisfy the `required` service name?
+ *
+ * WHY THIS REPLACES THE OLD SUBSTRING PREDICATE
+ * --------------------------------------------
+ * The previous rule was:
+ *
+ *     sel === req || sel.includes(req) || req.includes(sel)
+ *
+ * Both `includes` arms caused real mispricing. Measured against the live catalog,
+ * with a bundle requiring ['Moto Wash', 'Moto Ceramic Coating']:
+ *
+ *   * `req.includes(sel)` made the package APPLY to a cart that did not contain
+ *     it. A cart of ['Moto Wash', 'Ceramic Coating'] was charged the ₱3,000
+ *     bundle price.
+ *
+ *   * `sel.includes(req)` let a generic 'Wash' satisfy the requirement
+ *     'Moto Wash'.
+ *
+ * THE PREFIX IS SIGNIFICANT — DO NOT STRIP IT
+ * -------------------------------------------
+ * An earlier attempt at this fix normalised away a leading 'moto ' so that
+ * 'Ceramic Coating' and 'Moto Ceramic Coating' compared equal. That is WRONG for
+ * this catalog, which lists them as two separate services at very different
+ * prices:
+ *
+ *     Ceramic Coating       Sedan ₱10,000   SUV ₱13,000
+ *     Moto Ceramic Coating  Regular ₱3,500  Bigbike ₱5,500
+ *
+ * Treating them as interchangeable would let a ₱10,000 car service satisfy a
+ * ₱3,500 motorcycle requirement and charge the ₱3,000 bundle — a ₱7,000
+ * under-charge, strictly worse than the defect being fixed. 'Moto ' is part of
+ * the service NAME here, not a display decoration.
+ *
+ * Precedence: EXACT MATCH ONLY.
+ *
+ * WHY THERE IS NO SUBSTRING FALLBACK HERE
+ * ---------------------------------------
+ * A substring arm was attempted and then removed, because it cannot be made safe
+ * for a BILLING decision. Measured against the live catalog:
+ *
+ *     "Wash"             loosely matches 4 entries
+ *                        (Regular Wash, Supreme Wash, Engine Wash, Moto Wash)
+ *     "Ceramic Coating"  loosely matches 2 entries
+ *                        (Ceramic Coating, Moto Ceramic Coating)
+ *     "Moto Ceramic Coating" loosely matches 2 entries (same pair, reversed)
+ *
+ * A uniqueness check within the cart does not help: a cart containing only
+ * 'Wash' produces exactly one loose match, so the check passes while the intent
+ * is still ambiguous — 'Wash' could have meant any of the four. Applying a
+ * ₱3,000 bundle price on that basis is a guess, and a wrong guess here charges
+ * the customer the wrong amount.
+ *
+ * The admin picks service names from the catalog when building a package, so an
+ * exact name is always available. Requiring it is a correctness guarantee, not a
+ * restriction: a bundle that cannot match exactly is a bundle whose scope should
+ * be re-selected in the UI, and it will simply not apply (a visible, safe
+ * failure) rather than applying to the wrong cart.
+ */
+const selectionSatisfiesRequirement = (requiredName, selectedNames) => {
+  const req = normalizeServiceName(requiredName);
+  if (!req) return false;
+
+  const normalized = selectedNames.map(normalizeServiceName).filter(Boolean);
+  if (!normalized.length) return false;
+
+  return normalized.includes(req);
+};
+
+/**
+ * True when `selectedNames` contains every service required by the package set.
+ *
+ * This decides whether a customer is charged a BUNDLE price, so a false positive
+ * is a billing error, not a display glitch. It therefore reuses the same strict
+ * precedence as the catalog lookup rather than its own looser comparison.
+ */
 const packageSetIsComplete = (requiredNames, selectedNames) => {
-  if (!requiredNames.length) return false;
-  const selected = selectedNames.map(normalizeServiceName);
-  return requiredNames.every(required => {
-    const req = normalizeServiceName(required);
-    return selected.some(sel => sel === req || sel.includes(req) || req.includes(sel));
+  if (!Array.isArray(requiredNames) || !requiredNames.length) return false;
+  const selected = Array.isArray(selectedNames) ? selectedNames : [];
+  if (!selected.length) return false;
+
+  return requiredNames.every(required => selectionSatisfiesRequirement(required, selected));
+};
+
+/**
+ * Find the catalog entry for a service name, preferring an EXACT match.
+ *
+ * WHY THIS EXISTS — the ₱3,620-shown-as-₱120 defect
+ * ------------------------------------------------
+ * The previous lookup was:
+ *
+ *     svcName === target || svcName.includes(target) || target.includes(svcName)
+ *
+ * The `target.includes(svcName)` arm is dangerously loose. Looking up
+ * "Moto Ceramic Coating" matched the CAR service "Ceramic Coating", because
+ * "moto ceramic coating".includes("ceramic coating") is true. That car entry is
+ * priced for Sedan/SUV, has no `Regular` price, so the lookup resolved to ₱0 —
+ * and the package warning then reported ₱120 (Moto Wash) instead of ₱3,620.
+ *
+ * It was also ORDER-DEPENDENT: `Array.find` returns the first match, so the
+ * result depended on where an entry sat in the catalog. Adding a service could
+ * silently change an unrelated package's total.
+ *
+ * THE PREFIX IS SIGNIFICANT — DO NOT STRIP IT
+ * -------------------------------------------
+ * An earlier attempt normalised away a leading 'moto ' so the two names compared
+ * equal. That is WRONG for this catalog, which lists them as separate services:
+ *
+ *     Ceramic Coating       Sedan ₱10,000   SUV ₱13,000
+ *     Moto Ceramic Coating  Regular ₱3,500  Bigbike ₱5,500
+ *
+ * Collapsing them would price a motorcycle service as a car service (or the
+ * reverse). 'Moto ' is part of the service NAME here, not a display decoration.
+ *
+ * PRECEDENCE (strictest first):
+ *   1. exact, case-insensitive name
+ *   2. one contains the other, but only when UNIQUE (ambiguity -> no match)
+ *
+ * Returning null on ambiguity is deliberate: a package total is shown to an
+ * admin as money, so an uncertain lookup must be visibly wrong rather than
+ * silently plausible.
+ */
+const findCatalogServiceByName = (catalogEntries, name) => {
+  const target = normalizeServiceName(name);
+  if (!target) return null;
+
+  // 1. Exact name.
+  const exact = catalogEntries.find(svc => normalizeServiceName(svc.name) === target);
+  if (exact) return exact;
+
+  // 2. Substring, but only when unambiguous. Two candidates means we cannot know
+  //    which was meant, so we refuse rather than pick by array order.
+  const loose = catalogEntries.filter(svc => {
+    const svcName = normalizeServiceName(svc.name);
+    return svcName.includes(target) || target.includes(svcName);
   });
+  return loose.length === 1 ? loose[0] : null;
+};
+
+/**
+ * The catalog price for a vehicle, tolerating the several spellings the catalog
+ * and the UI use for the same category.
+ *
+ * Returns 0 when the entry does not price this vehicle — and callers must treat
+ * that as "unknown", not as "free".
+ */
+const getCatalogPriceForVehicle = (service, vehicleType) => {
+  const priceMap = service?.prices || {};
+  const key = String(vehicleType || '').trim();
+
+  const aliases = key === 'Motorcycle Regular'
+    ? ['Regular', 'Motorcycle Regular', 'Motorcycle', 'MotorcycleRegular']
+    : key === 'Bigbike'
+      ? ['Bigbike', 'Big Bike', 'BigBike']
+      : [key];
+
+  for (const alias of aliases) {
+    const value = Number(priceMap[alias]);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+  return 0;
 };
 
 /**
@@ -296,22 +449,10 @@ export const getPackageStandaloneSum = (rule, vehicleType) => {
   if (!required.length) return 0;
   const catalog = getServiceCatalog();
   const all = Object.values(catalog).flat();
-  const norm = (s) => String(s || '').trim().toLowerCase();
   return required.reduce((sum, name) => {
-    const match = all.find((svc) => {
-      const svcName = norm(svc.name);
-      const target = norm(name);
-      return svcName === target || svcName.includes(target) || target.includes(svcName);
-    });
-    const priceMap = match?.prices || {};
-    const price = Number(
-      vehicleType === 'Motorcycle Regular'
-        ? (priceMap.Regular ?? priceMap['Motorcycle Regular'] ?? 0)
-        : vehicleType === 'Bigbike'
-          ? (priceMap.Bigbike ?? 0)
-          : (priceMap[vehicleType] ?? 0)
-    );
-    return sum + (Number.isFinite(price) ? price : 0);
+    const match = findCatalogServiceByName(all, name);
+    const price = getCatalogPriceForVehicle(match, vehicleType);
+    return sum + price;
   }, 0);
 };
 

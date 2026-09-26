@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "test": "node tests/booking_atomic.test.js && node tests/promo_package_semantics.test.js && node tests/transaction_amounts.test.js && node tests/vat_split.test.js && node tests/email_idempotency.test.js && node tests/ocr_ledger_invariants.test.js",
+    "test": "node tests/booking_atomic.test.js && node tests/promo_package_semantics.test.js && node tests/transaction_amounts.test.js && node tests/vat_split.test.js && node tests/email_idempotency.test.js && node tests/ocr_ledger_invariants.test.js && node tests/package_standalone_sum.test.js && node tests/package_cart_matching.test.js",
     "test:source": "node scripts/verify-email-source.mjs",
     "test:live": "node scripts/verify-booking-prereqs.mjs",
     "test:emails": "node scripts/verify-email-lifecycle.mjs",
