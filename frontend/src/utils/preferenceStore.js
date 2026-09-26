@@ -47,7 +47,9 @@ export const writeLocalPreferences = (prefs) => {
 
 /**
  * Load preferences for a user: local first (instant, offline-safe), then overlay
- * any values stored on the profile row when that column exists.
+ * the legacy profile flag. The structured notification_preferences column is
+ * optional and is not selected here because older deployed schemas do not have
+ * it; requesting one missing PostgREST column makes the whole profile query 400.
  */
 export const loadPreferences = async (userId) => {
   const local = readLocalPreferences();
@@ -55,7 +57,7 @@ export const loadPreferences = async (userId) => {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('notification_preferences, push_notifications_enabled')
+      .select('push_notifications_enabled')
       .eq('id', userId)
       .maybeSingle();
     if (error) return local;
@@ -64,9 +66,6 @@ export const loadPreferences = async (userId) => {
     // no opinion yet, so pre-existing accounts keep their previous behaviour.
     if (typeof data?.push_notifications_enabled === 'boolean' && local.emailBookingUpdates === undefined) {
       merged.emailBookingUpdates = data.push_notifications_enabled;
-    }
-    if (data?.notification_preferences && typeof data.notification_preferences === 'object') {
-      return { ...merged, ...data.notification_preferences };
     }
     return merged;
   } catch {
