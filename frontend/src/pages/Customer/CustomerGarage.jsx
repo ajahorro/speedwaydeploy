@@ -598,7 +598,7 @@ const CustomerGarage = () => {
             </div>
 
             <div style={{ padding: '1.5rem 2rem', background: 'var(--admin-bg)', borderTop: '1px solid var(--admin-border)', textAlign: 'center' }}>
-              <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>Showing automated fleet history log from Speedway Engine.</p>
+              <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>Showing automated fleet history log from Comar Garage.</p>
             </div>
           </div>
         </div>

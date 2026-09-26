@@ -192,7 +192,7 @@ const AdminSalesReport = () => {
       <div id="printable-report" style={{ display: 'none' }}>
         <div style={{ textAlign: 'center', borderBottom: '3px solid #A91B18', paddingBottom: '15px', marginBottom: '20px' }}>
           <h1 style={{ fontSize: '2rem', fontWeight: '950', color: 'black', margin: 0, tracking: '-0.05em', fontStyle: 'italic', textTransform: 'uppercase' }}>
-            SPEEDWAY<span style={{ color: '#A91B18' }}>AUTOXMOTO</span>
+            COMAR GARAGE
           </h1>
           <p style={{ margin: '5px 0', fontSize: '0.8rem', fontWeight: '800', color: '#666', textTransform: 'uppercase', letterSpacing: '2px' }}>
             Official Commercial Performance Report
@@ -264,7 +264,7 @@ const AdminSalesReport = () => {
         </div>
 
         <div style={{ marginTop: '100px', borderTop: '1px dashed #ccc', paddingTop: '20px', textAlign: 'center', fontSize: '0.7rem', color: '#999' }}>
-          This is a computer-generated document. No signature required. &bull; Speedway Thesis 2024
+          This is a computer-generated document. No signature required. &bull; Comar Garage
         </div>
       </div>
 

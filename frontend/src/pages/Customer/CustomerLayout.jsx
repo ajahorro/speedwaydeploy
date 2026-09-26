@@ -145,7 +145,7 @@ const CustomerLayout = () => {
           background: 'rgba(var(--admin-brand-rgb), 0.03)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%', justifyContent: 'space-between' }}>
-            <div style={{ fontWeight: '950', fontSize: '1.25rem', letterSpacing: '-1px', color: 'var(--admin-brand)', lineHeight: 1 }}>SPEEDWAY</div>
+            <div style={{ fontWeight: '950', fontSize: '1.25rem', letterSpacing: '-1px', color: 'var(--admin-brand)', lineHeight: 1 }}>COMAR GARAGE</div>
             {isMobile && <button onClick={() => setIsSidebarOpen(false)} style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>}
           </div>
           <span style={{ fontSize: '0.55rem', fontWeight: '950', color: 'var(--admin-text-secondary)', letterSpacing: '2px', textTransform: 'uppercase' }}>Customer Portal</span>

@@ -243,14 +243,14 @@ export const extractOcrDetails = (booking?: BookingLike | null, payment?: Paymen
 const shell = (title: string, inner: string): string => `
   <div style="font-family:'Segoe UI',Tahoma,sans-serif;max-width:640px;margin:0 auto;background:#ffffff;color:#111827;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
     <div style="background:#a91b18;padding:22px;text-align:center;color:#ffffff;">
-      <h1 style="margin:0;font-size:23px;letter-spacing:2px;">SPEEDWAY AUTOXMOTO</h1>
+      <h1 style="margin:0;font-size:23px;letter-spacing:2px;">COMAR GARAGE</h1>
     </div>
     <div style="padding:30px;">
       <h2 style="color:#a91b18;margin:0 0 18px;">${escapeHtml(title)}</h2>
       ${inner}
     </div>
     <div style="background:#f8fafc;padding:16px;text-align:center;font-size:12px;color:#6b7280;">
-      &copy; ${new Date().getFullYear()} Speedway AutoxMoto. All Rights Reserved.
+      &copy; ${new Date().getFullYear()} Comar Garage. All Rights Reserved.
     </div>
   </div>`;
 
@@ -348,7 +348,7 @@ const paymentBlock = (
 };
 
 const ctaButton = (label: string): string =>
-  `<div style="margin-top:28px;text-align:center;"><a href="https://speedway-autoxmoto.com/portal" style="background:#a91b18;color:#ffffff;padding:13px 26px;text-decoration:none;border-radius:5px;font-weight:700;display:inline-block;">${escapeHtml(label)}</a></div>`;
+  `<div style="margin-top:28px;text-align:center;"><a href="https://comargarage.com/portal" style="background:#a91b18;color:#ffffff;padding:13px 26px;text-decoration:none;border-radius:5px;font-weight:700;display:inline-block;">${escapeHtml(label)}</a></div>`;
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -376,8 +376,8 @@ export const buildBookingCreatedEmail = ({ booking, payment, customerName }: {
     ${ctaButton('VIEW IN PORTAL')}`;
 
   const subject = amounts.hasPayment
-    ? `Speedway: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} received — ${formatPeso(amounts.grossPaid)} awaiting verification`
-    : `Speedway: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} received`;
+    ? `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} received — ${formatPeso(amounts.grossPaid)} awaiting verification`
+    : `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} received`;
 
   return { subject, html: shell('Booking Received', body), amounts, ocr };
 };
@@ -405,19 +405,19 @@ export const buildBookingConfirmedEmail = ({ booking, payment, customerName, has
     ${ctaButton('VIEW RECEIPT IN PORTAL')}`;
 
   return {
-    subject: `Speedway: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} confirmed${amounts.hasPayment ? ` — ${formatPeso(amounts.creditedToBooking)} received` : ''}`,
+    subject: `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} confirmed${amounts.hasPayment ? ` — ${formatPeso(amounts.creditedToBooking)} received` : ''}`,
     html: shell('Booking Confirmed', body),
     amounts,
   };
 };
 
-const SITE_INTRO = 'Thank you for choosing Speedway AutoxMoto Detail Studio.';
+const SITE_INTRO = 'Thank you for choosing Comar Garage.';
 
 const STATUS_COPY: Record<string, string> = {
   IN_PROGRESS: "Great news! We've started detailing your vehicle.",
   ONGOING: "Great news! We've started detailing your vehicle.",
   COMPLETED: 'Your ride is ready for pickup! Check your portal for the final receipt.',
-  RELEASED: 'Your vehicle has been released. Thank you for choosing Speedway. Please come again for your future Auto x Moto needs!',
+  RELEASED: 'Your vehicle has been released. Thank you for choosing Comar Garage. Please come again for your future detailing needs!',
   CANCELLED: 'Your booking has been cancelled. Please check your portal for details regarding your refund or rescheduling.',
   FLAGGED_NOSHOW: 'We missed you! Your slot has expired. Visit the Refund Hub for details.',
 };

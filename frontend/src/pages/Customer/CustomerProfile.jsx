@@ -445,7 +445,7 @@ const CustomerProfile = () => {
               <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: 'var(--status-danger)' }}>Account Actions</h2>
             </div>
             <p style={{ margin: '0 0 1.5rem 0', color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '600', lineHeight: 1.5 }}>
-              Account deactivation initiates a 15-day grace period. After 15 days, all data will be permanently purged from Speedway servers.
+              Account deactivation initiates a 15-day grace period. After 15 days, all data will be permanently purged from Comar Garage servers.
             </p>
             <button 
               onClick={() => setShowDeactivateModal(true)}

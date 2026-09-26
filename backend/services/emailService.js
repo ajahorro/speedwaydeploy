@@ -1,7 +1,7 @@
 const { Resend } = require('resend');
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const SENDER_EMAIL = process.env.RESEND_SENDER_EMAIL || process.env.RESEND_FROM || 'Speedway AutoxMoto <bookings@yourdomain.com>';
+const SENDER_EMAIL = process.env.RESEND_SENDER_EMAIL || process.env.RESEND_FROM || 'Comar Garage <bookings@yourdomain.com>';
 
 const escapeHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
@@ -10,7 +10,7 @@ const escapeHtml = (value) => String(value ?? '')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#039;');
 
-const buildEmailShell = ({ title, eyebrow = 'SPEEDWAY DETAIL STUDIO', bodyHtml, ctaLink, ctaLabel, footerNote = 'Speedway Detail Studio | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal' }) => `
+const buildEmailShell = ({ title, eyebrow = 'COMAR GARAGE', bodyHtml, ctaLink, ctaLabel, footerNote = 'Comar Garage | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal' }) => `
   <div style="margin: 0; padding: 0; background: #f5f5f3; font-family: Arial, Helvetica, sans-serif; color: #171717;">
     <div style="max-width: 640px; margin: 0 auto; padding: 24px 16px;">
       <div style="background: linear-gradient(135deg, #111827 0%, #1f2937 100%); border: 1px solid #d4d4d4; border-radius: 18px; overflow: hidden;">
@@ -66,10 +66,10 @@ const send = async ({ to, subject, html, attachments }) => {
 
 const sendBookingConfirmationEmail = async ({ customerEmail, customerName, bookingId, serviceName, scheduledAt, totalAmount }) => send({
   to: customerEmail,
-  subject: `Booking Confirmed #${bookingId} - Speedway AutoxMoto`,
+  subject: `Booking Confirmed #${bookingId} - Comar Garage`,
   html: buildEmailShell({
     title: 'Booking Confirmed',
-    eyebrow: 'SPEEDWAY DETAIL STUDIO',
+    eyebrow: 'COMAR GARAGE',
     bodyHtml: `
       <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi <strong>${escapeHtml(customerName)}</strong>,</p>
       <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">Your appointment has been successfully scheduled. Here are your booking details:</p>
@@ -95,19 +95,19 @@ const sendBookingConfirmationEmail = async ({ customerEmail, customerName, booki
     `,
     ctaLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/customer/bookings`,
     ctaLabel: 'View Booking',
-    footerNote: 'Speedway Detail Studio | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal'
+    footerNote: 'Comar Garage | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal'
   })
 });
 
 const sendPasswordResetEmail = async ({ customerEmail, resetLink }) => send({
   to: customerEmail,
-  subject: 'Password Reset Request - Speedway AutoxMoto',
+  subject: 'Password Reset Request - Comar Garage',
   html: buildEmailShell({
     title: 'Reset Your Password',
     eyebrow: 'ACCOUNT SECURITY',
     bodyHtml: `
       <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi there,</p>
-      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">We received a request to reset your Speedway password. Click the button below to continue and create a new one securely.</p>
+      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">We received a request to reset your Comar Garage password. Click the button below to continue and create a new one securely.</p>
       <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280; line-height: 1.6;">If you did not request this change, you can safely ignore this email and your password will remain unchanged.</p>
     `,
     ctaLink: resetLink,
@@ -118,10 +118,10 @@ const sendPasswordResetEmail = async ({ customerEmail, resetLink }) => send({
 
 const sendAccountInviteEmail = async ({ customerEmail, customerName, inviteLink }) => send({
   to: customerEmail,
-  subject: 'Create your Speedway customer account',
+  subject: 'Create your Comar Garage customer account',
   html: buildEmailShell({
     title: 'Activate Your Account',
-    eyebrow: 'WELCOME TO SPEEDWAY',
+    eyebrow: 'WELCOME TO COMAR GARAGE',
     bodyHtml: `
       <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi <strong>${escapeHtml(customerName || 'Guest')}</strong>,</p>
       <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">Your account is almost ready. Use the secure link below to confirm your email and complete your profile.</p>
@@ -135,13 +135,13 @@ const sendAccountInviteEmail = async ({ customerEmail, customerName, inviteLink 
 
 const sendAdminInviteEmail = async ({ recipientEmail, firstName, lastName, role, defaultPassword, loginLink }) => send({
   to: recipientEmail,
-  subject: `[ACTION REQUIRED] Your Speedway ${role} account is ready`,
+  subject: `[ACTION REQUIRED] Your Comar Garage ${role} account is ready`,
   html: buildEmailShell({
     title: 'Your Account Is Ready',
-    eyebrow: 'SPEEDWAY TEAM ACCESS',
+    eyebrow: 'COMAR GARAGE TEAM ACCESS',
     bodyHtml: `
       <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi <strong>${escapeHtml(`${firstName || ''} ${lastName || ''}`.trim() || 'there')}</strong>,</p>
-      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">An account has been created for you on the Speedway Auto Detail Studio platform with the role <strong>${escapeHtml(role)}</strong>.</p>
+      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">An account has been created for you on the Comar Garage platform with the role <strong>${escapeHtml(role)}</strong>.</p>
       <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Email Address</p>
       <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-family: 'Courier New', Courier, monospace; font-size: 15px; color: #111827; font-weight: 700;">${escapeHtml(recipientEmail)}</div>
       <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Temporary Password</p>
@@ -156,13 +156,13 @@ const sendAdminInviteEmail = async ({ recipientEmail, firstName, lastName, role,
 
 const sendInviteAccountEmail = async ({ recipientEmail, firstName, lastName, role, temporaryPassword, loginLink }) => send({
   to: recipientEmail,
-  subject: `[ACTION REQUIRED] Your Speedway ${role} invitation`,
+  subject: `[ACTION REQUIRED] Your Comar Garage ${role} invitation`,
   html: buildEmailShell({
     title: 'You Have Been Invited',
-    eyebrow: 'SPEEDWAY TEAM ACCESS',
+    eyebrow: 'COMAR GARAGE TEAM ACCESS',
     bodyHtml: `
       <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi <strong>${escapeHtml(`${firstName || ''} ${lastName || ''}`.trim() || 'there')}</strong>,</p>
-      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">An administrator has created a <strong>${escapeHtml(role)}</strong> account for you on the Speedway Auto Detail Studio platform. Use the temporary credentials below to sign in for the first time.</p>
+      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">An administrator has created a <strong>${escapeHtml(role)}</strong> account for you on the Comar Garage platform. Use the temporary credentials below to sign in for the first time.</p>
       <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Email Address</p>
       <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-family: 'Courier New', Courier, monospace; font-size: 15px; color: #111827; font-weight: 700;">${escapeHtml(recipientEmail)}</div>
       <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Temporary Password</p>

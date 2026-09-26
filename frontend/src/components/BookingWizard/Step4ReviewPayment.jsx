@@ -877,7 +877,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                 style={{ width: '20px', height: '20px', marginTop: '2px', cursor: 'pointer', accentColor: 'var(--admin-brand)' }}
               />
               <span style={{ fontSize: '0.85rem', color: 'var(--admin-text-primary)', fontWeight: '600', lineHeight: 1.4 }}>
-                By clicking this box, you allow <strong>Speedway AutoxMoto Detail Studio</strong> to have access to your personal information and agree to our <button type="button" onClick={() => setShowTermsModal(true)} style={{ border: 'none', background: 'transparent', color: 'var(--admin-brand)', fontWeight: 900, padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>Terms and Conditions</button> for service and data privacy.
+                By clicking this box, you allow <strong>Comar Garage</strong> to have access to your personal information and agree to our <button type="button" onClick={() => setShowTermsModal(true)} style={{ border: 'none', background: 'transparent', color: 'var(--admin-brand)', fontWeight: 900, padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>Terms and Conditions</button> for service and data privacy.
               </span>
             </label>
           </div>}

@@ -129,7 +129,7 @@ const CustomerBilling = () => {
         <body>
           <div class="wrap">
             <div class="brand">
-              <h1>SPEEDWAY</h1>
+              <h1>COMAR GARAGE</h1>
               <div class="subtitle">AutoxMoto Detail Studio</div>
               <div class="line"></div>
             </div>

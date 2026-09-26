@@ -180,7 +180,7 @@ const AppMetadataFooter = ({ onRequestDeletion = null, role = 'customer' }) => {
       )}
 
       <div style={{ paddingTop: '1rem', fontSize: '0.7rem', color: 'var(--admin-text-secondary)', fontWeight: 500, lineHeight: 1.6, opacity: 0.85 }}>
-        © {new Date().getFullYear()} Speedway AutoxMoto Detail Studio. All rights reserved. Support: {APP_METADATA.supportEmail}
+        © {new Date().getFullYear()} Comar Garage. All rights reserved. Support: {APP_METADATA.supportEmail}
       </div>
     </SettingsSection>
   );

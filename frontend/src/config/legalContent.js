@@ -12,13 +12,13 @@
  */
 
 export const APP_METADATA = Object.freeze({
-  name: 'Speedway Detailing Hub',
+  name: 'Comar Garage',
   version: '2.1.0',
-  // Rendered as "Speedway Detailing Hub v2.1.0" in the footer card.
+  // Rendered as "Comar Garage v2.1.0" in the footer card.
   get buildLabel() {
     return `${this.name} v${this.version}`;
   },
-  supportEmail: 'support@speedwaydetailing.ph',
+  supportEmail: 'support@comargarage.com',
 });
 
 /**
@@ -31,12 +31,12 @@ export const LEGAL_DOCUMENTS = Object.freeze([
     id: 'terms',
     title: 'Terms of Service',
     eyebrow: 'LEGAL',
-    summary: 'The rules that govern your use of the Speedway booking platform.',
+    summary: 'The rules that govern your use of the Comar Garage booking platform.',
     sections: [
       {
         heading: '1. Acceptance of Terms',
         paragraphs: [
-          'By creating an account or booking a service with Speedway AutoxMoto Detail Studio, you agree to be bound by these Terms of Service and all applicable shop policies.',
+          'By creating an account or booking a service with Comar Garage, you agree to be bound by these Terms of Service and all applicable shop policies.',
           'If you do not agree with any part of these terms, you must not use the platform or book a service.',
         ],
       },

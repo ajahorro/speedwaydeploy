@@ -45,7 +45,7 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
     if (!receiptRef.current) return;
     try {
       const html2pdf = (await import('html2pdf.js')).default;
-      html2pdf().set({ margin: 0.5, filename: `Speedway-${reference}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).from(receiptRef.current).save();
+      html2pdf().set({ margin: 0.5, filename: `Comar-Garage-${reference}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).from(receiptRef.current).save();
     } catch {
       window.print();
     }
@@ -63,7 +63,7 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
   const content = (
     <div ref={receiptRef} id="printable-receipt" style={{ background: '#fff', color: '#111827', padding: '2rem', fontFamily: 'Inter, system-ui, sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '2rem', borderBottom: '2px solid #111827', paddingBottom: '1.25rem' }}>
-        <div><div style={{ fontSize: '1.8rem', fontWeight: 900, fontStyle: 'italic' }}>SPEED<span style={{ color: '#E61E2A' }}>WAY</span></div><div style={{ color: '#6B7280', fontSize: '0.75rem', letterSpacing: '1px', textTransform: 'uppercase' }}>AutoXMoto Detail Studio</div><div style={{ color: '#6B7280', fontSize: '0.75rem', marginTop: '0.75rem' }}>123 Speedway Drive, Quezon City, Metro Manila</div></div>
+        <div><div style={{ fontSize: '1.8rem', fontWeight: 900, fontStyle: 'italic' }}>COMAR GARAGE</div><div style={{ color: '#6B7280', fontSize: '0.75rem', letterSpacing: '1px', textTransform: 'uppercase' }}>Auto Detailing Studio</div><div style={{ color: '#6B7280', fontSize: '0.75rem', marginTop: '0.75rem' }}>123 Comar Garage Drive, Quezon City, Metro Manila</div></div>
         <div style={{ textAlign: 'right' }}><div style={{ color: '#E61E2A', fontWeight: 900, fontSize: '0.75rem' }}>{documentTitle}</div><div style={{ fontWeight: 800, marginTop: '0.5rem' }}>{reference}</div><div style={{ color: '#6B7280', fontSize: '0.75rem', marginTop: '0.35rem' }}>{dateValue(selectedPayment?.created_at || booking?.created_at)}</div></div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', margin: '1.5rem 0' }}>

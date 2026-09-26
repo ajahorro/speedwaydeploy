@@ -227,7 +227,7 @@ const AdminLayout = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%', justifyContent: 'space-between' }}>
             <h1 style={{ fontSize: '1.25rem', fontWeight: '950', margin: 0, fontStyle: 'italic', letterSpacing: '1px', color: 'var(--admin-text-primary)' }}>
-              SPEEDWAY<span style={{ color: 'var(--admin-brand)' }}>ADMIN</span>
+              COMAR GARAGE <span style={{ color: 'var(--admin-brand)' }}>ADMIN</span>
             </h1>
             {isMobile && <button onClick={() => setIsSidebarOpen(false)} style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>}
           </div>

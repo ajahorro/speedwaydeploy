@@ -74,7 +74,7 @@ const corsHeaders = {
 }
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
-const resendFrom = Deno.env.get('RESEND_FROM') || 'Speedway <notifications@speedway-autoxmoto.xyz>'
+const resendFrom = Deno.env.get('RESEND_FROM') || 'Comar Garage <notifications@speedway-autoxmoto.xyz>'
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -82,11 +82,11 @@ const supabase = createClient(
 
 const templates = {
   SCHEDULED: 'Your booking has been received. Your scheduled time is confirmed. Your payment is to be verified manually by the admin before we confirm your booking.',
-  CONFIRMED: 'Your appointment is locked in! See you at Speedway.',
+  CONFIRMED: 'Your appointment is locked in! See you at Comar Garage.',
   ONGOING: "Great news! We've started detailing your vehicle.",
   IN_PROGRESS: "Great news! We've started detailing your vehicle.",
   COMPLETED: 'Your ride is ready for pickup! Check your portal for the final receipt.',
-  RELEASED: 'Your vehicle has been released. Thank you for choosing Speedway. Please come again for your future Auto x Moto needs! Create an account on our website to see more and hear about future promos if you have not yet!',
+  RELEASED: 'Your vehicle has been released. Thank you for choosing Comar Garage. Please come again for your future detailing needs! Create an account on our website to see more and hear about future promos if you have not yet!',
   CANCELLED: 'Your booking has been cancelled. Please check your portal for details regarding your refund or rescheduling.',
   FLAGGED_NOSHOW: 'We missed you! Your slot has expired. Visit the Refund Hub for details.'
 }
@@ -294,9 +294,9 @@ serve(async (req) => {
     }
     
     const subject = reminder
-      ? `Reminder: Your confirmed Speedway appointment is in 1 hour`
+      ? `Reminder: Your confirmed Comar Garage appointment is in 1 hour`
       : amounts.hasPayment && !amounts.remainingBalance && amounts.paymentStatus !== 'FOR_VERIFICATION'
-        ? `Speedway: Booking #${bookingId.slice(0, 8).toUpperCase()} confirmed — ${formatPeso(amounts.netApplied)} received`
+        ? `Comar Garage: Booking #${bookingId.slice(0, 8).toUpperCase()} confirmed — ${formatPeso(amounts.netApplied)} received`
         : `Speedway Update: Booking #${bookingId.slice(0, 8).toUpperCase()} is now ${statusKey}`
     const content = reminder
       ? `This is a reminder that your confirmed appointment is scheduled for ${appointmentDate}. Please arrive on time. If service has not started within one hour after your scheduled time, the booking will be flagged as a No-Show.`

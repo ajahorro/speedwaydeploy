@@ -295,7 +295,7 @@ const Hint = ({ children }) => (
 );
 
 // Smart save button: grey + disabled until the section is dirty AND valid,
-// then Speedway-red. Locks (and shows progress) while a save is in flight.
+// then the Comar Garage brand red. Locks (and shows progress) while a save is in flight.
 const SaveBar = ({ canSave, saving, dirty, label }) => {
   const active = canSave;
   const disabled = !active;
@@ -1636,7 +1636,7 @@ export default function BusinessHub() {
                   value={businessForm.business_name}
                   onChange={(e) => handleInputChange('business_name', e.target.value)}
                   style={inputStyle}
-                  placeholder="e.g. Speedway Detail Studio"
+                  placeholder="e.g. Comar Garage"
                 />
               </Field>
               <Field label="Contact Number" htmlFor="business-contact-number">
@@ -1658,7 +1658,7 @@ export default function BusinessHub() {
                   value={businessForm.email_address}
                   onChange={(e) => handleInputChange('email_address', e.target.value)}
                   style={inputStyle}
-                  placeholder="e.g. hello@speedway.com"
+                  placeholder="e.g. hello@comargarage.com"
                 />
               </Field>
               <Field label="Business Address" htmlFor="business-address">

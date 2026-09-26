@@ -69,7 +69,7 @@ const MustChangePasswordGate = () => {
       // 3. Refresh the profile so the route tree stops rendering the gate.
       if (user?.id) await fetchProfile(user.id, 'FIRST_LOGIN_COMPLETE', true);
 
-      toast.success('Password updated. Welcome to Speedway!');
+      toast.success('Password updated. Welcome to Comar Garage!');
     } catch (err) {
       toast.error(err.message || 'Could not update your password. Please try again.');
     } finally {

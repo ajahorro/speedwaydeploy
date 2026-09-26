@@ -14,7 +14,6 @@ import {
   Twitter
 } from 'lucide-react';
 import Login from './Login';
-import logo from '../assets/logo.png';
 import { useAuth } from '../hooks/useAuth';
 import { useConfig } from '../context/ConfigContext';
 import { getServiceCatalog } from '../data/servicesCatalog';
@@ -31,7 +30,7 @@ const Landing = () => {
   // Tier 2.7 / 2.8 / 2.9 — the landing page reflects the Business Hub config.
   // Business name / contact / address come from `settings`; the service catalog
   // is the same source the booking wizard uses (standard + custom services).
-  const businessName = settings?.BUSINESS_NAME || 'SPEEDWAY STUDIO';
+  const businessName = settings?.BUSINESS_NAME || 'COMAR GARAGE';
 
   const [catalog, setCatalog] = useState(() => getServiceCatalog());
   useEffect(() => {
@@ -172,7 +171,7 @@ const Landing = () => {
         {/* LOGO (Left) */}
         <div style={{ flex: 1 }}>
           <div onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-            <img src={logo} alt="Speedway Logo" style={{ height: 'clamp(60px, 8vw, 100px)', width: 'auto', objectFit: 'contain', position: 'relative', top: '10px' }} />
+            <div aria-label="Comar Garage" style={{ color: 'white', fontSize: 'clamp(1.15rem, 3vw, 2rem)', fontWeight: 950, letterSpacing: '0.08em', fontStyle: 'italic', textTransform: 'uppercase' }}>COMAR GARAGE</div>
           </div>
         </div>
 
@@ -261,7 +260,7 @@ const Landing = () => {
           <div>
             <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '2rem' }}>ABOUT US</h2>
             <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.6)', lineHeight: '1.8', marginBottom: '1.5rem' }}>
-              At Speedway Detail Studio, we believe that every vehicle deserves to look its absolute best.
+              At Comar Garage, we believe that every vehicle deserves to look its absolute best.
               Founded with a passion for automotive excellence, we have grown into one of the region's
               most trusted detailing centers.
             </p>
@@ -428,7 +427,7 @@ const Landing = () => {
         <div className="container-wide" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 'clamp(1.5rem, 5vw, 6rem)' }}>
           <div>
             <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '2rem' }}>CONTACT US</h2>
-            <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '3rem', lineHeight: '1.8' }}>Ready to give your car the Speedway treatment? Get in touch with us for quotes, appointments, or any inquiries.</p>
+            <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '3rem', lineHeight: '1.8' }}>Ready to give your car the Comar Garage treatment? Get in touch with us for quotes, appointments, or any inquiries.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
               {contactItems.map((item, i) => (
                 <div key={i} style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', padding: '1rem', background: '#15171A', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -459,7 +458,7 @@ const Landing = () => {
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '2rem' }}>
           <div>
             <div style={{ fontWeight: '950', fontSize: '1.2rem', letterSpacing: '-1px', fontStyle: 'italic', color: '#E61E2A', textTransform: 'uppercase' }}>{businessName}</div>
-            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', marginTop: '0.5rem' }}>© 2024 SPEEDWAY AUTOXMOTO. ALL RIGHTS RESERVED.</div>
+            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', marginTop: '0.5rem' }}>© 2024 COMAR GARAGE. ALL RIGHTS RESERVED.</div>
           </div>
           <div style={{ display: 'flex', gap: '2rem' }}>
             <Facebook size={18} style={{ color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }} />

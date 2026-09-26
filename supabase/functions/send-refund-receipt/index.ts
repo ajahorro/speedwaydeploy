@@ -88,7 +88,7 @@ serve(async (req) => {
     // must match a domain in the Resend account (see RESEND_FROM secret).
     const resendFrom = Deno.env.get('RESEND_FROM')
       || Deno.env.get('RESEND_SENDER_EMAIL')
-      || 'Speedway AutoXMoto <notifications@speedway-autoxmoto.xyz>';
+      || 'Comar Garage <notifications@speedway-autoxmoto.xyz>';
 
     const serviceHtml = serviceNames.length
       ? `<p><strong>Services:</strong> ${serviceNames.map(escapeHtml).join(', ')}</p>`
@@ -101,7 +101,7 @@ serve(async (req) => {
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
         <div style="background-color: #ef4444; padding: 20px; text-align: center; color: white;">
           <h1 style="margin: 0; font-size: 24px;">OFFICIAL REFUND SLIP</h1>
-          <p style="margin: 5px 0 0 0; opacity: 0.9;">Speedway AutoXMoto</p>
+          <p style="margin: 5px 0 0 0; opacity: 0.9;">Comar Garage</p>
         </div>
         <div style="padding: 20px;">
           <p>Hi ${escapeHtml(customerName)},</p>

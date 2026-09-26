@@ -12,7 +12,7 @@ export const ConfigProvider = ({ children }) => {
     OPENING_HOUR: SHOP_CONFIG.OPENING_HOUR,
     CLOSING_HOUR: SHOP_CONFIG.CLOSING_HOUR,
     IS_24_7: false,
-    BUSINESS_NAME: 'SPEEDWAY STUDIO',
+    BUSINESS_NAME: 'COMAR GARAGE',
     // Tier 2.7: public-facing business identity (Business Hub = single source of
     // truth). Landing renders these so hub edits reflect on the website.
     BUSINESS_CONTACT_NUMBER: '',
@@ -20,7 +20,7 @@ export const ConfigProvider = ({ children }) => {
     BUSINESS_ADDRESS: '',
     // Tier 2.8: admin-editable FAQ entries shared with the landing page.
     FAQS: [],
-    PAYMENT_ACCOUNT_NAME: 'SPEEDWAY STUDIO',
+    PAYMENT_ACCOUNT_NAME: 'COMAR GARAGE',
     PAYMENT_ACCOUNT_NUMBER: '0912 345 6789',
     PAYMENT_QR_URL: null,
     qr_code_url: null,
@@ -90,7 +90,7 @@ export const ConfigProvider = ({ children }) => {
           OPENING_HOUR: data.is_24_7 === true ? 0 : parseHour(data.opening_hour, SHOP_CONFIG.OPENING_HOUR),
           CLOSING_HOUR: data.is_24_7 === true ? 24 : parseHour(data.closing_hour, SHOP_CONFIG.CLOSING_HOUR),
           IS_24_7: data.is_24_7 === true,
-          BUSINESS_NAME: data.business_name || 'SPEEDWAY STUDIO',
+          BUSINESS_NAME: data.business_name || 'COMAR GARAGE',
           BUSINESS_CONTACT_NUMBER: data.contact_number || '',
           BUSINESS_EMAIL: data.email_address || '',
           BUSINESS_ADDRESS: data.business_address || '',
@@ -105,7 +105,7 @@ export const ConfigProvider = ({ children }) => {
           QR_ACCOUNT_NUMBER: qrAccountNumber,
           QR_CONFIG_VERSION: data.qr_config_version ?? 1,
           QR_CONFIG_COMPLETE: data.qr_config_complete === true,
-          PAYMENT_ACCOUNT_NAME: qrAccountName || 'SPEEDWAY STUDIO',
+          PAYMENT_ACCOUNT_NAME: qrAccountName || 'COMAR GARAGE',
           PAYMENT_ACCOUNT_NUMBER: qrAccountNumber || '0912 345 6789',
           PAYMENT_QR_URL: qrCodeUrl,
           loaded: true

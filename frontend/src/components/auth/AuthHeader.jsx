@@ -29,7 +29,7 @@ const AuthHeader = ({ mode, email }) => {
         textTransform: 'uppercase',
         lineHeight: '1.2'
       }}>
-        SpeedWay Detail Studio
+        Comar Garage
       </h1>
       <p style={{
         color: 'var(--admin-text-secondary)',

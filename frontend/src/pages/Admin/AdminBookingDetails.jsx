@@ -313,7 +313,7 @@ const AdminBookingDetails = () => {
       logs.unshift({
         id: 'virtual-creation',
         event_type: 'BOOKING_INITIATED',
-        details: 'Booking record successfully initiated in the Speedway Fleet Engine.',
+        details: 'Booking record successfully initiated in the Comar Garage fleet engine.',
         created_at: booking.created_at,
         actor: { full_name: 'System', role: 'SYSTEM' }
       });

@@ -19,7 +19,7 @@ const ocrGuard = require('./services/ocrGuard');
 // plus the OCR-vs-recorded reconciliation that surfaces amount drift.
 const { resolveTransactionAmounts, reconcileOcrAmounts, formatPeso } = require('./services/transactionAmounts');
 const resendClient = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const RESEND_FROM = process.env.RESEND_FROM || 'Speedway AutoxMoto <bookings@yourdomain.com>';
+const RESEND_FROM = process.env.RESEND_FROM || 'Comar Garage <bookings@yourdomain.com>';
 
 // ── GLOBAL PROCESS CRASH GUARDS (B1) ────────────────────────────────────────
 // The per-route try/catch blocks already return a 500 JSON for anything thrown
@@ -327,7 +327,7 @@ const generateTemplate = (type, data) => {
 
   switch (type) {
     case 'VERIFICATION_CODE':
-      subject = 'Verify Your Speedway Account';
+      subject = 'Verify Your Comar Garage Account';
       html = buildEmailShell({
         title: 'Verify Your Account',
         eyebrow: 'SECURITY CHECK',
@@ -337,11 +337,11 @@ const generateTemplate = (type, data) => {
           <p style="margin: 0; font-size: 15px; color: #374151; line-height: 1.7;">This code expires in 10 minutes. Use it to complete your sign-in or account creation flow.</p>
         `,
         ctaLink: null,
-        footerNote: 'Speedway Detail Studio | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal'
+        footerNote: 'Comar Garage | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal'
       });
       break;
     default:
-      subject = 'Speedway AutoxMoto Update';
+      subject = 'Comar Garage Update';
       html = `<p>New update for ${type}</p><pre>${JSON.stringify(data, null, 2)}</pre>`;
   }
   return { subject, html };
@@ -365,8 +365,8 @@ const buildReceiptPdfBuffer = ({ receiptNumber, customerName, bookingReference, 
   const dateString = issuedAt ? new Date(issuedAt).toLocaleString() : new Date().toLocaleString();
 
   const lines = [
-    'SPEEDWAY',
-    'AutoxMoto Detail Studio',
+    'COMAR GARAGE',
+    'Auto Detailing Studio',
     '',
     `Receipt No.: ${receiptNumber || 'AUTO'}`,
     `Issued: ${dateString}`,
@@ -469,8 +469,8 @@ const buildReceiptEmailHtml = ({ customerName, bookingReference, receiptNumber, 
   return `
     <div style="font-family: Inter, system-ui, sans-serif; max-width: 640px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; color: #111827;">
       <div style="background: #111827; color: #f9fafb; padding: 16px 20px; border-bottom: 1px solid #262626;">
-        <div style="font-size: 18px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; text-align: center;">SPEEDWAY</div>
-        <div style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; text-align: center; color: #d1d5db; margin-top: 6px;">AutoxMoto Detail Studio</div>
+        <div style="font-size: 18px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; text-align: center;">COMAR GARAGE</div>
+        <div style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; text-align: center; color: #d1d5db; margin-top: 6px;">Auto Detailing Studio</div>
       </div>
       <div style="padding: 24px 24px 12px;">
         <div style="display: flex; justify-content: space-between; gap: 16px; margin-bottom: 16px;">
@@ -487,9 +487,9 @@ const buildReceiptEmailHtml = ({ customerName, bookingReference, receiptNumber, 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-bottom: 18px;">
           <div>
             <div style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;">Business Details</div>
-            <div style="font-size: 14px; font-weight: 700; color: #111827;">AutoxMoto Detail Studio</div>
+            <div style="font-size: 14px; font-weight: 700; color: #111827;">Comar Garage</div>
             <div style="font-size: 12px; color: #4b5563; margin-top: 4px;">123 Auto Avenue, Mandaluyong City</div>
-            <div style="font-size: 12px; color: #4b5563;">+63 917 123 4567 | hello@speedwaystudio.ph</div>
+            <div style="font-size: 12px; color: #4b5563;">+63 917 123 4567 | hello@comargarage.com</div>
           </div>
           <div style="text-align: right;">
             <div style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;">Booking Reference</div>
@@ -693,7 +693,7 @@ app.post('/api/emails/booking-confirmation', async (req, res) => {
         subject: `BOOKING CONFIRMED: ${bookingId.substring(0, 8).toUpperCase()}`,
         html: `
           <div style="font-family: sans-serif; max-width: 600px; border: 1px solid #eee; padding: 20px;">
-            <h2 style="color: #A91B18; margin-top: 0;">SPEEDWAY DETAIL STUDIO</h2>
+            <h2 style="color: #A91B18; margin-top: 0;">COMAR GARAGE</h2>
             <h3 style="text-transform: uppercase; border-bottom: 2px solid #eee; padding-bottom: 10px;">Booking Confirmation</h3>
             
             <p>Hi <strong>${customer.full_name}</strong>,</p>
@@ -716,7 +716,7 @@ app.post('/api/emails/booking-confirmation', async (req, res) => {
             </div>
 
             <p style="margin-top: 30px; font-size: 12px; color: #888;">
-              Please arrive 15 minutes before your scheduled slot. If you need to reschedule, contact us at +1 (555) SPEEDWAY.
+              Please arrive 15 minutes before your scheduled slot. If you need to reschedule, contact Comar Garage through the contact details in your portal.
             </p>
           </div>
         `
@@ -1249,10 +1249,10 @@ app.post('/customer/register', async (req, res) => {
       subject: 'WELCOME TO THE FLEET',
       html: `
         <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; border: 1px solid #eee;">
-          <h2 style="color: #A91B18;">SPEEDWAY DETAIL STUDIO</h2>
+          <h2 style="color: #A91B18;">COMAR GARAGE</h2>
           <h3 style="margin-top: 0; text-transform: uppercase;">WELCOME TO THE FLEET</h3>
           <p>Hi ${firstName},</p>
-          <p>Thank you for creating an account with Speedway Detail Studio. Please confirm your email address to activate your customer portal.</p>
+          <p>Thank you for creating an account with Comar Garage. Please confirm your email address to activate your customer portal.</p>
           <div style="text-align: center; margin: 30px 0;">
             <a href="${confirmLink}" style="background-color: #A91B18; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">CONFIRM EMAIL ADDRESS</a>
           </div>
@@ -1718,28 +1718,28 @@ app.post('/api/auth/verify-password', async (req, res) => {
 
 const sendPasswordConfirmationEmail = async ({ email, token, purpose }) => {
   const confirmationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/password-confirmation?token=${encodeURIComponent(token)}`;
-  const subject = purpose === 'RESET' ? 'Confirm your Speedway password reset' : 'Confirm your Speedway password change';
+  const subject = purpose === 'RESET' ? 'Confirm your Comar Garage password reset' : 'Confirm your Comar Garage password change';
   const action = purpose === 'RESET' ? 'Reset Password' : 'Confirm Password Change';
   return send({
     to: email,
     subject,
     html: buildEmailShell({
       title: action,
-      eyebrow: 'SPEEDWAY ACCOUNT SECURITY',
-      bodyHtml: `<p style="margin:0 0 16px;color:#374151;line-height:1.7;">We received a request to ${purpose === 'RESET' ? 'reset' : 'change'} your Speedway password.</p><p style="margin:0 0 16px;color:#374151;line-height:1.7;">This confirmation link expires in <strong>15 minutes</strong> and can only be used once.</p><p style="margin:0;color:#6b7280;font-size:13px;">If you did not request this, ignore this email. Your current password remains unchanged.</p>`,
+      eyebrow: 'COMAR GARAGE ACCOUNT SECURITY',
+      bodyHtml: `<p style="margin:0 0 16px;color:#374151;line-height:1.7;">We received a request to ${purpose === 'RESET' ? 'reset' : 'change'} your Comar Garage password.</p><p style="margin:0 0 16px;color:#374151;line-height:1.7;">This confirmation link expires in <strong>15 minutes</strong> and can only be used once.</p><p style="margin:0;color:#6b7280;font-size:13px;">If you did not request this, ignore this email. Your current password remains unchanged.</p>`,
       ctaLink: confirmationUrl,
       ctaLabel: action,
-      footerNote: 'Speedway Detail Studio | Account Security'
+      footerNote: 'Comar Garage | Account Security'
     })
   });
 };
 
 const sendPasswordSecurityAlert = async ({ email, purpose }) => send({
   to: email,
-  subject: purpose === 'RESET' ? 'Your Speedway password was reset' : 'Your Speedway password was updated',
+  subject: purpose === 'RESET' ? 'Your Comar Garage password was reset' : 'Your Comar Garage password was updated',
   html: buildEmailShell({
     title: purpose === 'RESET' ? 'Password Reset Complete' : 'Password Update Complete',
-    eyebrow: 'SPEEDWAY ACCOUNT SECURITY',
+    eyebrow: 'COMAR GARAGE ACCOUNT SECURITY',
     bodyHtml: '<p style="margin:0;color:#374151;line-height:1.7;">Your Speedway account password was successfully updated. If you did not make this change, contact support immediately.</p>',
     footerNote: 'Speedway Detail Studio | Account Security'
   })

@@ -136,7 +136,7 @@ const AdminAcceptInvite = () => {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
           <h1 style={{ fontSize: '2rem', fontWeight: '950', color: 'var(--admin-text-primary)', margin: 0, tracking: '-0.05em', fontStyle: 'italic', textTransform: 'uppercase' }}>
-            SPEEDWAY<span style={{ color: '#A91B18' }}>AUTOXMOTO</span>
+            COMAR GARAGE
           </h1>
           <p style={{ color: '#555', marginTop: '0.5rem', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '2px' }}>
             Account Activation
@@ -241,7 +241,7 @@ const AdminAcceptInvite = () => {
         </div>
 
         <p style={{ textAlign: 'center', color: '#444', fontSize: '0.65rem', marginTop: '2rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>
-          Secure Administrative Activation System &bull; Speedway Thesis 2024
+          Secure Administrative Activation System &bull; Comar Garage
         </p>
       </div>
     </div>
