@@ -34,4 +34,4 @@ scratch/
 
 # Build / lint noise
 frontend/eslint-report.json
-node_modules/.package-lock.json
+node_modules/.package-lock.jsonnode_modules/
