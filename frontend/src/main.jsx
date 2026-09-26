@@ -52,6 +52,7 @@ import CustomerProfile from './pages/Customer/CustomerProfile';
 import CustomerBookingDetails from './pages/Customer/CustomerBookingDetails';
 import CustomerReceipt from './pages/Customer/CustomerReceipt';
 import PasswordConfirmation from './pages/PasswordConfirmation';
+import AuthCallback from './pages/AuthCallback';
 import './index.css';
 
 const InputCapitalizationController = () => {
@@ -107,6 +108,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 <Route path="/" element={<Landing />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/accept-invite" element={<AdminAcceptInvite />} />
+                {/* Landing page for Supabase auth email links (signup
+                    confirmation, recovery, email change). The session arrives in
+                    the URL FRAGMENT, which /login never read — so a freshly
+                    confirmed customer was shown a login form instead of being
+                    signed in. This route consumes it and redirects by role. */}
+                <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/password-confirmation" element={<PasswordConfirmation />} />
 
                 {/* Admin Routes */}

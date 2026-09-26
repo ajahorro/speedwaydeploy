@@ -1,4 +1,8 @@
 const { Resend } = require('resend');
+// ONE resolver for the public frontend URL. Falling back to localhost:5173 here
+// meant a deployed site emailed customers a link to their own machine whenever
+// FRONTEND_URL was unset — indistinguishable from a broken link.
+const { appUrl } = require('./appUrl');
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const SENDER_EMAIL = process.env.RESEND_SENDER_EMAIL || process.env.RESEND_FROM || 'Comar Garage <bookings@yourdomain.com>';
@@ -93,7 +97,7 @@ const sendBookingConfirmationEmail = async ({ customerEmail, customerName, booki
       </div>
       <p style="margin: 0; font-size: 15px; color: #374151; line-height: 1.7;">You can check your booking status anytime through your customer dashboard.</p>
     `,
-    ctaLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/customer/bookings`,
+    ctaLink: `${appUrl('/customer/bookings')}`,
     ctaLabel: 'View Booking',
     footerNote: 'Comar Garage | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal'
   })
@@ -253,7 +257,7 @@ const sendStatusUpdateEmail = async ({ customerEmail, customerName, bookingId, s
       </div>
       <p style="margin: 0; font-size: 15px; color: #374151; line-height: 1.7;">You can continue monitoring updates in your customer portal.</p>
     `,
-    ctaLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/customer/bookings`,
+    ctaLink: `${appUrl('/customer/bookings')}`,
     ctaLabel: 'Open Portal',
     footerNote: 'Speedway Detail Studio | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal'
   })

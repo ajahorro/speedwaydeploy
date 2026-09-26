@@ -199,6 +199,58 @@ export const createBooking = async (customerId, bookingData) => {
   // Payment payload mirrors the previous post-creation insert logic exactly.
   let rpcPayment = null;
   let rpcExcess = 0;
+
+  // ── The OCR verdict that gates booking creation ───────────────────────────
+  // Derived from the scan result the customer's upload produced. This is the
+  // value create_booking_atomic allow-lists and derives the booking's
+  // payment_status from, so it must reflect what OCR actually decided.
+  //
+  // FIELD CONTRACT — read from Step4ReviewPayment's `resultObj`, which is what
+  // `bookingData.payment.ocrData` actually holds:
+  //
+  //   valid        boolean  the backend's fail-fast verdict (result.valid)
+  //   status       string   MATCHED | MISMATCHED | DUPLICATE_DETECTED |
+  //                         NAME_MISMATCH | DATE_MISMATCH | REJECTED |
+  //                         MANUAL_REVIEW
+  //   isManualReview boolean the OCR engine was unreachable; receipt is kept for
+  //                          manual admin review
+  //
+  // NOTE: `isValidReceipt` is NOT a key on resultObj — it is renamed to `valid`
+  // before storage. Reading the wrong key would have silently defaulted every
+  // scan to FOR_VERIFICATION, which is precisely the bug being fixed here.
+  //
+  //   REJECTED          the image was not a usable receipt, or the amount/date/
+  //                     name did not match — the RPC refuses the booking
+  //   FOR_VERIFICATION  a usable receipt awaiting an admin decision
+  //   PAID              only for an admin walk-in, whose payment is taken on site
+  //   UNPAID            cash with no receipt to scan
+  //
+  // Deliberately NOT defaulted to FOR_VERIFICATION: a missing scan must not read
+  // as "verified enough to book", and the RPC refuses an absent verdict.
+  const ocrData = bookingData.payment?.ocrData || null;
+  const ocrVerdict = (() => {
+    if (bookingData.payment?.method === 'Cash') return isAdminWalkIn ? 'PAID' : 'UNPAID';
+    if (!ocrData) return null;
+
+    // A server-supplied verdict wins when present (backend /api/ocr/audit).
+    if (ocrData.verdict) return String(ocrData.verdict).toUpperCase();
+
+    // The engine was unreachable and the receipt is being kept for a human.
+    // That is a legitimate verification-queue entry, not a rejection.
+    if (ocrData.isManualReview || ocrData.status === 'MANUAL_REVIEW') return 'FOR_VERIFICATION';
+
+    // Any explicit mismatch verdict is a rejection.
+    if (ocrData.status && ['MISMATCHED', 'DUPLICATE_DETECTED', 'NAME_MISMATCH', 'DATE_MISMATCH', 'REJECTED'].includes(ocrData.status)) {
+      return 'REJECTED';
+    }
+
+    // Otherwise the backend's own fail-fast flag decides.
+    if (ocrData.valid === false) return 'REJECTED';
+    if (ocrData.valid === true) return 'FOR_VERIFICATION';
+
+    // No usable verdict at all — let the RPC refuse it rather than guessing.
+    return null;
+  })();
   if ((bookingData.adminWalkIn && bookingData.payment?.method === 'Cash') || (!bookingData.adminWalkIn && bookingData.payment?.method === 'Cash') || (bookingData.payment?.method === 'GCash' && bookingData.payment.proofOfPayment)) {
     if (bookingData.payment.method === 'Cash') {
       const cashAmount = bookingData.adminWalkIn && bookingData.payment.type === 'Manual'
@@ -249,8 +301,7 @@ export const createBooking = async (customerId, bookingData) => {
       // we must not deduct the fee again. We only fall back to subtracting the fee
       // when the OCR gave us a GROSS figure without a net (legacy shape).
       const transferFee = Math.max(0, Number(bookingData.payment?.ocrData?.transferFee || 0));
-      const netReceived = detectedAmount > 0
-        ? detectedAmount
+      const netReceived = detectedAmount > 0        ? detectedAmount
         : (detectedGross > 0 ? Math.max(0, detectedGross - transferFee) : paymentAmount);
       const netCredit = netReceived;
       rpcExcess = Math.max(0, netCredit - paymentAmount);
@@ -260,6 +311,18 @@ export const createBooking = async (customerId, bookingData) => {
         method: 'GCash',
         payment_type: bookingData.payment.type || 'Full',
         status: 'FOR_VERIFICATION',
+        // ── OCR VERDICT ──────────────────────────────────────────────────────
+        // create_booking_atomic allow-lists this value and DERIVES the booking's
+        // payment_status from it. The OCR is meant to be a source of truth, and
+        // this is the only point at which its verdict can reach the database —
+        // the payment row does not exist yet at RPC time, so the verdict cannot
+        // be read from there.
+        //
+        // A rejected verdict makes the RPC refuse the booking outright, which is
+        // what stops a non-receipt image from completing one. An unrecognised
+        // value is refused too, so a caller cannot smuggle a bad string into the
+        // enum column.
+        verdict: ocrVerdict,
         receipt_url: publicUrl,
         detected_amount: detectedAmount > 0 ? detectedAmount : null,
         detected_ref: detectedReference,

@@ -32,8 +32,7 @@ export const useAuthFlow = () => {
     }
   }, [user, profile, mode, navigate]);
 
-  const login = async (email, password) => {
-    setIsLoading(true);
+  const login = async (email, password) => {    setIsLoading(true);
     setLoginError('');
     try {
       const { error } = await signInWithPassword(email, password);
@@ -65,6 +64,24 @@ export const useAuthFlow = () => {
       // client — RLS would reject it (auth.uid() is null) and the crash surfaced
       // as "Registration failed". The backend writes the profile on confirm
       // instead, which is why this now only validates and reports success.
+      // AUTH REDIRECT.
+      //
+      // This used to be `${window.location.origin}/login`. Supabase appends the
+      // session as a URL FRAGMENT (#access_token=...&type=signup), and /login
+      // never read a fragment — so a freshly confirmed customer landed on a
+      // login FORM with their session silently discarded. That is the
+      // "confirmation links don't lead where they are intended" defect.
+      //
+      // `/auth/callback` consumes the fragment, establishes the session, and
+      // redirects by role. The origin is still derived from the browser so it
+      // follows whatever domain the app is served from — but the PATH is now a
+      // route that actually handles the link.
+      //
+      // IMPORTANT: this URL must also be listed under Supabase > Authentication >
+      // URL Configuration > Redirect URLs, or Supabase ignores it and falls back
+      // to the project's Site URL.
+      const redirectTo = `${window.location.origin}/auth/callback`;
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password: userData.password,
@@ -77,7 +94,7 @@ export const useAuthFlow = () => {
             phone_number: userData.phone.trim(),
             role: 'CUSTOMER'
           },
-          emailRedirectTo: `${window.location.origin}/login`
+          emailRedirectTo: redirectTo
         }
       });
       if (error) throw error;

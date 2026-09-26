@@ -15,6 +15,10 @@ const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEm
 const { DELIVERY, assertDelivery } = require('./config/emailPolicy');
 const { processReceiptOCR } = require('./services/ocrService');
 const ocrGuard = require('./services/ocrGuard');
+// ONE resolver for the public frontend URL. Five call sites previously fell back
+// to localhost:5173 silently, so a missing FRONTEND_URL emailed customers a link
+// to their own machine.
+const { appUrl } = require('./services/appUrl');
 // ONE money model shared by the receipt email, the receipt PDF and the portal,
 // plus the OCR-vs-recorded reconciliation that surfaces amount drift.
 const { resolveTransactionAmounts, reconcileOcrAmounts, formatPeso } = require('./services/transactionAmounts');
@@ -1047,7 +1051,7 @@ app.post('/admin/generate-invite', async (req, res) => {
     if (profileError) throw profileError;
 
     // 4. Deliver temporary credentials through the branded Resend relay.
-    const loginLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    const loginLink = appUrl('/login');
     let emailDelivered = false;
     try {
       const emailResult = await sendInviteAccountEmail({
@@ -1181,7 +1185,7 @@ app.post('/invite/accept', async (req, res) => {
 
     if (profileError) {
       console.error('❌ Profile Insertion Failed:', profileError.message);
-      // We don't delete the auth user here to avoid data loss, 
+      // We don't delete the auth user here to avoid data loss,
       // but we throw so the user knows it failed.
       throw profileError;
     }
@@ -1224,8 +1228,8 @@ app.post('/customer/register', async (req, res) => {
         role: 'CUSTOMER'
       }
     });
-    // For development, we can automatically confirm if needed, 
-    // but the directive asks to toggle it OFF. 
+    // For development, we can automatically confirm if needed,
+    // but the directive asks to toggle it OFF.
     // generating a link is one way, but createUser is better if we want NO email.
 
     if (error) {
@@ -1571,9 +1575,43 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
 
     // Duplicates are rejected immediately; amount, receipt-validity, OR date
     // issues remain available for staff review rather than being silently accepted.
-    const finalStatus = isDuplicate
-      ? 'REJECTED_DUPLICATE'
-      : (!isAmountMatch || !isDateMatch || !extractedData.isReceipt || qrVersionMismatch ? 'Flagged for Review' : 'Confirmed');
+    //
+    // ENUM MAPPING — these are two DIFFERENT enums and must not be conflated:
+    //
+    //   bookings.payment_status  (booking_payment_status) = unpaid | pending | paid | refunded
+    //   payments.status          (payment_status)         = UNPAID | FOR_VERIFICATION | PAID
+    //                                                       | REJECTED | REFUND_PENDING | REFUNDED
+    //
+    // The previous code passed human-readable strings ('Flagged for Review' /
+    // 'Confirmed') straight into bookings.payment_status, which the cast rejected:
+    //   ERROR 42804: column "payment_status" is of type booking_payment_status
+    //                but expression is of type text
+    // That failure was only LOGGED, so the booking still reported success — which
+    // is how an unreadable receipt completed a booking.
+    //
+    // NOTE: bookings.payment_status has NO 'for_verification' member. "Awaiting
+    // verification" is spelled 'pending' on the booking and FOR_VERIFICATION on
+    // the payment. Mapping them onto one string is what produced the 42804.
+    const BOOKING_STATUS_PENDING = 'pending';
+    const PAYMENT_STATUS_FOR_VERIFICATION = 'FOR_VERIFICATION';
+    const PAYMENT_STATUS_REJECTED = 'REJECTED';
+
+    const receiptIsTrustworthy = Boolean(extractedData.isReceipt) && isAmountMatch && isDateMatch && !qrVersionMismatch;
+
+    // What the PAYMENT row records (payments.status).
+    const finalPaymentStatus = isDuplicate || !receiptIsTrustworthy
+      ? PAYMENT_STATUS_REJECTED
+      : PAYMENT_STATUS_FOR_VERIFICATION;
+
+    // What the BOOKING records (bookings.payment_status). A customer's receipt
+    // never auto-settles: it goes to 'pending' and waits for an admin, even when
+    // the scan was clean. Only an admin verification advances it to 'paid'.
+    const finalBookingStatus = 'pending';
+
+    // Kept for the audit-log line and the response body.
+    const finalStatus = finalPaymentStatus;
+
+    void BOOKING_STATUS_PENDING;
 
     // ── SC-18: failure circuit breaker ─────────────────────────────────────
     // A cleanly-read, well-formed receipt clears the streak. An unreadable or
@@ -1604,9 +1642,17 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         p_payment_id: paymentId,
         p_detected_amount: extractedAmount,
         p_detected_ref: referenceNo || null,
-        p_payment_status: finalStatus,
+        // bookings.payment_status is the booking_payment_status enum
+        // (unpaid | pending | paid | refunded). It has NO 'for_verification'
+        // member — 'pending' is how the booking spells "awaiting verification".
+        // The payment row separately records FOR_VERIFICATION / REJECTED.
+        p_payment_status: finalBookingStatus,
         p_ocr_metadata: {
           ...extractedData,
+          // The payment-level verdict, kept inside the JSON so the rejection
+          // reason survives even though the enum column only holds 'pending'.
+          payment_verdict: finalPaymentStatus,
+          receipt_is_trustworthy: receiptIsTrustworthy,
           requiredAmount,
           isAmountMatch,
           // HOTFIX: persist the surplus explicitly so the ledger/UI can show
@@ -1629,10 +1675,27 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       });
 
       if (persistenceError) {
+        // FAIL-CLOSED. This handler previously logged the error and returned
+        // `success: true`, so a booking whose OCR verdict could not be recorded
+        // was still treated as verified upstream. The verdict IS the security
+        // control — if it cannot be persisted, the client must not be told the
+        // receipt passed.
         console.error('⚠️ Atomic OCR persistence failed:', persistenceError.message);
+
+        // Distinguish "the database rejected our enum cast" from a transient
+        // failure: both are fatal to the verdict, but the former is a code defect
+        // that must be loud rather than retried.
+        const isTypeRejection = persistenceError.code === '42804' || /is of type/i.test(persistenceError.message || '');
+        if (isTypeRejection) {
+          console.error('🚨 [OCR] persist_ocr_result rejected the status value itself. This is a code defect, not a user error.');
+        }
+
         return res.status(500).json({
           success: false,
-          error: 'OCR_PERSISTENCE_FAILED: Could not save detected data.'
+          valid: false,
+          status: 'OCR_PERSISTENCE_FAILED',
+          reason: 'OCR_PERSISTENCE_FAILED',
+          error: 'OCR_PERSISTENCE_FAILED: we could not record the receipt verdict, so the payment cannot be treated as verified.',
         });
       }
 
@@ -1643,13 +1706,25 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           action_type: 'AI_VERIFICATION_COMPLETE',
           actor_name: 'AI_AUDITOR',
           actor_role: 'SYSTEM',
-          details: `AI extraction complete. Reference: ${referenceNo || 'N/A'}. Amount: ₱${extractedAmount}. Amount match: ${isAmountMatch}. Date match: ${isDateMatch}. Duplicate: ${isDuplicate}.`
+          details: `AI extraction complete. Reference: ${referenceNo || 'N/A'}. Amount: ₱${extractedAmount}. Amount match: ${isAmountMatch}. Date match: ${isDateMatch}. Duplicate: ${isDuplicate}. Persisted status: ${finalStatus}.`
         });
       } catch (logErr) {
-        console.warn('⚠️ Audit logging failed, but booking was updated.');
+        console.warn('⚠️ Audit logging failed, but the verdict was persisted.');
       }
     } else {
-      console.log('ℹ️ [AI OCR] Booking is in PENDING state. Returning extraction results to frontend for submission.');
+      // ── NO BOOKING TO ATTACH TO YET (the pre-submit scan) ─────────────────
+      //
+      // This branch is reached when the receipt is scanned BEFORE the booking
+      // row exists, so persist_ocr_result cannot be called. Previously this was a
+      // no-op that logged and fell through to `success: true` regardless of the
+      // verdict — which is how a non-receipt image could complete a booking: the
+      // one call that enforces the OCR verdict was skipped entirely.
+      //
+      // The enforcement is NOT duplicated here. The verdict is returned to the
+      // caller as `valid: false`, and create_booking_atomic re-checks the stored
+      // verdict before any row is written. What matters is that this branch can
+      // no longer imply approval.
+      console.log(`ℹ️ [AI OCR] Booking is ${bookingId || 'PENDING'} — returning the verdict to the caller for enforcement at submit time.`);
     }
 
     // ── STEP 2: AMOUNT / DATE / REFERENCE ──────────────────────────────────
@@ -1717,7 +1792,9 @@ app.post('/api/auth/verify-password', async (req, res) => {
 });
 
 const sendPasswordConfirmationEmail = async ({ email, token, purpose }) => {
-  const confirmationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/password-confirmation?token=${encodeURIComponent(token)}`;
+  // appUrl() fails loudly in production when FRONTEND_URL is unset, instead of
+  // silently emailing the customer a link to their own localhost.
+  const confirmationUrl = appUrl(`/password-confirmation?token=${encodeURIComponent(token)}`);
   const subject = purpose === 'RESET' ? 'Confirm your Comar Garage password reset' : 'Confirm your Comar Garage password change';
   const action = purpose === 'RESET' ? 'Reset Password' : 'Confirm Password Change';
   return send({
@@ -2327,7 +2404,7 @@ app.post('/api/admin/invite-account', async (req, res) => {
     if (profileError) throw profileError;
 
     // 4. Deliver the temporary credentials through the branded Resend relay.
-    const loginLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    const loginLink = appUrl('/login');
     const emailResult = await sendInviteAccountEmail({
       recipientEmail: normalizedEmail,
       firstName: safeFirst,
@@ -3273,13 +3350,42 @@ app.post('/admin/verify-payment-ocr', async (req, res) => {
     const extractedAmount = Number(ocrResult.amount || 0);
     const requiredAmount = Number(req.body.requiredAmount || 0);
 
+    // This endpoint is the PRE-SUBMIT scan (no booking row exists yet), so it
+    // cannot call persist_ocr_result — there is nothing to persist against. Its
+    // only job is to hand the verdict back to the caller, and that verdict is
+    // then carried into create_booking_atomic, which enforces it.
+    //
+    // `status` used to return the human-readable strings 'Flagged for Review' /
+    // 'Confirmed'. Those were the SAME strings that were being written into the
+    // booking_payment_status enum and raising 42804 — and as a client-facing
+    // verdict they are ambiguous ('Confirmed' reads as "payment confirmed", when
+    // it only means "the amount matched"). The verdict vocabulary is now the
+    // same enum the database uses, so no layer has to translate it.
+    const amountMatched = requiredAmount <= 0 || Math.abs(extractedAmount - requiredAmount) <= 1;
+    const isUsableReceipt = Boolean(ocrResult.isValidReceipt);
+
+    // A receipt that OCR does not recognise as a receipt is REJECTED outright.
+    // This is the check that a non-receipt image fails.
+    const verdict = !isUsableReceipt
+      ? 'REJECTED'
+      : (amountMatched ? 'FOR_VERIFICATION' : 'REJECTED');
+
     return res.json({
       success: true,
+      // `valid` is the machine-readable gate the client must honour. It is FALSE
+      // whenever the image is not a usable receipt or the amount does not match,
+      // so a caller cannot treat a rejection as approval.
+      valid: verdict === 'FOR_VERIFICATION',
+      verdict,
       // ±₱1.00 inclusive: `> 1` (not `>= 1`) so a ₱1.00 difference is a MATCH.
       // The previous `>= 1` flagged a ₱1.00 difference for review while `isMatch`
       // below called it a match — a contradictory pair of verdicts.
-      status: requiredAmount > 0 && Math.abs(extractedAmount - requiredAmount) > 1 ? 'Flagged for Review' : 'Confirmed',
-      isMatch: requiredAmount <= 0 || Math.abs(extractedAmount - requiredAmount) <= 1,
+      status: verdict,
+      reason: verdict === 'FOR_VERIFICATION'
+        ? null
+        : (!isUsableReceipt ? 'NOT_A_RECEIPT' : 'AMOUNT_MISMATCH'),
+      isMatch: amountMatched,
+      isReceipt: isUsableReceipt,
       data: {
         ...ocrResult,
         referenceNumber: ocrResult.referenceNumber,
