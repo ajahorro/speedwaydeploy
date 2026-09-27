@@ -120,17 +120,32 @@ export const createBooking = async (customerId, bookingData) => {
   // actually reviewed so they can never drift after the promo window closes.
   const discountAmountSnapshot = Math.max(0, Number(pricingSummary.totalDiscount || 0));
   const appliedPackages = pricingSummary.appliedPackages || [];
-  const appliedPromoId = appliedPackages.length
-    ? appliedPackages[0].packageId
-    : (() => {
-        // For standard promos, find the first promo applied on any service line.
-        for (const vehicle of (vehicles || [])) {
-          for (const service of (vehicle.services || [])) {
-            if (service?.applied_promo) return service.applied_promo;
+
+  // A promo id can be EITHER a real database row id (a UUID) OR a package/rule id
+  // synthesised in the browser (`promo-<timestamp>`) for a package that has no DB
+  // row. `bookings.applied_promo_id` is a uuid column, so sending the synthetic
+  // form aborted the ENTIRE booking with 22P02
+  // (invalid input syntax for type uuid: "promo-1790542417063"). Only forward a
+  // value that is genuinely a UUID; the promo NAME and DISCOUNT snapshots are what
+  // the receipt and analytics actually display, and they are always sent.
+  const asUuidOrNull = (value) => {
+    const v = typeof value === 'string' ? value.trim() : '';
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) ? v : null;
+  };
+
+  const appliedPromoId = asUuidOrNull(
+    appliedPackages.length
+      ? appliedPackages[0].packageId
+      : (() => {
+          // For standard promos, find the first promo applied on any service line.
+          for (const vehicle of (vehicles || [])) {
+            for (const service of (vehicle.services || [])) {
+              if (service?.applied_promo) return service.applied_promo;
+            }
           }
-        }
-        return null;
-      })();
+          return null;
+        })()
+  );
   const promoNameSnapshot = appliedPackages.length
     ? appliedPackages.map((p) => p.name).join(', ')
     : (() => {
