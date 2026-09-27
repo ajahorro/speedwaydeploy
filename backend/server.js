@@ -192,53 +192,99 @@ const getLifecycleActor = async (req) => {
  *
  * Returns the actor profile on success, or null when the caller is anonymous,
  * inactive, or not an admin. Callers must respond 403 when this returns null.
+ *
+ * HARDENED (2026-09-28): Case-insensitive Bearer extraction, .single() lookup,
+ * deep diagnostic logging at every step.
  */
 const requireAdmin = async (req) => {
-  const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
-  if (!token) {
-    console.warn('🛑 [RBAC] denied: no Bearer token on the request.');
+  console.log('[requireAdmin] ===== START =====');
+
+  // ── Step 1: Extract token from Authorization header ──────────────────────
+  // req.headers keys are always lower-cased by Node/Express, so we only need
+  // the lowercase form — but we also accept the mixed-case form defensively.
+  const rawAuthHeader = req.headers['authorization'] || req.headers['Authorization'] || '';
+  console.log('[requireAdmin] Raw Authorization header:', rawAuthHeader
+    ? rawAuthHeader.substring(0, 30) + (rawAuthHeader.length > 30 ? '...' : '')
+    : '(empty/missing)');
+
+  if (!rawAuthHeader) {
+    console.warn('[requireAdmin] FAIL — No Authorization header present on request.');
     return null;
   }
+
+  // Case-insensitive match: handles "Bearer", "bearer", "BEARER", etc.
+  const bearerMatch = rawAuthHeader.match(/^bearer\s+(.+)$/i);
+  if (!bearerMatch) {
+    console.warn('[requireAdmin] FAIL — Authorization header is not a valid Bearer token. Raw value:', rawAuthHeader.substring(0, 40));
+    return null;
+  }
+
+  const token = bearerMatch[1].trim();
+  console.log('[requireAdmin] Extracted token (first 20 chars):', token.substring(0, 20) + '...');
+
+  // ── Step 2: supabaseAdmin availability check ─────────────────────────────
   if (!supabaseAdmin) {
-    console.error('🛑 [RBAC] denied: supabaseAdmin is not initialised — the service-role key is missing or invalid.');
+    console.error('[requireAdmin] FAIL — supabaseAdmin is not initialised (service-role key missing or invalid).');
     return null;
   }
 
+  // ── Step 3: Verify token with Supabase Auth ──────────────────────────────
+  console.log('[requireAdmin] Calling supabaseAdmin.auth.getUser(token)...');
   const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
+  console.log('[requireAdmin] getUser result — user id:', userData?.user?.id || '(none)', '| error:', userErr?.message || '(none)');
+
   if (userErr || !userData?.user) {
-    console.warn(`🛑 [RBAC] denied: token not accepted by Supabase (${userErr?.message || 'no user returned'}).`);
+    console.warn('[requireAdmin] FAIL — Token rejected by Supabase Auth:', userErr?.message || 'no user returned');
     return null;
   }
 
+  const userId = userData.user.id;
+  console.log('[requireAdmin] Verified Supabase Auth user ID:', userId, '| email:', userData.user.email || '(none)');
+
+  // ── Step 4: Look up public.profiles by id ────────────────────────────────
+  console.log('[requireAdmin] Querying public.profiles where id =', userId);
   const { data: profile, error: profileErr } = await supabaseAdmin
     .from('profiles')
     .select('id, role, is_active, email, full_name')
-    .eq('id', userData.user.id)
-    .maybeSingle();
+    .eq('id', userId)
+    .single();
 
-  // Log the REASON, with the values, so a 403 is diagnosable from the server
-  // logs alone. Previously every rejection was indistinguishable from every
-  // other — the caller saw one opaque 403 and the operator saw nothing.
+  console.log('[requireAdmin] profiles query — row:', profile ? JSON.stringify({ id: profile.id, role: profile.role, is_active: profile.is_active, email: profile.email }) : '(null)', '| error:', profileErr ? `${profileErr.message} (code=${profileErr.code})` : '(none)');
+
   if (profileErr) {
-    console.error(`🛑 [RBAC] denied: profile lookup failed for ${userData.user.id}: ${profileErr.message} (code ${profileErr.code || 'n/a'})`);
-    return null;
-  }
-  if (!profile) {
-    console.warn(`🛑 [RBAC] denied: no profiles row for auth user ${userData.user.id} (${userData.user.email || 'no email'}).`);
-    return null;
-  }
-  // `coalesce(is_active, true)`, matching every SQL policy in this codebase.
-  // Only an EXPLICIT false is a deactivation; NULL means "never set", not "off".
-  if (profile.is_active === false) {
-    console.warn(`🛑 [RBAC] denied: profile ${profile.id} is explicitly deactivated (is_active = false).`);
+    // PGRST116 = "no rows returned" when using .single() — means the auth user
+    // has no corresponding profiles row yet.
+    if (profileErr.code === 'PGRST116') {
+      console.warn(`[requireAdmin] FAIL — No profiles row exists for auth user ${userId}. The account may not have completed setup.`);
+    } else {
+      console.error(`[requireAdmin] FAIL — profiles lookup threw an error for user ${userId}:`, profileErr.message, `(code=${profileErr.code})`);
+    }
     return null;
   }
 
-  const role = String(profile.role || '').trim().toUpperCase();
-  if (role !== 'ADMIN') {
-    console.warn(`🛑 [RBAC] denied: profile ${profile.id} has role ${JSON.stringify(profile.role)} (normalised: ${JSON.stringify(role)}), expected "ADMIN".`);
+  if (!profile) {
+    console.warn(`[requireAdmin] FAIL — profiles query returned null for user ${userId} with no error (unexpected).`);
     return null;
   }
+
+  // ── Step 5: is_active check ───────────────────────────────────────────────
+  // Treat NULL as active (coalesce(is_active, true) semantics used everywhere).
+  console.log('[requireAdmin] is_active raw value:', profile.is_active, '| type:', typeof profile.is_active);
+  if (profile.is_active === false) {
+    console.warn(`[requireAdmin] FAIL — Profile ${profile.id} (${profile.email}) is explicitly deactivated (is_active = false).`);
+    return null;
+  }
+
+  // ── Step 6: Role check (case-insensitive) ─────────────────────────────────
+  const normalizedRole = String(profile.role || '').trim().toUpperCase();
+  console.log('[requireAdmin] Role raw:', JSON.stringify(profile.role), '| normalized:', normalizedRole);
+
+  if (normalizedRole !== 'ADMIN') {
+    console.warn(`[requireAdmin] FAIL — Profile ${profile.id} has role "${normalizedRole}" (raw: ${JSON.stringify(profile.role)}), expected "ADMIN".`);
+    return null;
+  }
+
+  console.log(`[requireAdmin] SUCCESS ✅ — Admin verified: id=${profile.id}, email=${profile.email}, role=${normalizedRole}`);
   return { user: userData.user, profile };
 };
 
