@@ -12,16 +12,30 @@ const dateValue = (value) => value
   ? new Date(value).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
   : '-';
 
-const VAT_RATE = 0.12;
+/** Money rounding. Matches round2() in utils/paymentAmounts.js. */
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose, mode = 'modal', title }) => {
   const receiptRef = useRef(null);
   const effectiveVehicles = vehicles.length ? vehicles : (booking?.vehicles || []);
 
-  // Unified tax model — must match buildReceiptEmailHtml / buildReceiptPdfBuffer
-  // in backend/server.js so the on-screen and emailed receipts agree:
-  //   vatable = subtotal - discount;  VAT = vatable * 12%;  total = vatable + VAT
-  const subtotal = selectedPayment
+  // ── PRICING MODEL: FLAT AND TAX-FREE ─────────────────────────────────────
+  //
+  // This system applies NO VAT and no percentage-based tax of any kind. The
+  // figure quoted is the figure charged is the figure stored is the figure
+  // printed here:
+  //
+  //     Total Amount Due = the item / package price, exactly
+  //
+  // There is no division by 1.12 and no "Vatable Sales" / "VAT (12%)" line.
+  //
+  // HISTORY, so this is not reintroduced: the receipt previously derived a 12%
+  // VAT split from the total, and before that it ADDED 12% on top — which made a
+  // ₱2,500 booking print a "Total Amount Due" of ₱2,800, a figure the customer
+  // was never charged and which existed nowhere in the database. Both models are
+  // now removed rather than reconciled. A tax figure computed in more than one
+  // place is a tax figure that will eventually disagree with itself.
+  const gross = selectedPayment
     ? Number(selectedPayment.amount || 0)
     : Number(booking?.total_amount ?? 0);
   // The promo/discount snapshot is frozen on the BOOKING at creation time (the
@@ -32,9 +46,12 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
     selectedPayment?.discount_amount ?? booking?.discount_amount_snapshot ?? 0
   ) || 0;
   const promoName = booking?.promo_name_snapshot || null;
-  const vatableSales = Math.max(0, subtotal - discount);
-  const vat = Math.max(0, vatableSales * VAT_RATE);
-  const total = vatableSales + vat;
+  // The discount was already applied when the total was computed at booking time
+  // (booking.total_amount is POST-discount), so it is shown for transparency but
+  // is NOT subtracted again here — doing so would double-count it.
+  //
+  // Flat, tax-free: the total IS the price. No tax base, no tax line, no division.
+  const total = round2(gross);
 
   const customerName = booking?.customer?.full_name || booking?.customer_name || user?.user_metadata?.full_name || 'Valued Customer';
   const customerEmail = booking?.customer?.email || booking?.customer_email || user?.email || '';
@@ -71,7 +88,7 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
         <div><strong style={{ display: 'block', fontSize: '0.65rem', color: '#9CA3AF', textTransform: 'uppercase' }}>Work Order</strong><div style={{ marginTop: '0.35rem', fontWeight: 700 }}>WO-{(booking?.id || 'REF').slice(0, 12).toUpperCase()}</div><div style={{ color: '#6B7280', fontSize: '0.8rem' }}>{selectedPayment?.method || 'Digital / Online Payment'}</div></div>
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}><thead><tr>{['Description', 'Qty', 'Unit Price', 'Total'].map((heading, index) => <th key={heading} style={{ textAlign: index ? 'right' : 'left', padding: '0.65rem 0.4rem', borderBottom: '2px solid #E5E7EB', color: '#6B7280', textTransform: 'uppercase', fontSize: '0.65rem' }}>{heading}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={row.key || index}><td style={{ padding: '0.8rem 0.4rem', borderBottom: '1px solid #F3F4F6' }}>{row.description}</td><td style={{ textAlign: 'right' }}>1</td><td style={{ textAlign: 'right' }}>{currency(row.price)}</td><td style={{ textAlign: 'right', fontWeight: 700 }}>{currency(row.price)}</td></tr>)}</tbody></table>
-      <div style={{ width: '280px', margin: '1.5rem 0 0 auto', borderTop: '2px solid #111827', paddingTop: '0.75rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem' }}><span>Subtotal</span><span>{currency(subtotal)}</span></div>{discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem', marginTop: '0.4rem' }}><span>Discount / Promo{promoName ? ` (${promoName})` : ''}</span><span>-{currency(discount)}</span></div>}<div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem', marginTop: '0.4rem' }}><span>Vatable Sales</span><span>{currency(vatableSales)}</span></div><div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem', marginTop: '0.4rem' }}><span>VAT (12%)</span><span>{currency(vat)}</span></div><div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '1.1rem', marginTop: '0.7rem' }}><span>Total Amount Due</span><span>{currency(total)}</span></div></div>
+      <div style={{ width: '280px', margin: '1.5rem 0 0 auto', borderTop: '2px solid #111827', paddingTop: '0.75rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem' }}><span>Subtotal</span><span>{currency(gross)}</span></div>{discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem', marginTop: '0.4rem' }}><span>Discount / Promo{promoName ? ` (${promoName})` : ''}</span><span>-{currency(discount)}</span></div>}<div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '1.1rem', marginTop: '0.7rem' }}><span>Total Amount Due</span><span>{currency(total)}</span></div></div>
     </div>
   );
 

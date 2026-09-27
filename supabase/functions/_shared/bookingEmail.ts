@@ -40,7 +40,8 @@
  *     update payments set detected_amount = ..., detected_ref = ...;
  *     update bookings set payment_status = ..., ocr_metadata = ...;
  *
- * The keys come from backend/services/ocrService.js:
+ * The keys come from the OCR parse (backend/services/receiptTextParser.js on the
+ * server, mirrored by frontend/src/utils/receiptOcr.js in the browser):
  *   amount | grossAmount | transferFee | referenceNumber | timestamp |
  *   isValidReceipt | recipient | description
  * The previously-shipped emails read NONE of these, which is why they could not
@@ -134,20 +135,14 @@ const formatDateTime = (value: unknown): string => {
  * in transit. Crediting the booking with the gross keeps a cross-bank transfer
  * from reading as short-paid.
  *
- * VAT: this is the Philippines, so VAT is 12% and the published price is
- * VAT-INCLUSIVE (VATable base = gross / 1.12; VAT = gross - base). This module
- * previously divided by 112 as though the rate were 12 of 112 (10.71%), which
- * understated the VAT on a document whose whole purpose is tax correctness:
- * ₱250 split as ₱26.79 VAT / ₱223.21 base instead of ₱26.79 vs ₱30.00 / ₱220.00.
+ * PRICING: flat and TAX-FREE. This module applies no VAT and no
+ * percentage-based tax split. The booking total is the price, full stop.
+ *
+ * (History: this file previously derived a 12% split as `base = gross / 1.12`,
+ * and before that divided by 112 as though the rate were 12 of 112 = 10.71%,
+ * which understated the tax. Both are removed — the receipt no longer prints a
+ * tax line, so there is nothing to compute.)
  */
-export const VAT_RATE = 0.12;
-
-/** Quietly correct VAT against a VAT-inclusive (gross) amount. */
-const vatOf = (vatInclusiveAmount: number) => {
-  const base = round2(vatInclusiveAmount / (1 + VAT_RATE));
-  return { base, vat: round2(vatInclusiveAmount - base) };
-};
-
 export const resolveAmounts = (booking: BookingLike = {}, payment: PaymentLike | null = null) => {
   const bookingTotal = num(booking?.total_amount);
   const declared = num(payment?.amount);
@@ -167,7 +162,6 @@ export const resolveAmounts = (booking: BookingLike = {}, payment: PaymentLike |
   const creditApplied = Math.max(0, num(payment?.credit_applied));
   const netApplied = round2(netReceived + creditApplied);
   const creditedToBooking = round2(netApplied + transferFee);
-  const vat = vatOf(bookingTotal);
 
   return {
     bookingTotal,
@@ -180,8 +174,9 @@ export const resolveAmounts = (booking: BookingLike = {}, payment: PaymentLike |
     creditedToBooking,
     remainingBalance: Math.max(0, round2(bookingTotal - creditedToBooking)),
     excessCredit: Math.max(0, round2(creditedToBooking - bookingTotal)),
-    vatIncluded: vat.vat,
-    vatExclusiveSales: vat.base,
+    // No vatIncluded / vatExclusiveSales. Pricing is flat and tax-free, so the
+    // booking total IS the amount due. Any template still reading those keys gets
+    // `undefined`, which surfaces immediately rather than printing a silent zero.
     paymentStatus: String(payment?.status || '').toUpperCase(),
     paymentMethod: payment?.method || booking?.payment_method || '—',
     hasPayment: Boolean(payment),
@@ -191,8 +186,10 @@ export const resolveAmounts = (booking: BookingLike = {}, payment: PaymentLike |
 // ── OCR detail extraction ───────────────────────────────────────────────────
 
 /**
- * Pull the OCR findings into a stable shape. The keys mirror ocrService.js so
- * the email finally shows what was actually read off the receipt: the reference
+ * Pull the OCR findings into a stable shape. The keys mirror the OCR parse
+ * (backend/services/receiptTextParser.js server-side, mirrored by
+ * frontend/src/utils/receiptOcr.js in the browser) so the email finally shows
+ * what was actually read off the receipt: the reference
  * number, the sender, the transaction timestamp and the detected amount.
  *
  * The metadata lives on the BOOKING (see persist_ocr_result); the payment row

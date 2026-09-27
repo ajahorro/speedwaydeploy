@@ -161,11 +161,10 @@ const buildReceiptPdf = ({
     ...(amounts.excessCredit > 0 ? [`Recorded as Excess Credit: ${formatPeso(amounts.excessCredit)}`] : []),
     `Booking Total: ${formatPeso(amounts.totalDue)}`,
     ...(amounts.remainingBalance > 0 ? [`Balance Still Due: ${formatPeso(amounts.remainingBalance)}`] : []),
-    // VAT is INCLUDED in the published price and broken out for compliance only.
-    `VAT (12%, included): ${formatPeso(amounts.vatIncluded)}`,
-    `Net of VAT: ${formatPeso(amounts.vatExclusiveSales)}`,
+    // No tax lines. Pricing is flat and tax-free, so the booking total IS the
+    // amount due — there is no VAT to break out or add on.
     '',
-    'Payment verified. This receipt is valid for tax and audit purposes.',
+    'Payment verified. This receipt is valid for audit purposes.',
   ]
 
   const content = lines

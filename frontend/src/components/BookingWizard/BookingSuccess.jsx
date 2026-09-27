@@ -6,25 +6,48 @@ import OfficialReceipt from '../OfficialReceipt';
 const BookingSuccess = ({ bookingData }) => {
   const navigate = useNavigate();
 
-  const grandTotal = (bookingData.vehicles || []).reduce((sum, v) =>
-    sum + (v.services || []).reduce((sSum, s) => sSum + (s.price || 0), 0), 0
+  // Mirror Step2Services.unitSubtotal(): a package vehicle is charged its flat
+  // bundle price, NOT the sum of its line items. The lines keep their catalog
+  // base price for display, so summing them here would over-report a bundle.
+  const unitSubtotal = (v) => {
+    if (v?.package_applied && Number.isFinite(Number(v.package_price))) {
+      return Number(v.package_price);
+    }
+    return (v.services || []).reduce((sSum, s) => sSum + Number(s.price || 0), 0);
+  };
+
+  const grandTotal = (bookingData.vehicles || []).reduce(
+    (sum, v) => sum + unitSubtotal(v), 0
   ) || bookingData.totalAmount || 0;
 
-  const totalPaid = bookingData.payment?.method === 'Cash'
-    ? grandTotal
-    : (bookingData.payment?.type === 'Downpayment' ? Math.ceil(grandTotal * 0.3) : grandTotal);
-
-  const subtotal = grandTotal > 0 ? grandTotal / 1.12 : 0;
-  const vat = grandTotal > 0 ? grandTotal - subtotal : 0;
-  const remainingBalance = Math.max(0, grandTotal - totalPaid);
-
-  const labelStyle = {
-    fontSize: '0.65rem',
-    fontWeight: '950',
-    color: '#666',
-    textTransform: 'uppercase',
-    letterSpacing: '1px',
-    marginBottom: '0.2rem'
+  // OfficialReceipt reads a `booking` object plus a `vehicles` array — NOT the
+  // flat `items` / `customerName` / `subtotal` prop set this screen used to pass.
+  // That mismatch left `booking` undefined inside the receipt, so `subtotal`
+  // resolved to `Number(undefined?.total_amount ?? 0)` = 0 and `rows` fell back
+  // to the hardcoded placeholder name — rendering a receipt where the item name
+  // was right but EVERY price (unit, subtotal, VAT, total) was ₱0.00. The wizard
+  // already holds the authoritative figures, so map them into the shape the
+  // receipt actually consumes rather than inventing a second pricing path.
+  const receiptBooking = {
+    id: bookingData.bookingId || bookingData.reference || null,
+    created_at: new Date().toISOString(),
+    total_amount: grandTotal,
+    customer_name: bookingData.customerName || 'Valued Customer',
+    customer_email: bookingData.email || null,
+    // A package booking carries its money on the VEHICLE (`package_price`),
+    // while its individual service lines are deliberately zero-priced. Summing
+    // the lines alone would under-report a bundle as ₱0, so the frozen package
+    // figure is preferred when one was applied.
+    vehicles: (bookingData.vehicles || []).map((v) => ({
+      ...v,
+      services: (v.services || []).map((s) => ({
+        ...s,
+        price_at_booking: Number(
+          s.price_at_booking ?? (v.package_applied ? v.package_price : s.price) ?? 0
+        ),
+        service_name: s.name || s.service_name || s.service_name_snapshot || 'Service',
+      })),
+    })),
   };
 
   return (
@@ -39,27 +62,10 @@ const BookingSuccess = ({ bookingData }) => {
 
       <OfficialReceipt
         title="OFFICIAL RECEIPT"
-        receiptNumber={bookingData.payment?.ocrData?.referenceNo || `AUTO-${Date.now().toString().slice(-6)}`}
-        bookingReference={bookingData.bookingId || bookingData.reference || 'BOOKING-NOT-SET'}
-        issuedAt={new Date().toISOString()}
-        paymentMethod={bookingData.payment?.method || 'Digital / Online Payment'}
-        processedBy="System Admin"
-        customerName={bookingData.customerName || 'Customer'}
-        customerContact={bookingData.contactNumber || bookingData.email || '-'}
-        customerAddress={bookingData.address || '-'}
-        customerTaxId="-"
-        items={(bookingData.vehicles || []).flatMap((v) => (v.services || []).map((s) => ({
-          vehicle: `${v.brand || ''} ${v.model || ''}`.trim() || 'Vehicle Unit',
-          service: s.name || s.service_name || 'Service',
-          qty: 1,
-          unitPrice: Number(s.price || 0),
-          lineTotal: Number(s.price || 0)
-        })))}
-        subtotal={subtotal}
-        discountAmount={0}
-        vatRate={0.12}
+        booking={receiptBooking}
+        vehicles={receiptBooking.vehicles}
         onClose={() => navigate('/customer')}
-        showCloseButton={false}
+        mode="modal"
       />
     </div>
   );

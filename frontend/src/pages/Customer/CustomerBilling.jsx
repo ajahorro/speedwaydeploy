@@ -43,11 +43,11 @@ const CustomerBilling = () => {
   };
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val || 0);
+  // FLAT, TAX-FREE pricing: the total IS the subtotal. There is no tax to
+  // extract, so no VAT figure is derived here.
   const getReceiptBreakdown = (receipt) => {
     const total = Number(receipt?.total_amount || 0);
-    const subtotal = total > 0 ? total / 1.12 : 0;
-    const vat = total > 0 ? total - subtotal : 0;
-    return { subtotal, vat, total };
+    return { subtotal: total, total };
   };
 
   const totalSpent = bookings.reduce((sum, b) => {
@@ -91,8 +91,8 @@ const CustomerBilling = () => {
   const handleDownloadPdf = () => {
     const receipt = selectedReceipt || {};
     const total = Number(selectedPayment?.amount || receipt.total_amount || 0);
-    const subtotal = total > 0 ? total / 1.12 : 0;
-    const vat = total > 0 ? total - subtotal : 0;
+    // FLAT, TAX-FREE pricing: the total IS the subtotal. No tax is derived.
+    const subtotal = total;
     const items = selectedPayment
       ? [{ name: 'Service Installment / Settlement Payment', amount: Number(selectedPayment.amount || 0) }]
       : (receipt.vehicles || []).flatMap((v) => (v.services || []).map((s) => ({
@@ -146,7 +146,6 @@ const CustomerBilling = () => {
             <div class="label" style="margin-bottom: 8px;">Service Summary</div>
             ${items.map(item => `<div class="item"><span>• ${item.name}</span><strong>${formatCurrency(item.amount)}</strong></div>`).join('')}
             <div class="total-row"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
-            <div class="total-row"><span>VAT (12%)</span><span>${formatCurrency(vat)}</span></div>
             <div class="total-row balance"><span>Grand Total</span><span>${formatCurrency(total)}</span></div>
             <div class="foot">Transaction Reference: ${selectedPayment?.reference_number || receipt.payments?.[0]?.reference_number || 'SYSTEM_VALIDATED'}</div>
           </div>

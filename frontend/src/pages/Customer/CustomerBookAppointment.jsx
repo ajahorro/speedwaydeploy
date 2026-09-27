@@ -3,7 +3,7 @@ import { ArrowLeft, Check, CheckCircle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { createBooking, rescheduleBooking } from '../../services/bookingService';
-import toast from 'react-hot-toast';
+import toastManager from '../../utils/toastManager';
 import Step1Schedule from '../../components/BookingWizard/Step1Schedule';
 import Step2Services from '../../components/BookingWizard/Step2Services';
 import Step3FleetEditing from '../../components/BookingWizard/Step3FleetEditing';
@@ -167,13 +167,13 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
       sessionStorage.removeItem('speedway_rebook_data');
       // Styling comes from the global <Toaster> chrome (utils/toastChrome) —
       // no per-call override needed for a standard success toast.
-      toast.success(isRescheduling ? 'Rescheduling Active!' : 'Fast-Track Rebooking Active!');
+      toastManager.success(isRescheduling ? 'Rescheduling Active!' : 'Fast-Track Rebooking Active!');
     }
   }, [isRebooking]);
 
   const nextStep = () => {
     if (adminMode && currentStep === 1 && !bookingData.adminCustomerReady) {
-      toast.error('Complete the customer first name, last name, email, and phone before continuing.');
+      toastManager.error('Complete the customer first name, last name, email, and phone before continuing.');
       return;
     }
     if (currentStep === 1) setCustomerDetailsLocked(true);
@@ -235,11 +235,22 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
         await rescheduleBooking(prefillData.id, bookingData);
         sessionStorage.removeItem('speedway_rebook_data');
       } else {
-        if (adminMode && onAdminSubmit) await onAdminSubmit(bookingData);
-        else await createBooking(user.id, bookingData);
+        if (adminMode && onAdminSubmit) {
+          // The admin flow (AdminWalkInWizard.submitAdminBooking) owns its own
+          // success toast. Emitting a second one here is what produced TWO
+          // toasts — "Booking submitted successfully!" AND "Walk-in booking
+          // created and confirmed." — for the single click that created the
+          // booking. Exactly one toast must describe one action, so the wizard
+          // stays silent when the admin handler already reported.
+          await onAdminSubmit(bookingData);
+          setHasDraftChanges(false);
+          setIsSubmitted(true);
+          return;
+        }
+        await createBooking(user.id, bookingData);
       }
       setHasDraftChanges(false);
-      toast.success('Booking submitted successfully!');
+      toastManager.success('Booking submitted successfully!');
       setIsSubmitted(true);
     } catch (err) {
       console.error('Booking submission error:', err);
@@ -261,7 +272,7 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
           message: err?.message || 'That appointment time is no longer available.',
         });
       } else {
-        toast.error(err.message || 'Failed to submit booking.');
+        toastManager.error(err.message || 'Failed to submit booking.');
       }
     } finally {
       // Use the functional updater so this only clears the flag if we are still

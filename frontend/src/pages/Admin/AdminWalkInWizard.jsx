@@ -6,7 +6,7 @@ import { createBooking } from '../../services/bookingService';
 import { getRequiredDownpayment, requiresDownpayment } from '../../utils/paymentUtils';
 import { sanitizeVehicleText, sanitizeVehiclePlate } from '../../config/constants';
 import CustomerBookAppointment from '../Customer/CustomerBookAppointment';
-import toast from 'react-hot-toast';
+import toastManager from '../../utils/toastManager';
 
 const AdminWalkInWizard = () => {
   const { user } = useAuth();
@@ -185,7 +185,7 @@ const AdminWalkInWizard = () => {
       contactNumber: bookingData.contactNumber,
       customerEmail: bookingData.guest?.email || bookingData.customerEmail || null
     });
-    toast.success('Walk-in booking created and confirmed.');
+    toastManager.success('Walk-in booking created and confirmed.');
   };
 
   // Fired by the wizard after a successful submit so the next walk-in starts

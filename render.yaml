@@ -84,10 +84,6 @@ services:
       - key: RESEND_API_KEY
         sync: false
 
-      # Receipt OCR. Without it payment verification falls back to manual review.
-      - key: GEMINI_API_KEY
-        sync: false
-
       # The verified sender. Must be a domain you have verified with Resend, or
       # delivery is rejected/spam-folded.
       - key: RESEND_FROM

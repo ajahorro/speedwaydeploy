@@ -190,9 +190,22 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                     second bespoke stack lived in UIContext. Both are resolved:
                     all toast output flows here, styled from the shared
                     token-based chrome in utils/toastChrome so it adapts to
-                    dark/light and stays 375px-safe. */}
+                    dark/light and stays 375px-safe.
+
+                    Stacking + volume are governed by utils/toastManager, which
+                    every call site now routes through. The container is pinned
+                    top-right with a real vertical gutter so toasts stack in a
+                    column instead of overlapping, and `containerStyle` keeps
+                    the column below the sticky header (z-index --z-toast so it
+                    still outranks modals when a foreground toast must show). */}
                 <Toaster
-                  position="top-center"
+                  position="top-right"
+                  gutter={12}
+                  containerStyle={{
+                    top: 76,
+                    right: 20,
+                    zIndex: 'var(--z-toast)',
+                  }}
                   toastOptions={TOASTER_DEFAULTS}
                 />
                 </UIProvider>

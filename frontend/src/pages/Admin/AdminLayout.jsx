@@ -15,7 +15,7 @@ import NotificationPopover from '../../components/NotificationPopover';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../context/ThemeContext';
 import BrandLogo from '../../components/BrandLogo';
-import toast from 'react-hot-toast';
+import toastManager from '../../utils/toastManager';
 
 const AdminLayout = () => {
   const { resolvedTheme } = useTheme();
@@ -77,13 +77,20 @@ const AdminLayout = () => {
         // The DB trigger fans one notification row per active admin, so this
         // fires for every admin, not just the one who happened to be viewing.
         // Only INSERTs of the NEW_BOOKING type toast — reads/updates stay silent.
+        //
+        // This is a BACKGROUND alert: the admin did not click anything to cause
+        // it. It therefore goes through `toastManager.background`, which (a)
+        // suppresses it entirely while a modal is open — so it can never cover
+        // the Official Receipt or a confirmation dialog — and (b) counts toward
+        // the shared 2-toast cap, so it cannot stack on top of the toast the
+        // admin's own action just produced.
         if (payload?.eventType === 'INSERT' && payload?.new?.notification_type === 'NEW_BOOKING') {
           const bookingId = payload.new.booking_id;
-          toast(
+          toastManager.background(
             (t) => (
               <button
                 type="button"
-                onClick={() => { navigate(`/admin/bookings/${bookingId}`); toast.dismiss(t.id); }}
+                onClick={() => { navigate(`/admin/bookings/${bookingId}`); toastManager.dismiss(t.id); }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.6rem',
                   background: 'var(--admin-card, #1a1a1a)',
@@ -103,7 +110,7 @@ const AdminLayout = () => {
                 </span>
               </button>
             ),
-            { duration: 8000, position: 'top-right' }
+            { duration: 6000, kind: 'default', dedupeKey: `new-booking:${bookingId}` }
           );
         }
       })

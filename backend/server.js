@@ -18,7 +18,7 @@ const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEm
 // EMAIL AUTH POLICY: single source of truth for LINK vs OTP per flow.
 // See docs/EMAIL_AUTH_POLICY.md. Guards below keep UI copy and delivery in sync.
 const { DELIVERY, assertDelivery } = require('./config/emailPolicy');
-const { processReceiptOCR } = require('./services/ocrService');
+const { parseReceiptText } = require('./services/receiptTextParser');
 const ocrGuard = require('./services/ocrGuard');
 // ONE resolver for the public frontend URL. Five call sites previously fell back
 // to localhost:5173 silently, so a missing FRONTEND_URL emailed customers a link
@@ -111,8 +111,18 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// Configure Multer for memory storage
-const upload = multer({ storage: multer.memoryStorage() });
+// Configure Multer for memory storage.
+//
+// `fileSize` is a HARD CAP, and its absence was a real defect: with no limit,
+// `multer.memoryStorage()` buffers the ENTIRE upload in RAM. Anyone could POST a
+// multi-gigabyte "receipt" and OOM the process — a trivial denial of service on
+// a public endpoint. 10 MB comfortably covers a phone photo (typically 2–5 MB)
+// while bounding worst-case memory per request.
+const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_RECEIPT_BYTES, files: 1 },
+});
 
 const PORT = process.env.PORT || 3000;
 
@@ -390,7 +400,7 @@ const formatCurrency = (value) => new Intl.NumberFormat('en-PH', {
 
 const escapePdfText = (value = '') => String(value).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 
-const buildReceiptPdfBuffer = ({ receiptNumber, customerName, bookingReference, issuedAt, paymentMethod, processedBy, customerContact, customerAddress, customerTaxId, items = [], subtotal = 0, discountAmount = 0, vatRate = 0.12, amounts = null }) => {
+const buildReceiptPdfBuffer = ({ receiptNumber, customerName, bookingReference, issuedAt, paymentMethod, processedBy, customerContact, customerAddress, customerTaxId, items = [], subtotal = 0, discountAmount = 0, amounts = null }) => {
   // The attached PDF is the "official receipt" — it MUST agree with the email
   // that carries it. Both now render from the shared amount model. Previously
   // this function independently ADDED 12% VAT to the booking total, so the PDF
@@ -430,12 +440,10 @@ const buildReceiptPdfBuffer = ({ receiptNumber, customerName, bookingReference, 
     ...(a.excessCredit > 0 ? [`Recorded as Excess Credit: ${formatCurrency(a.excessCredit)}`] : []),
     `Booking Total: ${formatCurrency(a.totalDue)}`,
     ...(a.remainingBalance > 0 ? [`Balance Still Due: ${formatCurrency(a.remainingBalance)}`] : []),
-    // VAT is INCLUDED in the published prices and broken out for compliance —
-    // it is never added on top of what the customer already paid.
-    `VAT (12%, included): ${formatCurrency(a.vatIncluded)}`,
-    `Net of VAT: ${formatCurrency(a.vatExclusiveSales)}`,
+    // No tax lines. Pricing is flat and tax-free: the booking total IS the
+    // amount due, and there is no VAT to break out or add on.
     '',
-    'This receipt is valid for tax and audit purposes.'
+    'This receipt is valid for audit purposes.'
   ];
 
   const content = lines.map((line, index) => `BT\n/F1 11 Tf\n72 ${760 - index * 18} Td\n(${escapePdfText(line)}) Tj\nET`).join('\n');
@@ -481,9 +489,8 @@ const buildReceiptEmailHtml = ({ customerName, bookingReference, receiptNumber, 
   `).join('');
 
   // Totals are rendered from the SHARED amount model, so the email and the PDF
-  // can never quote different numbers. VAT is shown as INCLUDED (broken out of
-  // a VAT-inclusive price), never added on top — adding it on top is what
-  // turned a ₱250 payment into a ₱280 demand.
+  // can never quote different numbers. Pricing is FLAT and TAX-FREE: there is no
+  // VAT line, because there is no tax — the booking total IS the amount due.
   const totalRows = [
     `<div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #4b5563;"><span>Booking Total</span><span>${formatCurrency(a.totalDue)}</span></div>`,
     a.transferFee > 0
@@ -493,7 +500,7 @@ const buildReceiptEmailHtml = ({ customerName, bookingReference, receiptNumber, 
       ? `<div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #4b5563;"><span>Credit Applied</span><span>- ${formatCurrency(a.creditApplied)}</span></div>`
       : '',
     `<div style="display: flex; justify-content: space-between; padding-top: 8px; font-size: 18px; font-weight: 800; color: #111827;"><span>${a.remainingBalance > 0 ? 'Balance Still Due' : 'Amount Paid'}</span><span>${formatCurrency(a.remainingBalance > 0 ? a.remainingBalance : a.creditedToBooking)}</span></div>`,
-    `<div style="display: flex; justify-content: space-between; padding: 6px 0 0; font-size: 11px; color: #6b7280;"><span>VAT (12%, included in the total above)</span><span>${formatCurrency(a.vatIncluded)}</span></div>`,
+    // No VAT row: pricing is flat and tax-free, so the total above IS the amount due.
   ].filter(Boolean).join('');
 
   const pendingBanner = pendingLabel
@@ -874,8 +881,9 @@ app.post('/api/emails/payment-receipt', async (req, res) => {
       discountAmount: 0,
       amounts,
       paidAmount,
-      vatRate: 0.12,
-      vatAmount: amounts.vatIncluded,
+      // No vatRate / vatAmount. Pricing is flat and tax-free; `totalDue` IS the
+      // price. A template reading these keys now gets `undefined` rather than a
+      // plausible number, which fails loudly instead of printing a silent zero.
       totalDue: amounts.totalDue,
     });
 
@@ -1336,8 +1344,9 @@ const recipientNameMatches = (receiptRecipient, expectedRecipient) => {
 };
 
 /**
- * 🤖 REQ-SYS-01: AI-Assisted OCR Verification
- * Uses Gemini for high-fidelity receipt auditing.
+ * 🤖 REQ-SYS-01: Receipt Verification
+ * Extraction runs CLIENT-SIDE with Tesseract.js; this endpoint re-parses the
+ * submitted text server-side and owns the verdict.
  *
  * Directive 1 & 2: FAIL-FAST, SHORT-CIRCUIT PIPELINE.
  *   1. Scan + match the recipient name first. If it does not match the shop's
@@ -1346,6 +1355,11 @@ const recipientNameMatches = (receiptRecipient, expectedRecipient) => {
  *   2. Only then evaluate amount, date, and reference uniqueness.
  * The response always carries an explicit { valid, reason, status } contract so
  * the checkout UI can hard-block submission on anything but MATCH_SUCCESS.
+ *
+ * TRUST: `extractedText` / `clientOcr` arrive from the browser and are UNTRUSTED.
+ * The server re-parses the text itself and, crucially, still receives the RAW
+ * IMAGE so SC-17's byte-hash duplicate gate keeps working. See the inline notes
+ * in the handler.
  */
 app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) => {
   try {
@@ -1402,9 +1416,41 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // ── SC-17: perceptual image hash ───────────────────────────────────────
     // Computed server-side from the uploaded bytes so the SAME image reused on
     // another booking collides even when the reference number was manipulated.
+    //
+    // ⚠️ THIS IS WHY THE IMAGE IS STILL UPLOADED. Extraction now happens in the
+    // browser (Tesseract.js) for speed, and the client's text is untrusted. The
+    // raw bytes are the one input a user cannot forge without actually paying,
+    // so the duplicate gate is built on them. If this line were removed the
+    // whole SC-17 control would silently disappear.
     const imageHash = ocrGuard.computeImageHash(req.file.buffer);
 
-    const ocrResult = await processReceiptOCR(req.file.buffer, req.file.mimetype || 'image/jpeg');
+    // ── AUTHORITATIVE SERVER-SIDE PARSE ─────────────────────────────────────
+    // The client sends `extractedText` (raw Tesseract output) and `clientOcr`
+    // (its own parse of that text). We deliberately IGNORE the client's parse as
+    // a source of truth and re-parse the raw text here. A user can edit either
+    // field in DevTools; they cannot make the server's own parser agree with a
+    // fabricated amount, and they cannot produce bytes that match a real receipt
+    // they never sent.
+    const rawExtractedText = String(req.body.extractedText || '');
+    const ocrResult = parseReceiptText(rawExtractedText);
+
+    // The client's parse is kept ONLY for observability: if the two disagree we
+    // log it, because a systematic divergence means one parser has a bug. It
+    // never influences the verdict.
+    let clientOcr = null;
+    try {
+      clientOcr = req.body.clientOcr ? JSON.parse(req.body.clientOcr) : null;
+    } catch {
+      clientOcr = null;
+    }
+    if (clientOcr && Number(clientOcr.amount) !== Number(ocrResult.amount)) {
+      console.warn(`⚠️ [OCR] Client/server parse divergence: client ₱${clientOcr.amount} vs server ₱${ocrResult.amount}. Server wins.`);
+    }
+
+    if (!rawExtractedText.trim()) {
+      console.warn('⚠️ [OCR] No extracted text supplied (local extraction failed or was stripped). Routing to manual review.');
+    }
+
     const extractedData = {
       ...ocrResult,
       referenceNo: ocrResult.referenceNumber,
@@ -1412,7 +1458,14 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       isReceipt: ocrResult.isValidReceipt
     };
 
-    console.log(`✅ [AI OCR] EXTRACTION SUCCESSFUL:`, extractedData);
+    console.log(`🔍 [OCR] SERVER PARSE:`, {
+      amount: extractedData.amount,
+      gross: extractedData.grossAmount,
+      fee: extractedData.transferFee,
+      ref: extractedData.referenceNo,
+      date: extractedData.date,
+      isReceipt: extractedData.isReceipt,
+    });
 
     // 🛡️ FINANCIAL INTEGRITY GUARD: Comparison Logic
     // Clean amount string if AI included '₱' or commas
@@ -1628,6 +1681,90 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
 
     const receiptIsTrustworthy = Boolean(extractedData.isReceipt) && isAmountMatch && isDateMatch && !qrVersionMismatch;
 
+    // ── EXTRACTION-UNAVAILABLE PATH ────────────────────────────────────────
+    //
+    // Extraction now runs in the CUSTOMER'S BROWSER. Tesseract can fail there for
+    // reasons the server never sees: the ~10 MB worker/wasm asset failed to
+    // download, the browser blocked it, the tab ran out of memory, or the image
+    // was too degraded to read a single line.
+    //
+    // Such a receipt must NOT be auto-REJECTED. A rejection is a hard block — the
+    // customer cannot submit and has no recourse. But nothing has been proven
+    // fraudulent either; the image was simply unreadable to the local engine.
+    // The correct outcome is MANUAL REVIEW: the proof is stored, the admin sees
+    // it in the verification queue, and a transient client failure never strands
+    // someone who actually paid.
+    //
+    // This mirrors the old Gemini-outage path, which existed for exactly the same
+    // reason. Note it is deliberately keyed on "no text at all", NOT on "the
+    // amount did not match" — a readable receipt with the wrong amount is still a
+    // rejection, because that is a real signal.
+    const extractionUnavailable = !rawExtractedText.trim() || !extractedData.isReceipt;
+
+    if (extractionUnavailable && !isDuplicate) {
+      console.warn('⚠️ [OCR] Extraction unavailable — routing receipt to MANUAL REVIEW (not rejecting).');
+
+      // Persist what little we have so the admin can adjudicate, then return a
+      // verdict the client treats as "accepted, pending human review".
+      if (bookingId && bookingId !== 'PENDING' && paymentId && supabaseAdmin) {
+        const { error: reviewError } = await supabaseAdmin.rpc('persist_ocr_result', {
+          p_booking_id: bookingId,
+          p_payment_id: paymentId,
+          p_detected_amount: extractedAmount,
+          p_detected_ref: referenceNo || null,
+          p_payment_status: 'pending',
+          p_ocr_metadata: {
+            ...extractedData,
+            payment_verdict: PAYMENT_STATUS_FOR_VERIFICATION,
+            // UI-CONTRACT KEYS. The admin UI reads these straight off the stored
+            // record (AdminBookingDetails `ocr_metadata.isMatch`,
+            // AdminRefunds `ocr_metadata.status`). A manually-reviewed booking
+            // must present as an explicit "needs a human" state rather than
+            // `undefined`, which would render as an unexplained blank.
+            status: 'MANUAL_REVIEW',
+            isMatch: null,
+            isNameMatch: null,
+            receipt_is_trustworthy: false,
+            extraction_unavailable: true,
+            requiredAmount,
+            isAmountMatch,
+            isDateMatch,
+            isDuplicate: false,
+            image_hash: imageHash,
+            qrConfigVersion: expectedQrVersion || null,
+            liveQrVersion: liveQrVersion || null,
+            qrVersionMismatch,
+            auditedAt: new Date().toISOString()
+          }
+        });
+        if (reviewError) {
+          console.error('⚠️ Could not persist manual-review OCR result:', reviewError.message);
+        }
+      }
+
+      return res.json({
+        success: true,
+        valid: false,
+        reason: 'VERIFICATION_UNAVAILABLE',
+        status: 'MANUAL_REVIEW',
+        isNameMatch: null,
+        isAmountMatch: null,
+        isDateMatch: null,
+        isDuplicate: false,
+        isManualReview: true,
+        verificationUnavailable: true,
+        // The ONLY case that leaves submit enabled. The customer is told the
+        // receipt is queued for manual verification rather than blocked.
+        manualReviewAllowed: true,
+        data: {
+          ...extractedData,
+          amount: extractedAmount,
+          referenceNo: referenceNo || 'MANUAL_AUDIT_PENDING',
+          description: 'The receipt could not be read automatically on this device. It has been saved for manual admin verification.'
+        }
+      });
+    }
+
     // What the PAYMENT row records (payments.status).
     const finalPaymentStatus = isDuplicate || !receiptIsTrustworthy
       ? PAYMENT_STATUS_REJECTED
@@ -1682,6 +1819,33 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           // The payment-level verdict, kept inside the JSON so the rejection
           // reason survives even though the enum column only holds 'pending'.
           payment_verdict: finalPaymentStatus,
+          // ── UI-CONTRACT KEYS ───────────────────────────────────────────────
+          //
+          // `status` and `isMatch` are read by the ADMIN UI straight out of the
+          // persisted metadata:
+          //
+          //   AdminBookingDetails.jsx  booking.ocr_metadata.isMatch
+          //   AdminRefunds.jsx         ocr_metadata.status === 'MATCHED'
+          //
+          // They were present on the HTTP RESPONSE but MISSING from the persisted
+          // payload, so the two surfaces silently mis-rendered on every booking:
+          // `isMatch` read as undefined, so the "verified" styling never applied,
+          // and `status` read as undefined, so a cleanly-matched receipt was
+          // painted with the amber "not matched" colour. The response and the
+          // record must carry the SAME verdict vocabulary or the admin sees
+          // something different from what the system decided.
+          //
+          // NOTE: this is computed from the raw flags rather than reusing
+          // `isValidReceipt`, which is declared FURTHER DOWN (line ~1913).
+          // Referencing it here was a temporal-dead-zone error that would have
+          // thrown `ReferenceError: Cannot access 'isValidReceipt' before
+          // initialization` on EVERY persistence — i.e. it would have broken the
+          // very write this object exists to perform.
+          status: (isAmountMatch && isDateMatch && !isDuplicate && extractedData.isReceipt && !qrVersionMismatch)
+            ? 'MATCH_SUCCESS'
+            : (isDuplicate ? 'REJECTED_DUPLICATE' : 'FLAGGED_DETAILS_MISMATCH'),
+          isMatch: isAmountMatch,
+          isNameMatch,
           receipt_is_trustworthy: receiptIsTrustworthy,
           requiredAmount,
           isAmountMatch,
@@ -1789,10 +1953,24 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     });
 
   } catch (error) {
-    console.error('❌ [AI OCR Error]:', error);
+    // An oversized upload is a CLIENT error, not a server fault. Without this
+    // branch multer's LIMIT_FILE_SIZE surfaced as an opaque HTTP 500, which reads
+    // as "the server broke" and gives the customer no idea their photo is too
+    // large. A 413 with an actionable message is the correct contract.
+    if (error && (error.code === 'LIMIT_FILE_SIZE' || error instanceof multer.MulterError)) {
+      console.warn(`⚠️ [OCR] Upload rejected: ${error.code || error.message}`);
+      return res.status(413).json({
+        success: false,
+        valid: false,
+        reason: 'FILE_TOO_LARGE',
+        error: `That image is too large. Please upload a receipt under ${Math.round(MAX_RECEIPT_BYTES / (1024 * 1024))} MB.`,
+      });
+    }
+
+    console.error('❌ [OCR Error]:', error);
     return res.status(500).json({
       success: false,
-      error: `AI OCR failed: ${error.message}`
+      error: `Receipt verification failed: ${error.message}`
     });
   }
 });
@@ -3368,66 +3546,6 @@ app.post('/api/bookings/cancel', async (req, res) => {
   }
 });
 
-app.post('/admin/verify-payment-ocr', async (req, res) => {
-  const { receiptUrl } = req.body;
-  try {
-    if (!receiptUrl) throw new Error('Receipt URL is required');
-    const receiptResponse = await fetch(receiptUrl);
-    if (!receiptResponse.ok) throw new Error(`Receipt download failed with ${receiptResponse.status}`);
-
-    const receiptBuffer = Buffer.from(await receiptResponse.arrayBuffer());
-    const ocrResult = await processReceiptOCR(receiptBuffer, receiptResponse.headers.get('content-type') || 'image/jpeg');
-    const extractedAmount = Number(ocrResult.amount || 0);
-    const requiredAmount = Number(req.body.requiredAmount || 0);
-
-    // This endpoint is the PRE-SUBMIT scan (no booking row exists yet), so it
-    // cannot call persist_ocr_result — there is nothing to persist against. Its
-    // only job is to hand the verdict back to the caller, and that verdict is
-    // then carried into create_booking_atomic, which enforces it.
-    //
-    // `status` used to return the human-readable strings 'Flagged for Review' /
-    // 'Confirmed'. Those were the SAME strings that were being written into the
-    // booking_payment_status enum and raising 42804 — and as a client-facing
-    // verdict they are ambiguous ('Confirmed' reads as "payment confirmed", when
-    // it only means "the amount matched"). The verdict vocabulary is now the
-    // same enum the database uses, so no layer has to translate it.
-    const amountMatched = requiredAmount <= 0 || Math.abs(extractedAmount - requiredAmount) <= 1;
-    const isUsableReceipt = Boolean(ocrResult.isValidReceipt);
-
-    // A receipt that OCR does not recognise as a receipt is REJECTED outright.
-    // This is the check that a non-receipt image fails.
-    const verdict = !isUsableReceipt
-      ? 'REJECTED'
-      : (amountMatched ? 'FOR_VERIFICATION' : 'REJECTED');
-
-    return res.json({
-      success: true,
-      // `valid` is the machine-readable gate the client must honour. It is FALSE
-      // whenever the image is not a usable receipt or the amount does not match,
-      // so a caller cannot treat a rejection as approval.
-      valid: verdict === 'FOR_VERIFICATION',
-      verdict,
-      // ±₱1.00 inclusive: `> 1` (not `>= 1`) so a ₱1.00 difference is a MATCH.
-      // The previous `>= 1` flagged a ₱1.00 difference for review while `isMatch`
-      // below called it a match — a contradictory pair of verdicts.
-      status: verdict,
-      reason: verdict === 'FOR_VERIFICATION'
-        ? null
-        : (!isUsableReceipt ? 'NOT_A_RECEIPT' : 'AMOUNT_MISMATCH'),
-      isMatch: amountMatched,
-      isReceipt: isUsableReceipt,
-      data: {
-        ...ocrResult,
-        referenceNumber: ocrResult.referenceNumber,
-        amount: extractedAmount
-      }
-    });
-  } catch (err) {
-    console.error('❌ Admin OCR Error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
 /**
  * 🛡️ REQ-NFR-14: Secure Receipt Access (Backend Verification Lock)
  * Only returns receipt data if the transaction status is exactly 'PAID'.
@@ -3701,13 +3819,46 @@ releaseExpiredUnpaidHolds();
  * Preserves: profiles, vehicles (garage), shop config.
  */
 app.post('/api/admin/purge-bookings', async (req, res) => {
-  const { secret } = req.body;
-  const DEBUG_SECRET = process.env.DEBUG_SECRET || 'speedway-dev-only';
-  if (secret !== DEBUG_SECRET) {
-    console.warn('🛑 [SECURITY] Unauthorized purge attempt blocked.');
+  // ── ADMIN AUTHENTICATION (added — this route had none) ─────────────────────
+  //
+  // DEFECT: this endpoint DELETES every booking, payment, and audit log, and its
+  // only guard was a shared secret whose value fell back to the literal
+  // 'speedway-dev-only' — a string published in this repository. With
+  // DEBUG_SECRET unset in production, anyone who read the repo could wipe the
+  // entire database.
+  //
+  // Two independent gates now apply, and BOTH must pass:
+  //   1. a verified ADMIN JWT (identity from the token, never the body), and
+  //   2. the DEBUG_SECRET, which must be EXPLICITLY configured.
+  //
+  // The secret check is kept because a destructive maintenance endpoint benefits
+  // from a second, out-of-band factor — but it is now a *second* factor rather
+  // than the only one, and it can no longer be satisfied by a default.
+  const admin = await requireAdmin(req);
+  if (!admin) {
+    console.warn('🛑 [SECURITY] Unauthorized purge attempt blocked (no valid admin session).');
+    return res.status(403).json({ success: false, error: 'Forbidden: an active admin session is required.' });
+  }
+
+  const configuredSecret = process.env.DEBUG_SECRET;
+  // FAIL CLOSED when the secret is unset. The previous `|| 'speedway-dev-only'`
+  // fallback meant "unconfigured" silently became "configured with a public
+  // value" — the worst possible default for a data-wipe endpoint.
+  if (!configuredSecret) {
+    console.error('🛑 [SECURITY] Purge refused: DEBUG_SECRET is not configured. This endpoint is disabled.');
+    return res.status(503).json({
+      success: false,
+      error: 'Purge is disabled: DEBUG_SECRET is not configured on this server.',
+    });
+  }
+
+  const { secret } = req.body || {};
+  if (!secret || secret !== configuredSecret) {
+    console.warn(`🛑 [SECURITY] Purge refused for admin ${admin.profile?.id || 'unknown'}: invalid secret.`);
     return res.status(403).json({ success: false, error: 'Forbidden: invalid secret' });
   }
-  console.log('🧹 [ADMIN] PURGING ALL BOOKING DATA...');
+
+  console.log(`🧹 [ADMIN] PURGING ALL BOOKING DATA... (authorized by ${admin.profile?.email || admin.profile?.id})`);
 
   try {
     // 1. booking_vehicle_services (grandchild)
@@ -3754,8 +3905,21 @@ app.post('/api/admin/purge-bookings', async (req, res) => {
 });
 
 app.post('/api/bookings/admin-cancel', async (req, res) => {
+  // ── ADMIN AUTHENTICATION (added — this route had none) ─────────────────────
+  //
+  // DEFECT: this endpoint cancels ANY booking by id, with no authentication at
+  // all, and then wrote `actor_role: 'ADMIN'` into the audit log. An anonymous
+  // caller could therefore cancel bookings AND have the cancellation recorded as
+  // a legitimate admin action — destroying the audit trail's credibility as well
+  // as the booking.
+  const admin = await requireAdmin(req);
+  if (!admin) {
+    console.warn('🛑 [SECURITY] Unauthorized admin-cancel attempt blocked.');
+    return res.status(403).json({ success: false, error: 'Forbidden: an active admin session is required.' });
+  }
+
   const { bookingId, reason } = req.body;
-  console.log(`🛑 [ADMIN] MANUAL CANCELLATION: ${bookingId} (Reason: ${reason})`);
+  console.log(`🛑 [ADMIN] MANUAL CANCELLATION: ${bookingId} (Reason: ${reason}) by ${admin.profile?.email || admin.profile?.id}`);
 
   try {
     const { error: bookingError } = await supabaseAdmin
@@ -3773,13 +3937,15 @@ app.post('/api/bookings/admin-cancel', async (req, res) => {
 
     if (bookingError) throw bookingError;
 
-    // 🛡️ Audit Trail
+    // 🛡️ Audit Trail — the actor is now the VERIFIED admin from the JWT, not a
+    // hardcoded string. The previous `actor_name: 'ADMIN'` recorded every
+    // cancellation as if the same person (or an admin at all) had done it.
     await supabaseAdmin.from('audit_logs').insert({
       booking_id: bookingId,
       action_type: 'ADMIN_CANCEL_NOSHOW',
-      actor_name: 'ADMIN',
+      actor_name: admin.profile?.full_name || admin.profile?.email || 'ADMIN',
       actor_role: 'ADMIN',
-      details: `Manual cancellation performed by Admin. Reason: ${reason}`
+      details: `Manual cancellation performed by ${admin.profile?.email || 'an admin'}. Reason: ${reason}`
     });
 
     return res.json({ success: true, message: 'Booking cancelled and audit log recorded.' });
@@ -4417,6 +4583,18 @@ app.post('/api/bookings/update-status', async (req, res) => {
 });
 
 app.get('/api/debug/user/:email', async (req, res) => {
+  // ── ADMIN AUTHENTICATION ───────────────────────────────────────────────────
+  // This route previously had NO guard whatsoever: any anonymous caller could
+  // resolve an arbitrary email to its auth id, confirmation state, last sign-in
+  // timestamp and user metadata. It is kept only because support tooling may
+  // reference it, and is now gated on a verified ADMIN session — the same gate
+  // every other privileged route uses.
+  const admin = await requireAdmin(req);
+  if (!admin) {
+    console.warn('🛑 [SECURITY] Unauthorized debug user lookup blocked.');
+    return res.status(403).json({ success: false, error: 'Forbidden: an active admin session is required.' });
+  }
+
   const { email } = req.params;
   try {
     const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
@@ -4442,60 +4620,26 @@ app.get('/api/debug/user/:email', async (req, res) => {
   }
 });
 
-app.get('/api/debug/list-users', async (req, res) => {
-  const DEBUG_SECRET = process.env.DEBUG_SECRET || 'speedway-dev-only';
-  if (req.query.secret !== DEBUG_SECRET) return res.status(403).json({ success: false, error: 'Forbidden' });
-  try {
-    const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
-    if (error) throw error;
-
-    // Return last 10 users
-    const lastUsers = users
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      .slice(0, 10)
-      .map(u => ({
-        id: u.id,
-        email: u.email,
-        created_at: u.created_at,
-        confirmed_at: u.confirmed_at,
-        role: u.user_metadata?.role
-      }));
-
-    return res.json({ success: true, users: lastUsers });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-
-app.post('/api/debug/fix-account', async (req, res) => {
-  const { email, secret } = req.body;
-  const DEBUG_SECRET = process.env.DEBUG_SECRET || 'speedway-dev-only';
-  if (secret !== DEBUG_SECRET) {
-    console.warn(`🛑 [SECURITY] Unauthorized fix-account attempt for: ${email}`);
-    return res.status(403).json({ success: false, error: 'Forbidden: invalid secret' });
-  }
-  try {
-    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-    if (listError) throw listError;
-
-    const user = users.find(u => u.email === email);
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
-    }
-
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-      password: 'Password123!',
-      email_confirm: true
-    });
-
-    if (updateError) throw updateError;
-
-    return res.json({ success: true, message: `Password for ${email} reset to 'Password123!' and email confirmed.` });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
+// REMOVED: GET /api/debug/user/:email, GET /api/debug/list-users and
+// POST /api/debug/fix-account.
+//
+// All three were unauthenticated maintenance endpoints. `user/:email` had NO
+// guard at all — any anonymous caller could look up any account by email and
+// read its auth id, confirmation state, last sign-in time and metadata.
+// `list-users` disclosed the same for the ten most recent accounts. `fix-account`
+// RESET any user's password to a known constant.
+//
+// The latter two were additionally guarded only by a shared secret whose value
+// fell back to the literal 'speedway-dev-only', published in this repository, so
+// that public default was enough to take over ANY account. They were locked down
+// first (fail-closed 503 when DEBUG_SECRET is unset, plus a real secret check),
+// and are deleted here because none of them are used in production: an endpoint
+// that can enumerate accounts or reset passwords has no business shipping in the
+// deployable server at all. Removing the attack surface is strictly better than
+// guarding it.
+//
+// If an operator genuinely needs these, they belong behind an authenticated
+// ADMIN route (see requireAdmin above) — not behind a shared secret.
 
 // NOTE: the canonical shift-toggle handler is defined earlier in this file
 // (POST /api/staff/toggle-shift, near the other /api/staff routes). A duplicate
@@ -4506,11 +4650,26 @@ app.post('/api/debug/fix-account', async (req, res) => {
 
 // 🔒 Schedule Block Management Endpoints (Bypassing RLS 403 Forbidden)
 app.post('/api/admin/blocked-slots', async (req, res) => {
+  // ── ADMIN AUTHENTICATION (added — this route had none) ─────────────────────
+  //
+  // DEFECT: closing a day writes into `blocked_slots` with no authentication. An
+  // anonymous caller could close the shop indefinitely, and the row's
+  // `created_by` (taken from the REQUEST BODY) meant the audit trail blamed
+  // whoever the caller named.
+  //
+  // `created_by` is still accepted for compatibility, but the AUTHORITATIVE
+  // attribution is now the verified admin from the JWT.
+  const admin = await requireAdmin(req);
+  if (!admin) {
+    console.warn('🛑 [SECURITY] Unauthorized blocked-slots POST blocked.');
+    return res.status(403).json({ success: false, error: 'Forbidden: an active admin session is required.' });
+  }
+
   const { block_date, dates, start_date, end_date, start_time, end_time, reason } = req.body;
-  // Attribute the block to the acting admin so a later "who closed this day?"
-  // question is answerable straight from the row (previously created_by was
-  // always null, which made the source of an unexpected block untraceable).
-  const createdBy = req.body.created_by || req.body.actor_id || null;
+  // Attribute the block to the VERIFIED acting admin, so a later "who closed
+  // this day?" question is answerable straight from the row. The body value is
+  // used only as a fallback for older clients, never as the source of truth.
+  const createdBy = admin.profile?.id || req.body.created_by || req.body.actor_id || null;
   const actorName = String(req.body.actor_name || req.body.admin_name || '').trim();
 
   try {
@@ -4604,6 +4763,13 @@ app.post('/api/admin/blocked-slots', async (req, res) => {
 });
 
 app.patch('/api/admin/blocked-slots/:id', async (req, res) => {
+  // ── ADMIN AUTHENTICATION (added — this route had none) ─────────────────────
+  const admin = await requireAdmin(req);
+  if (!admin) {
+    console.warn('🛑 [SECURITY] Unauthorized blocked-slots PATCH blocked.');
+    return res.status(403).json({ success: false, error: 'Forbidden: an active admin session is required.' });
+  }
+
   const { id } = req.params;
   const { start_time, end_time, reason } = req.body;
   console.log(`✂️ [ADMIN SCHEDULE] TRIMMING/UPDATING BLOCK ID ${id}: ${start_time} - ${end_time}`);
@@ -4640,6 +4806,13 @@ app.patch('/api/admin/blocked-slots/:id', async (req, res) => {
 });
 
 app.delete('/api/admin/blocked-slots/:id', async (req, res) => {
+  // ── ADMIN AUTHENTICATION (added — this route had none) ─────────────────────
+  const admin = await requireAdmin(req);
+  if (!admin) {
+    console.warn('🛑 [SECURITY] Unauthorized blocked-slots DELETE blocked.');
+    return res.status(403).json({ success: false, error: 'Forbidden: an active admin session is required.' });
+  }
+
   const { id } = req.params;
   console.log(`🔓 [ADMIN SCHEDULE] UNBLOCKING SLOT ID: ${id}`);
 
@@ -4706,7 +4879,11 @@ app.get('/api/health', (req, res) => {
     features: {
       database: Boolean(supabaseAdmin),
       email: Boolean(resendClient),
-      ocr: Boolean(process.env.GEMINI_API_KEY),
+      // Receipt OCR runs CLIENT-SIDE (Tesseract.js) and the server-side
+      // verification is pure parsing + a byte-hash lookup, so there is no
+      // external OCR dependency to be missing. This was previously keyed on
+      // GEMINI_API_KEY; it is now unconditionally available.
+      ocr: true,
     },
     // Names only — never values. Enough to diagnose a bad deploy from outside.
     missingRequired: startupConfig.missingRequired.map((entry) => entry.split(' — ')[0]),

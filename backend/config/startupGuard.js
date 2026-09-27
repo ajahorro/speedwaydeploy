@@ -62,10 +62,6 @@ const RECOMMENDED = [
     why: 'no transactional email is delivered (booking confirmations, receipts, invites, password resets)',
   },
   {
-    key: 'GEMINI_API_KEY',
-    why: 'receipt OCR cannot run, so payment verification falls back to manual review',
-  },
-  {
     key: 'RESEND_FROM',
     why: 'emails send from the placeholder sender, which most providers reject or spam-fold',
   },

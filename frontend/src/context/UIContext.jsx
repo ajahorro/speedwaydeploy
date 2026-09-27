@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { X, CheckCircle, AlertTriangle, AlertCircle, Info } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toastManager from '../utils/toastManager';
 import { toastChrome } from '../utils/toastChrome';
 
 const UIContext = createContext();
@@ -42,6 +42,16 @@ export const UIProvider = ({ children }) => {
     }
   }, [modal]);
 
+  // Tell the toast manager when a blocking surface owns the screen. While a
+  // modal is open the manager suppresses BACKGROUND toasts (Realtime booking
+  // alerts) so they cannot paint over a modal the user is reading — the
+  // reported defect where an admin alert covered the Official Receipt.
+  useEffect(() => {
+    if (!modal) return undefined;
+    toastManager.notifyModalOpened();
+    return () => toastManager.notifyModalClosed();
+  }, [modal]);
+
   // Toast actions
   //
   // Batch 7 / Step 7.3 — TOAST CONSOLIDATION.
@@ -55,23 +65,29 @@ export const UIProvider = ({ children }) => {
   // existing `showToast(msg, type)` / `showToast.success(msg)` call site keeps
   // working unchanged, but now routes through the one real toast engine with
   // the shared token chrome.
+  //
+  // It routes through `toastManager` (not react-hot-toast directly) so the
+  // dedupe + 2-toast cap apply to context toasts too. Without that, a context
+  // toast and a direct `toast.*()` call could still stack past the cap.
   const showToast = useCallback((message, type = 'success', options = {}) => {
-    const { id, ...rest } = options || {};
+    const { id, background, ...rest } = options || {};
     const opts = { ...toastChrome, ...rest };
     if (id !== undefined) opts.id = id;
+    // `background: true` marks an ambient toast that must not cover a modal.
+    if (background) opts.background = true;
 
     switch (type) {
       case 'error':
-        return toast.error(message, opts);
+        return toastManager.error(message, opts);
       case 'warning':
-        return toast(message, { ...opts, icon: '⚠️' });
+        return toastManager.warning(message, opts);
       case 'loading':
-        return toast.loading(message, opts);
+        return toastManager.loading(message, opts);
       case 'info':
-        return toast(message, { ...opts, icon: 'ℹ️' });
+        return toastManager.info(message, opts);
       case 'success':
       default:
-        return toast.success(message, opts);
+        return toastManager.success(message, opts);
     }
   }, []);
 
@@ -82,7 +98,7 @@ export const UIProvider = ({ children }) => {
   showToast.warning = (msg, opts) => showToast(msg, 'warning', opts);
   showToast.info = (msg, opts) => showToast(msg, 'info', opts);
   showToast.loading = (msg, opts) => showToast(msg, 'loading', opts);
-  showToast.dismiss = (id) => toast.dismiss(id);
+  showToast.dismiss = (id) => toastManager.dismiss(id);
 
   // Map types to colors and icons
   const getModalStyles = (type) => {

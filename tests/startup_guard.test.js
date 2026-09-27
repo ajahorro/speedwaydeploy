@@ -53,7 +53,7 @@ const withEnv = (vars, fn) => {
   const saved = {};
   const managed = [
     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'FRONTEND_URL',
-    'RESEND_API_KEY', 'GEMINI_API_KEY', 'RESEND_FROM', 'NODE_ENV',
+    'RESEND_API_KEY', 'RESEND_FROM', 'NODE_ENV',
   ];
   for (const k of managed) {
     saved[k] = process.env[k];
@@ -166,7 +166,7 @@ console.log('\n=== the guard must never leak secret VALUES ===');
 
 check('failure messages name variables but not their values', () => {
   const secret = 'super-secret-value-that-must-not-be-logged';
-  withEnv({ ...FULL, GEMINI_API_KEY: secret }, (r) => {
+  withEnv({ ...FULL, RESEND_API_KEY: secret }, (r) => {
     const serialized = JSON.stringify(r);
     assert.ok(!serialized.includes(secret), 'the guard output must never contain a secret value');
   });

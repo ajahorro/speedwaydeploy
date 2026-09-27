@@ -419,8 +419,8 @@ const AdminPayments = () => {
 
   const handleDownloadPdf = () => {
     const total = Number(receiptBooking?.total_amount || 0);
-    const subtotal = total > 0 ? total / 1.12 : 0;
-    const vat = total > 0 ? total - subtotal : 0;
+    // FLAT, TAX-FREE pricing: the total IS the subtotal. No tax is derived.
+    const subtotal = total;
     const items = (receiptBooking.vehicles && receiptBooking.vehicles.length > 0
       ? receiptBooking.vehicles.flatMap(v => (v.services || []).map(s => ({ name: s.service_name || s.service_name_snapshot || 'Service', amount: resolveFrozenServicePrice(s) })))
       : [{ name: 'Booking Service Summary', amount: Number(receiptBooking.total_amount || 0) }]);
@@ -471,7 +471,6 @@ const AdminPayments = () => {
             <div class="label" style="margin-bottom: 8px;">Service Summary</div>
             ${items.map(item => `<div class="item"><span>• ${item.name}</span><strong>${formatCurrency(item.amount)}</strong></div>`).join('')}
             <div class="total-row"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
-            <div class="total-row"><span>VAT (12%)</span><span>${formatCurrency(vat)}</span></div>
             <div class="total-row balance"><span>Grand Total</span><span>${formatCurrency(total)}</span></div>
             <div class="foot">Transaction Reference: ${receiptBooking.payments?.[0]?.reference_number || receiptBooking.ocr_metadata?.referenceNo || 'SYSTEM_VALIDATED'}</div>
           </div>

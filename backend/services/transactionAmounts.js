@@ -11,15 +11,15 @@
  * (see tests/transaction_amounts.test.js) — the comparison logic here is what
  * decides whether an alert fires, so it must be verifiable without a live DB.
  *
- * NOTE on VAT: this shop's published prices are VAT-INCLUSIVE (Philippines, 12%).
- * The receipt therefore shows "VAT (12% included)" broken OUT of the total rather
- * than added on top. Adding it on top is what inflated a ₱250 payment to a ₱280
- * "Total Amount Due".
+ * NOTE on pricing: prices are FLAT and TAX-FREE. This system does not apply VAT,
+ * sales tax, or any percentage-based tax split. The figure the customer is
+ * quoted is the figure charged, the figure stored, and the figure printed on
+ * every receipt — with no division and no tax inflation.
  *
- *   VATable base = gross / 1.12      VAT = gross - base
- *
- * (An earlier version divided by 112, as though the rate were 12/112 = 10.71%,
- * which understated the VAT on an official tax document.)
+ * (History: this module previously derived a 12% VAT split from an inclusive
+ * total, and before that added 12% on top of it. Both models are gone. A tax
+ * line that is computed differently in two places is a tax line that will
+ * eventually disagree with itself; removing it removes that class of defect.)
  * ============================================================================
  */
 
@@ -82,10 +82,11 @@ const resolveTransactionAmounts = (booking = {}, payment = null) => {
     excessCredit,
     remainingBalance,
     verified: hasVerified,
-    // VAT is EXTRACTED from a VAT-inclusive total (base = gross / 1.12), never
-    // added to it. Must match _shared/bookingEmail.ts and paymentAmounts.js.
-    vatIncluded: round2(totalDue - round2(totalDue / 1.12)),
-    vatExclusiveSales: round2(totalDue / 1.12),
+    // FLAT, TAX-FREE PRICING. The total due IS the price — there is no tax to
+    // extract, so no `vatIncluded` / `vatExclusiveSales` are returned. Any
+    // consumer that still reads those keys will get `undefined` rather than a
+    // plausible-looking number, which is deliberate: a silently-zero tax line is
+    // harder to notice than a missing one.
   };
 };
 

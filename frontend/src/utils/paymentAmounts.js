@@ -38,6 +38,18 @@
  * Returning ONE structured object (rather than a bare number) is deliberate:
  * it makes "which amount did you mean?" a required decision at every call site
  * instead of an easy silent mistake.
+ *
+ * PRICING MODEL — FLAT AND TAX-FREE
+ * ---------------------------------
+ * Prices are flat. This system applies NO VAT, NO sales tax, and no
+ * percentage-based tax split of any kind. The quoted price is the charged price
+ * is the stored price is the printed price.
+ *
+ * There is deliberately no `vatIncluded` / `vatExclusiveSales` here. An earlier
+ * version derived a 12% split (base = gross / 1.12) and an even earlier one added
+ * 12% on top; both are removed. A tax figure computed in more than one place is a
+ * tax figure that will eventually disagree with itself — the safest tax line is
+ * the one that does not exist.
  * ============================================================================
  */
 
@@ -148,6 +160,10 @@ export const resolveTransactionAmounts = (booking = {}, payment = null) => {
     paymentStatus: String(payment?.status || '').toUpperCase(),
     paymentMethod: payment?.method || booking?.payment_method || '—',
     parts,
+    // NOTE: no vatIncluded / vatExclusiveSales. Pricing is flat and tax-free, so
+    // the total due IS the price. Consumers that still read those keys receive
+    // `undefined` on purpose — a missing tax line is far easier to spot than one
+    // that silently reports zero.
   };
 };
 

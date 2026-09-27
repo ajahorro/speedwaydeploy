@@ -9,7 +9,8 @@ import { captureQrSnapshot } from '../../services/qrSecurityService';
 import { computeNetCredit } from '../../services/creditLedgerService';
 import { sanitizeCurrency } from '../../config/constants';
 import { logger } from '../../utils/logger';
-import toast from 'react-hot-toast';
+import { extractReceiptFromImage } from '../../utils/receiptOcr';
+import toastManager from '../../utils/toastManager';
 
 const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, onNext, onBack, onSubmit, isSubmitting, onCancel }) => {
   const { settings } = useConfig();
@@ -105,15 +106,35 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
   const [scanStep, setScanStep] = useState('');
 
+  /**
+   * Monotonic scan id. Every upload claims the next value and only writes its
+   * result if it is STILL the newest when it resolves.
+   *
+   * WHY: `handleFileUpload` is fully async — Tesseract init, recognition, then a
+   * network verify. Nothing stopped a second upload starting before the first
+   * finished. Because the SLOWER scan resolves LAST, its `setReceiptDetails` won:
+   * the UI showed the result of the receipt the user had already replaced. In the
+   * worst case that meant a stale REJECTION overriding a fresh MATCH, or vice
+   * versa, with no way for the customer to tell which was current.
+   *
+   * A ref (not state) because the guard must be read/written synchronously inside
+   * the async handler, before any re-render.
+   */
+  const scanIdRef = useRef(0);
+
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
       // 🔄 RESET: Clear the input so selecting the same file again triggers onChange
       e.target.value = null;
 
+      // Claim this scan. Any in-flight scan now knows it is stale.
+      const scanId = ++scanIdRef.current;
+      const isStale = () => scanIdRef.current !== scanId;
+
       setIsUploading(true);
       setReceiptDetails(null);
-      setScanStep('TRANSMITTING TO AI AUDITOR...');
+      setScanStep('READING RECEIPT...');
 
       // Save the file reference
       setBookingData(prev => ({
@@ -128,11 +149,57 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         // parses amounts, so a wrong payee aborts the scan immediately.
         const expectedRecipientName = qrTarget?.QR_ACCOUNT_NAME || settings.qr_account_name || settings.QR_ACCOUNT_NAME || settings.PAYMENT_ACCOUNT_NAME || '';
 
+        // ── CLIENT-SIDE OCR (Tesseract.js) ─────────────────────────────────
+        // Extraction happens HERE, in the browser, so there is no upload/LLM
+        // round-trip to wait on. Tesseract reads the pixels locally and returns
+        // structured fields. Progress is real (a 0..1 fraction from the worker)
+        // rather than an indeterminate spinner.
+        //
+        // ⚠️ TRUST BOUNDARY: everything produced here is UNTRUSTED. The user can
+        // edit it in DevTools. It is sent to the server as a HINT only — the
+        // server re-parses it, re-checks the amount/date/name, and (critically)
+        // still receives the raw image below so SC-17's byte-hash duplicate gate
+        // keeps working. Never treat `ocrResult` as a verdict.
+        let ocrResult;
+        try {
+          ocrResult = await extractReceiptFromImage(file, (fraction, status) => {
+            const pct = Math.round(fraction * 100);
+            setScanStep(status === 'recognizing text' ? `READING RECEIPT... ${pct}%` : 'PREPARING SCANNER...');
+          });
+        } catch (ocrErr) {
+          // Tesseract failed to load or crashed. Send an empty hint and let the
+          // server fall back to manual review rather than blocking the customer.
+          console.warn('⚠️ [OCR] Local Tesseract extraction failed:', ocrErr.message);
+          ocrResult = { amount: null, grossAmount: null, transferFee: 0, referenceNumber: null, timestamp: null, recipient: null, isValidReceipt: false, rawText: '' };
+        }
+
+        setScanStep('VERIFYING WITH LEDGER...');
+
+        // A newer scan started while Tesseract was running. Abandon this one
+        // WITHOUT touching the UI: the newer scan already reset the state and
+        // owns the screen. Continuing would overwrite its spinner and, later,
+        // its result.
+        if (isStale()) return;
+
         const formData = new FormData();
+        // The RAW IMAGE still goes to the server. This is what preserves SC-17:
+        // the server hashes these exact bytes and rejects a reused screenshot.
+        // Removing this line would silently disable duplicate-image detection.
         formData.append('receipt', file);
         formData.append('bookingId', bookingData.id || 'PENDING');
         formData.append('requiredAmount', targetAmount);
         formData.append('expectedRecipientName', expectedRecipientName);
+        // The client's extraction, as a hint the server re-validates.
+        formData.append('extractedText', ocrResult.rawText || '');
+        formData.append('clientOcr', JSON.stringify({
+          amount: ocrResult.amount,
+          grossAmount: ocrResult.grossAmount,
+          transferFee: ocrResult.transferFee,
+          referenceNumber: ocrResult.referenceNumber,
+          timestamp: ocrResult.timestamp,
+          recipient: ocrResult.recipient,
+          isValidReceipt: ocrResult.isValidReceipt,
+        }));
         // 🛡️ SCENARIO 8 — GHOST QR CODE SWAP.
         // The customer has been sitting on this checkout for minutes; the admin
         // just swapped the store QR image. The customer scanned the QR that was ON
@@ -148,7 +215,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         try {
           const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
           const controller = new AbortController();
-          const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+          // The heavy local work is done; this is now a fast verification call.
+          const timeoutId = window.setTimeout(() => controller.abort(), 30000);
           let response;
           try {
             response = await fetch(`${BACKEND_URL}/api/ocr/verify-receipt`, {
@@ -167,6 +235,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           if (response.status === 429) {
             const errData = await response.json().catch(() => ({}));
             const waitSeconds = Number(errData.retryAfterSeconds || 30);
+            // A superseded scan must not clear the spinner the NEWER scan owns.
+            if (isStale()) return;
             setScanStep('');
             setIsUploading(false);
             setReceiptDetails({
@@ -178,24 +248,42 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
               description: `Too many receipt scans in a short period. Please wait ${waitSeconds} second(s) before trying again.`,
               manualReviewAllowed: false,
             });
-            toast.error(`Please wait ${waitSeconds}s before scanning another receipt.`);
+            toastManager.error(`Please wait ${waitSeconds}s before scanning another receipt.`);
+            return;
+          }
+
+          if (response.status === 413) {
+            const errData = await response.json().catch(() => ({}));
+            if (isStale()) return;
+            setScanStep('');
+            setIsUploading(false);
+            setReceiptDetails({
+              valid: false,
+              status: 'FILE_TOO_LARGE',
+              reason: 'FILE_TOO_LARGE',
+              amount: 0,
+              referenceNo: null,
+              description: errData.error || 'That image is too large. Please upload a smaller photo of your receipt.',
+              manualReviewAllowed: false,
+            });
+            toastManager.error('Receipt image is too large. Please upload a smaller photo.');
             return;
           }
 
           if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.error || 'Gemini service unavailable');
+            throw new Error(errData.error || 'Verification service unavailable');
           }
 
           result = await response.json();
-          console.log('🤖 [AI AUDIT] Gemini Result Received:', result);
-        } catch (geminiErr) {
-          console.warn('⚠️ [AI AUDIT] Gemini Service Offline. Allowing MANUAL REVIEW path (submit stays enabled):', geminiErr.message);
+          console.log('🔍 [OCR AUDIT] Verification result received:', result);
+        } catch (verifyErr) {
+          console.warn('⚠️ [OCR AUDIT] Verification service offline. Allowing MANUAL REVIEW path (submit stays enabled):', verifyErr.message);
           result = {
             success: true,
-            // The OCR engine could not run, so nothing can be auto-verified.
+            // The verifier could not run, so nothing can be auto-verified.
             // This is the ONLY case that does NOT hard-block: the receipt is
-            // accepted for MANUAL admin review so a Gemini outage never strands
+            // accepted for MANUAL admin review so a server outage never strands
             // the customer. `manualReviewAllowed` is what lets it through.
             valid: false,
             reason: 'VERIFICATION_UNAVAILABLE',
@@ -210,7 +298,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
               date: new Date().toLocaleDateString(),
               recipient: 'N/A',
               isReceipt: true,
-              description: 'AI verification service was unreachable. Payment proof saved for manual admin verification.'
+              description: 'Verification service was unreachable. Payment proof saved for manual admin verification.'
             }
           };
         }
@@ -227,8 +315,12 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         const isDateMatched = result.isDateMatch !== false; // fail-open only when the field is absent (manual mode)
         const isDuplicate = Boolean(result.isDuplicate);
 
+        // The 800 ms "FINALIZING AUDIT" beat is cosmetic. Re-check staleness
+        // afterwards: a newer scan may have started during it.
         setScanStep('FINALIZING AUDIT...');
         await new Promise(resolve => setTimeout(resolve, 800));
+
+        if (isStale()) return;
 
         // A rejected receipt (bad payee, wrong amount, stale date, or reuse) is
         // reported so the UI hard-blocks the submit button and offers a re-upload.
@@ -272,6 +364,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                 : (extractedData.description || 'No additional receipt notes were extracted.')))
         };
 
+        if (isStale()) return;
+
         setReceiptDetails(resultObj);
 
         // SYNC TO MASTER STATE
@@ -281,14 +375,22 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         }));
 
       } catch (err) {
+        // A superseded scan must not paint an error over the newer scan's UI.
+        if (isStale()) return;
         setReceiptDetails({
           status: 'REJECTED',
-          error: 'AI VERIFICATION FAILED',
-          description: err.message || "The AI could not verify this document. Please ensure it is a clear photo of your receipt."
+          error: 'RECEIPT VERIFICATION FAILED',
+          description: err.message || "We could not verify this document. Please ensure it is a clear photo of your receipt."
         });
       } finally {
-        setIsUploading(false);
-        setScanStep('');
+        // Only the newest scan owns `isUploading`/`scanStep`. Without this guard a
+        // stale scan finishing later would clear the spinner while the newer scan
+        // is still running — the button would re-enable and accept a submit
+        // against a receipt that is not yet verified.
+        if (!isStale()) {
+          setIsUploading(false);
+          setScanStep('');
+        }
       }
     }
   };
@@ -306,7 +408,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   const manualReviewAllowedReceipt = Boolean(receiptDetails?.manualReviewAllowed);
   const receiptVerified = Boolean(receiptDetails?.valid === true) || manualReviewAllowedReceipt;
   // A completed scan that did NOT verify AND is not a manual-review pass drives
-  // the red inline alert + Re-upload action. A Gemini outage is NOT shown as a
+  // the red inline alert + Re-upload action. A verifier outage is NOT shown as a
   // failure — it is a neutral "pending manual review" state.
   const receiptVerificationFailed = Boolean(receiptDetails) && !receiptVerified;
   const isReceiptBlocked = !adminMode && receiptDetails && !receiptVerified;
@@ -716,7 +818,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                             <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '800' }}>
                               {manualReviewAllowedReceipt
                                 ? 'AI SERVICE OFFLINE: STAFF WILL VERIFY MANUALLY'
-                                : (isDuplicateReceipt ? 'SYSTEM ALERT: REFERENCE ALREADY USED' : (receiptDetails.status === 'REJECTED' ? 'SYSTEM ALERT: INVALID FORMAT' : (isNameMismatch ? 'WARNING: RECIPIENT DOES NOT MATCH SHOP' : (isDatedWrong ? 'WARNING: RECEIPT NOT DATED TODAY' : (receiptDetails.status === 'MISMATCHED' ? 'WARNING: PRICE MISMATCH' : 'SECURITY SIGNATURE: GEMINI OCR')))))}
+                                : (isDuplicateReceipt ? 'SYSTEM ALERT: REFERENCE ALREADY USED' : (receiptDetails.status === 'REJECTED' ? 'SYSTEM ALERT: INVALID FORMAT' : (isNameMismatch ? 'WARNING: RECIPIENT DOES NOT MATCH SHOP' : (isDatedWrong ? 'WARNING: RECEIPT NOT DATED TODAY' : (receiptDetails.status === 'MISMATCHED' ? 'WARNING: PRICE MISMATCH' : 'SECURITY SIGNATURE: LOCAL OCR + SERVER AUDIT')))))}
                             </div>
                           </div>
                         </div>

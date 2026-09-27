@@ -48,7 +48,7 @@ const mockStorage = {
   removeItem: (k) => { delete store[k]; },
   clear: () => { for (const k of Object.keys(store)) delete store[k]; },
 };
-globalThis.window = { localStorage: mockStorage, addEventListener: () => {}, removeEventListener: () => {} };
+globalThis.window = { localStorage: mockStorage, addEventListener: () => { }, removeEventListener: () => { } };
 globalThis.localStorage = mockStorage;
 
 const setCustomServices = (list) => {

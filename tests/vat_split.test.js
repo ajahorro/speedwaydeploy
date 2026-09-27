@@ -1,23 +1,26 @@
 /**
  * tests/vat_split.test.js
  * ============================================================================
- * Independently derives the VAT split and asserts the shared amount model agrees.
+ * FLAT, TAX-FREE PRICING — the replacement for the old VAT-split suite.
  *
- * WHY THIS TEST IS WRITTEN THIS WAY
- * ---------------------------------
- * The previous version asserted `vatIncluded === 26.79` on a ₱250 total. That is
- * 10.72% — the wrapper's own wrong output. Because the expectation was copied
- * from the implementation rather than derived from the tax rule, the test PASSED
- * while the number was wrong. A test that restates the implementation can only
- * ever confirm the implementation.
+ * WHY THIS FILE CHANGED
+ * ---------------------
+ * This suite used to derive a 12% VAT split from an inclusive total
+ * (`base = gross / 1.12`) and assert the shared amount model agreed. VAT has now
+ * been removed from the system entirely, so the assertions are INVERTED: instead
+ * of pinning the split, this file pins its ABSENCE.
  *
- * So this file derives the expected figures from first principles:
- *   Philippines VAT is 12%, and the published price is VAT-INCLUSIVE, therefore
- *       base = gross / 1.12        vat = gross - base
+ * That inversion matters. A tax figure computed in more than one place eventually
+ * disagrees with itself — which is exactly what happened here, twice: the
+ * on-screen receipt once ADDED 12% on top (turning a ₱2,500 booking into a ₱2,800
+ * "Total Amount Due") while the emailed receipt EXTRACTED it, so the same booking
+ * printed two different totals. Removing the concept removes that whole class of
+ * defect, and this file is what stops it creeping back in.
  *
- * It also asserts the invariant that a wrong rate cannot survive:
- *       base + vat === gross   (exactly, to the centavo)
- * and that the rate actually equals 12% of the base.
+ * WHAT IS ASSERTED
+ *   • the total due IS the price — no division, no inflation
+ *   • no `vatIncluded` / `vatExclusiveSales` keys are produced at all
+ *   • the frontend and backend resolvers agree on the flat figure
  *
  * Run: node tests/vat_split.test.js
  * ============================================================================
@@ -39,62 +42,100 @@ const check = (label, fn) => {
 };
 
 const round2 = (n) => Math.round(n * 100) / 100;
-const VAT_RATE = 0.12;
 
-/** Independent implementation: the tax rule, written from the rule and not read
- *  out of the module under test. */
-const expectedSplit = (gross) => {
-  const base = round2(gross / (1 + VAT_RATE));
-  return { base, vat: round2(gross - base) };
-};
+console.log('=== flat, tax-free pricing ===');
 
-console.log('=== VAT split (Philippines, 12%, VAT-inclusive pricing) ===');
-
-for (const gross of [250, 1000, 500, 1234.56, 99.99]) {
-  const { base, vat } = expectedSplit(gross);
-
-  check(`₱${gross}: base and VAT sum back to the gross exactly`, () => {
-    assert.strictEqual(round2(base + vat), gross, `${base} + ${vat} must equal ${gross}`);
+for (const price of [250, 1000, 500, 1234.56, 99.99, 2500]) {
+  check(`P${price}: the amount due IS the price (no tax added or extracted)`, () => {
+    const a = resolveTransactionAmounts({ total_amount: price }, null);
+    assert.strictEqual(a.totalDue, price, 'the total due must equal the price exactly');
+    assert.strictEqual(a.bookingTotal, price);
   });
 
-  check(`₱${gross}: VAT equals 12% of the derived base`, () => {
-    const impliedRate = vat / base;
-    assert.ok(
-      Math.abs(impliedRate - VAT_RATE) < 0.0005,
-      `implied rate ${(impliedRate * 100).toFixed(4)}% should be ~12%`
-    );
+  check(`P${price}: no VAT keys are produced`, () => {
+    const a = resolveTransactionAmounts({ total_amount: price }, null);
+    // Absence, not zero. A silently-zero tax line is far easier to overlook than
+    // a missing one — and `undefined` fails loudly at the point of use.
+    assert.ok(!('vatIncluded' in a), 'vatIncluded must be absent, not merely undefined');
+    assert.ok(!('vatExclusiveSales' in a), 'vatExclusiveSales must be absent, not merely undefined');
   });
 
-  check(`₱${gross}: model matches the independently derived split`, () => {
-    const a = resolveTransactionAmounts({ total_amount: gross }, null);
-    assert.strictEqual(a.vatExclusiveSales, base, `base should be ${base}`);
-    assert.strictEqual(a.vatIncluded, vat, `VAT should be ${vat}`);
+  check(`P${price}: centavos survive untouched`, () => {
+    const a = resolveTransactionAmounts({ total_amount: price }, null);
+    assert.strictEqual(round2(a.totalDue), round2(price));
   });
 }
 
-// The specific regression: ₱250 must NOT be split as 10.72%.
-check('₱250 is NOT split at the old 10.72% rate', () => {
+console.log('\n=== the old VAT behaviour must not return ===');
+
+check('P250 is NOT divided by 1.12 (no 223.21 base)', () => {
   const a = resolveTransactionAmounts({ total_amount: 250 }, null);
-  assert.strictEqual(a.vatExclusiveSales, 223.21);
-  assert.strictEqual(a.vatIncluded, 26.79);
+  assert.notStrictEqual(a.totalDue, round2(250 / 1.12), 'the price must not be deflated by a tax divisor');
+  assert.strictEqual(a.totalDue, 250);
 });
 
-check('VAT is never larger than the gross it is extracted from', () => {
+check('P250 is NOT inflated by 12% (no 280 total)', () => {
   const a = resolveTransactionAmounts({ total_amount: 250 }, null);
-  assert.ok(a.vatIncluded < a.totalDue, 'VAT must be part of the total, never exceed it');
+  assert.notStrictEqual(a.totalDue, 280, 'tax must never be added on top');
+  assert.strictEqual(a.totalDue, 250);
 });
 
-check('a zero total yields zero VAT rather than NaN', () => {
+check('P2,500 is not inflated to P2,800 on a receipt total', () => {
+  // The specific production defect: a P2,500 booking printed a P2,800 total that
+  // was never charged and existed nowhere in the database.
+  const a = resolveTransactionAmounts({ total_amount: 2500 }, null);
+  assert.strictEqual(a.totalDue, 2500);
+  assert.notStrictEqual(a.totalDue, 2800);
+});
+
+console.log('\n=== edge cases ===');
+
+check('a zero total stays zero rather than NaN', () => {
   const a = resolveTransactionAmounts({ total_amount: 0 }, null);
-  assert.strictEqual(a.vatIncluded, 0);
-  assert.strictEqual(a.vatExclusiveSales, 0);
+  assert.strictEqual(a.totalDue, 0);
+  assert.ok(Number.isFinite(a.totalDue));
 });
 
 check('a missing total is treated as zero, not NaN', () => {
   const a = resolveTransactionAmounts({}, null);
-  assert.strictEqual(a.vatIncluded, 0);
-  assert.ok(Number.isFinite(a.vatExclusiveSales));
+  assert.strictEqual(a.totalDue, 0);
+  assert.ok(Number.isFinite(a.totalDue));
 });
 
-console.log(`\n=== ${passed} passed, ${failed} failed ===`);
-process.exit(failed === 0 ? 0 : 1);
+check('a payment does not change the booking total', () => {
+  // Flat pricing still has to be READ-ONLY with respect to the booking.
+  for (const paid of [0, 500, 2500, 9999]) {
+    const a = resolveTransactionAmounts({ total_amount: 2500 }, { amount: paid, status: 'PAID' });
+    assert.strictEqual(a.bookingTotal, 2500, `a P${paid} payment must not alter the total`);
+  }
+});
+
+check('the balance is pure subtraction, with no tax adjustment', () => {
+  const a = resolveTransactionAmounts({ total_amount: 2500 }, { amount: 1000, status: 'PAID' });
+  assert.strictEqual(a.creditedToBooking, 1000);
+  assert.strictEqual(a.remainingBalance, 1500, '2500 - 1000, with no tax term');
+});
+
+console.log('\n=== the frontend twin agrees (no tax divergence) ===');
+
+(async () => {
+  const frontend = await import('../frontend/src/utils/paymentAmounts.js');
+
+  check('the frontend resolver also produces no VAT keys', () => {
+    const a = frontend.resolveTransactionAmounts({ total_amount: 2500 }, null);
+    assert.ok(!('vatIncluded' in a));
+    assert.ok(!('vatExclusiveSales' in a));
+  });
+
+  check('frontend and backend agree on the flat total for every sample', () => {
+    for (const price of [250, 1000, 1234.56, 2500, 99.99]) {
+      const fe = frontend.resolveTransactionAmounts({ total_amount: price }, null);
+      const be = resolveTransactionAmounts({ total_amount: price }, null);
+      assert.strictEqual(fe.totalDue, be.totalDue, `P${price} diverged`);
+      assert.strictEqual(fe.totalDue, price);
+    }
+  });
+
+  console.log(`\n=== ${passed} passed, ${failed} failed ===`);
+  process.exit(failed === 0 ? 0 : 1);
+})();

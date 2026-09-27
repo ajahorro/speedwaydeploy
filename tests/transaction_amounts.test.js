@@ -44,11 +44,12 @@ check('plain full payment quotes ₱250, NOT ₱280 (no VAT added on top)', () =
   assert.strictEqual(a.netReceived, 250);
   assert.strictEqual(a.remainingBalance, 0);
   assert.strictEqual(a.excessCredit, 0);
-  // VAT is EXTRACTED from a VAT-inclusive 250 (Philippines: 12%), never added
-  // on top. The figures are derived in tests/vat_split.test.js from the tax rule
-  // itself, so this file only asserts the property that matters here.
-  assert.ok(a.vatIncluded < 250, 'VAT must be part of the total, never on top of it');
-  assert.strictEqual(round2(a.vatExclusiveSales + a.vatIncluded), 250, 'base + VAT must equal the total');
+  // Pricing is FLAT and TAX-FREE: the total IS the price, with no tax added on
+  // top and none extracted from it. The tax keys no longer exist at all, so a
+  // consumer reading them gets `undefined` rather than a plausible number.
+  assert.ok(!('vatIncluded' in a), 'there must be no VAT to include');
+  assert.ok(!('vatExclusiveSales' in a), 'there must be no VAT-exclusive base');
+  assert.strictEqual(a.totalDue, 250, 'the price is not deflated or inflated by tax');
 });
 
 // ── OCR returns the NET the shop received; the customer paid the GROSS ───────
