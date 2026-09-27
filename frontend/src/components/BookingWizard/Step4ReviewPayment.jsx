@@ -11,6 +11,7 @@ import { sanitizeCurrency } from '../../config/constants';
 import { logger } from '../../utils/logger';
 import { extractReceiptFromImage } from '../../utils/receiptOcr';
 import toastManager from '../../utils/toastManager';
+import { BACKEND_URL } from '../../config/api';
 
 const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, onNext, onBack, onSubmit, isSubmitting, onCancel }) => {
   const { settings } = useConfig();
@@ -213,7 +214,6 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
         let result;
         try {
-          const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
           const controller = new AbortController();
           // The heavy local work is done; this is now a fast verification call.
           const timeoutId = window.setTimeout(() => controller.abort(), 30000);

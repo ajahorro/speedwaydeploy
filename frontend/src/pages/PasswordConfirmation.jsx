@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Lock, ShieldCheck, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
+// Shared resolver: honours a runtime override and refuses to point a deployed page
+// at the viewer's own localhost (the cause of "confirmation links go nowhere").
+import { BACKEND_URL } from '../config/api';
 
 const PasswordConfirmation = () => {
   const token = new URLSearchParams(window.location.search).get('token');

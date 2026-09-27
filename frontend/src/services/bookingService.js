@@ -5,6 +5,7 @@ import { getEffectivePriceForService, calculateBookingDiscountSummary, buildBook
 import { getRequiredDownpayment } from '../utils/paymentUtils';
 import { sendStatusEmail } from './notificationService';
 import { calculateBayUsage } from '../utils/schedulingUtils';
+import { BACKEND_URL } from '../config/api';
 
 const normalizeServiceId = (value) => {
   if (typeof value !== 'string') return null;
@@ -399,7 +400,6 @@ export const createBooking = async (customerId, bookingData) => {
   if (bookingCustomerId) {
     for (const vehicle of vehicles) {
       try {
-        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
         await fetch(`${BACKEND_URL}/api/garage/sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -425,7 +425,6 @@ export const createBooking = async (customerId, bookingData) => {
       if (existingAccount?.id) {
         console.warn('[Booking] Skipped guest invite — email already belongs to a registered account.');
       } else {
-        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
         await fetch(`${BACKEND_URL}/admin/generate-invite`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

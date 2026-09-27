@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { BACKEND_URL } from '../config/api';
 
 /**
  * garageService.js
@@ -65,7 +66,6 @@ export const updateFleetGroup = async (groupId, name) => {
 
 export const addVehicleToGarage = async (userId, vehicle) => {
   try {
-    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
     const response = await fetch(`${BACKEND_URL}/api/garage/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -395,7 +395,17 @@ export const getPromoRules = () => {
 
 export const fetchActivePromos = async () => {
   try {
-    const BACKEND_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || window.location.origin;
+    // Resolve the backend origin defensively. This module is also imported by
+    // Node tests (servicesCatalog.test.mjs), where `window` does not exist, so we
+    // cannot pull it from config/api.js (a browser-only module). A leftover
+    // localhost VITE_BACKEND_URL must not be used from a deployed page, or every
+    // promo fetch dies on a connection-refused to the viewer's own machine.
+    const configured = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || '';
+    const onLoopback = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(window.location.hostname);
+    const isLoopback = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(configured);
+    const BACKEND_URL = (configured && (!isLoopback || onLoopback))
+      ? String(configured).replace(/\/+$/, '')
+      : (typeof window !== 'undefined' ? window.location.origin : '');
     const res = await fetch(`${BACKEND_URL}/api/promos/active`);
     if (res.ok) {
       const json = await res.json();

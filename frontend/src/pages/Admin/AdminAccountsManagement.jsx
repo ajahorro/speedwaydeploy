@@ -127,6 +127,13 @@ const AdminAccountsManagement = () => {
             : 'Account created, but the invitation email could not be delivered.',
           { id: toastId, duration: 12000 }
         );
+      } else if (result.alreadyAtRole) {
+        // The address already held this exact role — nothing changed. Say so
+        // instead of claiming a fresh invitation was sent.
+        toast.success(`${inviteForm.email.trim().toLowerCase()} already has ${activeTab} access. No changes were made.`, { id: toastId });
+      } else if (result.elevated) {
+        // An existing CUSTOMER account was promoted in place; no temp password.
+        toast.success(`Existing account promoted to ${activeTab}. Their history and bookings were preserved.`, { id: toastId });
       } else {
         toast.success('Invitation sent! The user will set their own password on first login.', { id: toastId });
       }

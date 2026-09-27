@@ -4,6 +4,30 @@ import { formatBookingDate, formatBookingTime } from '../utils/bookingHelpers';
 
 const LIFECYCLE_STEPS = ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'RELEASED'];
 
+/**
+ * The booking's own customer identity, in priority order:
+ *   1. the linked account's profile (customer.first_name/last_name/full_name)
+ *   2. the snapshot columns captured at booking time (customer_name)
+ *   3. the guest details from the booking wizard (guest_name / contact)
+ * Falls back to a neutral label so a walk-in is never blank.
+ */
+const customerName = (booking) => {
+  const c = booking?.customer || {};
+  const full = c.full_name
+    || [c.first_name, c.last_name].filter(Boolean).join(' ').trim()
+    || booking?.customer_name
+    || booking?.guest_name
+    || booking?.contact_name;
+  return (full && String(full).trim()) || 'Walk-in Guest';
+};
+
+/** The customer's email from the profile or the booking snapshot, or '' when none. */
+const customerEmail = (booking) => {
+  const c = booking?.customer || {};
+  const email = c.email || booking?.customer_email || booking?.guest_email || '';
+  return String(email || '').trim();
+};
+
 const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, showTechnician = true, paymentStatus }) => {
   const rawStatus = booking?.status?.toUpperCase() || 'PENDING';
   const normalizedStatus = rawStatus === 'PENDING' ? 'SCHEDULED' : rawStatus;
@@ -25,6 +49,33 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
         <SummaryItem icon={Calendar} label="Schedule Time">
           {booking?.start_datetime ? `${formatBookingDate(booking.start_datetime)} at ${formatBookingTime(booking.start_datetime)}` : 'Unscheduled'}
         </SummaryItem>
+        {showTechnician && (
+          <SummaryItem icon={Wrench} label="Assigned Technician">
+            {booking?.assigned_staff?.full_name || 'Unassigned'}
+          </SummaryItem>
+        )}
+        {/* Customer identity, placed between the technician and the payment status.
+            Shows the booking's own customer record — the linked account's name and
+            email when there is one, or the guest/walk-in details captured at
+            booking time. This makes "who is this for" answerable without opening
+            the sidebar, and works for walk-ins that have no profile row. */}
+        {showCustomer && (
+          <SummaryItem icon={User} label="Customer">
+            <span style={{ display: 'block' }}>
+              {customerName(booking)}
+            </span>
+            {customerEmail(booking) && (
+              <span style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.72rem', fontWeight: '600', color: 'var(--admin-text-secondary)' }}>
+                {customerEmail(booking)}
+              </span>
+            )}
+            <span style={{ display: 'block', marginTop: '0.2rem', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase' }}>
+              <span style={{ color: booking?.customer_id ? 'var(--admin-brand)' : 'rgba(230, 30, 42, 0.62)' }}>
+                {booking?.customer_id ? 'Customer Account' : 'Walk-in Guest'}
+              </span>
+            </span>
+          </SummaryItem>
+        )}
         {paymentStatus ? (
           <SummaryItem icon={CreditCard} label="Payment Status">
             <span style={{ color: paymentStatus.status === 'REFUNDED' ? 'var(--status-danger)' : paymentStatus.balance > 0 ? '#f59e0b' : '#10b981' }}>
@@ -33,21 +84,7 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
                 : paymentStatus.balance > 0 ? `Balance: ₱${paymentStatus.balance.toLocaleString()}` : 'Fully Paid'}
             </span>
           </SummaryItem>
-        ) : showCustomer && (
-          <SummaryItem icon={User} label="Customer">
-            <span>{booking?.customer?.full_name || booking?.customer_name || 'Walk-in Guest'}</span>
-            <span style={{ display: 'block', marginTop: '0.2rem', color: 'var(--admin-brand)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase' }}>
-              <span style={{ color: booking?.customer_id ? 'var(--admin-brand)' : 'rgba(230, 30, 42, 0.62)' }}>
-                {booking?.customer_id ? 'Customer Account' : 'Walk-in Guest'}
-              </span>
-            </span>
-          </SummaryItem>
-        )}
-        {showTechnician && (
-          <SummaryItem icon={Wrench} label="Assigned Technician">
-            {booking?.assigned_staff?.full_name || 'Unassigned'}
-          </SummaryItem>
-        )}
+        ) : null}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', overflowX: 'auto', paddingTop: '0.5rem' }}>
@@ -78,13 +115,13 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
 };
 
 const SummaryItem = ({ icon: Icon, label, children }) => (
-  <div style={{ flex: '1 1 200px', display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+ <div style={{ flex: '1 1 200px', display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
     <IconBox><Icon size={20} /></IconBox>
-    <div style={{ minWidth: 0 }}>
+    <div style={{ minWidth: 0, flex: '1 1 auto' }}>
       <p style={labelStyle}>{label}</p>
-      <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', color: 'var(--admin-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{children}</p>
+      <div style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', color: 'var(--admin-text-primary)', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{children}</div>
     </div>
-  </div>
+ </div>
 );
 
 const IconBox = ({ children }) => (

@@ -17,6 +17,7 @@ import { calculateRequiredDownpayment } from '../../utils/paymentUtils';
 import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import { useUI } from '../../context/UIContext';
+import { BACKEND_URL } from '../../config/api';
 
 const AdminPayments = () => {
   const navigate = useNavigate();
@@ -320,7 +321,6 @@ const AdminPayments = () => {
     const toastId = toast.loading('AI is scanning receipt...');
 
     try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
       const receiptResponse = await fetch(receiptUrl);
       if (!receiptResponse.ok) throw new Error('Receipt image could not be downloaded');
       const receiptBlob = await receiptResponse.blob();

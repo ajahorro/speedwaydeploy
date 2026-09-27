@@ -10,6 +10,7 @@ import PageHeader from '../../components/PageHeader';
 import { useUI } from '../../context/UIContext';
 import { logger } from '../../utils/logger';
 import toast from 'react-hot-toast';
+import { BACKEND_URL } from '../../config/api';
 
 // MEMOIZED SUB-COMPONENTS: Prevent entire dashboard from re-rendering on single metric change
 const AttentionCard = React.memo(({ count, label, icon: Icon, color, bg, onClick }) => {
@@ -284,7 +285,7 @@ const AdminDashboard = () => {
       type: 'success',
       onConfirm: async () => {
         try {
-          const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || window.location.origin}/api/bookings/release`, {
+          const response = await fetch(`${BACKEND_URL}/api/bookings/release`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ bookingId })

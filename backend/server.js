@@ -2459,6 +2459,71 @@ const generateTemporaryPassword = () => {
   return `${out}#7`;
 };
 
+/**
+ * 🛡️ SCENARIO 12 — promote an EXISTING account instead of dead-ending on 409.
+ *
+ * The atomic claim raises EMAIL_ALREADY_EXISTS for any existing row, so by the
+ * time we are here we already know the address is taken. We attempt
+ * elevate_profile_role(), which updates the profile IN PLACE (all FKs —
+ * bookings.customer_id, audit_logs.actor_id, messages — stay intact) and writes
+ * an audit entry. Returns the response body on success, or null when there is
+ * nothing to elevate (the caller then falls back to the plain 409).
+ *
+ * @returns {Promise<object|null>}
+ */
+const attemptRoleElevation = async ({ email, role, firstName, lastName, actor }) => {
+  try {
+    const { data: elevation, error } = await supabaseAdmin.rpc('elevate_profile_role', {
+      p_email: email,
+      p_role: role,
+      p_first_name: firstName,
+      p_last_name: lastName,
+      p_actor_id: actor?.profile?.id || null,
+    });
+
+    if (error) {
+      console.warn('🎟️ [INVITE] Role elevation RPC unavailable/failed:', error.message);
+      return null; // Fall back to the 409 response.
+    }
+
+    // NO_PROFILE — the address exists in auth.users but has no profile row, so
+    // there is nothing to elevate; a plain 409 is the honest answer.
+    if (!elevation || elevation.reason === 'NO_PROFILE') return null;
+
+    const elevated = elevation.elevated === true;
+    console.log(`🎟️ [INVITE] ${elevated
+      ? `Elevated ${email} from ${elevation.old_role} to ${role}`
+      : `No elevation needed for ${email} (${elevation.reason})`}.`);
+
+    // Let the person know their access level changed (best-effort).
+    try {
+      const backendBase = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`;
+      await fetch(`${backendBase}/api/emails/status-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, type: 'ROLE_ELEVATED', role })
+      });
+    } catch (mailErr) {
+      console.warn('🎟️ [INVITE] Elevation notice email failed (non-fatal):', mailErr.message);
+    }
+
+    return {
+      success: true,
+      elevated,
+      alreadyAtRole: elevated === false && elevation.reason === 'ALREADY_AT_ROLE',
+      role: elevation.role || role,
+      previousRole: elevation.old_role || null,
+      email,
+      message: elevated
+        ? `Existing account promoted to ${role}. Their history and bookings were preserved.`
+        : `This account already has ${role} access.`
+    };
+  } catch (err) {
+    console.warn('🎟️ [INVITE] Elevation attempt failed:', err.message);
+    return null;
+  }
+};
+
 app.post('/api/admin/invite-account', async (req, res) => {
   const { email, firstName, lastName, role, forcePasswordChange = true } = req.body || {};
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
@@ -2515,6 +2580,20 @@ app.post('/api/admin/invite-account', async (req, res) => {
       const rpcMissing = code === 'PGRST202' || code === '42883' || /could not find the function/i.test(msg);
 
       if (code === '23505' || msg.includes('EMAIL_ALREADY_EXISTS') || msg.includes('duplicate key')) {
+        // 🛡️ SCENARIO 12 — IDENTITY CLASH: an existing CUSTOMER may be elevated
+        // to STAFF/ADMIN instead of dead-ending in a 409. The atomic claim raises
+        // EMAIL_ALREADY_EXISTS for ANY existing row, so this is where elevation
+        // must be attempted (the old code only checked a `claim.can_elevate` the
+        // RPC never returned on this path).
+        const elevated = await attemptRoleElevation({
+          email: normalizedEmail,
+          role: normalizedRole,
+          firstName: safeFirst,
+          lastName: safeLast,
+          actor,
+        });
+        if (elevated) return res.json(elevated);
+
         return res.status(409).json({
           success: false,
           code: 'EMAIL_ALREADY_EXISTS',
@@ -2557,63 +2636,10 @@ app.post('/api/admin/invite-account', async (req, res) => {
       }
     }
 
-    // 🛡️ SCENARIO 12 — IDENTITY CLASH: EXISTING CUSTOMER -> ROLE ELEVATION.
-    //
-    // The invitee already owns a CUSTOMER profile (e.g. they booked as a guest
-    // two years ago). The old behaviour dead-ended here — the claim raised
-    // EMAIL_ALREADY_EXISTS and the admin got a 409, so a loyal customer could
-    // never become staff. We now ELEVATE the existing identity instead: the
-    // profile row is UPDATEd in place (all FKs — bookings.customer_id,
-    // audit_logs.actor_id, messages — stay intact, so no history is orphaned),
-    // reactivated if soft-deleted, and the role change is written to the audit
-    // trail. No ghost/duplicate account is created and no 500 is thrown.
-    if (claim?.exists && claim?.can_elevate) {
-      const { data: elevation, error: elevationError } = await supabaseAdmin.rpc('elevate_profile_role', {
-        p_email: normalizedEmail,
-        p_role: normalizedRole,
-        p_first_name: safeFirst,
-        p_last_name: safeLast,
-        p_actor_id: actor.id || null
-      });
-
-      if (elevationError) {
-        console.warn('🎟️ [INVITE] Role elevation RPC failed:', elevationError.message);
-        return res.status(409).json({
-          success: false,
-          code: 'EMAIL_ALREADY_EXISTS',
-          error: 'This email already belongs to an existing account. Elevate it from the Team module.'
-        });
-      }
-
-      const elevated = elevation?.elevated === true;
-      console.log(`🎟️ [INVITE] ${elevated ? `Elevated ${normalizedEmail} from ${elevation.old_role} to ${normalizedRole}` : `No elevation needed for ${normalizedEmail} (${elevation?.reason})`}.`);
-
-      // The identity already signs in with their own credentials; we do NOT mint
-      // a new temporary password or an auth user. A confirmation email is still
-      // dispatched so the person knows their access level changed.
-      try {
-        const BACKEND_URL = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`;
-        await fetch(`${BACKEND_URL}/api/emails/status-email`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: normalizedEmail, type: 'ROLE_ELEVATED', role: normalizedRole })
-        });
-      } catch (mailErr) {
-        console.warn('🎟️ [INVITE] Elevation notice email failed (non-fatal):', mailErr.message);
-      }
-
-      return res.json({
-        success: true,
-        elevated,
-        alreadyAtRole: elevated === false && elevation?.reason === 'ALREADY_AT_ROLE',
-        role: elevation?.role || normalizedRole,
-        previousRole: elevation?.old_role || claim?.current_role || null,
-        email: normalizedEmail,
-        message: elevated
-          ? `Existing account promoted to ${normalizedRole}. Their history and bookings were preserved.`
-          : `This account already has ${normalizedRole} access.`
-      });
-    }
+    // 🛡️ SCENARIO 12 — IDENTITY CLASH (existing account) is handled in the
+    // EMAIL_ALREADY_EXISTS branch above, via attemptRoleElevation(). The claim RPC
+    // RAISES on a duplicate rather than returning, so execution only reaches here
+    // when the address is genuinely free — the happy path that creates the account.
 
     mustChangePassword = claim?.must_change_password !== false;
     const temporaryPassword = generateTemporaryPassword();

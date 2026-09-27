@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger';
+import { BACKEND_URL } from '../config/api';
 
 /**
  * scheduleValidationService.js
@@ -11,8 +12,6 @@ import { logger } from '../utils/logger';
  * calls the endpoint and normalises the response so the UI can render a guided
  * <ValidationModal>.
  */
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
 
 /**
  * Asks the server whether a booking request is allowed.

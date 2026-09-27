@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { AlertTriangle, RefreshCw, X } from 'lucide-react';
+import { BACKEND_URL } from '../config/api';
 
 /**
  * <BackendStatusBanner>
@@ -27,7 +28,6 @@ import { AlertTriangle, RefreshCw, X } from 'lucide-react';
  *     (faster recovery detection without hammering a dead port).
  */
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
 const HEALTHY_POLL_MS = 15000;
 const DOWN_POLL_MS = 8000;
 const FETCH_TIMEOUT_MS = 4000;

@@ -3,11 +3,12 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { BACKEND_URL } from '../config/api';
 
 export const useAuthFlow = () => {
   const navigate = useNavigate();
   const { user, profile, signInWithPassword, requestPasswordReset } = useAuth();
-  
+
   const [mode, setMode] = useState('LOGIN'); // LOGIN, REGISTER, VERIFY, AWAIT_LINK, RECOVER, RECOVER_OTP, RECOVER_VERIFY, RESET
   const [isLoading, setIsLoading] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState('');
@@ -146,7 +147,6 @@ export const useAuthFlow = () => {
     setIsLoading(true);
     try {
       // Route through backend relay for branded Resend delivery
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
       const res = await fetch(`${BACKEND_URL}/api/auth/recover-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -184,7 +184,6 @@ export const useAuthFlow = () => {
     }
     setIsLoading(true);
     try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
       const res = await fetch(`${BACKEND_URL}/api/auth/emergency-recovery/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -220,7 +219,6 @@ export const useAuthFlow = () => {
     }
     setIsLoading(true);
     try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
       const res = await fetch(`${BACKEND_URL}/api/auth/emergency-recovery/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

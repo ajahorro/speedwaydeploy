@@ -6,6 +6,8 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useUI } from '../../context/UIContext';
 import { logger } from '../../utils/logger';
 import { supabase } from '../../lib/supabase';
+// Shared backend-origin resolver (see config/api.js).
+import { BACKEND_URL } from '../../config/api';
 
 /**
  * PromoManager (System A)
@@ -334,8 +336,6 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       isOngoing: true
     };
 
-    const BACKEND_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || window.location.origin;
-
     try {
       const response = await fetch(`${BACKEND_URL}/api/admin/promos`, {
         method: 'POST',
@@ -396,7 +396,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       onConfirm: async () => {
         const nextRules = promoRules.filter(rule => rule.id !== promoId);
         const session = (await supabase.auth.getSession()).data.session;
-        const response = await fetch(`${(typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || window.location.origin}/api/admin/promos/${encodeURIComponent(promoId)}`, {
+        const response = await fetch(`${BACKEND_URL}/api/admin/promos/${encodeURIComponent(promoId)}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${session?.access_token || ''}` }
         });

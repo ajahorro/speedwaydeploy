@@ -63,8 +63,8 @@ const BookingAuditTrail = ({ logs = [] }) => {
       <dl style={{ margin: 0, display: 'grid', gap: '0.45rem' }}>
         {entries.map(([key, value]) => (
           <div key={key} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-            <dt style={{ color: 'var(--admin-text-secondary)', textTransform: 'uppercase', fontSize: '0.62rem', fontWeight: '900' }}>{key.replace(/_/g, ' ')}</dt>
-            <dd style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '0.75rem', fontWeight: '700', textAlign: 'right' }}>{formatValue(value)}</dd>
+            <dt style={{ color: 'var(--admin-text-secondary)', textTransform: 'uppercase', fontSize: '0.62rem', fontWeight: '900', minWidth: 0, overflowWrap: 'anywhere' }}>{key.replace(/_/g, ' ')}</dt>
+            <dd style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '0.75rem', fontWeight: '700', textAlign: 'right', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{formatValue(value)}</dd>
           </div>
         ))}
       </dl>
@@ -108,29 +108,35 @@ const BookingAuditTrail = ({ logs = [] }) => {
               background: isRecent ? 'rgba(255,255,255,0.02)' : 'var(--admin-card)',
               border: `1px solid ${isRecent ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
               borderRadius: 'var(--admin-radius-sm)',
-              boxShadow: isRecent ? '0 4px 20px rgba(0,0,0,0.2)' : 'none'
+              boxShadow: isRecent ? '0 4px 20px rgba(0,0,0,0.2)' : 'none',
+              // The timeline card must never let a long event title / detail string
+              // push it past its column. minWidth:0 lets the flex children shrink
+              // and overflowWrap breaks long unbroken tokens (emails, ids).
+              minWidth: 0,
+              overflow: 'hidden'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ color: config.color }}>{config.icon}</span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: '950', color: 'var(--admin-text-on-brand)' }}>{formatLabel(log.event_type)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: '1 1 auto', flexWrap: 'wrap' }}>
+                  <span style={{ color: config.color, flexShrink: 0 }}>{config.icon}</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '950', color: 'var(--admin-text-primary)', minWidth: 0, overflowWrap: 'anywhere' }}>{formatLabel(log.event_type)}</span>
                   {isRecent && (
                     <span style={{
                       fontSize: '0.5rem',
                       fontWeight: '950',
                       background: 'var(--admin-brand)',
-                      color: 'var(--admin-text-on-brand)', 
-                      padding: '0.1rem 0.4rem', 
+                      color: 'var(--admin-text-on-brand)',
+                      padding: '0.1rem 0.4rem',
                       borderRadius: '2px',
-                      letterSpacing: '0.5px'
+                      letterSpacing: '0.5px',
+                      flexShrink: 0
                     }}>RECENT</span>
                   )}
                 </div>
-                <span style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '800' }}>
+                <span style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '800', flexShrink: 0, whiteSpace: 'nowrap' }}>
                   {formatAuditDate(log.created_at)}
                 </span>
               </div>
-              <div style={{ margin: 0, fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: '600', lineHeight: 1.5 }}>
+              <div style={{ margin: 0, fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: '600', lineHeight: 1.5, minWidth: 0, overflowWrap: 'anywhere' }}>
                 {renderDetails(log)}
               </div>
             </div>

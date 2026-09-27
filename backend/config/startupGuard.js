@@ -67,6 +67,8 @@ const RECOMMENDED = [
   },
 ];
 
+const { isLoopbackUrl } = require('../services/appUrl');
+
 /** Values that look set but are not usable in production. */
 const PLACEHOLDER_PATTERNS = [
   /^development-key$/i,
@@ -103,6 +105,19 @@ const checkEnvironment = ({ exitOnFailure = true } = {}) => {
       // Set, but to something that cannot work. This is the 'development-key'
       // case: it passes a naive presence check while being unsafe.
       missingRequired.push(`${key} — set, but to a placeholder value ("${String(value).slice(0, 24)}"). ${why}`);
+      continue;
+    }
+    // A leftover DEV value is worse than an unset one: it passes presence checks,
+    // the process looks healthy, and every emailed link points at the recipient's
+    // own machine. In production, refuse to boot on a loopback FRONTEND_URL (or a
+    // non-https one) so the problem surfaces in the deploy log rather than in a
+    // customer's inbox.
+    if (key === 'FRONTEND_URL' && process.env.NODE_ENV === 'production') {
+      if (isLoopbackUrl(value)) {
+        missingRequired.push(`${key} — set to "${String(value)}" in production, which is a local development address. ${why}`);
+      } else if (!String(value).startsWith('https://')) {
+        missingRequired.push(`${key} — set to "${String(value)}" but NODE_ENV=production; emailed links must use https. ${why}`);
+      }
     }
   }
 
@@ -112,11 +127,18 @@ const checkEnvironment = ({ exitOnFailure = true } = {}) => {
     }
   }
 
-  // A non-https FRONTEND_URL in production sends customers a link they may not
-  // be able to open, and signals the variable was copied from a dev .env.
+  // In production a loopback/non-https FRONTEND_URL is already a REQUIRED failure
+  // above. Outside production, a plain http localhost URL is the normal dev case
+  // and must stay silent; only a non-loopback http value is worth flagging, since
+  // it suggests a malformed copy-paste rather than a deliberate dev choice.
   const frontendUrl = process.env.FRONTEND_URL || '';
-  if (frontendUrl && process.env.NODE_ENV === 'production' && !frontendUrl.startsWith('https://')) {
-    warnings.push(`FRONTEND_URL is "${frontendUrl}" but NODE_ENV=production — emailed links should use https.`);
+  if (
+    frontendUrl
+    && process.env.NODE_ENV !== 'production'
+    && !frontendUrl.startsWith('https://')
+    && !isLoopbackUrl(frontendUrl)
+  ) {
+    warnings.push(`FRONTEND_URL is "${frontendUrl}" — emailed links should use https in production.`);
   }
 
   const ok = missingRequired.length === 0;

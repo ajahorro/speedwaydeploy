@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
+import { BACKEND_URL } from '../config/api';
 import {
   QR_FIELDS,
   buildQrSubmission as buildQrSubmissionFromUtil,
@@ -91,8 +92,6 @@ export const getEffectiveQrTarget = async (bookingId) => {
 };
 
 // ── OTP flow ────────────────────────────────────────────────────────────────
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
 
 /** Generate a cryptographically-random 6-digit code. */
 const generateOtp = () => {

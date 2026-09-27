@@ -20,6 +20,9 @@ import { AlertTriangle, Info } from 'lucide-react';
 
 import { useUI } from '../../context/UIContext';
 import { sendStatusEmail } from '../../services/notificationService';
+// Shared backend-origin resolver (see config/api.js) — a localhost VITE_BACKEND_URL
+// must never be baked into a deployed build.
+import { BACKEND_URL } from '../../config/api';
 
 const AdminSchedule = () => {
   const navigate = useNavigate();
@@ -506,7 +509,6 @@ const AdminSchedule = () => {
     };
 
     try {
-      const BACKEND_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || window.location.origin;
       const session = (await supabase.auth.getSession()).data.session;
       const response = await fetch(`${BACKEND_URL}/api/admin/promos`, {
         method: 'POST',
@@ -609,7 +611,7 @@ const AdminSchedule = () => {
           resetPromoDraft();
         }
         const session = (await supabase.auth.getSession()).data.session;
-        const response = await fetch(`${(typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || window.location.origin}/api/admin/promos/${encodeURIComponent(promoId)}`, {
+        const response = await fetch(`${BACKEND_URL}/api/admin/promos/${encodeURIComponent(promoId)}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${session?.access_token || ''}` }
         });

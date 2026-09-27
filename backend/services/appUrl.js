@@ -30,6 +30,10 @@
 
 const DEV_FALLBACK = 'http://localhost:5173';
 
+/** True when `value` points at the machine the process is running on. */
+const isLoopbackUrl = (value) =>
+  /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?$/i.test(String(value || '').trim());
+
 /** True when the process believes it is running in production. */
 const isProduction = () =>
   process.env.NODE_ENV === 'production'
@@ -43,15 +47,36 @@ let warnedOnce = false;
  * The public base URL of the frontend, with no trailing slash.
  *
  * @returns {string}
- * @throws {Error} in production when no public URL is configured — failing loudly
- *   is the point: a silent localhost link is worse than a visible error.
+ * @throws {Error} in production when no usable public URL is configured — failing
+ *   loudly is the point: a silent localhost link is worse than a visible error.
  */
 const getAppUrl = () => {
   const explicit = process.env.FRONTEND_URL
     || process.env.APP_URL
     || process.env.PUBLIC_APP_URL;
 
-  if (explicit) return String(explicit).replace(/\/+$/, '');
+  if (explicit) {
+    const value = String(explicit).replace(/\/+$/, '');
+
+    // A leftover DEV value (e.g. FRONTEND_URL=http://localhost:5173, the value in
+    // the local backend/.env) is WORSE than an unset one: it passes every presence
+    // check, the email sends successfully, and the recipient receives a link to
+    // their OWN machine that they can never open. In production we must refuse it
+    // exactly as if it were missing, and fall through to a real host-provided URL
+    // if one exists (VERCEL_URL), otherwise fail loudly.
+    if (isProduction() && isLoopbackUrl(value)) {
+      console.error(
+        `⚠️  FRONTEND_URL is set to "${value}" in production — that is a local `
+        + 'development address. Every emailed link (confirmation, password reset, '
+        + 'invites, booking notifications) would point at the recipient\'s own machine '
+        + 'and be unusable. Set FRONTEND_URL to the public site origin, e.g. '
+        + 'https://your-domain.com'
+      );
+      // Fall through to VERCEL_URL / throw rather than return the loopback value.
+    } else {
+      return value;
+    }
+  }
 
   // Vercel sets VERCEL_URL without a scheme (e.g. my-app.vercel.app).
   if (process.env.VERCEL_URL) {
@@ -87,4 +112,4 @@ const appUrl = (path = '/') => {
   return `${base}${path.startsWith('/') ? path : `/${path}`}`;
 };
 
-module.exports = { getAppUrl, appUrl, isProduction, DEV_FALLBACK };
+module.exports = { getAppUrl, appUrl, isProduction, isLoopbackUrl, DEV_FALLBACK };

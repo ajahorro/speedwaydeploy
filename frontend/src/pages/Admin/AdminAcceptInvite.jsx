@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { BACKEND_URL } from '../../config/api';
 
 const AdminAcceptInvite = () => {
   const [searchParams] = useSearchParams();
@@ -29,7 +30,7 @@ const AdminAcceptInvite = () => {
 
     const validateToken = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || window.location.origin}/invite/validate?token=${token}`);
+        const response = await fetch(`${BACKEND_URL}/invite/validate?token=${token}`);
         const data = await response.json();
         if (data.success) {
           setInviteData(data);
@@ -57,7 +58,7 @@ const AdminAcceptInvite = () => {
 
     setSubmitting(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || window.location.origin}/invite/accept`, {
+      const response = await fetch(`${BACKEND_URL}/invite/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

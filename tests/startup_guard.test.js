@@ -148,17 +148,45 @@ check('a real-looking key is NOT mistaken for a placeholder', () => {
   assert.strictEqual(looksPlaceholder('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.abc.def'), false);
 });
 
-console.log('\n=== production-only warnings ===');
+console.log('\n=== production-only FRONTEND_URL enforcement ===');
 
-check('a non-https FRONTEND_URL warns in production', () => {
+// A non-https FRONTEND_URL in production emails customers a link they may not be
+// able to open. It is a CONFIGURATION ERROR, so the guard now REFUSES to boot
+// rather than only warning — a silent localhost/http link is worse than a loud
+// failure in the deploy log.
+check('a non-https FRONTEND_URL is a REQUIRED failure in production', () => {
   withEnv({ ...FULL, FRONTEND_URL: 'http://speedway.example.com', NODE_ENV: 'production' }, (r) => {
-    assert.ok(r.warnings.some((w) => /https/i.test(w)), 'should warn that emailed links need https');
+    assert.strictEqual(r.ok, false, 'a non-https production FRONTEND_URL must fail the guard');
+    assert.ok(
+      r.missingRequired.some((m) => /FRONTEND_URL/.test(m) && /https/i.test(m)),
+      'the failure must name FRONTEND_URL and require https'
+    );
+  });
+});
+
+// The specific defect this guards: a leftover dev value (FRONTEND_URL=
+// http://localhost:5173, exactly what is in the local backend/.env) must not be
+// accepted in production — it would put the recipient's OWN machine in the email.
+check('a loopback FRONTEND_URL is a REQUIRED failure in production', () => {
+  withEnv({ ...FULL, FRONTEND_URL: 'http://localhost:5173', NODE_ENV: 'production', RENDER: '1' }, (r) => {
+    assert.strictEqual(r.ok, false, 'a localhost production FRONTEND_URL must fail the guard');
+    assert.ok(
+      r.missingRequired.some((m) => /FRONTEND_URL/.test(m)),
+      'the failure must name FRONTEND_URL'
+    );
   });
 });
 
 check('http on localhost is fine outside production', () => {
   withEnv({ ...FULL, FRONTEND_URL: 'http://localhost:5173', NODE_ENV: 'development' }, (r) => {
-    assert.strictEqual(r.warnings.length, 0, 'local development over http is expected');
+    assert.strictEqual(r.ok, true, 'local development over http is expected to boot');
+    assert.strictEqual(r.warnings.length, 0, 'and to raise no warnings');
+  });
+});
+
+check('an https FRONTEND_URL is accepted in production', () => {
+  withEnv({ ...FULL, FRONTEND_URL: 'https://speedway-autoxmoto.xyz', NODE_ENV: 'production' }, (r) => {
+    assert.strictEqual(r.ok, true, 'a proper production URL must boot');
   });
 });
 

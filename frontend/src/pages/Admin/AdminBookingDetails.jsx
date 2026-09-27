@@ -458,7 +458,6 @@ const AdminBookingDetails = () => {
       await notifyUser(booking.customer_id, 'Payment Verified', `Your payment of ₱${p.amount.toLocaleString()} has been approved. Thank you!`, 'PAYMENT_APPROVED', `/customer/bookings/${id}`);
 
       // 🚀 AUTOMATIC LIFECYCLE SYNC via Backend Propagator
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
       await fetch(`${BACKEND_URL}/api/bookings/update-status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -563,7 +562,7 @@ const AdminBookingDetails = () => {
     const toastId = toast.loading(`Marking session as ${status.toUpperCase()}...`);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || window.location.origin}/api/bookings/update-master-status`, {
+      const response = await fetch(`${BACKEND_URL}/api/bookings/update-master-status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
         body: JSON.stringify({ bookingId: id, status, reason })
@@ -689,8 +688,7 @@ const AdminBookingDetails = () => {
     setUndoNoShowModal(prev => ({ ...prev, isSubmitting: true, validationMessage: '' }));
 
     try {
-      const backendBaseUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
-      const response = await fetch(`${backendBaseUrl}/api/bookings/undo-no-show`, {
+      const response = await fetch(`${BACKEND_URL}/api/bookings/undo-no-show`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -889,7 +887,7 @@ const AdminBookingDetails = () => {
       }
 
       const { data: { session } } = await supabase.auth.getSession();
-      const serviceResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL || window.location.origin}/api/bookings/add-service`, {
+      const serviceResponse = await fetch(`${BACKEND_URL}/api/bookings/add-service`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
         body: JSON.stringify({ bookingId: id, vehicleId, serviceName: service.name, price, durationMinutes: extraMinutes, paymentAmount: paymentAmountOverride ?? null, paymentType, paymentMethod, referenceNumber })
@@ -1084,7 +1082,6 @@ const AdminBookingDetails = () => {
     const v = vehicles.find(item => item.id === vehicleId);
     const toastId = toast.loading(`Updating ${v?.brand || 'unit'} status...`);
 
-    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
     try {
       const response = await fetch(`${BACKEND_URL}/api/bookings/update-status`, {
         method: 'POST',
@@ -1273,14 +1270,22 @@ const AdminBookingDetails = () => {
   const valueStyle = {
     fontSize: '0.95rem',
     fontWeight: '800',
-    color: 'var(--admin-text-primary)'
+    color: 'var(--admin-text-primary)',
+    // Long values (email addresses, ids plate numbers) must wrap inside the card
+    // instead of crossing its edge. minWidth:0 lets the value shrink inside a flex
+    // parent; overflowWrap breaks an unbroken token like an email.
+    minWidth: 0,
+    overflowWrap: 'anywhere',
+    wordBreak: 'break-word'
   };
 
   const naStyle = {
     fontSize: '0.95rem',
     fontWeight: '700',
     color: '#6c757d',
-    opacity: 0.5
+    opacity: 0.5,
+    minWidth: 0,
+    overflowWrap: 'anywhere'
   };
 
   if (loading || !booking) return <LoadingState message="Synchronizing fleet records..." />;
@@ -1365,8 +1370,13 @@ const AdminBookingDetails = () => {
       position: 'relative'
     }}>
 
-      {/* 1. HEADER & BREADCRUMBS */}
-      <div style={{ marginBottom: '2.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.5rem' }}>
+      {/* 1. HEADER & BREADCRUMBS
+          Spacing note: the parent flex column already applies a 1.5rem gap, which
+          is the same rhythm every other page uses between its title block and the
+          content below. The extra 2.5rem marginBottom here doubled that space, so
+          the subtitle sat far from the header container. marginBottom is removed
+          and the subtitle margin matches PageHeader's 0.5rem. */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.5rem' }}>
         <div>
           <button
             onClick={() => navigate(-1)}
@@ -1387,7 +1397,7 @@ const AdminBookingDetails = () => {
           <h1 style={{ margin: 0, fontSize: '2.8rem', fontWeight: '950', color: 'var(--admin-text-primary)', letterSpacing: '-2px', textTransform: 'uppercase', lineHeight: 1 }}>
             {booking.booking_id || `SW-BKG-${id.slice(0, 8).toUpperCase()}`}
           </h1>
-          <p style={{ margin: '0.75rem 0 0 0', color: 'var(--admin-text-secondary)', fontWeight: '600', fontSize: '0.95rem', opacity: 0.8 }}>
+          <p style={{ margin: '0.5rem 0 0 0', color: 'var(--admin-text-secondary)', fontWeight: '600', fontSize: '0.95rem', opacity: 0.8 }}>
             Detailed operational record for session initialized on {new Date(booking.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
           </p>
         </div>
@@ -1847,12 +1857,12 @@ const AdminBookingDetails = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: 0 }}>
           
           <div style={cardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--admin-border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', minWidth: 0 }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--admin-border)', flexShrink: 0 }}>
                 <User size={18} color="var(--admin-text-secondary)" />
               </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>{booking.customer?.full_name || booking.customer_name || 'Customer'}</h3>
+              <div style={{ minWidth: 0 }}>
+                <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>{booking.customer?.full_name || booking.customer_name || 'Customer'}</h3>
                 {booking.customer && (
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
                     <span style={{ fontSize: '0.6rem', fontWeight: '900', color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fleet Account Holder</span>

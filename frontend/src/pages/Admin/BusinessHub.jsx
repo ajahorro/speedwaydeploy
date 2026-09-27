@@ -832,10 +832,19 @@ export default function BusinessHub() {
       }
 
       const qrConfigComplete = validateQrRecipients(businessForm).ok;
+      // Custom services and vehicle types MUST be included in the save payload.
+      // They were set to `false` here, which silently stripped `custom_services`
+      // from every UPDATE — so a service delete/edit/add in the Service Catalog
+      // section was written to local state and localStorage but NEVER persisted,
+      // and the row came back on the next config fetch. That is exactly the
+      // "deleting a service does nothing after the confirmation modal" report.
+      // A DB that genuinely lacks these columns is still handled: the retry loop
+      // below strips whatever column the error names via
+      // stripUnsupportedBusinessConfigColumns.
       const primaryPayload = buildBusinessConfigUpdatePayload(businessForm, {
         supportsFaqs: true,
-        supportsCustomServices: false,
-        supportsVehicleTypes: false,
+        supportsCustomServices: true,
+        supportsVehicleTypes: true,
         qrConfigComplete,
       });
 
@@ -1114,23 +1123,24 @@ export default function BusinessHub() {
     }
 
     if (inUse) {
-      const next = businessForm.custom_services.map((s) =>
-        s.id === service.id ? { ...s, archived: true, is_active: false, archivedAt: new Date().toISOString() } : s
+      // A service referenced by bookings is ARCHIVED, not deleted, so history is
+      // preserved. Persist immediately through saveCatalogState (the same path the
+      // sibling Archive/Edit buttons use) — the previous implementation only wrote
+      // local state + localStorage, so the change was never saved and the row
+      // reappeared on the next config fetch.
+      const archivedAt = new Date().toISOString();
+      const next = (businessForm.custom_services || []).map((s) =>
+        s.id === service.id ? { ...s, archived: true, is_active: false, archivedAt } : s
       );
-      persistCustomServices(next);
-      setMessage({
-        type: 'success',
-        text: `"${service.name}" is linked to ${referenceCount || 'existing'} booking(s), so it was archived instead of deleted to preserve booking history.`
-      });
+      await saveCatalogState(next, businessForm.vehicle_types, `"${service.name}" is linked to ${referenceCount || 'existing'} booking(s), so it was archived instead of deleted to preserve booking history.`);
     } else {
-      const next = businessForm.custom_services.filter((s) => s.id !== service.id);
-      persistCustomServices(next);
+      const next = (businessForm.custom_services || []).filter((s) => s.id !== service.id);
+      await saveCatalogState(next, businessForm.vehicle_types, `Service "${service.name}" deleted successfully.`);
       // If the row being deleted was open in the editor, drop the stale edit.
       if (editingServiceId === service.id) {
         setEditingServiceId(null);
         setNewService(EMPTY_NEW_SERVICE);
       }
-      setMessage({ type: 'success', text: `Service "${service.name}" deleted. Remember to save changes.` });
     }
   };
 
