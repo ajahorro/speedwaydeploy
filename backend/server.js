@@ -3843,13 +3843,43 @@ app.post('/api/bookings/undo-no-show', async (req, res) => {
             || ['refund_pending', 'flagged_for_refund', 'flaggedforrefund', 'refundpending'].includes(String(payment.payment_status || '').trim().toLowerCase().replace(/[_\s-]+/g, '_'));
         });
 
+    // ── payment_status is an ENUM, not free text ────────────────────────────
+    //
+    // This payload used to write 'approved', which is NOT a member of
+    // booking_payment_status (unpaid | pending | paid | refunded). Postgres
+    // rejected it with 22P02 on EVERY call, so undo-no-show always returned 500
+    // and the admin saw a raw error. Reproduced against the live database:
+    //
+    //     invalid input value for enum booking_payment_status: "approved"
+    //
+    // This is the third instance of the same defect class in this codebase
+    // (create_booking_atomic and persist_ocr_result were the others), so the
+    // value is now VALIDATED against the enum rather than assumed.
+    //
+    // Mapping the intent: 'approved' meant "settled enough to proceed". The
+    // enum's word for that is 'paid'. An unrecognised value falls back to
+    // 'pending' (awaiting confirmation), never 'unpaid' — the booking already
+    // exists and money may have moved, so "never paid" would be wrong.
+    const VALID_BOOKING_PAYMENT_STATUSES = ['unpaid', 'pending', 'paid', 'refunded'];
+    const requestedPaymentStatus = String(booking.payment_status || '').trim().toLowerCase();
+
+    // A pending refund means the money has NOT settled, so the booking stays
+    // pending regardless of what it held before. An invalid enum member would
+    // 500 the whole request, which is why this is validated here.
+    const resolvedPaymentStatus = hasPendingRefund
+      ? 'pending'
+      : (VALID_BOOKING_PAYMENT_STATUSES.includes(requestedPaymentStatus)
+        ? requestedPaymentStatus
+        : (requestedPaymentStatus === 'approved' ? 'paid' : 'pending'));
+
     const restorePayload = {
       status: 'pending_confirmation',
       staff_id: null,
       bay_id: booking.bay_id || null,
       needs_attention: false,
       refund_status: hasPendingRefund ? null : booking.refund_status,
-      payment_status: hasPendingRefund ? 'approved' : booking.payment_status || 'pending',
+      // A validated enum member, never free text.
+      payment_status: resolvedPaymentStatus,
       updated_at: new Date().toISOString(),
       reminder_sent: false,
       grace_period_until: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()

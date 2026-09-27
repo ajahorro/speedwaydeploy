@@ -1389,7 +1389,18 @@ const AdminBookingDetails = () => {
           </p>
         </div>
 
-        {!['completed', 'released', 'cancelled', 'flagged_noshow'].includes(derivedStatus) && (
+        {/* Reschedule is available for a flagged no-show too.
+            `flagged_noshow` was in this exclusion list, which HID the header
+            button for exactly the status the No-Show banner exists to surface.
+            The result was two problems at once: no obvious way to reschedule a
+            no-show, and a second Reschedule button buried inside the banner to
+            compensate.
+
+            Rescheduling a no-show is a legitimate, common action — the customer
+            missed the slot and needs a new one — so the status is no longer
+            excluded. Only TERMINAL states hide it: a completed, released or
+            cancelled booking has nothing left to reschedule. */}
+        {!['completed', 'released', 'cancelled'].includes(derivedStatus) && (
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <button
               onClick={handleOpenReschedule}
@@ -1481,31 +1492,19 @@ const AdminBookingDetails = () => {
               Undo No-Show
             </button>
 
-            <button
-              type="button"
-              onClick={handleOpenReschedule}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                padding: '0.6rem 0.9rem',
-                borderRadius: '0.5rem',
-                border: '1px solid var(--admin-border)',
-                background: 'var(--admin-card)',
-                color: 'var(--admin-text-primary)',
-                fontSize: '0.68rem',
-                fontWeight: '900',
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                width: isMobile ? '100%' : 'auto',
-                boxShadow: '0 8px 16px rgba(15, 23, 42, 0.08)'
-              }}
-            >
-              <span aria-hidden="true">🗓️</span>
-              Reschedule
-            </button>
+            {/* The duplicate Reschedule button that used to sit here has been
+                REMOVED, not merely fixed.
+
+                It existed only because the header's Reschedule button was
+                hidden for `flagged_noshow` (see the gate above), so the banner
+                needed its own. Now that the header button is visible for a
+                no-show, two buttons opening the same modal from the same screen
+                is redundant — and redundancy is what let the broken one go
+                unnoticed for so long.
+
+                Undo No-Show remains here because it is banner-specific: it only
+                makes sense for a flagged booking. Reschedule does not have that
+                constraint. */}
           </div>
         </div>
       )}
