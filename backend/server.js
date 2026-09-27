@@ -195,27 +195,50 @@ const getLifecycleActor = async (req) => {
  */
 const requireAdmin = async (req) => {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
-  if (!token || !supabaseAdmin) return null;
+  if (!token) {
+    console.warn('🛑 [RBAC] denied: no Bearer token on the request.');
+    return null;
+  }
+  if (!supabaseAdmin) {
+    console.error('🛑 [RBAC] denied: supabaseAdmin is not initialised — the service-role key is missing or invalid.');
+    return null;
+  }
+
   const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
-  if (userErr || !userData?.user) return null;
-  const { data: profile } = await supabaseAdmin
+  if (userErr || !userData?.user) {
+    console.warn(`🛑 [RBAC] denied: token not accepted by Supabase (${userErr?.message || 'no user returned'}).`);
+    return null;
+  }
+
+  const { data: profile, error: profileErr } = await supabaseAdmin
     .from('profiles')
     .select('id, role, is_active, email, full_name')
     .eq('id', userData.user.id)
     .maybeSingle();
-  if (!profile) return null;
+
+  // Log the REASON, with the values, so a 403 is diagnosable from the server
+  // logs alone. Previously every rejection was indistinguishable from every
+  // other — the caller saw one opaque 403 and the operator saw nothing.
+  if (profileErr) {
+    console.error(`🛑 [RBAC] denied: profile lookup failed for ${userData.user.id}: ${profileErr.message} (code ${profileErr.code || 'n/a'})`);
+    return null;
+  }
+  if (!profile) {
+    console.warn(`🛑 [RBAC] denied: no profiles row for auth user ${userData.user.id} (${userData.user.email || 'no email'}).`);
+    return null;
+  }
   // `coalesce(is_active, true)`, matching every SQL policy in this codebase.
-  //
-  // DEFECT: this was `if (!profile?.is_active) return null`, which rejects an
-  // admin whose column is NULL (never written) — so a legitimate, fully
-  // privileged account got a 403 "Only administrators may invite accounts."
-  // The rest of the system reads NULL as ACTIVE (see 20261018000006 line 74:
-  // `coalesce(is_active, true) = true`, and the migration that notes role can be
-  // NULL). A strict truthiness test here was the only place that disagreed, and
-  // it silently locked admins out of their own admin routes. Only an EXPLICIT
-  // false is a deactivation.
-  if (profile.is_active === false) return null;
-  if (String(profile.role || '').toUpperCase() !== 'ADMIN') return null;
+  // Only an EXPLICIT false is a deactivation; NULL means "never set", not "off".
+  if (profile.is_active === false) {
+    console.warn(`🛑 [RBAC] denied: profile ${profile.id} is explicitly deactivated (is_active = false).`);
+    return null;
+  }
+
+  const role = String(profile.role || '').trim().toUpperCase();
+  if (role !== 'ADMIN') {
+    console.warn(`🛑 [RBAC] denied: profile ${profile.id} has role ${JSON.stringify(profile.role)} (normalised: ${JSON.stringify(role)}), expected "ADMIN".`);
+    return null;
+  }
   return { user: userData.user, profile };
 };
 
