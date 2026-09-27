@@ -336,6 +336,9 @@ const AdminBookingDetails = () => {
         booking_id: bookingId,
         is_read: false
       });
+      // Only ask the edge function to email once the row exists. It looks the
+      // notification up by id, so firing this after a failed insert produced a
+      // 400 "Notification not found" for a notification that was never created.
       if (error) logger.error('[notifyUser] Error inserting notification:', error);
       else await sendNotificationEmail(notificationId);
     } catch (err) {

@@ -362,25 +362,42 @@ const AdminAccountsManagement = () => {
           top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.85)', 
           display: 'flex', alignItems: 'center', justifyContent: 'center', 
-          zIndex: 9999, backdropFilter: 'blur(8px)' 
+          zIndex: 9999, backdropFilter: 'blur(8px)' ,
+          // A long form on a short viewport must scroll WITHIN the overlay rather
+          // than overflow it. Without these the card grew past the screen and the
+          // SEND INVITATION button became unreachable.
+          padding: 'clamp(0.75rem, 4vw, 1.5rem)',
+          height: '100dvh',
+          boxSizing: 'border-box'
         }}>
-          <div style={{ background: 'var(--admin-card)', padding: '2rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', maxWidth: '500px', width: '95%', position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+          <div style={{
+            background: 'var(--admin-card)',
+            padding: isMobile ? '1.25rem' : '2rem',
+            borderRadius: 'var(--admin-radius)',
+            border: '1px solid var(--admin-border)',
+            maxWidth: '500px', width: '100%',
+            maxHeight: '100%',
+            display: 'flex', flexDirection: 'column',
+            position: 'relative', overflow: 'hidden'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flex: '0 0 auto' }}>
               <h2 style={{ margin: 0, fontWeight: '950', fontSize: '1.25rem', textTransform: 'uppercase' }}>INVITE NEW {activeTab}</h2>
               <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}><X size={24} /></button>
             </div>
 
-            <p style={{ fontSize: '0.8rem', color: 'var(--admin-text-secondary)', marginBottom: '1.5rem', fontWeight: '700' }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--admin-text-secondary)', marginBottom: '1.5rem', fontWeight: '700', flex: '0 0 auto' }}>
               Create the account and email the user a temporary password. They will be prompted to set their own password on first sign-in.
             </p>
 
-            <form onSubmit={handleSendInvite} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* The form is the scroll region: the header above stays put and the
+                submit button below stays reachable on any viewport height. */}
+            <form onSubmit={handleSendInvite} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: '1 1 auto', minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', paddingRight: '0.25rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Email Address</label>
                 <div style={{ position: 'relative' }}>
                   <Mail size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
-                  <input 
-                    type="email" 
+                  <input
+                    type="email"
                     required
                     placeholder="e.g. name@example.com"
                     value={inviteForm.email}
@@ -441,14 +458,18 @@ const AdminAccountsManagement = () => {
               </div>
 
 
-              <button 
+              <button
                 type="submit"
                 disabled={isSubmitting}
-                style={{ 
-                  padding: '1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', 
-                  border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', 
-                  fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', 
-                  justifyContent: 'center', gap: '0.75rem', marginTop: '1rem', textTransform: 'uppercase'
+                style={{
+                  padding: '1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)',
+                  border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950',
+                  fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', gap: '0.75rem', marginTop: '1rem', textTransform: 'uppercase',
+                  // Keep the primary action pinned and un-squeezed inside the
+                  // scrolling form, so it is never scrolled out of reach.
+                  flex: '0 0 auto', position: 'sticky', bottom: 0,
+                  opacity: isSubmitting ? 0.7 : 1
                 }}
               >
                 {isSubmitting ? <RefreshCcw size={18} className="animate-spin" /> : <><Send size={18} /> SEND INVITATION</>}

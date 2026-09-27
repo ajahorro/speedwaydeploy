@@ -149,6 +149,11 @@ export const UIProvider = ({ children }) => {
           alignItems: 'center',
           zIndex: 99999,
           padding: 'clamp(0.75rem, 4vw, 1.5rem)',
+          // dvh, not vh: on mobile browsers `100vh` excludes the retractable URL
+          // bar, so a full-height overlay can sit partly BEHIND it. `dvh` tracks
+          // the visible area, and `100%` is the fallback for older engines.
+          height: '100dvh',
+          boxSizing: 'border-box',
           animation: 'fadeIn 0.25s ease-out'
         }}>
           <div className="app-modal" style={{
@@ -157,6 +162,16 @@ export const UIProvider = ({ children }) => {
             borderRadius: 'var(--admin-radius)',
             maxWidth: '500px',
             width: '100%',
+            // ── Height discipline ─────────────────────────────────────────
+            // Previously the card had NO max-height and `overflow: hidden`, while
+            // only the inner content was capped at a hard `65vh`. So a long modal
+            // grew the card past the viewport and the overlay — which cannot
+            // scroll — clipped the actions off the bottom with no way to reach
+            // them. The card is now the scroll boundary and is always shorter
+            // than the overlay, so the action row stays reachable.
+            maxHeight: '100%',
+            display: 'flex',
+            flexDirection: 'column',
             boxShadow: 'var(--modal-shadow)',
             position: 'relative',
             overflow: 'hidden',
@@ -193,7 +208,11 @@ export const UIProvider = ({ children }) => {
             </button>
 
             {/* Modal Content */}
-            <div className="app-modal-content" style={{ padding: '2rem 2rem 1.5rem 2rem', maxHeight: '65vh', overflowY: 'auto' }}>
+            {/* `minHeight: 0` is required for a flex child to actually scroll
+                rather than expand its parent. `65vh` was a fixed cap that left a
+                huge dead area on tall screens and still overflowed on short ones;
+                flexing to the remaining space adapts to both. */}
+            <div className="app-modal-content" style={{ padding: '2rem 2rem 1.5rem 2rem', flex: '1 1 auto', minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
               <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
                 {getModalStyles(modal.type).icon}
                 <div style={{ flex: 1 }}>
@@ -267,6 +286,10 @@ export const UIProvider = ({ children }) => {
               display: 'flex',
               justifyContent: 'flex-end',
               gap: '0.75rem',
+              // Never let the action row be squeezed or scrolled away: it is the
+              // only way to dismiss the modal.
+              flex: '0 0 auto',
+              flexWrap: 'wrap',
               borderTop: '1px solid var(--admin-border)'
             }}>
               {modal.cancelText !== null && (
@@ -353,6 +376,34 @@ export const UIProvider = ({ children }) => {
         @keyframes modalSlideIn {
           from { transform: scale(0.9) translateY(20px); opacity: 0; }
           to { transform: scale(1) translateY(0); opacity: 1; }
+        }
+
+        /*
+         * Mobile: a centred dialog with 2rem of horizontal padding wastes most of
+         * a 360px screen and forces unnecessary inner scrolling. Tighten the
+         * chrome, and make the action buttons full-width so the primary action is
+         * an easy tap target rather than a small pill in the bottom-right corner.
+         */
+        @media (max-width: 480px) {
+          .app-modal-content { padding: 1.5rem 1.25rem 1rem 1.25rem !important; }
+          .app-modal-actions {
+            padding: 0.875rem 1.25rem !important;
+            flex-direction: column-reverse !important;
+            align-items: stretch !important;
+          }
+          .app-modal-actions > button {
+            width: 100% !important;
+            padding: 0.8rem 1.25rem !important;
+          }
+        }
+
+        /*
+         * Respect the user's motion preference. The slide/scale spring is
+         * decorative; for someone who has asked the OS for reduced motion it is
+         * uncomfortable, and there is no reason to keep it.
+         */
+        @media (prefers-reduced-motion: reduce) {
+          .app-modal-overlay, .app-modal { animation: none !important; }
         }
       `}</style>
     </UIContext.Provider>

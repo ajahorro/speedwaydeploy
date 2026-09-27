@@ -196,6 +196,13 @@ export const emitEvent = async (eventType, { userId, bookingId, meta = {} }) => 
     //
     // Events NOT in this set (chat messages, technician assignment, refunds)
     // have no lifecycle email, so they still dispatch their own.
+    //
+    // DEFECT: this call used to run unconditionally after the insert. The edge
+    // function looks the row up by id, so if the insert failed (RLS, a schema
+    // mismatch, a network blip) the client still asked it to email a row that
+    // does not exist — and the function answered 400 "Notification not found",
+    // filling the console with errors for a mail that was never owed. The insert
+    // result is now the gate: no row, no send.
     await sendNotificationEmail(notification.id);
   }
 

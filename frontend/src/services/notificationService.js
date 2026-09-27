@@ -87,6 +87,28 @@ export const subscribeToNotifications = (userId, callback) => {
  * @param {string} event  lifecycle keyword or raw status
  * @param {object} [opts] { remarks, reminder, eventKey }
  */
+/**
+ * Pull the body out of a FunctionsHttpError so the console shows WHY the edge
+ * function refused, not just "non-2xx status code".
+ *
+ * The Supabase client wraps a non-2xx response in a FunctionsHttpError whose
+ * `.context` is the raw Response — the useful `{ error: ... }` payload was
+ * previously discarded, so every failure logged the same opaque line.
+ */
+const describeFunctionError = async (error) => {
+  try {
+    const response = error?.context;
+    if (response && typeof response.json === 'function') {
+      const body = await response.clone().json();
+      const detail = body?.error || body?.message || body?.skipped;
+      if (detail) return `${error.message || 'Edge function failed'} — ${detail}`;
+    }
+  } catch {
+    // Fall through to the generic message.
+  }
+  return error?.message || 'Edge function failed';
+};
+
 export const sendStatusEmail = async (bookingId, event, opts = {}) => {
   try {
     const { data, error } = await supabase.functions.invoke('booking-lifecycle', {
@@ -107,8 +129,8 @@ export const sendStatusEmail = async (bookingId, event, opts = {}) => {
     }
     return data;
   } catch (error) {
-    console.error('[NotificationService] Error:', error);
-    return { error: error.message };
+    console.error('[NotificationService] Error:', await describeFunctionError(error));
+    return { error: await describeFunctionError(error) };
   }
 };
 
@@ -175,10 +197,16 @@ export const sendNotificationEmail = async (notificationId) => {
       body: { notificationId }
     });
     if (error) throw error;
+    // A skipped send is a normal, expected outcome (the row was absent, or the
+    // recipient has no email) — not an error. Surfaced at info level so it does
+    // not read as a failure in the console.
+    if (data?.skipped) {
+      console.info(`[NotificationService] Notification email skipped: ${data.skipped}`);
+    }
     return data;
   } catch (error) {
-    console.error('[NotificationService] Notification email error:', error);
-    return { error: error.message };
+    console.error('[NotificationService] Notification email error:', await describeFunctionError(error));
+    return { error: await describeFunctionError(error) };
   }
 };
 

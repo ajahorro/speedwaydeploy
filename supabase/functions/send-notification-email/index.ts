@@ -23,8 +23,22 @@ serve(async (req) => {
       .from('notifications')
       .select('id, user_id, booking_id, title, message, action_url')
       .eq('id', notificationId)
-      .single()
-    if (notificationError || !notification) throw new Error(notificationError?.message || 'Notification not found.')
+      .maybeSingle()
+
+    // `.maybeSingle()` rather than `.single()`: a missing row is a PGRST116
+    // "cannot coerce to a single JSON object" error under `.single()`, which the
+    // catch below turned into a 400. But a row that is simply not there is not a
+    // client error — it is the NORMAL outcome when the caller's insert was
+    // refused by RLS, or when the notification was already deleted. Answering
+    // 400 made every such case look like a bug in the console.
+    if (notificationError) throw new Error(notificationError.message)
+    if (!notification) {
+      return new Response(JSON.stringify({
+        ok: true,
+        skipped: 'NOTIFICATION_NOT_FOUND',
+        message: 'No notification exists for this id; nothing to email.',
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
 
     const { data: recipient, error: recipientError } = await supabase
       .from('profiles')
@@ -42,6 +56,16 @@ serve(async (req) => {
     if (error) throw error
     return new Response(JSON.stringify({ ok: true, data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 })
+    // A malformed request (no notificationId) is a genuine 400. Everything else
+    // is a server-side failure and must not masquerade as one — the previous
+    // single catch returned 400 for ALL errors, including a Resend outage or a
+    // database fault, which is what made this endpoint's logs misleading.
+    const message = error instanceof Error ? error.message : String(error)
+    const isClientError = /is required/i.test(message)
+    console.error('[send-notification-email]', message)
+    return new Response(JSON.stringify({ error: message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: isClientError ? 400 : 500,
+    })
   }
 })

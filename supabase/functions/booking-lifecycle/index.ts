@@ -272,6 +272,8 @@ serve(async (req: Request): Promise<Response> => {
     const lifecycleEvent = eventKey || canonical
 
     // ── Fetch everything, including the OCR result ──────────────────────────
+    // `.maybeSingle()` so a missing booking is a clean 404 rather than a raw
+    // PGRST116 coercion error surfacing as a 500.
     const { data: booking, error: bError } = await supabase
       .from('bookings')
       .select(`
@@ -289,9 +291,10 @@ serve(async (req: Request): Promise<Response> => {
         )
       `)
       .eq('id', bookingId)
-      .single()
+      .maybeSingle()
 
-    if (bError || !booking) throw new Error(`Booking not found: ${bError?.message || 'no row returned'}`)
+    if (bError) throw new Error(`Booking lookup failed: ${bError.message}`)
+    if (!booking) throw new Error('Booking not found: no row returned')
 
     // The embedded select above returns exactly this shape.
     const row = booking as unknown as BookingRow
@@ -450,11 +453,28 @@ serve(async (req: Request): Promise<Response> => {
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
 
   } catch (error: unknown) {
+    // ── Status discipline ─────────────────────────────────────────────────
+    //
+    // Everything used to return 400, including a Supabase outage, a missing RLS
+    // policy, and a Resend rejection. That is why this function's console was
+    // full of 400s that looked like bad CALLS when they were server faults — and
+    // why the frontend's `FunctionsHttpError` carried no usable signal.
+    //
+    //   400 -> the CALLER's request is malformed (missing bookingId)
+    //   404 -> the booking does not exist
+    //   502 -> the mail provider rejected the message
+    //   500 -> anything else
     const message = error instanceof Error ? error.message : String(error)
-    console.error('[booking-lifecycle]', message)
+    let status = 500
+    if (/is required/i.test(message)) status = 400
+    else if (/Booking not found|No customer email/i.test(message)) status = 404
+    else if (/claim|delivery/i.test(message)) status = 500
+    else if (/resend|email|provider|domain|api key/i.test(message)) status = 502
+
+    console.error('[booking-lifecycle]', status, message)
     return new Response(JSON.stringify({ error: message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
+      status,
     })
   }
 })

@@ -203,7 +203,18 @@ const requireAdmin = async (req) => {
     .select('id, role, is_active, email, full_name')
     .eq('id', userData.user.id)
     .maybeSingle();
-  if (!profile?.is_active) return null;
+  if (!profile) return null;
+  // `coalesce(is_active, true)`, matching every SQL policy in this codebase.
+  //
+  // DEFECT: this was `if (!profile?.is_active) return null`, which rejects an
+  // admin whose column is NULL (never written) — so a legitimate, fully
+  // privileged account got a 403 "Only administrators may invite accounts."
+  // The rest of the system reads NULL as ACTIVE (see 20261018000006 line 74:
+  // `coalesce(is_active, true) = true`, and the migration that notes role can be
+  // NULL). A strict truthiness test here was the only place that disagreed, and
+  // it silently locked admins out of their own admin routes. Only an EXPLICIT
+  // false is a deactivation.
+  if (profile.is_active === false) return null;
   if (String(profile.role || '').toUpperCase() !== 'ADMIN') return null;
   return { user: userData.user, profile };
 };
