@@ -401,6 +401,21 @@ export default function BusinessHub() {
   });
   const [editingService, setEditingService] = useState(null);
   const [editingServiceForm, setEditingServiceForm] = useState(null);
+  // The id of the catalog row currently open in the inline editor.
+  //
+  // DECLARED HERE because it was previously MISSING entirely while being
+  // referenced in six places (lines ~1014, 1028, 1029, 1038, 1114, 1264). The
+  // delete handler reads it first, so deleting a service threw
+  //
+  //     ReferenceError: editingServiceId is not defined
+  //
+  // and the delete never completed. `setEditingServiceId` was missing too, so
+  // the edit path would have thrown the moment it was reached.
+  //
+  // It mirrors `editingFaqId` below: the id-based sibling of the object-based
+  // `editingService`, used by the draft system to match a draft back to the row
+  // it is editing.
+  const [editingServiceId, setEditingServiceId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   // Tier 2.8: FAQ catalog editor state (add / edit / delete / reorder).
   const [faqForm, setFaqForm] = useState(EMPTY_NEW_FAQ);

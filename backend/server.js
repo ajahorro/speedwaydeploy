@@ -3796,13 +3796,27 @@ app.post('/api/bookings/undo-no-show', async (req, res) => {
   }
 
   try {
+    // `.maybeSingle()` rather than `.single()`.
+    //
+    // `.single()` raises PGRST116 ("Cannot coerce the result to a single JSON
+    // object") when no row matches, which the catch below rethrows as a raw
+    // 500 — an internal-looking error for what is really "this booking does not
+    // exist". Reproduced against the live project. `.maybeSingle()` returns null
+    // instead, so a missing row becomes a clean 404.
     const { data: booking, error: bookingError } = await supabaseAdmin
       .from('bookings')
       .select('id, status, bay_id, customer_id, start_datetime, end_datetime, refund_status, staff_id, needs_attention, payment_status, grace_period_until')
       .eq('id', bookingId)
-      .single();
+      .maybeSingle();
 
     if (bookingError) throw bookingError;
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        error: 'Booking not found. It may have been deleted, or the page is showing a stale record — reload and try again.'
+      });
+    }
 
     const normalizedBookingStatus = normalizeStatus(booking.status);
     if (!['flagged_noshow', 'no_show'].includes(normalizedBookingStatus)) {
