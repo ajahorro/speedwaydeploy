@@ -1,0 +1,106 @@
+# ============================================================================
+# render.yaml — Render Blueprint for the Speedway AutoxMoto backend
+# ============================================================================
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# The Express server in backend/ was never deployed anywhere. Only the frontend
+# is on Vercel, so every /api/* call from the live site hits Vercel's static host,
+# finds no matching route, and is answered by the SPA catch-all rewrite with a
+# 405. This file is what actually gives the API a home.
+#
+# WHY RENDER AND NOT VERCEL
+# -------------------------
+# This is a long-lived, stateful Express process: it holds in-memory state (the
+# OCR failure circuit-breaker in services/ocrGuard, password-confirmation TTLs)
+# and does long-running work. That does not fit a serverless model, where each
+# invocation may be a fresh isolate and in-memory state is not shared.
+#
+# WHY rootDir: backend
+# --------------------
+# The repository root is a monorepo: frontend/, backend/, supabase/, tests/.
+# Render builds from a Git repo, so without rootDir it would try to install the
+# ROOT package.json (which has no server dependencies) and never see server.js.
+#
+# HEALTH CHECK
+# ------------
+# Render polls healthCheckPath and only marks a deploy live once it returns 2xx.
+# /api/health returns 503 when a required variable is missing, so a misconfigured
+# deploy FAILS the health check and is not promoted — instead of going live in a
+# degraded state that looks fine from the outside.
+#
+# SECRETS
+# -------
+# sync: false means "do not read this from the repo; prompt for it in the
+# dashboard". Values are set in Render > your service > Environment. None of
+# these belong in version control.
+# ============================================================================
+
+services:
+  - type: web
+    name: speedway-backend
+    runtime: node
+    plan: starter
+    region: singapore
+    # Build from the backend/ subdirectory — see "WHY rootDir: backend" above.
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    # Restart automatically if the process exits. The server installs
+    # uncaughtException / unhandledRejection handlers and deliberately keeps
+    # serving rather than exiting, so a restart here means a genuine crash
+    # (e.g. the startup guard refusing to boot on missing config).
+    autoDeploy: true
+    envVars:
+      # ── REQUIRED ─────────────────────────────────────────────────────────
+      # The server refuses to start without these (backend/config/startupGuard.js).
+
+      # Your Supabase project URL. The SAME value the frontend uses as
+      # VITE_SUPABASE_URL. e.g. https://<project-ref>.supabase.co
+      - key: SUPABASE_URL
+        sync: false
+
+      # The SERVICE ROLE key — not the anon key. This bypasses Row Level
+      # Security, which is why it must live only on the server and never in the
+      # frontend bundle. It also derives the password-confirmation cipher key.
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      # The public origin of the DEPLOYED frontend, with no trailing slash —
+      # e.g. https://your-domain.com. Every emailed link is built from this
+      # (backend/services/appUrl.js), so a wrong value sends customers to a
+      # localhost address. The startup guard rejects a non-https value in
+      # production.
+      - key: FRONTEND_URL
+        sync: false
+
+      # ── RECOMMENDED ──────────────────────────────────────────────────────
+      # The server starts without these, but the feature is degraded and
+      # /api/health reports it.
+
+      # Transactional email. Without it no booking confirmation, receipt, invite
+      # or password reset is delivered.
+      - key: RESEND_API_KEY
+        sync: false
+
+      # Receipt OCR. Without it payment verification falls back to manual review.
+      - key: GEMINI_API_KEY
+        sync: false
+
+      # The verified sender. Must be a domain you have verified with Resend, or
+      # delivery is rejected/spam-folded.
+      - key: RESEND_FROM
+        sync: false
+
+      - key: RESEND_SENDER_EMAIL
+        sync: false
+
+      # ── RUNTIME ──────────────────────────────────────────────────────────
+      # Render sets PORT itself and the server reads it (line ~87). Do NOT set
+      # PORT here: hard-coding it can conflict with the platform's assignment.
+
+      # Production mode so the startup guard applies its production-only checks
+      # (e.g. requiring https on FRONTEND_URL).
+      - key: NODE_ENV
+        value: production

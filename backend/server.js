@@ -7,6 +7,11 @@ const multer = require('multer');
 require('dotenv').config();
 
 const { normalizeStatus, shouldRestoreGraceWindow } = require('./noShowRestoreLogic');
+// FAIL-FAST BOOT CHECK. Runs before any module reads process.env, so a missing
+// SUPABASE_SERVICE_ROLE_KEY cannot silently degrade the server (or, worse, fall
+// back to the literal 'development-key' cipher) as it did previously.
+const { checkEnvironment } = require('./config/startupGuard');
+const startupConfig = checkEnvironment();
 const { validateBookingRequest } = require('./services/scheduleValidation');
 const { Resend } = require('resend');
 const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEmail, sendAccountInviteEmail, sendAdminInviteEmail, sendInviteAccountEmail, sendEmergencyRecoveryEmail, sendQrChangeOtpEmail } = require('./services/emailService');
@@ -45,7 +50,32 @@ process.on('unhandledRejection', (reason) => {
   console.error('[SERVER CRASH PREVENTED] unhandledRejection:', reason && reason.stack ? reason.stack : reason);
 });
 const PASSWORD_CONFIRMATION_TTL_MS = 15 * 60 * 1000;
-const PASSWORD_CIPHER_KEY = crypto.createHash('sha256').update(process.env.SUPABASE_SERVICE_ROLE_KEY || 'development-key').digest();
+
+// PASSWORD_CIPHER_KEY derives from the service-role key.
+//
+// The previous form was:
+//
+//     crypto.createHash('sha256').update(process.env.SUPABASE_SERVICE_ROLE_KEY || 'development-key')
+//
+// The `|| 'development-key'` fallback was a LITERAL, PUBLIC string: with the key
+// unset, every password-confirmation token would have been encrypted with a key
+// printed in this repository — decryptable by anyone who read it. It would not
+// have crashed, which is exactly why it was dangerous.
+//
+// The startup guard above already refuses to boot without this variable, so this
+// is defence in depth: a second, explicit assertion at the point of use, so the
+// cipher can never be derived from a fallback even if the guard is bypassed or
+// the module is imported directly.
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error(
+    'PASSWORD_CIPHER_KEY cannot be derived: SUPABASE_SERVICE_ROLE_KEY is not set. '
+    + 'Refusing to fall back to a literal key, which would make password-confirmation '
+    + 'tokens decryptable by anyone with access to the source.'
+  );
+}
+const PASSWORD_CIPHER_KEY = crypto.createHash('sha256')
+  .update(process.env.SUPABASE_SERVICE_ROLE_KEY)
+  .digest();
 
 const calculateNetPaid = (payments = []) => {
   const positive = payments
@@ -4613,12 +4643,30 @@ app.delete('/api/admin/blocked-slots/:id', async (req, res) => {
 // when Postgres is having a bad day) — the presence of the process is the signal.
 //
 //   GET /api/health  -> 200 { success:true, status:'ok', time:<iso> }
+//
+// DEGRADED REPORTING: this used to return 200 unconditionally, so a deploy that
+// was missing its service-role key reported itself healthy while every database
+// feature was dead. It now reports what is actually configured, and returns 503
+// when a REQUIRED variable is absent — a health check that cannot fail is not a
+// health check. Hosts (Render) also poll this to decide whether a deploy is
+// live, so a genuinely broken instance must not be marked as ready.
 app.get('/api/health', (req, res) => {
-  return res.status(200).json({
-    success: true,
-    status: 'ok',
+  const degraded = !startupConfig.ok;
+
+  return res.status(degraded ? 503 : 200).json({
+    success: !degraded,
+    status: degraded ? 'degraded' : 'ok',
     service: 'speedway-backend',
     supabaseReady: Boolean(supabaseAdmin),
+    // Feature-level truth, so a partial outage is visible rather than inferred.
+    features: {
+      database: Boolean(supabaseAdmin),
+      email: Boolean(resendClient),
+      ocr: Boolean(process.env.GEMINI_API_KEY),
+    },
+    // Names only — never values. Enough to diagnose a bad deploy from outside.
+    missingRequired: startupConfig.missingRequired.map((entry) => entry.split(' — ')[0]),
+    missingRecommended: startupConfig.missingRecommended.map((entry) => entry.split(' — ')[0]),
     time: new Date().toISOString(),
   });
 });
