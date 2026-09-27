@@ -19,7 +19,40 @@ import LeaveGuardModal from '../../components/LeaveGuardModal';
 import SegmentedTimePicker from '../../components/AdminSchedule/SegmentedTimePicker';
 import { BACKEND_URL } from '../../config/api';
 
-const TAB_KEYS = ['profile', 'hours', 'schedule', 'promos'];
+// ── TAB DEFINITIONS: THE SINGLE SOURCE OF TRUTH ────────────────────────────
+//
+// The id, the nav button and the ?tab= allow-list are derived from THIS array.
+//
+// WHY THIS IS DECLARED AT MODULE SCOPE
+// -----------------------------------
+// There used to be TWO independent lists that both had to contain a tab:
+//
+//     const TAB_KEYS = ['profile', 'hours', 'schedule', 'promos'];   // allow-list
+//     const tabs = [ { id: 'profile', ... }, ... ];                   // nav buttons
+//
+// When 'schedule' was added, BOTH were updated to four entries and 'services'
+// was dropped from both. Restoring the nav button alone then produced a tab you
+// could SEE but not OPEN: clicking it set ?tab=services, the allow-list check
+// failed, and currentTab silently fell back to 'profile'. The click looked
+// broken because it was — the two lists disagreed.
+//
+// Deriving TAB_KEYS from this array makes that class of bug impossible: there is
+// exactly one place to add a tab, and the allow-list cannot lag behind it.
+//
+// The icon is referenced lazily inside the component's render (see the nav map)
+// rather than stored here, so this constant stays plain data.
+const TAB_DEFINITIONS = [
+  { id: 'profile', label: 'Business Profile' },
+  { id: 'hours', label: 'Hours & Capacity' },
+  { id: 'schedule', label: 'Schedule Rules' },
+  // The Service Catalog editor lives at `currentTab === 'services'` below.
+  // It was unreachable because it was missing from BOTH lists above.
+  { id: 'services', label: 'Service Catalog' },
+  { id: 'promos', label: 'Promo Management' },
+];
+
+// Derived, never hand-maintained. `?tab=` values are validated against this.
+const TAB_KEYS = TAB_DEFINITIONS.map((tab) => tab.id);
 
 // The fields each section owns (mirrors handleSaveSection's UPDATE payload).
 const SECTION_FIELDS = {
@@ -1512,26 +1545,21 @@ export default function BusinessHub() {
     setServicePanels((prev) => ({ ...prev, vehicle: false }));
   };
 
-  const tabs = [
-    { id: 'profile', label: 'Business Profile', icon: Building },
-    { id: 'hours', label: 'Hours & Capacity', icon: Clock },
-    { id: 'schedule', label: 'Schedule Rules', icon: CalendarClock },
-    // The Service Catalog tab.
-    //
-    // This entry was dropped when the 'schedule' tab was added: the array went
-    // from three entries to four, and 'services' was replaced rather than
-    // appended. The CONTENT block for this tab was left untouched, so the
-    // editor still exists in this file (search for `currentTab === 'services'`)
-    // — it simply had no way to be reached, because `currentTab` could never
-    // become 'services'.
-    //
-    // Nothing failed loudly: the block is valid JSX, so there was no build error
-    // and no console warning. A missing nav entry just produces a page that
-    // looks healthy. If this tab is ever removed deliberately, delete the
-    // content block with it, so the two cannot drift apart again.
-    { id: 'services', label: 'Service Catalog', icon: Wrench },
-    { id: 'promos', label: 'Promo Management', icon: Tag }
-  ];
+  // Rendered from TAB_DEFINITIONS so the nav, the ids and the allow-list cannot
+  // drift apart. Icons are attached here rather than in the shared constant so
+  // that constant stays serialisable data.
+  const TAB_ICONS = {
+    profile: Building,
+    hours: Clock,
+    schedule: CalendarClock,
+    services: Wrench,
+    promos: Tag,
+  };
+
+  const tabs = TAB_DEFINITIONS.map((tab) => ({
+    ...tab,
+    icon: TAB_ICONS[tab.id] || Building,
+  }));
 
   if (loading) {
     return (

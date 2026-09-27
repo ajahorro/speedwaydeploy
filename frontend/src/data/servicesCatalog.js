@@ -113,12 +113,268 @@ export const buildBookingServiceSnapshot = (service = {}, vehicleType = '', sour
   };
 };
 
-export const getServiceCatalog = () => {
-  // The catalog is intentionally limited to the governed built-in services.
-  // Legacy custom-service rows remain stored for audit history but are no
-  // longer exposed as bookable or configurable services.
-  return SERVICES_DATA;
+// ── Custom services: making admin edits reach live bookings ────────────────
+//
+// WHY THIS EXISTS
+// ---------------
+// `getServiceCatalog()` used to return SERVICES_DATA only, with the comment
+// "intentionally limited to the governed built-in services". Meanwhile the
+// Business Hub Service Catalog wrote to business_config.custom_services and
+// ConfigContext mirrored it into localStorage under 'speedway_custom_services'
+// — and BusinessHub.jsx said that cache was "the local cache the pricing catalog
+// reads from". It never read from it.
+//
+// The result: an admin could add a service, edit a price, archive or delete one,
+// see the change persist, and the booking wizard would ignore all of it. The
+// built-in catalog was the only thing a customer could ever book.
+//
+// The intent (stated in BusinessHub.jsx) was always for these to connect. This
+// is that connection.
+//
+// PRECEDENCE — CUSTOM WINS OVER BUILT-IN
+// --------------------------------------
+// An admin editing a service must take effect, otherwise "update prices without
+// a redeploy" is impossible. Matches are by service id first, then by
+// (name, vehicle category), so editing the built-in 'Regular Wash' for Sedan
+// overrides exactly that entry without disturbing the SUV price.
+//
+// ARCHIVE / DELETE
+// ----------------
+// A custom entry with `is_active: false` or `archived: true` SUPPRESSES the
+// matching built-in service rather than being dropped. Dropping it would make an
+// archived built-in reappear at its original price — the opposite of what the
+// admin asked for. `archivedIds` therefore also removes built-ins.
+
+// ── Local helpers ──────────────────────────────────────────────────────────
+//
+// Declared HERE, above first use, and deliberately NOT imported from
+// BusinessHub.jsx.
+//
+// Two reasons, both of which were live defects in the first draft of this code:
+//
+//   1. ORDER. `normalizeServiceName` is a `const` arrow function defined further
+//      down this file (line ~467). Calling it from code that runs earlier hits
+//      the temporal dead zone and throws at module load. Anything used here must
+//      be declared above it.
+//
+//   2. CYCLES. BusinessHub.jsx imports SERVICES_DATA from this module. Importing
+//      a helper back from BusinessHub would create a circular dependency whose
+//      failure mode depends on evaluation order — the hardest kind to diagnose.
+//
+// The alias map duplicates BusinessHub's normalizeVehicleCategoryKey on purpose:
+// it is small and stable, and the cost of duplication is far lower than a cycle.
+const PRICE_VEHICLE_ALIASES = {
+  sedan: 'Sedan',
+  suv: 'SUV',
+  'van/l300': 'Van/L300',
+  'van l300': 'Van/L300',
+  van: 'Van/L300',
+  pickup: 'Van/L300',
+  'pickup/van': 'Van/L300',
+  regular: 'Regular',
+  motorcycle: 'Regular',
+  'motorcycle regular': 'Regular',
+  moto: 'Regular',
+  bigbike: 'Bigbike',
+  'big bike': 'Bigbike',
 };
+
+/** Canonical vehicle-category key, matching the keys used in SERVICES_DATA.prices. */
+const priceVehicleKey = (value) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const normalized = raw.toLowerCase().replace(/[_/-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return PRICE_VEHICLE_ALIASES[normalized]
+    || PRICE_VEHICLE_ALIASES[normalized.replace(/\s+/g, '')]
+    || raw;
+};
+
+/** Case-insensitive service-name key, safe to call at module scope. */
+const priceServiceName = (name) => String(name || '').trim().toLowerCase();
+
+const CUSTOM_SERVICES_CACHE_KEY = 'speedway_custom_services';
+
+/**
+ * Read the admin-authored services.
+ *
+ * localStorage is the fast path (it is what BusinessHub writes for an immediate
+ * effect without a round-trip). The in-memory cache is the fallback for a
+ * context where storage is unavailable (private mode, quota exceeded).
+ */
+const readCustomServices = () => {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_SERVICES_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.filter(Boolean);
+    }
+  } catch {
+    // A corrupt cache must not break the catalog — fall through to the memory copy.
+  }
+
+  const memory = window.__speedway_custom_services_cache;
+  return Array.isArray(memory) ? memory.filter(Boolean) : [];
+};
+
+/** The vehicle categories a custom service applies to, however it was authored. */
+const customServiceVehicleTypes = (service) => {
+  const list = service?.applicableVehicleTypes
+    || service?.vehicleTypes
+    || (service?.vehicleType ? [service.vehicleType] : [])
+    || (service?.vehicle_type ? [service.vehicle_type] : []);
+  return (Array.isArray(list) ? list : [list])
+    .map((t) => priceVehicleKey(t))
+    .filter(Boolean);
+};
+
+/**
+ * Adapt an admin-authored service to the catalog's entry shape.
+ *
+ * The two shapes differ, and silently returning the wrong one is how a service
+ * ends up present but unpriceable:
+ *
+ *   SERVICES_DATA : { id, name, desc, prices: { Sedan: 150 }, durationMinutes }
+ *   custom        : { id, name, price: 150, vehicleType: 'Sedan', durationMinutes }
+ *
+ * The adapter emits BOTH `prices` and the flat fields, because downstream
+ * consumers (the wizard, the receipt, the promo price lookup) read different
+ * ones. Emitting only one shape is what makes a service bookable but free.
+ */
+const adaptCustomService = (service, vehicleTypes) => {
+  const price = Number(service?.price ?? 0);
+  const types = vehicleTypes.length ? vehicleTypes : ['Sedan'];
+  const prices = {};
+  for (const type of types) prices[type] = Number.isFinite(price) ? price : 0;
+
+  return {
+    id: service?.id || `custom_${priceServiceName(service?.name)}`,
+    name: service?.name,
+    desc: service?.description || service?.desc || '',
+    description: service?.description || service?.desc || '',
+    prices,
+    // Flat price, for consumers that read a single figure rather than a map.
+    price: Number.isFinite(price) ? price : 0,
+    durationMinutes: Number(service?.durationMinutes) || 60,
+    estTime: service?.estTime || '',
+    // Retained so the admin UI can still identify its own rows.
+    generalService: service?.generalService || service?.category || null,
+    category: service?.category || service?.generalService || null,
+    isCustom: true,
+    is_active: service?.is_active !== false,
+    archived: service?.archived === true,
+  };
+};
+
+/**
+ * Merge admin-authored services over the built-in catalog.
+ *
+ * Returns a NEW object; SERVICES_DATA is never mutated, so a stale merge cannot
+ * leak into the module-level constant.
+ */
+const buildServiceCatalog = () => {
+  const custom = readCustomServices();
+  if (!custom.length) return SERVICES_DATA;
+
+  // Group custom rows by the category they should appear under.
+  const overridesById = new Map();   // id -> adapted entry
+  const overridesByNameType = new Map(); // `${name}|${vehicleType}` -> adapted entry
+  const suppressedIds = new Set();
+  const suppressedNameTypes = new Set();
+  const additions = new Map(); // category -> [adapted]
+
+  for (const service of custom) {
+    if (!service?.name) continue;
+    const vehicleTypes = customServiceVehicleTypes(service);
+    const adapted = adaptCustomService(service, vehicleTypes);
+    const category = service.generalService || service.category || 'Custom Services';
+
+    const isSuppressed = service.is_active === false || service.archived === true;
+
+    for (const type of (vehicleTypes.length ? vehicleTypes : ['Sedan'])) {
+      const nameTypeKey = `${priceServiceName(service.name)}|${type}`;
+      if (isSuppressed) {
+        suppressedNameTypes.add(nameTypeKey);
+      } else {
+        overridesByNameType.set(nameTypeKey, adapted);
+      }
+    }
+
+    if (isSuppressed) {
+      if (service.id) suppressedIds.add(service.id);
+      continue;
+    }
+
+    if (service.id) overridesById.set(service.id, adapted);
+
+    if (!additions.has(category)) additions.set(category, []);
+    additions.get(category).push(adapted);
+  }
+
+  // Rebuild every built-in category, applying overrides and suppressions.
+  const merged = {};
+  for (const [category, services] of Object.entries(SERVICES_DATA)) {
+    merged[category] = services
+      .filter((builtIn) => {
+        if (suppressedIds.has(builtIn.id)) return false;
+        const types = Object.keys(builtIn.prices || {});
+        // Suppress only when EVERY vehicle category it serves is suppressed —
+        // archiving 'Regular Wash' for Sedan must not remove the SUV variant.
+        if (types.length && types.every((t) => suppressedNameTypes.has(`${priceServiceName(builtIn.name)}|${priceVehicleKey(t)}`))) {
+          return false;
+        }
+        return true;
+      })
+      .map((builtIn) => {
+        const byId = overridesById.get(builtIn.id);
+        if (byId) return { ...builtIn, ...byId, prices: { ...builtIn.prices, ...byId.prices } };
+
+        // Match by name + vehicle category for edits that did not carry the
+        // built-in id (the admin UI creates a fresh id on save).
+        let patched = null;
+        for (const type of Object.keys(builtIn.prices || {})) {
+          const hit = overridesByNameType.get(`${priceServiceName(builtIn.name)}|${priceVehicleKey(type)}`);
+          if (hit) {
+            patched = patched || { ...builtIn };
+            patched.prices = { ...patched.prices, [type]: hit.prices[type] ?? patched.prices[type] };
+            patched.desc = hit.desc || patched.desc;
+            patched.description = patched.desc;
+            if (hit.durationMinutes) patched.durationMinutes = hit.durationMinutes;
+          }
+        }
+        return patched || builtIn;
+      });
+  }
+
+  // Append genuinely new services under their chosen category.
+  //
+  // CRITICAL: only append when the name does not already exist for the targeted
+  // vehicle categories. A service the admin EDITED keeps its original name, so
+  // it matches a built-in that was already patched above — appending it as well
+  // would list the same service twice, at two different prices. That is what
+  // this guard prevents: an edit must PATCH, never ADD.
+  for (const [category, list] of additions) {
+    if (!merged[category]) merged[category] = [];
+    for (const adapted of list) {
+      const adaptedTypes = Object.keys(adapted.prices || {});
+      const alreadyPresent = Object.values(merged).flat().some((existing) => {
+        if (priceServiceName(existing.name) !== priceServiceName(adapted.name)) return false;
+        // Same name AND an overlapping vehicle category means this is the
+        // service the admin edited, not a new one to add.
+        const existingTypes = Object.keys(existing.prices || {}).map(priceVehicleKey);
+        return adaptedTypes.some((t) => existingTypes.includes(priceVehicleKey(t)));
+      });
+      if (!alreadyPresent && !merged[category].some((s) => s.id === adapted.id)) {
+        merged[category].push(adapted);
+      }
+    }
+  }
+
+  return merged;
+};
+
+export const getServiceCatalog = () => buildServiceCatalog();
 
 export const getAvailableServiceNames = () => {
   const catalog = getServiceCatalog();
