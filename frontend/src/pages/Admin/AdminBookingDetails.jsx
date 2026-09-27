@@ -1471,7 +1471,7 @@ const AdminBookingDetails = () => {
             </button>
 
             <button
-              onClick={() => toast.info('Use the separate reschedule workflow when the appointment time itself needs to change.')}
+              onClick={() => toast('Use the separate reschedule workflow when the appointment time itself needs to change.', { icon: 'ℹ️' })}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
