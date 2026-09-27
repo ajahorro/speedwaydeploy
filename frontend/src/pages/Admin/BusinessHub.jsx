@@ -1516,6 +1516,20 @@ export default function BusinessHub() {
     { id: 'profile', label: 'Business Profile', icon: Building },
     { id: 'hours', label: 'Hours & Capacity', icon: Clock },
     { id: 'schedule', label: 'Schedule Rules', icon: CalendarClock },
+    // The Service Catalog tab.
+    //
+    // This entry was dropped when the 'schedule' tab was added: the array went
+    // from three entries to four, and 'services' was replaced rather than
+    // appended. The CONTENT block for this tab was left untouched, so the
+    // editor still exists in this file (search for `currentTab === 'services'`)
+    // — it simply had no way to be reached, because `currentTab` could never
+    // become 'services'.
+    //
+    // Nothing failed loudly: the block is valid JSX, so there was no build error
+    // and no console warning. A missing nav entry just produces a page that
+    // looks healthy. If this tab is ever removed deliberately, delete the
+    // content block with it, so the two cannot drift apart again.
+    { id: 'services', label: 'Service Catalog', icon: Wrench },
     { id: 'promos', label: 'Promo Management', icon: Tag }
   ];
 
