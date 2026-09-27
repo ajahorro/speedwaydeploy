@@ -1155,7 +1155,18 @@ const AdminBookingDetails = () => {
   useEffect(() => {
     if (!showRescheduleModal || !rescheduleDate || !booking?.id) return;
     let active = true;
-    const durationMinutes = Math.max(60, Math.ceil((new Date(booking.end_datetime) - new Date(booking.start_datetime)) / 60000));
+    // Duration is used to find slots long enough for this booking.
+    //
+    // GUARDED: `new Date(null)` is epoch 0, not an error, so a booking with a
+    // missing end_datetime (the payload-wipe defect left rows with null
+    // start/end) would silently produce a ~55-year duration and the slot lookup
+    // would return nothing. Fall back to a sane default instead of a number
+    // derived from 1970.
+    const startMs = booking?.start_datetime ? new Date(booking.start_datetime).getTime() : NaN;
+    const endMs = booking?.end_datetime ? new Date(booking.end_datetime).getTime() : NaN;
+    const durationMinutes = (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs)
+      ? Math.max(60, Math.ceil((endMs - startMs) / 60000))
+      : 60;
     const requestedBays = Math.max(1, calculateBayUsage(vehicles || []));
     setRescheduleSlotsLoading(true);
     getAvailableSlots(rescheduleDate, durationMinutes, vehicles, booking.id, { requestedBays })
@@ -1471,7 +1482,8 @@ const AdminBookingDetails = () => {
             </button>
 
             <button
-              onClick={() => toast('Use the separate reschedule workflow when the appointment time itself needs to change.', { icon: 'ℹ️' })}
+              type="button"
+              onClick={handleOpenReschedule}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
