@@ -19,11 +19,70 @@ import { useAuth } from '../../hooks/useAuth';
  * complete_first_login_password_change() RPC, and refetches the profile so the
  * surrounding route tree re-renders into the real dashboard.
  *
- * Password policy: minimum 6 characters, no mandatory character types. The user
+ * Password policy: minimum 8 characters, no mandatory character types. The user
  * base includes older individuals who struggle with complex combinations, so we
- * deliberately do not force uppercase/lowercase/number/symbol mixes.
+ * deliberately do not force uppercase/lowercase/number/symbol mixes. But we DO
+ * enforce a length the Supabase Auth server will actually accept: a shorter value
+ * was rejected with a bare `422 Unprocessable Content` and surfaced as an opaque
+ * error, which reads as "the form is broken".
  */
-const MIN_PASSWORD_LENGTH = 6;
+const MIN_PASSWORD_LENGTH = 8;
+
+/**
+ * Turn a Supabase Auth error into something a non-technical user can act on.
+ *
+ * The raw `422 Unprocessable Content` from PUT /auth/v1/user gave the user no
+ * idea what to change; these are the cases that actually occur.
+ */
+const describePasswordError = (err) => {
+  const raw = String(err?.message || err?.error_description || err || '');
+  if (/should be different|same as|identical/i.test(raw)) {
+    return 'Your new password must be different from your current one.';
+  }
+  if (/weak|pwned|leaked|compromis/i.test(raw)) {
+    return 'That password is too common or has appeared in a data breach. Please choose a different one.';
+  }
+  if (/at least.*characters|minimum length|password.*short/i.test(raw)) {
+    return `Your new password must be at least ${MIN_PASSWORD_LENGTH} characters long.`;
+  }
+  if (/rate|too many|429/i.test(raw)) {
+    return 'Too many attempts. Please wait a moment and try again.';
+  }
+  if (/jwt|session|expired|not authenticated|401/i.test(raw)) {
+    return 'Your session has expired. Please sign out and sign in again.';
+  }
+  return raw || 'Could not update your password. Please try again.';
+};
+
+/**
+ * Clears the caller's own first-login flag, tolerating a missing/ungranted RPC.
+ *
+ * Returns true when the flag is confirmed clear, false when it could not be
+ * confirmed. It never throws: the password has ALREADY been changed by this
+ * point, so propagating here would tell the user the operation failed when it
+ * did not, and would leave the gate rendered with no way forward.
+ */
+const clearFirstLoginFlag = async () => {
+  // Preferred: the tolerant, idempotent repair RPC (migration 20261019000003).
+  const repair = await supabase.rpc('clear_first_login_flag');
+  if (!repair.error) return repair.data?.must_change_password === false;
+
+  // Fall back to the original completion RPC.
+  const original = await supabase.rpc('complete_first_login_password_change');
+  if (!original.error) return true;
+
+  // Both unavailable: repair the row directly. RLS permits a user to update
+  // their OWN profile, so this works even when the RPCs were never migrated.
+  const uid = (await supabase.auth.getUser()).data?.user?.id;
+  if (uid) {
+    const { error: directError } = await supabase
+      .from('profiles')
+      .update({ must_change_password: false })
+      .eq('id', uid);
+    if (!directError) return true;
+  }
+  return false;
+};
 
 const MustChangePasswordGate = () => {
   const { user, profile, signOut, fetchProfile } = useAuth();
@@ -63,15 +122,33 @@ const MustChangePasswordGate = () => {
       if (updateError) throw updateError;
 
       // 2. Clear the first-login flag via the owner-only RPC.
-      const { error: rpcError } = await supabase.rpc('complete_first_login_password_change');
-      if (rpcError) throw rpcError;
+      //
+      // ORDERING MATTERS: step 1 has already changed the real password by the
+      // time we get here. If step 2 fails (historically a 403 when its migration
+      // was not applied) the account would keep must_change_password = true while
+      // already holding the new password — stranding the user in this gate with
+      // no way forward, because the temporary password no longer works either.
+      //
+      // So a failure to clear the flag is treated as a REPAIRABLE state, not a
+      // dead end: we try the tolerant repair RPC, and if the flag is still set we
+      // report honestly instead of throwing a raw Supabase error at the user.
+      const flagCleared = await clearFirstLoginFlag();
 
       // 3. Refresh the profile so the route tree stops rendering the gate.
       if (user?.id) await fetchProfile(user.id, 'FIRST_LOGIN_COMPLETE', true);
 
-      toast.success('Password updated. Welcome to Comar Garage!');
+      if (flagCleared) {
+        toast.success('Password updated. Welcome to Comar Garage!');
+      } else {
+        // The password DID change; only the flag is stuck. Do not imply failure.
+        toast.success('Password updated.', { id: 'first-login-pw' });
+        toast.error(
+          'Your new password is saved, but the setup step could not be finalised automatically. Please sign in again with your new password.',
+          { duration: 10000 }
+        );
+      }
     } catch (err) {
-      toast.error(err.message || 'Could not update your password. Please try again.');
+      toast.error(describePasswordError(err));
     } finally {
       setIsSubmitting(false);
     }
