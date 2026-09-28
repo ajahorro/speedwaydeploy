@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowLeft, Check, CheckCircle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -121,7 +121,9 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
     setBookingData(updater);
   };
 
-  const requestLeave = action => {
+  // useCallback so the global click listener below is not torn down and
+  // re-registered on every render, and so the effect can depend on it safely.
+  const requestLeave = useCallback(action => {
     // Section 3.1: delegate to the shared unsaved-changes guard so the walk-in
     // and create-booking surfaces behave identically to Business Hub.
     if (!hasDraftChanges || isSubmitted) {
@@ -129,7 +131,7 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
       return;
     }
     leaveGuard.confirmNavigation(action);
-  };
+  }, [hasDraftChanges, isSubmitted, leaveGuard]);
 
   // NOTE: Draft persistence to localStorage is intentionally omitted.
   // Booking data lives only in React memory; a page reload always produces a clean slate.
@@ -159,9 +161,13 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
       window.removeEventListener('pagehide', purgeSessionStorage);
       document.removeEventListener('click', handleNavigationClick, true);
     };
-  }, [hasDraftChanges, isSubmitted, navigate]);
+  }, [hasDraftChanges, isSubmitted, navigate, requestLeave]);
 
-  // Cleanup sessionStorage on mount to ensure fresh start next time
+  // Cleanup sessionStorage on mount to ensure fresh start next time.
+  // `isRescheduling` is intentionally read but omitted from the deps: this is a
+  // ONE-SHOT on-mount cleanup keyed on the rebooking flag. Adding it would
+  // re-run the cleanup and re-fire the toast whenever the reschedule flag
+  // changes mid-wizard.
   React.useEffect(() => {
     if (isRebooking || isRescheduling) {
       sessionStorage.removeItem('speedway_rebook_data');
@@ -169,6 +175,7 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
       // no per-call override needed for a standard success toast.
       toastManager.success(isRescheduling ? 'Rescheduling Active!' : 'Fast-Track Rebooking Active!');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRebooking]);
 
   const nextStep = () => {

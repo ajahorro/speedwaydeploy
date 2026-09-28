@@ -33,7 +33,10 @@ const normalizePlate = (plate) => String(plate || '').toUpperCase().replace(/[^A
 
 const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext, onCancel, onCancelNewVehicle }) => {
   const { user } = useAuth();
-  const vehicles = bookingData.vehicles || [];
+  // useMemo so the identity is stable: a bare `|| []` produced a NEW array on
+  // every render whenever bookingData.vehicles was unset, which made any hook
+  // that depends on `vehicles` re-run constantly.
+  const vehicles = useMemo(() => bookingData.vehicles || [], [bookingData.vehicles]);
   const [garageVehicles, setGarageVehicles] = useState([]);
   const [fleetGroups, setFleetGroups] = useState([]);
   const [fleetToAddId, setFleetToAddId] = useState('');

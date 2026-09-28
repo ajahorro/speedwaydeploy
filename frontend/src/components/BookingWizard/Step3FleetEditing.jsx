@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Car, Trash2, Copy, Plus, ChevronRight, Info, Lock, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Step2Services from './Step2Services';
@@ -7,7 +7,10 @@ import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { SHOP_CONFIG, sanitizeVehiclePlate, sanitizeVehicleText } from '../../config/constants';
 
 const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, setActiveVehicleIndex, setCurrentStep, onNext, onBack, isSubTaskActive, setIsSubTaskActive, onCancel }) => {
-  const vehicles = bookingData.vehicles || [];
+  // useMemo so the identity is stable: a bare `|| []` produced a NEW array on
+  // every render whenever bookingData.vehicles was unset, which made the effect
+  // below re-run constantly.
+  const vehicles = useMemo(() => bookingData.vehicles || [], [bookingData.vehicles]);
 
   const parseBookingDateTime = (date, time) => {
     const twelveHourTime = String(time || '').match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);

@@ -185,7 +185,7 @@ check('http on localhost is fine outside production', () => {
 });
 
 check('an https FRONTEND_URL is accepted in production', () => {
-  withEnv({ ...FULL, FRONTEND_URL: 'https://speedway-autoxmoto.xyz', NODE_ENV: 'production' }, (r) => {
+  withEnv({ ...FULL, FRONTEND_URL: 'https://comargarage.com', NODE_ENV: 'production' }, (r) => {
     assert.strictEqual(r.ok, true, 'a proper production URL must boot');
   });
 });

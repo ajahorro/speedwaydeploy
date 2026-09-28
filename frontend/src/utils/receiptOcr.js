@@ -479,7 +479,7 @@ export const extractDate = (text) => {
  * A bare "to" is deliberately NOT in this list — see BARE_TO_LABEL below for the
  * defect that caused.
  */
-const RECIPIENT_LABELS = /(sent\s*to|send\s*money\s*to|paid\s*to|receiver|recipient|transferred\s*to)\s*[:\-]?\s*(.*)/i;
+const RECIPIENT_LABELS = /(sent\s*to|send\s*money\s*to|paid\s*to|receiver|recipient|transferred\s*to)\s*[:-]?\s*(.*)/i;
 
 /**
  * A standalone "To" is a recipient label; the "to" inside "Total" is not.
@@ -494,7 +494,7 @@ const RECIPIENT_LABELS = /(sent\s*to|send\s*money\s*to|paid\s*to|receiver|recipi
  * The word boundary on both sides lets a standalone "To" match while "Total"
  * does not.
  */
-const BARE_TO_LABEL = /(?:^|\s)to\s*[:\-]?\s*(.+)/i;
+const BARE_TO_LABEL = /(?:^|\s)to\s*[:-]?\s*(.+)/i;
 
 /**
  * Extract the payee name.

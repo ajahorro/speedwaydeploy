@@ -88,7 +88,7 @@ serve(async (req) => {
     // must match a domain in the Resend account (see RESEND_FROM secret).
     const resendFrom = Deno.env.get('RESEND_FROM')
       || Deno.env.get('RESEND_SENDER_EMAIL')
-      || 'Comar Garage <notifications@speedway-autoxmoto.xyz>';
+      || 'Comar Garage <notifications@comargarage.com>';
 
     const serviceHtml = serviceNames.length
       ? `<p><strong>Services:</strong> ${serviceNames.map(escapeHtml).join(', ')}</p>`

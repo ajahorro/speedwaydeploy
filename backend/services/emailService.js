@@ -5,7 +5,8 @@ const { Resend } = require('resend');
 const { appUrl } = require('./appUrl');
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const SENDER_EMAIL = process.env.RESEND_SENDER_EMAIL || process.env.RESEND_FROM || 'Comar Garage <bookings@yourdomain.com>';
+const rawSender = process.env.RESEND_SENDER_EMAIL || process.env.RESEND_FROM || 'bookings@comargarage.com';
+const SENDER_EMAIL = rawSender.includes('<') ? rawSender : `Comar Garage <${rawSender}>`;
 
 const escapeHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')

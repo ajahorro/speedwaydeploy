@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { 
-  Car, Clock, CheckCircle2, ChevronLeft, 
+import {
+  Car, Clock, CheckCircle2, ChevronLeft,
   Calendar, MapPin, Wrench, ShieldCheck, Info
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
@@ -17,11 +17,7 @@ const StaffJobDetails = () => {
   const [unit, setUnit] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchJobDetails();
-  }, [id]);
-
-  const fetchJobDetails = async () => {
+  const fetchJobDetails = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -43,7 +39,11 @@ const StaffJobDetails = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    fetchJobDetails();
+  }, [fetchJobDetails]);
 
   if (loading) return <LoadingState message="Retrieving service logs..." />;
   if (!unit) return null;

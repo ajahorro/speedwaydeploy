@@ -35,3 +35,6 @@ scratch/
 # Build / lint noise
 frontend/eslint-report.json
 node_modules/.package-lock.jsonnode_modules/
+
+# Supabase CLI local scratch state (never deployment content)
+backend/supabase/.temp/

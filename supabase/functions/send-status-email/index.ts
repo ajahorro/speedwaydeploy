@@ -74,7 +74,7 @@ const corsHeaders = {
 }
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
-const resendFrom = Deno.env.get('RESEND_FROM') || 'Comar Garage <notifications@speedway-autoxmoto.xyz>'
+const resendFrom = Deno.env.get('RESEND_FROM') || 'Comar Garage <notifications@comargarage.com>'
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Calendar as CalendarIcon, ShieldAlert, Lock, Zap, CheckCircle2, RotateCw, ChevronDown, ChevronUp, ChevronRight, X, Check, Sliders } from 'lucide-react';
@@ -51,7 +51,7 @@ const AdminSchedule = () => {
 
   useEffect(() => {
     fetchMonthData();
-  }, [viewDate]);
+  }, [viewDate, fetchMonthData]);
 
   useEffect(() => {
     fetchDailyContext();
@@ -67,9 +67,9 @@ const AdminSchedule = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [selectedDate]);
+  }, [selectedDate, fetchDailyContext, fetchMonthData]);
 
-  const fetchMonthData = async () => {
+  const fetchMonthData = useCallback(async () => {
     try {
       const year = viewDate.getFullYear();
       const month = viewDate.getMonth() + 1;
@@ -88,9 +88,9 @@ const AdminSchedule = () => {
     } catch (err) {
       logger.error('Month Fetch Error', err);
     }
-  };
+  }, [viewDate]);
 
-  const fetchDailyContext = async () => {
+  const fetchDailyContext = useCallback(async () => {
     setLoading(true);
     try {
       await flagOverdueBookings();
@@ -149,7 +149,7 @@ const AdminSchedule = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate]);
 
   const flagOverdueBookings = async () => {
     const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -43,6 +43,11 @@ const AdminBookingDetails = () => {
   const { openModal } = useUI();
   const { setActiveBookingId, openChatForBooking } = useGlobalChat();
   const [searchParams, setSearchParams] = useSearchParams();
+  // Latest-ref for confirmBookingWhenReady: fetchBookingDetails (memoized above)
+  // calls it, but the function is DECLARED LATER in this component. A forward
+  // reference cannot be a dependency, so the memoized fetcher reaches it through
+  // this ref and always invokes the current implementation.
+  const confirmBookingWhenReadyRef = useRef(null);
   const [booking, setBooking] = useState(null);
   const [vehicles, setVehicles] = useState([]);
   const [staffList, setStaffList] = useState([]);
@@ -120,9 +125,9 @@ const AdminBookingDetails = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [id]);
+  }, [id, fetchBookingDetails, fetchAuditLogs, fetchPayments]);
 
-  const fetchBookingDetails = async () => {
+  const fetchBookingDetails = useCallback(async () => {
     setLoading(true);
     try {
       logger.admin(`Syncing Booking: ${id}`);
@@ -223,7 +228,7 @@ const AdminBookingDetails = () => {
       setAuditLogs(logs);
 
       if (bData.staff_id && ['scheduled', 'pending'].includes(String(bData.status || '').toLowerCase())) {
-        await confirmBookingWhenReady();
+        await confirmBookingWhenReadyRef.current();
       }
     } catch (error) {
       logger.error('Admin Sync Error', error);
@@ -231,9 +236,9 @@ const AdminBookingDetails = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, navigate]);
 
-  const fetchPayments = async () => {
+  const fetchPayments = useCallback(async () => {
     const { data } = await supabase.from('payments').select('*').eq('booking_id', id).order('created_at', { ascending: true });
     if (data) {
       // Process URLs for previews
@@ -247,7 +252,7 @@ const AdminBookingDetails = () => {
       });
       setBookingPayments(processed);
     }
-  };
+  }, [id]);
 
   const fetchStaffList = async () => {
     try {
@@ -296,7 +301,7 @@ const AdminBookingDetails = () => {
     }
   };
 
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     const { data } = await supabase.from('audit_logs').select('*').eq('booking_id', id).order('created_at', { ascending: true });
 
     // Virtual Creation Log if missing
@@ -320,7 +325,7 @@ const AdminBookingDetails = () => {
     }
 
     setAuditLogs(logs);
-  };
+  }, [id, booking]);
 
   const notifyUser = async (userId, title, message, type, url) => {
     try {
@@ -371,6 +376,10 @@ const AdminBookingDetails = () => {
     await sendBookingConfirmationEmail(id);
     return true;
   };
+
+  // Keep the latest-ref pointed at the current implementation (see the ref's
+  // declaration for why the memoized fetcher cannot depend on it directly).
+  confirmBookingWhenReadyRef.current = confirmBookingWhenReady;
 
   const handleAssignStaff = async (staffId) => {
     const toastId = toast.loading('Assigning technician...');
@@ -1184,6 +1193,11 @@ const AdminBookingDetails = () => {
         if (active) setRescheduleSlotsLoading(false);
       });
     return () => { active = false; };
+    // `rescheduleTime` is intentionally NOT a dependency: it is read only to
+    // CLEAR a selection the new slot list no longer offers. Adding it would
+    // re-run this effect every time setRescheduleTime fires, which is an
+    // infinite fetch loop (fetch -> clear -> setState -> fetch).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showRescheduleModal, rescheduleDate, booking?.id, booking?.start_datetime, booking?.end_datetime, vehicles]);
 
   const confirmReschedule = async () => {

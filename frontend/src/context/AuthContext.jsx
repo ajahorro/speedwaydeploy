@@ -63,13 +63,24 @@ export const AuthProvider = ({ children }) => {
   const activeFetchRef = useRef(0);
   const fetchedForRef = useRef(null);
   const profileRef = useRef(null);
+  // Latest-ref holding the CURRENT fetchProfile. fetchProfile and recoverAccount
+  // are mutually recursive (each calls the other), so neither can list the other
+  // in its dependency array without an unstable, self-referential cycle. Routing
+  // the cross-call through this ref breaks the cycle while always invoking the
+  // latest implementation.
+  const fetchProfileRef = useRef(null);
+  const recoverAccountRef = useRef(null);
 
   // Sync ref with state
   useEffect(() => {
     profileRef.current = profile;
   }, [profile]);
 
-  const signOut = async () => {
+  // useCallback: signOut is used by several effects below (and exposed on the
+  // context). As a bare function it had a new identity every render, so any
+  // effect listing it as a dependency re-ran on EVERY render — including the
+  // auth-state effect at the bottom of this file.
+  const signOut = useCallback(async () => {
     try {
       logger.auth('Initiating sign out sequence...');
       setUser(null);
@@ -83,7 +94,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
       setIsInitialized(true);
     }
-  };
+  }, []);
 
   const fetchProfile = useCallback(async (userId, source = 'unknown', force = false) => {
     if (!userId) return;
@@ -119,7 +130,7 @@ export const AuthProvider = ({ children }) => {
           if (diffDays <= 15) {
             const shouldRecover = window.confirm(`This account is DEACTIVATED (Day ${diffDays}/15). Would you like to RECOVER and reactivate it?`);
             if (shouldRecover) {
-              const res = await recoverAccount(userId);
+              const res = await recoverAccountRef.current(userId);
               if (res.success) return; // fetchProfile will be called again inside recoverAccount
             }
           } else {
@@ -142,7 +153,10 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
       }
     }
-  }, []);
+  }, [signOut]);
+
+  // Keep the latest-ref in sync with the memoized implementation above.
+  fetchProfileRef.current = fetchProfile;
 
   useEffect(() => {
     const initAuth = async () => {
@@ -501,13 +515,16 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: 'This account is already active.' };
       }
 
-      await fetchProfile(userId, 'ACCOUNT_RECOVERY');
+      await fetchProfileRef.current(userId, 'ACCOUNT_RECOVERY');
       toast.success('Account successfully recovered!');
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
     }
   };
+
+  // See fetchProfileRef: recoverAccount is the other half of the mutual recursion.
+  recoverAccountRef.current = recoverAccount;
 
   const toggleShift = async (newStatus) => {
     if (!profile?.id) {

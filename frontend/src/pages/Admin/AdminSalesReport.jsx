@@ -12,6 +12,10 @@ import toast from 'react-hot-toast';
 import { logger } from '../../utils/logger';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 
+// Module-scope constant: its identity is stable across renders, so it does not
+// need to appear in any dependency array.
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 const AdminSalesReport = () => {
   const navigate = useNavigate();
   const isMobile = useMediaQuery('(max-width: 1024px)');
@@ -142,21 +146,19 @@ const AdminSalesReport = () => {
   };
 
   // REVENUE FORECASTING ENGINE (REQ-ADM-09)
-  const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
   const forecastData = useMemo(() => {
     if (state.transactions.length === 0) return { projected: 0, confidence: 0, trend: [] };
-    
+
     const isYearly = state.period === 'yearly';
 
     // 1. Calculate Daily Velocity (days in period)
     const periodDays = state.period === 'daily' ? 1 : state.period === 'weekly' ? 7 : isYearly ? 365 : 30;
     const dailyVelocity = state.aggregates.grossRevenue / periodDays;
-    
+
     // 2. Apply Growth Multiplier (Conservative 12.5% for strategic planning)
     const multiplier = 1.125;
     const projectedMonthly = dailyVelocity * 30 * multiplier;
-    
+
     // 3. Generate Trend Projection
     // Yearly mode: 12 monthly data points. Other: 7-day projection.
     const trend = isYearly
@@ -172,13 +174,12 @@ const AdminSalesReport = () => {
     // Confidence: yearly period has more data = higher confidence
     const confidence = isYearly ? 93 : 85;
 
-    return { 
+    return {
       projected: isYearly ? state.aggregates.grossRevenue * multiplier : projectedMonthly,
       confidence,
       trend
     };
   }, [state.transactions, state.aggregates.grossRevenue, state.period]);
-
   const cardStyle = { 
     background: 'var(--admin-card)', 
     borderRadius: 'var(--admin-radius)', 

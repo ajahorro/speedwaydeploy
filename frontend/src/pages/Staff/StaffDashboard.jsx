@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -60,34 +60,7 @@ const StaffDashboard = () => {
     return () => clearInterval(interval);
   }, [profile?.is_clocked_in, profile?.clock_in_timestamp, profile?.updated_at]);
 
-  useEffect(() => {
-    fetchAssignedTasks();
-
-    // 📡 REQ-SYS-05: Real-time synchronization
-    const channel = supabase
-      .channel(`staff-tasks-${profile?.id}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'bookings',
-        filter: `staff_id=eq.${profile?.id}`
-      }, () => {
-        fetchAssignedTasks();
-      })
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${profile?.id}`
-      }, () => {
-        fetchAssignedTasks();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [profile?.id]);
-
-  const fetchAssignedTasks = async () => {
+  const fetchAssignedTasks = useCallback(async () => {
     if (!profile?.id) return;
     setLoading(true);
     try {
@@ -104,7 +77,7 @@ const StaffDashboard = () => {
 
       if (error) throw error;
 
-      const allVehicleTasks = (data || []).flatMap(b => 
+      const allVehicleTasks = (data || []).flatMap(b =>
         b.vehicles.map(v => ({
           ...v,
           customer: b.customer,
@@ -118,7 +91,7 @@ const StaffDashboard = () => {
       const notesObj = {};
       allVehicleTasks.forEach(t => { notesObj[t.id] = t.service_notes || ''; });
       setLocalNotes(notesObj);
-      
+
       const pending = allVehicleTasks.filter(t => t.status?.toUpperCase() === 'PENDING').length;
       const active = allVehicleTasks.filter(t => t.status?.toUpperCase() === 'IN_PROGRESS').length;
       const completed = allVehicleTasks.filter(t => t.status?.toUpperCase() === 'COMPLETED').length;
@@ -139,7 +112,34 @@ const StaffDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [profile?.id]);
+
+  useEffect(() => {
+    fetchAssignedTasks();
+
+    // 📡 REQ-SYS-05: Real-time synchronization
+    const channel = supabase
+      .channel(`staff-tasks-${profile?.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'bookings',
+        filter: `staff_id=eq.${profile?.id}`
+      }, () => {
+        fetchAssignedTasks();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${profile?.id}`
+      }, () => {
+        fetchAssignedTasks();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [profile?.id, fetchAssignedTasks]);
 
   const handleUpdateStatus = async (task, newStatus, overrideReason = '') => {
     if (task.booking_status?.toLowerCase() === 'completed' || task.booking_status?.toLowerCase() === 'cancelled') {
