@@ -86,12 +86,20 @@ const AdminRefunds = () => {
         const isCashMethod = normalizedMethod === 'cash';
         const isDigitalMethod = ['gcash', 'digital', 'bank transfer', 'paymaya', 'maya', 'card', 'online'].includes(normalizedMethod);
 
+        const refundPayment = (b.payments || []).find(p => Number(p.amount) < 0 && methodOfPayment(p) === 'SYSTEM_REFUND');
+        const refundReference = refundPayment?.reference_number || null;
+        const refundReason = refundPayment?.refund_reason || null;
+        const refundedAmount = processedRefunds;
+
         return {
           ...b,
           customer: b.customer
             ? { ...b.customer, full_name: b.customer.full_name || b.customer_name || 'Customer' }
             : { full_name: b.customer_name || 'Customer' },
           totalPaid,
+          refundedAmount,
+          refundReference,
+          refundReason,
           paymentMethod: isCashMethod ? 'Cash' : (isDigitalMethod ? 'Digital' : 'Unknown'),
           refundStatus: b.refund_status || 'QUEUED'
         };
@@ -354,15 +362,36 @@ const AdminRefunds = () => {
                   <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>#{b.id.slice(0, 8).toUpperCase()}</div>
                   <h3 style={{ margin: 0, fontWeight: '900', fontSize: isMobile ? '0.9rem' : '1rem', textTransform: 'uppercase' }}>{b.customer?.full_name || b.customer_name || 'Customer'}</h3>
                 </div>
-                <span style={{ fontSize: '0.6rem', padding: '0.2rem 0.5rem', borderRadius: 'var(--admin-radius)', background: b.refundStatus === 'PROCESSED' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: b.refundStatus === 'PROCESSED' ? '#10b981' : '#ef4444', fontWeight: '900' }}>{b.refundStatus}</span>
+                <span style={{
+                  fontSize: '0.6rem',
+                  padding: '0.2rem 0.5rem',
+                  borderRadius: 'var(--admin-radius)',
+                  background: b.refundStatus === 'PROCESSED'
+                    ? 'rgba(16, 185, 129, 0.1)'
+                    : b.refundStatus === 'EMAIL_PENDING'
+                    ? 'rgba(245, 158, 11, 0.1)'
+                    : 'rgba(239, 68, 68, 0.1)',
+                  color: b.refundStatus === 'PROCESSED'
+                    ? '#10b981'
+                    : b.refundStatus === 'EMAIL_PENDING'
+                    ? '#f59e0b'
+                    : '#ef4444',
+                  fontWeight: '900'
+                }}>
+                  {b.refundStatus === 'EMAIL_PENDING' ? 'EMAIL PENDING' : b.refundStatus}
+                </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid var(--admin-border)', paddingTop: '0.75rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: '700' }}>
                   <Car size={14} /> {b.vehicles?.length || 0} Units
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '0.6rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>REFUNDABLE</div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>₱{b.totalPaid.toLocaleString()}</div>
+                  <div style={{ fontSize: '0.6rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>
+                    {['PROCESSED', 'EMAIL_PENDING'].includes(b.refundStatus) ? 'REFUNDED' : 'REFUNDABLE'}
+                  </div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>
+                    ₱{(['PROCESSED', 'EMAIL_PENDING'].includes(b.refundStatus) ? (b.refundedAmount || b.totalPaid) : b.totalPaid).toLocaleString()}
+                  </div>
                 </div>
               </div>
             </div>
@@ -382,54 +411,90 @@ const AdminRefunds = () => {
                 <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>{state.selectedItem.customer?.email}</div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Reason for Refund</label>
-                <select
-                  value={state.refundReason}
-                  onChange={(e) => setState(prev => ({ ...prev, refundReason: e.target.value }))}
-                  style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '700', marginBottom: '1rem', appearance: 'none' }}
-                >
-                  <option value="" disabled>Select Reason</option>
-                  <option value="No-Show">No-Show</option>
-                  <option value="Schedule Conflict">Schedule Conflict</option>
-                  <option value="Customer Request">Customer Request</option>
-                </select>
-              </div>
-
-              {/* Section 5: the admin edits the DEDUCTION; the refund is derived. */}
-              <div>
-                <label htmlFor="refund-deduction" style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Cancellation/Prep Fee Deduction (₱)</label>
-                <input
-                  id="refund-deduction"
-                  type="number"
-                  min={0}
-                  max={state.selectedItem.totalPaid}
-                  value={state.deduction}
-                  disabled={isRefundLocked}
-                  onChange={(e) => setState(prev => ({ ...prev, deduction: Number(e.target.value) }))}
-                  style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: `1px solid ${deductionExceedsPaid ? 'var(--status-danger)' : 'var(--admin-border)'}`, borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '1rem', fontWeight: '950' }}
-                />
-                {deductionExceedsPaid && (
-                  <div style={{ marginTop: '0.4rem', fontSize: '0.65rem', fontWeight: '800', color: 'var(--status-danger)' }}>
-                    The deduction exceeds the total paid (₱{selectedRefundTotal.toLocaleString()}). Lower it to continue.
+              {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: 'var(--admin-radius-sm)', padding: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '950', fontSize: '0.75rem', color: '#f59e0b', marginBottom: '0.4rem', textTransform: 'uppercase' }}>
+                      <Clock size={16} /> Financial Refund Completed — Email Receipt Pending
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--admin-text-secondary)', lineHeight: 1.45 }}>
+                      The money reversion of <strong>₱{Number(state.selectedItem.refundedAmount || 0).toLocaleString()}</strong> was already executed and recorded in the database. The customer notification email failed to deliver and can be retried below.
+                    </p>
                   </div>
-                )}
-              </div>
 
-              <div>
-                <label htmlFor="refund-derived" style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Refund Amount (₱) — Derived</label>
-                <input
-                  id="refund-derived"
-                  type="text"
-                  readOnly
-                  value={`₱${derivedRefund.toLocaleString()}`}
-                  aria-readonly="true"
-                  style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px dashed var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-secondary)', fontSize: '1rem', fontWeight: '950', cursor: 'not-allowed' }}
-                />
-                <div style={{ marginTop: '0.4rem', fontSize: '0.6rem', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>
-                  Total Paid − Deduction = ₱{selectedRefundTotal.toLocaleString()} − ₱{Math.min(deductionValue, selectedRefundTotal).toLocaleString()}
+                  <div style={{ background: 'var(--admin-bg)', padding: '1rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                      <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Refund Reference:</span>
+                      <span style={{ fontWeight: '900', fontFamily: 'monospace' }}>{state.selectedItem.refundReference || 'N/A'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                      <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Amount Reverted:</span>
+                      <span style={{ fontWeight: '950', color: 'var(--admin-brand)', fontSize: '1.05rem' }}>₱{Number(state.selectedItem.refundedAmount || 0).toLocaleString()}</span>
+                    </div>
+                    {state.selectedItem.refundReason && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                        <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Reason:</span>
+                        <span style={{ fontWeight: '800' }}>{state.selectedItem.refundReason}</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                      <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Recipient:</span>
+                      <span style={{ fontWeight: '800' }}>{state.selectedItem.customer?.email || state.selectedItem.customer_email || 'No email registered'}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Reason for Refund</label>
+                    <select
+                      value={state.refundReason}
+                      onChange={(e) => setState(prev => ({ ...prev, refundReason: e.target.value }))}
+                      style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '700', marginBottom: '1rem', appearance: 'none' }}
+                    >
+                      <option value="" disabled>Select Reason</option>
+                      <option value="No-Show">No-Show</option>
+                      <option value="Schedule Conflict">Schedule Conflict</option>
+                      <option value="Customer Request">Customer Request</option>
+                    </select>
+                  </div>
+
+                  {/* Section 5: the admin edits the DEDUCTION; the refund is derived. */}
+                  <div>
+                    <label htmlFor="refund-deduction" style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Cancellation/Prep Fee Deduction (₱)</label>
+                    <input
+                      id="refund-deduction"
+                      type="number"
+                      min={0}
+                      max={state.selectedItem.totalPaid}
+                      value={state.deduction}
+                      disabled={isRefundLocked}
+                      onChange={(e) => setState(prev => ({ ...prev, deduction: Number(e.target.value) }))}
+                      style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: `1px solid ${deductionExceedsPaid ? 'var(--status-danger)' : 'var(--admin-border)'}`, borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '1rem', fontWeight: '950' }}
+                    />
+                    {deductionExceedsPaid && (
+                      <div style={{ marginTop: '0.4rem', fontSize: '0.65rem', fontWeight: '800', color: 'var(--status-danger)' }}>
+                        The deduction exceeds the total paid (₱{selectedRefundTotal.toLocaleString()}). Lower it to continue.
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="refund-derived" style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Refund Amount (₱) — Derived</label>
+                    <input
+                      id="refund-derived"
+                      type="text"
+                      readOnly
+                      value={`₱${derivedRefund.toLocaleString()}`}
+                      aria-readonly="true"
+                      style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px dashed var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-secondary)', fontSize: '1rem', fontWeight: '950', cursor: 'not-allowed' }}
+                    />
+                    <div style={{ marginTop: '0.4rem', fontSize: '0.6rem', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>
+                      Total Paid − Deduction = ₱{selectedRefundTotal.toLocaleString()} − ₱{Math.min(deductionValue, selectedRefundTotal).toLocaleString()}
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* OCR METADATA PERSISTENCE (THESIS REQUIREMENT)
                   Section 5: a CASH payment has no digital receipt to verify, so the
@@ -458,8 +523,12 @@ const AdminRefunds = () => {
 
               <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--admin-border)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>Refundable Total</span>
-                  <span style={{ fontWeight: '950', fontSize: '1.5rem' }}>₱{state.selectedItem.totalPaid.toLocaleString()}</span>
+                  <span style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>
+                    {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'Amount Reverted' : 'Refundable Total'}
+                  </span>
+                  <span style={{ fontWeight: '950', fontSize: '1.5rem' }}>
+                    ₱{(state.selectedItem.refundStatus === 'EMAIL_PENDING' ? (state.selectedItem.refundedAmount || 0) : state.selectedItem.totalPaid).toLocaleString()}
+                  </span>
                 </div>
                 <button
                   onClick={() => navigate(`/admin/bookings/${state.selectedItem.id}`)}
@@ -497,12 +566,23 @@ const AdminRefunds = () => {
       {state.confirmRefundItem && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)' }}>
           <div style={{ background: 'var(--admin-card)', padding: '2.5rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', maxWidth: '400px', width: '90%', textAlign: 'center' }}>
-            <AlertTriangle size={48} color="var(--status-danger)" style={{ marginBottom: '1.5rem' }} />
-            <h2 style={{ fontWeight: '950', fontSize: '1.25rem' }}>Confirm Refund?</h2>
-            <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.9rem', marginBottom: '2rem' }}>Are you sure you want to revert ₱{derivedRefund.toLocaleString()} back to the customer?</p>
+            <AlertTriangle size={48} color={state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? '#f59e0b' : 'var(--status-danger)'} style={{ marginBottom: '1.5rem' }} />
+            <h2 style={{ fontWeight: '950', fontSize: '1.25rem' }}>
+              {state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? 'Retry Email Receipt?' : 'Confirm Refund?'}
+            </h2>
+            <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.9rem', marginBottom: '2rem' }}>
+              {state.confirmRefundItem.refundStatus === 'EMAIL_PENDING'
+                ? `Send the official refund receipt (₱${Number(state.confirmRefundItem.refundedAmount || 0).toLocaleString()}) to ${state.confirmRefundItem.customer?.email || state.confirmRefundItem.customer_email || 'the customer'}?`
+                : `Are you sure you want to revert ₱${derivedRefund.toLocaleString()} back to the customer?`}
+            </p>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={() => setState(prev => ({ ...prev, confirmRefundItem: null }))} style={{ flex: 1, padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '800' }}>CANCEL</button>
-              <button onClick={() => handleProcessRefund(state.confirmRefundItem)} style={{ flex: 1, padding: '1rem', background: 'var(--status-danger)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900' }}>YES, REVERT ₱{derivedRefund.toLocaleString()}</button>
+              <button
+                onClick={() => handleProcessRefund(state.confirmRefundItem)}
+                style={{ flex: 1, padding: '1rem', background: state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? 'var(--admin-brand)' : 'var(--status-danger)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900' }}
+              >
+                {state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? 'SEND RECEIPT' : `YES, REVERT ₱${derivedRefund.toLocaleString()}`}
+              </button>
             </div>
           </div>
         </div>
