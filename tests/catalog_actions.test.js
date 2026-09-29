@@ -98,6 +98,7 @@ const guardIdx = actionsCell.indexOf('serviceEditMode &&');
 check('per-row action cell is guarded by serviceEditMode', guardIdx > -1);
 check('the Edit button is inside that guard', actionsCell.indexOf('>Edit<') > guardIdx);
 check('the Delete button is inside that guard', actionsCell.indexOf('requestDeleteService(service)') > guardIdx);
+check('row actions disappear when multiple services are selected', /serviceEditMode && selectedServiceIds\.length <= 1/.test(src));
 check(
   'the old ungated `!isMultiSelect` Edit button is gone',
   !/!isMultiSelect/.test(src)

@@ -708,12 +708,21 @@ export default function BusinessHub() {
       // every closed weekday within 0..6.
       const lead = Number(businessForm.booking_lead_time_minutes);
       const advance = Number(businessForm.max_advance_days);
+      const slots = Number(businessForm.slots_per_hour);
+      const maxUnits = Number(businessForm.max_vehicles_per_staff);
       const weekdaysValid = (businessForm.closed_weekdays || []).every(
         (d) => Number.isInteger(d) && d >= 0 && d <= 6
       );
+      const hoursValid = businessForm.is_24_7 === true
+        || (String(businessForm.opening_hour || '').trim().length > 0
+          && String(businessForm.closing_hour || '').trim().length > 0
+          && String(businessForm.closing_hour) > String(businessForm.opening_hour));
       return (
         Number.isFinite(lead) && lead >= 0 && lead <= 43200 &&
         Number.isFinite(advance) && advance >= 1 && advance <= 365 &&
+        Number.isFinite(slots) && slots >= 1 &&
+        Number.isFinite(maxUnits) && maxUnits >= 1 &&
+        hoursValid &&
         weekdaysValid
       );
     }
@@ -1692,6 +1701,17 @@ export default function BusinessHub() {
     });
   }, [businessForm.custom_services, businessForm.archived_service_ids, businessForm.deleted_service_ids, selectedVehicleFilter]);
 
+  const allVisibleServicesSelected = filteredServices.length > 0
+    && filteredServices.every((service) => selectedServiceIds.includes(String(service.id)));
+
+  const toggleSelectAllServices = () => {
+    const visibleIds = filteredServices.map((service) => String(service.id));
+    setSelectedServiceIds((current) => {
+      if (allVisibleServicesSelected) return current.filter((id) => !visibleIds.includes(id));
+      return [...new Set([...current, ...visibleIds])];
+    });
+  };
+
   // `options.archivedServiceIds` replaces the Section 3 tombstone list. When it is
   // omitted the CURRENT list is re-sent unchanged, so every existing catalog save
   // keeps the suppressions it already had.
@@ -2335,122 +2355,15 @@ export default function BusinessHub() {
               >
                 <div>
                   <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: 'var(--admin-text-primary)' }}>
-                    Operating Hours &amp; Capacity
-                  </h2>
-                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.74rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
-                    Set when the shop is open and how many vehicles can be handled at once.
-                  </p>
-                </div>
-
-                <label
-                  htmlFor="business-is-24-7"
-                  style={{
-                    display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
-                    padding: '0.9rem 1rem', background: 'var(--admin-bg)',
-                    border: `1px solid ${businessForm.is_24_7 ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
-                    borderRadius: 'var(--admin-radius-sm)', cursor: 'pointer'
-                  }}
-                >
-                  <input
-                    id="business-is-24-7"
-                    name="is_24_7"
-                    type="checkbox"
-                    checked={businessForm.is_24_7 === true}
-                    onChange={(e) => handleInputChange('is_24_7', e.target.checked)}
-                    style={{ marginTop: '0.15rem', width: '1.05rem', height: '1.05rem', accentColor: 'var(--admin-brand)', cursor: 'pointer' }}
-                  />
-                  <span>
-                    <span style={{ display: 'block', fontWeight: 900, color: 'var(--admin-text-primary)', fontSize: '0.82rem' }}>
-                      Open 24 hours (24/7)
-                    </span>
-                    <span style={{ display: 'block', marginTop: '0.2rem', fontSize: '0.7rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
-                      Bookable every hour of the day. Opening and closing times below are ignored while this is on.
-                    </span>
-                  </span>
-                </label>
-
-                <div style={gridStyle}>
-                  <Field label="Opening Time" required={businessForm.is_24_7 !== true} htmlFor="business-opening-hour">
-                    <input
-                      id="business-opening-hour"
-                      name="opening_hour"
-                      type="time"
-                      disabled={businessForm.is_24_7 === true}
-                      value={formatTimeForInput(businessForm.opening_hour)}
-                      onChange={(e) => handleInputChange('opening_hour', e.target.value)}
-                      style={{ ...inputStyle, opacity: businessForm.is_24_7 === true ? 0.5 : 1, cursor: businessForm.is_24_7 === true ? 'not-allowed' : 'text' }}
-                    />
-                  </Field>
-                  <Field label="Closing Time" required={businessForm.is_24_7 !== true} htmlFor="business-closing-hour">
-                    <input
-                      id="business-closing-hour"
-                      name="closing_hour"
-                      type="time"
-                      disabled={businessForm.is_24_7 === true}
-                      value={formatTimeForInput(businessForm.closing_hour)}
-                      onChange={(e) => handleInputChange('closing_hour', e.target.value)}
-                      style={{ ...inputStyle, opacity: businessForm.is_24_7 === true ? 0.5 : 1, cursor: businessForm.is_24_7 === true ? 'not-allowed' : 'text' }}
-                    />
-                  </Field>
-                  <Field label="Total Bookable Bays" required htmlFor="business-slots-per-hour">
-                    <input
-                      id="business-slots-per-hour"
-                      name="slots_per_hour"
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={businessForm.slots_per_hour}
-                      onChange={(e) => handleInputChange('slots_per_hour', e.target.value)}
-                      style={inputStyle}
-                    />
-                    <small style={{ display: 'block', margin: '0.45rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '.72rem', lineHeight: 1.4 }}>Maximum bays available for overlapping bookings.</small>
-                  </Field>
-                  <Field label="Maximum Concurrent Vehicles Per Staff Member" required htmlFor="business-max-vehicles-per-staff">
-                    <input
-                      id="business-max-vehicles-per-staff"
-                      name="max_vehicles_per_staff"
-                      type="number"
-                      min="1"
-                      max="12"
-                      value={businessForm.max_vehicles_per_staff}
-                      onChange={(e) => handleInputChange('max_vehicles_per_staff', e.target.value)}
-                      style={inputStyle}
-                    />
-                    <small style={{ display: 'block', margin: '0.45rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '.72rem', lineHeight: 1.4 }}>Staff workload limit; this is separate from bay capacity.</small>
-                  </Field>
-                </div>
-
-                {!sectionValid('schedule') && (
-                  <Hint>
-                    {businessForm.is_24_7 === true
-                      ? 'Capacities must be at least 1.'
-                      : 'Opening and closing times are required, closing must be after opening, and capacities must be at least 1.'}
-                  </Hint>
-                )}
-              </div>
-
-              <div
-                style={{
-                  border: '1px solid var(--admin-border)',
-                  borderRadius: 'var(--admin-radius)',
-                  background: 'var(--admin-card)',
-                  padding: '1.2rem 1.25rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '1rem'
-                }}
-              >
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: 'var(--admin-text-primary)' }}>
                     General Schedule Rules
                   </h2>
                   <p style={{ margin: '0.35rem 0 0', fontSize: '0.74rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
-                    Manage shop lead times and weekly closed days.
+                    Control booking timing, daily capacity, hours, and regular closing days.
                   </p>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                  <Field label="Minimum Advance Notice" required htmlFor="business-lead-time">
+                  <Field label="Minimum Notice Before Booking" required htmlFor="business-lead-time">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                       <input
                         id="business-lead-time"
@@ -2466,11 +2379,11 @@ export default function BusinessHub() {
                       <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: 700 }}>minutes</span>
                     </div>
                     <p style={{ margin: '0.38rem 0 0', fontSize: '0.68rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
-                      How much notice do you need before a customer arrives? (e.g., 120 mins = 2 hours notice required).
+                      Customers must book at least this many minutes before the appointment.
                     </p>
                   </Field>
 
-                  <Field label="Maximum Advance Booking Limit" required htmlFor="business-advance-days">
+                  <Field label="Latest Booking Window" required htmlFor="business-advance-days">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                       <input
                         id="business-advance-days"
@@ -2485,8 +2398,42 @@ export default function BusinessHub() {
                       <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: 700 }}>days</span>
                     </div>
                     <p style={{ margin: '0.38rem 0 0', fontSize: '0.68rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
-                      How far into the future can customers schedule appointments? (e.g., 30 = up to 30 days ahead).
+                      Customers can book up to this many days ahead.
                     </p>
+                  </Field>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                  <Field label="Max Vehicles Assigned Per Staff" required htmlFor="business-max-vehicles-per-staff">
+                    <input
+                      id="business-max-vehicles-per-staff"
+                      name="max_vehicles_per_staff"
+                      type="number"
+                      min="1"
+                      max="12"
+                      value={businessForm.max_vehicles_per_staff}
+                      onChange={(e) => handleInputChange('max_vehicles_per_staff', e.target.value)}
+                      style={inputStyle}
+                    />
+                    <small style={{ display: 'block', margin: '0.45rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '.72rem', lineHeight: 1.4 }}>
+                      Maximum vehicles one staff member can handle at the same time.
+                    </small>
+                  </Field>
+
+                  <Field label="Total Bays Available" required htmlFor="business-slots-per-hour">
+                    <input
+                      id="business-slots-per-hour"
+                      name="slots_per_hour"
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={businessForm.slots_per_hour}
+                      onChange={(e) => handleInputChange('slots_per_hour', e.target.value)}
+                      style={inputStyle}
+                    />
+                    <small style={{ display: 'block', margin: '0.45rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '.72rem', lineHeight: 1.4 }}>
+                      Maximum bays that can be used by overlapping bookings.
+                    </small>
                   </Field>
                 </div>
 
@@ -2495,8 +2442,65 @@ export default function BusinessHub() {
                     Regular Weekly Schedule
                   </div>
                   <p style={{ margin: '0.2rem 0 0', fontSize: '0.7rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
-                    Select which days your shop is open for customer appointments.
+                    Choose the days customers can book, then set the normal hours below.
                   </p>
+                  <label
+                    htmlFor="business-is-24-7"
+                    style={{
+                      display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+                      padding: '0.9rem 1rem', background: 'var(--admin-bg)',
+                      border: `1px solid ${businessForm.is_24_7 ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
+                      borderRadius: 'var(--admin-radius-sm)', cursor: 'pointer'
+                    }}
+                  >
+                    <input
+                      id="business-is-24-7"
+                      name="is_24_7"
+                      type="checkbox"
+                      checked={businessForm.is_24_7 === true}
+                      onChange={(e) => handleInputChange('is_24_7', e.target.checked)}
+                      style={{ marginTop: '0.15rem', width: '1.05rem', height: '1.05rem', accentColor: 'var(--admin-brand)', cursor: 'pointer' }}
+                    />
+                    <span>
+                      <span style={{ display: 'block', fontWeight: 900, color: 'var(--admin-text-primary)', fontSize: '0.82rem' }}>
+                        Open 24 hours (24/7)
+                      </span>
+                      <span style={{ display: 'block', marginTop: '0.2rem', fontSize: '0.7rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                        Keep the shop bookable all day. When enabled, the opening and closing times are ignored.
+                      </span>
+                    </span>
+                  </label>
+                  <div style={gridStyle}>
+                    <Field label="Opening Time" required={businessForm.is_24_7 !== true} htmlFor="business-opening-hour">
+                      <input
+                        id="business-opening-hour"
+                        name="opening_hour"
+                        type="time"
+                        disabled={businessForm.is_24_7 === true}
+                        value={formatTimeForInput(businessForm.opening_hour)}
+                        onChange={(e) => handleInputChange('opening_hour', e.target.value)}
+                        style={{ ...inputStyle, opacity: businessForm.is_24_7 === true ? 0.5 : 1, cursor: businessForm.is_24_7 === true ? 'not-allowed' : 'text' }}
+                      />
+                    </Field>
+                    <Field label="Closing Time" required={businessForm.is_24_7 !== true} htmlFor="business-closing-hour">
+                      <input
+                        id="business-closing-hour"
+                        name="closing_hour"
+                        type="time"
+                        disabled={businessForm.is_24_7 === true}
+                        value={formatTimeForInput(businessForm.closing_hour)}
+                        onChange={(e) => handleInputChange('closing_hour', e.target.value)}
+                        style={{ ...inputStyle, opacity: businessForm.is_24_7 === true ? 0.5 : 1, cursor: businessForm.is_24_7 === true ? 'not-allowed' : 'text' }}
+                      />
+                    </Field>
+                  </div>
+                  {!sectionValid('schedule') && (
+                    <Hint>
+                      {businessForm.is_24_7 === true
+                        ? 'Capacity values must be at least 1.'
+                        : 'Add valid opening and closing times, then keep both capacity values at 1 or higher.'}
+                    </Hint>
+                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem', width: '100%' }}>
                     {WEEKDAYS.map((day) => {
                       const isClosed = (businessForm.closed_weekdays || []).includes(day.value);
@@ -2890,6 +2894,14 @@ export default function BusinessHub() {
                           <span style={{ fontSize: '0.68rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                             {selectedServiceIds.length} selected
                           </span>
+                          <button
+                            type="button"
+                            onClick={toggleSelectAllServices}
+                            disabled={!filteredServices.length}
+                            style={{ ...ghostButton, opacity: filteredServices.length ? 1 : 0.45, cursor: filteredServices.length ? 'pointer' : 'not-allowed' }}
+                          >
+                            {allVisibleServicesSelected ? 'Clear selection' : 'Select all'}
+                          </button>
                           {/* Archive and Restore are two separate controls with two
                               separate outcomes. Each is disabled unless the selection
                               actually contains a row in the state that operation applies
@@ -2979,7 +2991,7 @@ export default function BusinessHub() {
                                       edit mode, Archive appears only on ACTIVE rows and
                                       Restore only on ARCHIVED ones — they are never the same
                                       button wearing two labels. */}
-                                  {serviceEditMode && (
+                                  {serviceEditMode && selectedServiceIds.length <= 1 && (
                                     <>
                                       <button type="button" onClick={() => { setEditingService(service); setEditingServiceForm({ name: service.name || '', price: String(service.price ?? ''), duration: String(service.durationMinutes || 60), description: service.description || '', generalService: service.generalService || service.category || 'Custom Services' }); }} style={ghostButton}>Edit</button>
                                       {isArchivedService(service) ? (
