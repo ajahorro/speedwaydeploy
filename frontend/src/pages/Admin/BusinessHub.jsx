@@ -1301,6 +1301,31 @@ export default function BusinessHub() {
 
   const isArchivedService = (service) => service?.is_active === false || service?.archived === true;
 
+  const getDeleteBlockedVehicleTypes = (services) => {
+    const selectedActiveServices = (services || []).filter((service) => !isArchivedService(service));
+    if (!selectedActiveServices.length) return [];
+    const selectedIds = new Set(selectedActiveServices.map((service) => String(service?.id || '')));
+    const remainingActive = allLoadedServices.filter((service) => (
+      !selectedIds.has(String(service.id)) && !isArchivedService(service)
+    ));
+
+    return (businessForm.vehicle_types || [])
+      .filter((vehicleType) => !remainingActive.some((service) => (
+        normalizeVehicleTypes(service).includes(normalizeVehicleCategoryKey(vehicleType))
+      )))
+      .map((vehicleType) => getVehicleTypeLabel(vehicleType));
+  };
+
+  const showDeleteBlockedModal = (vehicleTypes) => {
+    openModal({
+      title: 'Cannot delete these services',
+      message: `Every vehicle type needs at least one active service. Keep an active service for ${vehicleTypes.join(', ')} before deleting the selected rows. Archived services do not count as the required active service.`,
+      confirmText: 'Understood',
+      cancelText: null,
+      type: 'warning'
+    });
+  };
+
   // Confirmation wrapper. Every button routes through here, so there is exactly
   // one place where a catalog change is authorized — and a Decline leaves the
   // catalog untouched.
@@ -1369,6 +1394,11 @@ export default function BusinessHub() {
   // sees one consistent "are you sure" step no matter which button they pressed.
   const requestDeleteService = (service) => {
     if (!service) return;
+    const blockedVehicleTypes = getDeleteBlockedVehicleTypes([service]);
+    if (blockedVehicleTypes.length) {
+      showDeleteBlockedModal(blockedVehicleTypes);
+      return;
+    }
     confirmCatalogAction({
       title: 'Delete this service?',
       message: `"${service.name}" will be removed. If it is linked to any past or active booking it is archived instead, so booking history is never orphaned.`,
@@ -1416,6 +1446,11 @@ export default function BusinessHub() {
   // requestBatchDelete.
   const requestBatchDelete = () => {
     if (!selectedServiceRows.length) return;
+    const blockedVehicleTypes = getDeleteBlockedVehicleTypes(selectedServiceRows);
+    if (blockedVehicleTypes.length) {
+      showDeleteBlockedModal(blockedVehicleTypes);
+      return;
+    }
     const count = selectedServiceRows.length;
     // Snapshot the rows so the modal's confirm handler cannot act on a selection
     // the admin changed while the dialog was open.

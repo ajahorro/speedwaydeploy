@@ -142,6 +142,9 @@ check('per-row delete asks for confirmation', /const requestDeleteService[\s\S]*
 check('batch archive asks for confirmation', /const requestBatchArchive[\s\S]*?confirmCatalogAction\(\{/.test(src));
 check('batch restore asks for confirmation', /const requestBatchRestore[\s\S]*?confirmCatalogAction\(\{/.test(src));
 check('batch delete asks for confirmation', /const requestBatchDelete[\s\S]*?confirmCatalogAction\(\{/.test(src));
+check('delete guard identifies vehicle types with no remaining active service', /const getDeleteBlockedVehicleTypes = \(services\) =>/.test(src));
+check('single delete is blocked before confirmation when a vehicle would be left empty', /const requestDeleteService[\s\S]*?getDeleteBlockedVehicleTypes\(\[service\]\)[\s\S]*?showDeleteBlockedModal/.test(src));
+check('batch delete is blocked before confirmation when a vehicle would be left empty', /const requestBatchDelete = \(\) => \{[\s\S]*?getDeleteBlockedVehicleTypes\(selectedServiceRows\)[\s\S]*?showDeleteBlockedModal/.test(src));
 
 // The commit functions must be reachable ONLY from the gate, not wired to a
 // button directly — otherwise a click could write without confirming.
