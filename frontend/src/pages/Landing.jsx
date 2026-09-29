@@ -410,9 +410,11 @@ const Landing = () => {
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
           >
-            <div style={{ color: 'white', fontSize: 'clamp(1.1rem, 2.5vw, 1.65rem)', fontWeight: 950, letterSpacing: '0.08em', fontStyle: 'italic', textTransform: 'uppercase' }}>
-              {businessName}
-            </div>
+            <img
+              src="/comarlogo-Photoroom.png"
+              alt={businessName}
+              style={{ width: 'clamp(116px, 17vw, 176px)', height: '48px', objectFit: 'contain', objectPosition: 'left center', display: 'block' }}
+            />
           </div>
         </div>
 
