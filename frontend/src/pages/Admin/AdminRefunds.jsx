@@ -481,7 +481,7 @@ const AdminRefunds = () => {
                     >
                       {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'RETRY REFUND EMAIL' : 'MARK AS REFUNDED'}
                     </button>
-                  )}
+                  )
                 )}
               </div>
             </div>
