@@ -13,6 +13,19 @@
  * that silently drops it would not fail any unit test, it would just start
  * over-selling slots in production.
  *
+ * HOW THE `requireAdmin` ASSERTIONS HERE RELATE TO THE OTHER SUITE
+ * ----------------------------------------------------------------
+ * The section-3 checks below are STRUCTURAL: they assert that the shipped
+ * `requireAdmin` in backend/server.js reads the token from the header, verifies
+ * it server-side against Supabase Auth, and returns null on every rejection
+ * path. They deliberately do not spin up a server.
+ *
+ * The BEHAVIOURAL half — that a customer, a staff member, a deactivated admin
+ * and an anonymous caller each actually observe a 403 over real HTTP — lives in
+ * `rbac_route_lockdown.test.js`, which extracts this same function and drives it
+ * with a stubbed Supabase. Together they cover "is the guard correct?" and "does
+ * it actually refuse?".
+ *
  * Run: node tests/concurrency_timezone_rbac.test.js
  * ============================================================================
  */
@@ -331,8 +344,14 @@ console.log('\n=== 3. ROLE-BASED ACCESS CONTROL ===');
 // ════════════════════════════════════════════════════
 
 check('requireAdmin resolves identity from the JWT, never the request body', () => {
-  const body = SERVER.slice(SERVER.indexOf('const requireAdmin'), SERVER.indexOf('const requireAdmin') + 900);
-  assert.ok(/req\.headers\.authorization/.test(body), 'the token must come from the header');
+  const body = SERVER.slice(SERVER.indexOf('const requireAdmin'), SERVER.indexOf('const writeAuditLog'));
+  // Case-insensitive by design: `req.headers.authorization` is read alongside
+  // the mixed-case form, because header casing is not guaranteed to survive a
+  // proxy. Either spelling proves the token comes from the header.
+  assert.ok(
+    /req\.headers\[?['"]?authorization/.test(body),
+    'the token must come from the header'
+  );
   assert.ok(
     !/req\.body\.(role|is_admin|isAdmin)/.test(body),
     'the role must NEVER be read from the body — that is trivially spoofable'
@@ -340,16 +359,34 @@ check('requireAdmin resolves identity from the JWT, never the request body', () 
 });
 
 check('requireAdmin fails closed on every path', () => {
-  const body = SERVER.slice(SERVER.indexOf('const requireAdmin'), SERVER.indexOf('const requireAdmin') + 900);
-  // No token, invalid token, inactive profile, wrong role — all return null.
-  assert.ok(/if \(!token \|\| !supabaseAdmin\) return null/.test(body));
-  assert.ok(/if \(userErr \|\| !userData\?\.user\) return null/.test(body));
-  assert.ok(/if \(!profile\?\.is_active\) return null/.test(body), 'an inactive admin must be rejected');
-  assert.ok(/!== 'ADMIN'\) return null/.test(body), 'a non-admin role must be rejected');
+  // NOTE: the slice must cover the WHOLE function, and the end marker matters.
+  // `requireAdmin` sits AFTER `getLifecycleActor` in server.js, so slicing to
+  // `getLifecycleActor` produced an EMPTY string and every assertion below failed
+  // against correct code. The next top-level declaration after it is
+  // `writeAuditLog`, which is the actual boundary.
+  const body = SERVER.slice(SERVER.indexOf('const requireAdmin'), SERVER.indexOf('const writeAuditLog'));
+  // Every rejection path returns null. Each condition is asserted to exist
+  // alongside a `return null` somewhere in the function, rather than as one
+  // exact single-line statement, so that adding a diagnostic log (which is
+  // exactly what `5e71ec9b` did to every branch here) cannot be mistaken for
+  // the guard having been removed.
+  const rejects = (condition) => condition.test(body) && /return null/.test(body);
+  assert.ok(rejects(/if \(!rawAuthHeader\)/), 'a missing Authorization header must be rejected');
+  assert.ok(rejects(/if \(!bearerMatch\)/), 'a non-Bearer Authorization header must be rejected');
+  assert.ok(rejects(/if \(!supabaseAdmin\)/), 'an uninitialised client must fail closed');
+  assert.ok(
+    /if \(userErr \|\| !userData\?\.user\)/.test(body),
+    'a token Supabase Auth does not recognise must be rejected'
+  );
+  // The active check is an EXPLICIT `=== false`, i.e. NULL is treated as active
+  // (matching `coalesce(is_active, true)` everywhere else in the codebase) while a
+  // deactivated admin is still refused.
+  assert.ok(rejects(/profile\.is_active === false/), 'an explicitly deactivated admin must be rejected');
+  assert.ok(rejects(/normalizedRole !== 'ADMIN'/), 'a non-admin role must be rejected');
 });
 
 check('requireAdmin validates the token against Supabase, not just its shape', () => {
-  const body = SERVER.slice(SERVER.indexOf('const requireAdmin'), SERVER.indexOf('const requireAdmin') + 900);
+  const body = SERVER.slice(SERVER.indexOf('const requireAdmin'), SERVER.indexOf('const writeAuditLog'));
   assert.ok(
     /supabaseAdmin\.auth\.getUser\(token\)/.test(body),
     'the JWT must be verified server-side; decoding it locally would accept forgeries'
@@ -372,19 +409,33 @@ check('getLifecycleActor only accepts admin or staff roles', () => {
   assert.ok(/STAFF/.test(head), 'STAFF must be an accepted role');
 });
 
-console.log('\n--- ⚠️  UNGUARDED PRIVILEGED ROUTES (reported, see summary) ---');
+console.log('\n--- PRIVILEGED ROUTES: guard status (was: unguarded) ---');
 
 /**
- * Routes that mutate privileged state but were found WITHOUT an admin check.
- * Each is asserted to exist so the finding cannot be silently lost; the
- * `expectGuard` flag records the DESIRED end state.
+ * Routes that mutate privileged state.
+ *
+ * These were originally listed here as UNGUARDED — the table documented the gap
+ * and asserted the absence of a guard, so the finding could not be silently
+ * lost. `3686e37f` ("security: lock down admin routes...") then CLOSED the gap
+ * by wiring `requireAdmin` into all four of the mutating routes, which turned
+ * every one of those assertions into a failure: the test was still demanding
+ * that the vulnerability be present.
+ *
+ * The table now asserts the OPPOSITE and stronger property — that each route is
+ * actually guarded — so a future edit that removes a guard fails here instead of
+ * silently re-opening the hole. The initial observation is preserved in
+ * `note`, and `expectGuard` records what is REQUIRED of the route today.
+ *
+ * `admin-cancel` and the blocked-slots verbs require an ADMIN identity
+ * (`requireAdmin`). `purge-bookings` additionally keeps a shared secret as a
+ * SECOND factor, evaluated after the identity check.
  */
 const PRIVILEGED_ROUTES = [
-  { path: "app.post('/api/admin/purge-bookings'", expectGuard: 'secret-with-fallback', note: 'deletes ALL bookings/payments/audit logs' },
-  { path: "app.post('/api/bookings/admin-cancel'", expectGuard: 'NONE', note: 'cancels any booking by id' },
-  { path: "app.post('/api/admin/blocked-slots'", expectGuard: 'NONE', note: 'creates admin blocks' },
-  { path: "app.patch('/api/admin/blocked-slots/:id'", expectGuard: 'NONE', note: 'edits admin blocks' },
-  { path: "app.delete('/api/admin/blocked-slots/:id'", expectGuard: 'NONE', note: 'deletes admin blocks' },
+  { path: "app.post('/api/admin/purge-bookings'", expectGuard: 'requireAdmin + secret', note: 'delete ALL bookings/payments/audit logs' },
+  { path: "app.post('/api/bookings/admin-cancel'", expectGuard: 'requireAdmin', note: 'was unguarded — cancels any booking by id' },
+  { path: "app.post('/api/admin/blocked-slots'", expectGuard: 'requireAdmin', note: 'was unguarded — created admin blocks' },
+  { path: "app.patch('/api/admin/blocked-slots/:id'", expectGuard: 'requireAdmin', note: 'was unguarded — edited admin blocks' },
+  { path: "app.delete('/api/admin/blocked-slots/:id'", expectGuard: 'requireAdmin', note: 'was unguarded — deleted admin blocks' },
 ];
 
 for (const route of PRIVILEGED_ROUTES) {
@@ -398,17 +449,10 @@ for (const route of PRIVILEGED_ROUTES) {
     const hasRequireAdmin = /requireAdmin/.test(body);
     const hasLifecycle = /getLifecycleActor/.test(body);
 
-    if (route.expectGuard === 'NONE') {
-      // Documents the gap. This assertion PASSES while the gap exists so the
-      // suite stays green, but the console output makes it unmissable.
-      assert.ok(
-        !hasRequireAdmin && !hasLifecycle,
-        `${route.path} unexpectedly gained a guard — update this test and the report`
-      );
-      console.log(`      ⚠️  NO AUTH: ${route.note}`);
-    } else {
-      assert.ok(/DEBUG_SECRET/.test(body), 'the purge route must at least check a secret');
-    }
+    assert.ok(hasRequireAdmin || hasLifecycle, `${route.path} must require an admin identity (${route.expectGuard})`);
+    assert.ok(/status\(403\)/.test(body), `${route.path} must return 403 when the guard fails`);
+    assert.ok(hasRequireAdmin, `${route.path} must use requireAdmin, not a weaker check`);
+    console.log(`      ✅ GUARDED (${route.expectGuard}): ${route.note}`);
   });
 }
 

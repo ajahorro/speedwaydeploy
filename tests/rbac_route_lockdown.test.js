@@ -153,10 +153,30 @@ const request = (port, method, urlPath, { token, body } = {}) => new Promise((re
     auth: {
       getUser: async () => ({ data: { user: authBehaviour.user }, error: authBehaviour.error }),
     },
+    // Both terminal methods are provided on purpose.
+    //
+    // The stub previously offered ONLY `maybeSingle`, while the real
+    // `requireAdmin` in server.js calls `.single()`. The extraction below copies
+    // the SHIPPED function verbatim, so the guard reached for `.single` on an
+    // object that did not have it and threw
+    //     TypeError: supabaseAdmin.from(...).select(...).eq(...).single is not a function
+    // inside the route, which surfaced as a raw 500 instead of the 403 the
+    // assertions expect — the whole suite died on the first non-admin case.
+    //
+    // Which method the guard uses is a real decision, so it is asserted in
+    // `concurrency_timezone_rbac.test.js` rather than quietly accepted here.
+    // This stub just has to answer whichever one the shipped code calls, so the
+    // behavioural tests can measure the STATUS CODE, which is what they are for.
+    //
+    // `single()` mirrors PostgREST: it returns a PGRST116 error when no row
+    // matches, and `maybeSingle()` returns `{ data: null, error: null }`.
     from: () => ({
       select: () => ({
         eq: () => ({
-          maybeSingle: async () => ({ data: profileBehaviour }),
+          single: async () => (profileBehaviour
+            ? { data: profileBehaviour, error: null }
+            : { data: null, error: { code: 'PGRST116', message: 'no rows returned' } }),
+          maybeSingle: async () => ({ data: profileBehaviour, error: null }),
         }),
       }),
     }),

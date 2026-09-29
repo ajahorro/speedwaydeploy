@@ -162,7 +162,7 @@ const AuthCallback = () => {
         textAlign: 'center',
       }}>
         <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: '#e61e2a' }}>
-          SPEEDWAY AUTOXMOTO
+          COMAR GARAGE
         </div>
 
         <p style={{ marginTop: '20px', fontSize: '15px', lineHeight: 1.6, color: state.status === 'error' ? '#fca5a5' : '#d1d5db' }}>

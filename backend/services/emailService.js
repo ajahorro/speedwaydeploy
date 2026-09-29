@@ -182,17 +182,17 @@ const sendInviteAccountEmail = async ({ recipientEmail, firstName, lastName, rol
 
 const sendEmergencyRecoveryEmail = async ({ recipientEmail, otp }) => send({
   to: recipientEmail,
-  subject: 'Speedway Account Recovery Code',
+  subject: 'Comar Garage Account Recovery Code',
   html: buildEmailShell({
     title: 'Account Recovery',
     eyebrow: 'ACCOUNT SECURITY',
     bodyHtml: `
-      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">We received a request to unlock your Speedway account.</p>
+      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">We received a request to unlock your Comar Garage account.</p>
       <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">Enter the recovery code below to unlock your account and reset your password:</p>
       <div style="font-size: 32px; font-weight: 900; letter-spacing: 8px; padding: 16px 20px; background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; color: #111827; display: inline-block; margin-bottom: 16px;">${escapeHtml(otp)}</div>
       <p style="margin: 0; font-size: 13px; color: #6b7280; line-height: 1.6;">This code expires in 15 minutes and can only be used once. If you did not request this, you can safely ignore this email — your account remains locked and secure.</p>
     `,
-    footerNote: 'Speedway Detail Studio | Account Security'
+    footerNote: 'Comar Garage Detail Studio | Account Security'
   })
 });
 
@@ -209,14 +209,14 @@ const sendQrChangeOtpEmail = async ({ recipientEmail, otp, requestedAt, requestI
     </tr>`;
   return send({
     to: recipientEmail,
-    subject: 'Speedway: QR Change Verification Code',
+    subject: 'Comar Garage: QR Change Verification Code',
     html: buildEmailShell({
       title: 'Verify Your Request',
-      eyebrow: 'SPEEDWAY SECURITY',
+      eyebrow: 'COMAR GARAGE SECURITY',
       bodyHtml: `
         <div style="background: #111827; border-radius: 12px; padding: 16px 20px; margin-bottom: 18px; text-align: center;">
-          <div style="font-size: 18px; font-weight: 900; letter-spacing: 4px; color: #f9fafb; text-transform: uppercase;">SPEEDWAY</div>
-          <div style="font-size: 10px; letter-spacing: 2px; color: #9ca3af; margin-top: 6px; text-transform: uppercase;">AutoxMoto Detail Studio</div>
+          <div style="font-size: 18px; font-weight: 900; letter-spacing: 4px; color: #f9fafb; text-transform: uppercase;">COMAR GARAGE</div>
+          <div style="font-size: 10px; letter-spacing: 2px; color: #9ca3af; margin-top: 6px; text-transform: uppercase;">Comar Garage Detail Studio</div>
         </div>
         <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">A request was made to change the <strong>Business Hub QR payment recipients</strong>.</p>
         <p style="margin: 0 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280;">Request Details</p>
@@ -236,14 +236,14 @@ const sendQrChangeOtpEmail = async ({ recipientEmail, otp, requestedAt, requestI
           <p style="margin: 0; font-size: 13px; color: #991b1b; line-height: 1.6; font-weight: 600;">Security warning: If you did not request this change, do not share this code with anyone. Review your account immediately and contact the studio administrator.</p>
         </div>
       `,
-      footerNote: 'Speedway Detail Studio | Security Verification'
+      footerNote: 'Comar Garage Detail Studio | Security Verification'
     })
   });
 };
 
 const sendStatusUpdateEmail = async ({ customerEmail, customerName, bookingId, status, scheduledAt }) => send({
   to: customerEmail,
-  subject: `Booking Update #${bookingId} - Speedway AutoxMoto`,
+  subject: `Booking Update #${bookingId} - Comar Garage`,
   html: buildEmailShell({
     title: 'Booking Update',
     eyebrow: 'SERVICE STATUS',
@@ -260,7 +260,7 @@ const sendStatusUpdateEmail = async ({ customerEmail, customerName, bookingId, s
     `,
     ctaLink: `${appUrl('/customer/bookings')}`,
     ctaLabel: 'Open Portal',
-    footerNote: 'Speedway Detail Studio | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal'
+    footerNote: 'Comar Garage Detail Studio | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal'
   })
 });
 

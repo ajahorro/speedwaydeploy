@@ -119,7 +119,7 @@ const invoke = async (body) => {
       referenceNumber: OCR_REF,
       timestamp: new Date().toISOString(),
       isValidReceipt: true,
-      recipient: 'SPEEDWAY AUTOXMOTO',
+      recipient: 'COMAR GARAGE Detail Studio',
       description: 'GCash transfer',
       isAmountMatch: true,
       isDuplicate: false,
@@ -199,10 +199,10 @@ const invoke = async (body) => {
     const ocr = extractOcrDetails(fullBooking, pay);
 
     check('OCR reference is extracted', ocr.reference === OCR_REF, ocr.reference || '(none)');
-    check('OCR sender is extracted', ocr.sender === 'SPEEDWAY AUTOXMOTO', ocr.sender || '(none)');
+    check('OCR sender is extracted', ocr.sender === 'COMAR GARAGE Detail Studio', ocr.sender || '(none)');
     check('OCR transaction date is extracted', Boolean(ocr.transactionAt), ocr.transactionAt || '(none)');
     check('OCR reference renders in the HTML', built.html.includes(OCR_REF));
-    check('OCR sender renders in the HTML', built.html.includes('SPEEDWAY AUTOXMOTO'));
+    check('OCR sender renders in the HTML', built.html.includes('COMAR GARAGE Detail Studio'));
     check('email does NOT quote ₱280 (VAT-on-top bug)', !built.html.includes('280.00'));
   } else {
     check('shared email module importable by the verifier', false, 'Deno-style .ts import not resolvable from Node');

@@ -247,23 +247,25 @@ const requireAdmin = async (req) => {
     .from('profiles')
     .select('id, role, is_active, email, full_name')
     .eq('id', userId)
-    .single();
+    .maybeSingle();
 
   console.log('[requireAdmin] profiles query — row:', profile ? JSON.stringify({ id: profile.id, role: profile.role, is_active: profile.is_active, email: profile.email }) : '(null)', '| error:', profileErr ? `${profileErr.message} (code=${profileErr.code})` : '(none)');
 
   if (profileErr) {
-    // PGRST116 = "no rows returned" when using .single() — means the auth user
-    // has no corresponding profiles row yet.
-    if (profileErr.code === 'PGRST116') {
-      console.warn(`[requireAdmin] FAIL — No profiles row exists for auth user ${userId}. The account may not have completed setup.`);
-    } else {
-      console.error(`[requireAdmin] FAIL — profiles lookup threw an error for user ${userId}:`, profileErr.message, `(code=${profileErr.code})`);
-    }
+    // A REAL lookup failure (network, RLS misconfiguration, schema drift) — not
+    // an authorization decision. Logged loudly, but the caller still gets null:
+    // all 49 call sites render null as 403, and throwing here would surface as a
+    // 500 for what is, from the user's point of view, simply "I am not an admin".
+    console.error(`[requireAdmin] FAIL — profiles lookup threw an error for user ${userId}:`, profileErr.message, `(code=${profileErr.code})`);
     return null;
   }
 
   if (!profile) {
-    console.warn(`[requireAdmin] FAIL — profiles query returned null for user ${userId} with no error (unexpected).`);
+    // No error and no row: the auth user exists but has no profiles row. Under
+    // `.single()` this case arrived as a PGRST116 ERROR instead, which conflated
+    // "this account is not staff" with "the query failed". `.maybeSingle()`
+    // makes it the ordinary, non-exceptional answer that it is.
+    console.warn(`[requireAdmin] FAIL — No profiles row exists for auth user ${userId}. The account may not have completed setup.`);
     return null;
   }
 
@@ -418,7 +420,7 @@ const getRequiredDownpayment = (total) => {
 const dispatchLifecycleEmail = async (bookingId, newStatus, remarks = '') => {
   const projectUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const response = await fetch(`${projectUrl}/functions/v1/send-status-email`, {
+  const response = await fetch(`${projectUrl}/functions/v1/booking-lifecycle`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
     body: JSON.stringify({ bookingId, newStatus, remarks })
@@ -3839,7 +3841,7 @@ const checkOverdueBookings = async () => {
           try {
             const projectUrl = process.env.SUPABASE_URL;
             const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-            const noShowResponse = await fetch(`${projectUrl}/functions/v1/send-status-email`, {
+            const noShowResponse = await fetch(`${projectUrl}/functions/v1/booking-lifecycle`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
               body: JSON.stringify({
@@ -3863,7 +3865,7 @@ const checkOverdueBookings = async () => {
           try {
             const projectUrl = process.env.SUPABASE_URL;
             const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-            const reminderResponse = await fetch(`${projectUrl}/functions/v1/send-status-email`, {
+            const reminderResponse = await fetch(`${projectUrl}/functions/v1/booking-lifecycle`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
               body: JSON.stringify({ bookingId: booking.id, newStatus: 'CONFIRMED', reminder: true })
@@ -4461,7 +4463,7 @@ app.post('/api/bookings/release', async (req, res) => {
     try {
       const projectUrl = process.env.SUPABASE_URL;
       const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      await fetch(`${projectUrl}/functions/v1/send-status-email`, {
+      await fetch(`${projectUrl}/functions/v1/booking-lifecycle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
         body: JSON.stringify({ bookingId, newStatus: 'RELEASED' })
@@ -4645,7 +4647,7 @@ app.post('/api/bookings/update-status', async (req, res) => {
       try {
         const project_url = process.env.SUPABASE_URL;
         const service_key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        await fetch(`${project_url}/functions/v1/send-status-email`, {
+        await fetch(`${project_url}/functions/v1/booking-lifecycle`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${service_key}` },
           body: JSON.stringify({ bookingId, newStatus: targetMasterStatus, remarks })
