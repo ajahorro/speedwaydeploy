@@ -364,15 +364,16 @@ const CustomerBookingDetails = () => {
   const dt = booking.start_datetime ? new Date(booking.start_datetime) : null;
   const dateStr = dt ? dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'TBD';
   const timeStr = dt ? dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
-  const balance = Math.max(0, (booking.total_amount || 0) - (booking.totalPaid || 0));
   const paymentSummary = calculatePaymentSummary({ ...booking, payments });
+  const totalPaid = paymentSummary.totalPaid || 0;
+  const balance = Math.max(0, (booking.total_amount || 0) - totalPaid);
   const selectedRescheduleSlot = rescheduleSlots.some(slot => slot.time === rescheduleTime);
 
   // 🚀 DERIVED STATE: Ensure UI reflects reality even if master status lags
   const vehicleStatuses = (vehicles || []).map(v => v.status?.toUpperCase());
   const anyUnitStarted = vehicleStatuses.includes('IN_PROGRESS');
   const allUnitsFinished = vehicleStatuses.length > 0 && vehicleStatuses.every(s => s === 'COMPLETED' || s === 'CANCELLED');
-  const isFullySettled = (booking.total_amount || 0) > 0 && balance === 0;
+  const isFullySettled = (booking.total_amount || 0) > 0 && totalPaid >= (booking.total_amount || 0);
 
   // Real-time derived status for UI responsiveness
   let derivedStatus = (booking.status || 'scheduled').toLowerCase();

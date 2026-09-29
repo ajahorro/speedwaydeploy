@@ -1298,8 +1298,7 @@ const AdminBookingDetails = () => {
   // 🚀 DERIVED STATUS & LOCK LOGIC
   const vehicleStatuses = (vehicles || []).map(v => v.status?.toUpperCase());
   const anyUnitStarted = vehicleStatuses.includes('IN_PROGRESS');
-  const allUnitsFinished = vehicleStatuses.length > 0 && vehicleStatuses.every(s => s === 'COMPLETED' || s === 'CANCELLED');
-  const isFullySettled = (booking?.total_amount || 0) > 0 && balance === 0;
+  const isFullySettled = (booking?.total_amount || 0) > 0 && totalPaid >= (booking?.total_amount || 0);
 
   // Package plan frozen onto the booking at creation (see bookingService notes:
   // "PACKAGES:[...]"). Parsed defensively so a malformed/absent marker never
@@ -1634,12 +1633,14 @@ const AdminBookingDetails = () => {
                   <><ShieldCheck size={16} /> SERVICE FINISHED & CLOSED</>
                 ) : surplus > 0 ? (
                   <><TrendingUp size={16} /> ACCOUNT OVERPAID • SURPLUS: {formatCurrency(surplus)}</>
+                ) : totalPaid >= (booking?.total_amount || 0) && (booking?.total_amount || 0) > 0 ? (
+                  <><CheckCircle2 size={16} /> ACCOUNT SETTLED • FULLY PAID</>
+                ) : totalPaid > 0 ? (
+                  <><ShieldAlert size={16} /> PARTIALLY PAID • OUTSTANDING BALANCE {formatCurrency(balance)}</>
+                ) : (booking?.billing_type === 'FLEET' || booking?.billing_type === 'CORPORATE' || booking?.fleet_group_id || (booking?.vehicles || []).some(v => v.fleet_group_id)) ? (
+                  <><CreditCard size={16} /> BILLED TO CORPORATE ACCOUNT • INVOICE PENDING</>
                 ) : (
-                  balance <= 0 ? (
-                    <><CheckCircle2 size={16} /> ACCOUNT SETTLED • FULLY PAID</>
-                  ) : (
-                    <><ShieldAlert size={16} /> ATTENTION: OUTSTANDING BALANCE {formatCurrency(balance)}</>
-                  )
+                  <><ShieldAlert size={16} /> UNPAID • OUTSTANDING BALANCE {formatCurrency(booking?.total_amount || balance)}</>
                 )}
               </div>
               {balance <= 0 && !isLocked && (
@@ -1863,9 +1864,13 @@ const AdminBookingDetails = () => {
               </div>
               <div style={{ minWidth: 0 }}>
                 <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>{booking.customer?.full_name || booking.customer_name || 'Customer'}</h3>
-                {booking.customer && (
+                {booking.customer_id && (
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
-                    <span style={{ fontSize: '0.6rem', fontWeight: '900', color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fleet Account Holder</span>
+                    <span style={{ fontSize: '0.6rem', fontWeight: '900', color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {booking.customer?.role === 'FLEET' || booking.fleet_group_id || (booking.vehicles || []).some(v => v.fleet_group_id)
+                        ? 'Fleet Account Holder'
+                        : 'Customer Account'}
+                    </span>
                   </div>
                 )}
               </div>

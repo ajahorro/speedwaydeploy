@@ -1,6 +1,7 @@
 import React from 'react';
 import { Calendar, User, Wrench, CreditCard, CheckCircle } from 'lucide-react';
 import { formatBookingDate, formatBookingTime } from '../utils/bookingHelpers';
+import { derivePaymentStatusBadge } from '../utils/paymentUtils';
 
 const LIFECYCLE_STEPS = ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'RELEASED'];
 
@@ -76,15 +77,22 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
             </span>
           </SummaryItem>
         )}
-        {paymentStatus ? (
-          <SummaryItem icon={CreditCard} label="Payment Status">
-            <span style={{ color: paymentStatus.status === 'REFUNDED' ? 'var(--status-danger)' : paymentStatus.balance > 0 ? '#f59e0b' : '#10b981' }}>
-              {paymentStatus.status === 'REFUNDED'
-                ? 'Refunded'
-                : paymentStatus.balance > 0 ? `Balance: ₱${paymentStatus.balance.toLocaleString()}` : 'Fully Paid'}
-            </span>
-          </SummaryItem>
-        ) : null}
+        {paymentStatus ? (() => {
+          const badge = derivePaymentStatusBadge(booking, paymentStatus);
+          if (!badge) return null;
+          return (
+            <SummaryItem icon={CreditCard} label="Payment Status">
+              <span style={{ color: badge.color, fontWeight: '900' }}>
+                {badge.text}
+              </span>
+              {badge.subtext && (
+                <span style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.65rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>
+                  {badge.subtext}
+                </span>
+              )}
+            </SummaryItem>
+          );
+        })() : null}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', overflowX: 'auto', paddingTop: '0.5rem' }}>
