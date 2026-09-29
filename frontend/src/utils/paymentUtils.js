@@ -56,7 +56,11 @@ export const calculatePaymentSummary = (booking = {}) => {
     || payments.some(payment => String(payment.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(payment.amount) < 0)
     || payments.some(payment => String(payment.status || '').toUpperCase() === 'REFUNDED');
   const isPendingVerification = payments.some(payment => String(payment.status || '').toUpperCase() === 'FOR_VERIFICATION');
-  const requiredDownpayment = calculateRequiredDownpayment(totalAmount).amount;
+  const isCancelledNoFee = String(booking.status || '').toUpperCase() === 'CANCELLED'
+    && totalPaid <= 0
+    && !isPendingVerification;
+  const effectiveTotalAmount = isCancelledNoFee ? 0 : totalAmount;
+  const requiredDownpayment = calculateRequiredDownpayment(effectiveTotalAmount).amount;
 
   // 🛡️ HOTFIX Fix 2 — SIGNED BALANCE + CREDIT CARRY-FORWARD.
   //
@@ -69,7 +73,7 @@ export const calculatePaymentSummary = (booking = {}) => {
   //   balance   : still OWED by the customer (clamped at 0 — never negative)
   //   credit    : overpaid amount the shop holds for the customer (>= 0)
   //   netBalance: SIGNED truth (totalAmount − totalPaid); negative = credit
-  const rawBalance = Math.round((totalAmount - totalPaid) * 100) / 100;
+  const rawBalance = Math.round((effectiveTotalAmount - totalPaid) * 100) / 100;
   const balance = Math.max(0, rawBalance);
   const credit = Math.max(0, -rawBalance);
   const netBalance = rawBalance;
@@ -86,7 +90,7 @@ export const calculatePaymentSummary = (booking = {}) => {
   else if (totalPaid >= requiredDownpayment) status = 'DOWNPAYMENT_PAID';
   else if (hasProcessedRefund) status = 'PARTIALLY_REFUNDED';
 
-  return { status, totalAmount, totalPaid, processedRefunds, balance, credit, netBalance, hasProcessedRefund, isOverpaid: credit > 0 };
+  return { status, totalAmount, effectiveTotalAmount, totalPaid, processedRefunds, balance, credit, netBalance, hasProcessedRefund, isOverpaid: credit > 0, isCancelledNoFee };
 };
 
 /**
