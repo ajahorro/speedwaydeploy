@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, AlertCircle, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertCircle, Loader2, Calendar } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { isDateBookable } from '../../domain/schedule/rules';
 
@@ -184,8 +184,8 @@ function InlineCalendar({ selectedDate, onDateSelect, config = null, blocks = nu
 function SlotList({ slots, selectedTime, onSelect, isLoading, selectedDate, dateGate }) {
   if (!selectedDate) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', height: '100%', minHeight: '120px', color: 'var(--admin-text-secondary)', fontSize: '0.82rem', fontWeight: '600', textAlign: 'center', opacity: 0.7 }}>
-        <span style={{ fontSize: '1.5rem' }}>📅</span>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', height: '100%', minHeight: '120px', color: 'var(--admin-text-secondary)', fontSize: '0.82rem', fontWeight: '600', textAlign: 'center', opacity: 0.7 }}>
+        <Calendar size={28} style={{ opacity: 0.6 }} />
         Pick a date to see available slots
       </div>
     );

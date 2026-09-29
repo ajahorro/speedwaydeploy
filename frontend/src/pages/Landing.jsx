@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight,
@@ -11,15 +11,66 @@ import {
   Star,
   Facebook,
   Instagram,
-  Twitter
+  Twitter,
+  X as XIcon,
+  LogIn,
+  LayoutDashboard,
+  LogOut
 } from 'lucide-react';
 import Login from './Login';
 import { useAuth } from '../hooks/useAuth';
 import { useConfig } from '../context/ConfigContext';
 import { getServiceCatalog } from '../data/servicesCatalog';
 
+// ─── Smooth Scroll-Reveal Component ──────────────────────────────────────────
+function Reveal({ children, delay = 0, direction = 'up', style: extraStyle = {}, className = '' }) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          obs.disconnect();
+        }
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const translateMap = {
+    up: 'translateY(28px)',
+    down: 'translateY(-28px)',
+    left: 'translateX(28px)',
+    right: 'translateX(-28px)'
+  };
+
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translate(0,0) scale(1)' : `${translateMap[direction] || 'translateY(28px)'} scale(0.985)`,
+        transition: `opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms, transform 0.65s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`,
+        willChange: 'opacity, transform',
+        ...extraStyle,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ─── Landing ──────────────────────────────────────────────────────────────────
 const Landing = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
   const [openService, setOpenService] = useState(null);
   const [scrolled, setScrolled] = useState(false);
@@ -27,9 +78,7 @@ const Landing = () => {
   const { settings } = useConfig();
   const navigate = useNavigate();
 
-  // Tier 2.7 / 2.8 / 2.9 — the landing page reflects the Business Hub config.
-  // Business name / contact / address come from `settings`; the service catalog
-  // is the same source the booking wizard uses (standard + custom services).
+  // Business info
   const businessName = settings?.BUSINESS_NAME || 'COMAR GARAGE';
 
   const [catalog, setCatalog] = useState(() => getServiceCatalog());
@@ -40,19 +89,18 @@ const Landing = () => {
     return () => window.removeEventListener('storage', refreshCatalog);
   }, [settings?.BUSINESS_NAME]);
 
-  // Tier 2.8 — admin FAQs when present, otherwise a built-in starter set so the
-  // section never renders empty. Answers only show when the admin supplies them.
+  // FAQs
   const faqItems = (Array.isArray(settings?.FAQS) ? settings.FAQS : [])
     .filter((f) => f && String(f.question || '').trim())
     .slice()
     .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
     .map((f) => ({ question: String(f.question).trim(), answer: String(f.answer || '').trim() }));
   const displayFaqs = faqItems.length > 0 ? faqItems : [
-    { question: 'How long does ceramic coating last?', answer: '' },
-    { question: 'What is the booking process?', answer: '' },
-    { question: 'Do you offer mobile services?', answer: '' },
-    { question: 'What payment methods do you accept?', answer: '' },
-    { question: 'Do I need to leave my car overnight?', answer: '' }
+    { question: 'How long does ceramic coating last?', answer: 'Our premium ceramic coatings typically last between 2 to 5 years depending on package selection and vehicle maintenance habits.' },
+    { question: 'What is the booking process?', answer: 'Simply select your vehicle type, choose desired services, pick your preferred date and time slot, and confirm your reservation.' },
+    { question: 'Do you offer mobile services?', answer: 'We currently operate primarily at our fully equipped detailing bay in Cainta to ensure clean room standards and climate-controlled curing.' },
+    { question: 'What payment methods do you accept?', answer: 'We accept Cash, GCash, Bank Transfer, and major Credit Cards with instant verification and official receipts.' },
+    { question: 'Do I need to leave my car overnight?', answer: 'For multi-stage paint correction and ceramic curing, overnight stays in our secured, monitored facility may be required.' }
   ];
 
   const formatPrice = (value) => {
@@ -60,8 +108,7 @@ const Landing = () => {
     return Number.isFinite(num) ? num.toLocaleString() : String(value ?? '');
   };
 
-  // Tier 2.7 — surface the contact cards from config, falling back to the
-  // current public details when the hub leaves a field blank.
+  // Contacts
   const contactItems = [
     { icon: MapPin, label: 'Address', val: settings?.BUSINESS_ADDRESS || '39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal' },
     { icon: Phone, label: 'Phone', val: settings?.BUSINESS_CONTACT_NUMBER || 'Not provided' },
@@ -69,38 +116,30 @@ const Landing = () => {
   ];
 
   const handleAuthAction = () => {
-    // 🛡️ SECURITY GUARD: Never trigger auth actions while system is still synchronizing
     if (!isInitialized || authLoading) return;
-
     if (user) {
       if (profile) {
         const roleKey = String(profile.role || '').toUpperCase();
-        const routes = {
-          ADMIN: '/admin',
-          STAFF: '/staff',
-          CUSTOMER: '/customer'
-        };
+        const routes = { ADMIN: '/admin', STAFF: '/staff', CUSTOMER: '/customer' };
         navigate(routes[roleKey] || '/customer');
       } else {
-        // If user exists but profile is missing, they are technically "in" but roleless
-        // We redirect them to customer as a safe default or wait for sync
         navigate('/customer');
       }
     } else {
       setShowLoginModal(true);
     }
+    setMenuOpen(false);
   };
 
-  // Handle scroll effect for header
+  // Scroll listener for sticky header
   useEffect(() => {
     document.documentElement.classList.add('landing-scroll');
     document.body.classList.add('landing-scroll');
     document.getElementById('root')?.classList.add('landing-scroll');
-
     const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
+      setScrolled(window.scrollY > 40);
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', handleScroll);
       document.documentElement.classList.remove('landing-scroll');
@@ -109,47 +148,154 @@ const Landing = () => {
     };
   }, []);
 
-  // 🛡️ AUTO-REDIRECT: Skip landing page only if user session is firmly verified
+  // Lock body scroll when menu drawer is open
   useEffect(() => {
-    // Check if fully initialized AND user object has an ID (prevents logout race conditions)
+    if (menuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [menuOpen]);
+
+  // Auto-redirect if already authenticated
+  useEffect(() => {
     if (isInitialized && !authLoading && user?.id && profile?.role) {
       const roleKey = String(profile.role || '').toUpperCase();
-      const routes = {
-        ADMIN: '/admin',
-        STAFF: '/staff',
-        CUSTOMER: '/customer'
-      };
-
+      const routes = { ADMIN: '/admin', STAFF: '/staff', CUSTOMER: '/customer' };
       const targetRoute = routes[roleKey] || '/customer';
-
-      // Only redirect if we aren't already on that path
       if (window.location.pathname !== targetRoute) {
         navigate(targetRoute, { replace: true });
       }
     }
   }, [isInitialized, authLoading, user, profile, navigate]);
-  const scrollToSection = (id) => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
 
-  const navItemStyle = {
-    color: 'white',
-    textDecoration: 'none',
-    fontSize: '0.75rem',
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: '1.5px',
-    cursor: 'pointer',
-    transition: 'color 0.2s',
-  };
+  const scrollToSection = useCallback((id) => {
+    setMenuOpen(false);
+    setTimeout(() => {
+      const element = document.getElementById(id);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  }, []);
+
+  // Navigation Links inside menu drawer
+  const NAV_LINKS = [
+    { label: 'Home',     id: 'home' },
+    { label: 'About',    id: 'about' },
+    { label: 'Services', id: 'services' },
+    { label: 'FAQ',      id: 'faq' },
+    { label: 'Contact',  id: 'contact' },
+  ];
 
   return (
-    <div style={{ background: '#0A0B0D', color: 'white', minHeight: '100vh', position: 'relative' }}>
+    <div style={{ background: '#0A0B0D', color: 'white', minHeight: '100vh', position: 'relative', overflowX: 'hidden' }}>
 
-      {/* 1. STICKY HEADER */}
+      <style>{`
+        html {
+          scroll-behavior: smooth;
+        }
+        .section-padding {
+          padding: clamp(4rem, 10vw, 8rem) clamp(1rem, 5vw, 4rem);
+        }
+        .container-wide {
+          max-width: 1200px;
+          margin: 0 auto;
+          width: 100%;
+        }
+        .admin-card-hover {
+          transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+        }
+        .admin-card-hover:hover {
+          transform: translateY(-4px);
+          border-color: rgba(230, 30, 42, 0.4) !important;
+          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+        }
+        .three-lines-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1.5px solid rgba(255, 255, 255, 0.22);
+          border-radius: 12px;
+          width: 46px;
+          height: 46px;
+          cursor: pointer;
+          color: white;
+          padding: 8px;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .three-lines-btn:hover {
+          background: rgba(255, 255, 255, 0.12);
+          border-color: rgba(255, 255, 255, 0.4);
+          transform: scale(1.05);
+        }
+        .three-lines-btn:active {
+          transform: scale(0.95);
+        }
+        .menu-link-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 100%;
+          padding: 0.95rem 1rem;
+          background: transparent;
+          border: none;
+          border-radius: 8px;
+          color: rgba(255, 255, 255, 0.85);
+          font-size: 0.95rem;
+          font-weight: 800;
+          text-transform: uppercase;
+          letterSpacing: 1.2px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-align: left;
+        }
+        .menu-link-item:hover {
+          background: rgba(230, 30, 42, 0.12);
+          color: #fff;
+          transform: translateX(6px);
+        }
+        .menu-drawer-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.65);
+          backdrop-filter: blur(8px);
+          z-index: 1050;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.3s ease;
+        }
+        .menu-drawer-backdrop.is-open {
+          opacity: 1;
+          pointer-events: auto;
+        }
+        .menu-drawer {
+          position: fixed;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          width: min(340px, 86vw);
+          background: #0E1013;
+          border-left: 1px solid rgba(255, 255, 255, 0.1);
+          z-index: 1060;
+          transform: translateX(100%);
+          transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+          display: flex;
+          flex-direction: column;
+          box-shadow: -10px 0 35px rgba(0, 0, 0, 0.6);
+          padding: 1.5rem;
+          box-sizing: border-box;
+        }
+        .menu-drawer.is-open {
+          transform: translateX(0);
+        }
+      `}</style>
+
+      {/* ── 1. STICKY APP HEADER WITH THREE-LINES BUTTON (Image 2 style) ── */}
       <header
         className="landing-header"
         style={{
@@ -157,205 +303,337 @@ const Landing = () => {
           top: 0,
           left: 0,
           right: 0,
-          height: '80px',
-          background: scrolled ? 'rgba(10, 11, 13, 0.95)' : 'rgba(0,0,0,0.3)',
-          backdropFilter: scrolled ? 'blur(10px)' : 'none',
-          borderBottom: scrolled ? '1px solid rgba(255,255,255,0.05)' : 'none',
+          height: scrolled ? '66px' : '76px',
+          background: scrolled ? 'rgba(10, 11, 13, 0.94)' : 'rgba(10, 11, 13, 0.5)',
+          backdropFilter: 'blur(16px)',
+          borderBottom: scrolled ? '1px solid rgba(255,255,255,0.08)' : '1px solid transparent',
           display: 'flex',
           alignItems: 'center',
-          padding: '0 clamp(1rem, 5vw, 4rem)',
+          justifyContent: 'space-between',
+          padding: '0 clamp(1.2rem, 5vw, 3.5rem)',
           zIndex: 1000,
-          transition: 'all 0.3s ease'
+          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
         {/* LOGO (Left) */}
-        <div style={{ flex: 1 }}>
-          <div onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-            <div aria-label="Comar Garage" style={{ color: 'white', fontSize: 'clamp(1.15rem, 3vw, 2rem)', fontWeight: 950, letterSpacing: '0.08em', fontStyle: 'italic', textTransform: 'uppercase' }}>COMAR GARAGE</div>
+        <div
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+        >
+          <div
+            style={{
+              color: 'white',
+              fontSize: 'clamp(1.15rem, 3.2vw, 1.75rem)',
+              fontWeight: 950,
+              letterSpacing: '0.08em',
+              fontStyle: 'italic',
+              textTransform: 'uppercase'
+            }}
+          >
+            {businessName}
           </div>
         </div>
 
-        {/* NAVIGATION (Middle) - Hidden on Mobile */}
-        <nav className="desktop-nav" style={{ display: 'flex', gap: 'clamp(1rem, 2vw, 2.5rem)', alignItems: 'center' }}>
-          <span onClick={() => scrollToSection('home')} style={navItemStyle} className="nav-link">Home</span>
-          <span onClick={() => scrollToSection('about')} style={navItemStyle} className="nav-link">About</span>
-          <span onClick={() => scrollToSection('services')} style={navItemStyle} className="nav-link">Services</span>
-          <span onClick={() => scrollToSection('faq')} style={navItemStyle} className="nav-link">FAQ</span>
-          <span onClick={() => scrollToSection('contact')} style={navItemStyle} className="nav-link">Contact</span>
+        {/* THREE LINES MENU BUTTON (Right — as shown in Image 2) */}
+        <button
+          className="three-lines-btn"
+          onClick={() => setMenuOpen(prev => !prev)}
+          aria-label="Navigation Menu"
+          title="Open Menu"
+        >
+          {menuOpen ? (
+            <XIcon size={22} />
+          ) : (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <line x1="4" y1="6" x2="20" y2="6" />
+              <line x1="4" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
+          )}
+        </button>
+      </header>
+
+      {/* ── 2. MENU DRAWER (Contains Login, About, Services, FAQ, Contact) ── */}
+      <div
+        className={`menu-drawer-backdrop ${menuOpen ? 'is-open' : ''}`}
+        onClick={() => setMenuOpen(false)}
+      />
+
+      <aside className={`menu-drawer ${menuOpen ? 'is-open' : ''}`}>
+        {/* Drawer Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'rgba(255,255,255,0.5)' }}>
+            Navigation
+          </span>
+          <button
+            onClick={() => setMenuOpen(false)}
+            aria-label="Close menu"
+            style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', padding: '4px', display: 'flex' }}
+          >
+            <XIcon size={20} />
+          </button>
+        </div>
+
+        {/* Links: About, Services, FAQ, Contact Us */}
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1 }}>
+          {NAV_LINKS.map(link => (
+            <button
+              key={link.id}
+              onClick={() => scrollToSection(link.id)}
+              className="menu-link-item"
+            >
+              <span>{link.label}</span>
+              <ChevronRight size={16} opacity={0.4} />
+            </button>
+          ))}
         </nav>
 
-        {/* LOGIN/DASHBOARD (Right) */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: '1rem', alignItems: 'center' }}>
-          {user && (
-            <button
-              onClick={() => signOut()}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: 'transparent',
-                color: 'white',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: '4px',
-                fontWeight: '950',
-                fontSize: '0.75rem',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                cursor: 'pointer',
-              }}
-            >
-              SIGN OUT
-            </button>
-          )}
+        {/* Drawer Footer Action: Login / Dashboard / Sign Out */}
+        <div style={{ marginTop: 'auto', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <button
             onClick={handleAuthAction}
             style={{
-              padding: '0.75rem clamp(1rem, 3vw, 2rem)',
+              width: '100%',
+              padding: '0.9rem 1.25rem',
               background: '#E61E2A',
               color: 'white',
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: '8px',
               fontWeight: '950',
-              fontSize: '0.75rem',
+              fontSize: '0.85rem',
               textTransform: 'uppercase',
-              letterSpacing: '1px',
+              letterSpacing: '1.2px',
               cursor: 'pointer',
-              transition: 'transform 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.6rem',
+              boxShadow: '0 6px 18px rgba(230, 30, 42, 0.35)',
+              transition: 'transform 0.15s ease'
             }}
-            onMouseEnter={e => e.target.style.transform = 'scale(1.05)'}
-            onMouseLeave={e => e.target.style.transform = 'scale(1)'}
+            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
           >
-            {!isInitialized || authLoading ? 'SYNCING...' : (user ? 'DASHBOARD' : 'LOGIN')}
+            {user ? <LayoutDashboard size={18} /> : <LogIn size={18} />}
+            <span>{!isInitialized || authLoading ? 'SYNCING...' : (user ? 'DASHBOARD' : 'LOGIN')}</span>
           </button>
-        </div>
-      </header>
 
-      {/* 2. HERO SECTION */}
-      <section id="home" style={{
-        height: '100vh',
-        width: '100%',
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden'
-      }}>
+          {user && (
+            <button
+              onClick={() => { signOut(); setMenuOpen(false); }}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                background: 'transparent',
+                color: 'rgba(255,255,255,0.7)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '8px',
+                fontWeight: '800',
+                fontSize: '0.78rem',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#ef4444'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+            >
+              <LogOut size={16} />
+              <span>SIGN OUT</span>
+            </button>
+          )}
+        </div>
+      </aside>
+
+      {/* ── 3. HERO SECTION ── */}
+      <section
+        id="home"
+        style={{
+          height: '100vh',
+          width: '100%',
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden'
+        }}
+      >
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #17191d 0%, #0a0b0d 55%, #3a1115 100%)', zIndex: 0 }} />
+        
         <div className="hero-content" style={{ position: 'relative', zIndex: 2, textAlign: 'center', maxWidth: '900px', padding: '0 2rem' }}>
-          <h1 className="text-fluid-h1" style={{ fontWeight: '950', lineHeight: '0.9', textTransform: 'uppercase', marginBottom: '1.5rem', letterSpacing: '-2px' }}>
-            TURN THE COLOR <br />
-            <span style={{ color: '#E61E2A' }}>TO THE MAXIMUM</span>
-          </h1>
-          <p className="text-fluid-body" style={{ color: 'rgba(255,255,255,0.7)', maxWidth: '600px', margin: '0 auto 2.5rem', lineHeight: '1.6', fontWeight: '600' }}>
-            Experience premium automotive detailing services that bring out the true brilliance
-            of your vehicle. Our expert team uses cutting-edge techniques to deliver stunning results.
-          </p>
-          <button onClick={handleAuthAction} style={{ padding: '1.25rem 3.5rem', background: '#E61E2A', color: 'white', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '2px', cursor: 'pointer', boxShadow: '0 10px 30px rgba(230, 30, 42, 0.3)' }}>
-            {!isInitialized || authLoading ? 'SYNCING...' : (user ? 'DASHBOARD' : 'BOOK NOW')}
-          </button>
+          <Reveal delay={100} direction="up">
+            <h1 className="text-fluid-h1" style={{ fontWeight: '950', lineHeight: '0.9', textTransform: 'uppercase', marginBottom: '1.5rem', letterSpacing: '-2px' }}>
+              TURN THE COLOR <br />
+              <span style={{ color: '#E61E2A' }}>TO THE MAXIMUM</span>
+            </h1>
+          </Reveal>
+
+          <Reveal delay={250} direction="up">
+            <p className="text-fluid-body" style={{ color: 'rgba(255,255,255,0.7)', maxWidth: '600px', margin: '0 auto 2.5rem', lineHeight: '1.6', fontWeight: '600' }}>
+              Experience premium automotive detailing services that bring out the true brilliance
+              of your vehicle. Our expert team uses cutting-edge techniques to deliver stunning results.
+            </p>
+          </Reveal>
+
+          <Reveal delay={400} direction="up">
+            <button
+              onClick={handleAuthAction}
+              style={{
+                padding: '1.25rem 3.5rem',
+                background: '#E61E2A',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontWeight: '950',
+                fontSize: '0.9rem',
+                textTransform: 'uppercase',
+                letterSpacing: '2px',
+                cursor: 'pointer',
+                boxShadow: '0 10px 30px rgba(230, 30, 42, 0.35)',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 14px 34px rgba(230, 30, 42, 0.5)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 10px 30px rgba(230, 30, 42, 0.35)'; }}
+            >
+              {!isInitialized || authLoading ? 'SYNCING...' : (user ? 'DASHBOARD' : 'BOOK NOW')}
+            </button>
+          </Reveal>
         </div>
       </section>
 
-      {/* 3. ABOUT SECTION */}
+      {/* ── 4. ABOUT SECTION ── */}
       <section id="about" className="section-padding" style={{ background: '#0A0B0D' }}>
-        <div className="container-wide" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 'clamp(1.5rem, 5vw, 4rem)', alignItems: 'center' }}>
-          <div>
-            <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '2rem' }}>ABOUT US</h2>
-            <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.6)', lineHeight: '1.8', marginBottom: '1.5rem' }}>
+        <div className="container-wide" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 'clamp(2rem, 5vw, 4.5rem)', alignItems: 'center' }}>
+          <Reveal direction="right">
+            <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '1.75rem', fontWeight: 950 }}>ABOUT US</h2>
+            <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.65)', lineHeight: '1.8', marginBottom: '1.5rem' }}>
               At Comar Garage, we believe that every vehicle deserves to look its absolute best.
               Founded with a passion for automotive excellence, we have grown into one of the region's
               most trusted detailing centers.
             </p>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+          </Reveal>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
             {[
-              { icon: Shield, title: "PROTECTION", desc: "Premium ceramic coatings" },
-              { icon: Zap, title: "PERFORMANCE", desc: "Expert technicians" },
-              { icon: Star, title: "QUALITY", desc: "Satisfaction guaranteed" },
-              { icon: Clock, title: "RELIABILITY", desc: "Punctual service" },
-            ].map((item, i) => (
-              <div key={i} style={{ background: '#15171A', padding: '2rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <item.icon style={{ color: '#E61E2A', marginBottom: '1rem' }} size={32} />
-                <h4 style={{ fontSize: '0.9rem', fontWeight: '950', marginBottom: '0.5rem' }}>{item.title}</h4>
-                <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>{item.desc}</p>
-              </div>
+              { icon: Shield, title: 'PROTECTION',  desc: 'Premium ceramic coatings', delay: 50 },
+              { icon: Zap,    title: 'PERFORMANCE', desc: 'Expert technicians',       delay: 150 },
+              { icon: Star,   title: 'QUALITY',     desc: 'Satisfaction guaranteed',  delay: 250 },
+              { icon: Clock,  title: 'RELIABILITY', desc: 'Punctual service',         delay: 350 },
+            ].map((item) => (
+              <Reveal key={item.title} delay={item.delay} direction="up">
+                <div
+                  className="admin-card-hover"
+                  style={{
+                    background: '#15171A',
+                    padding: '2rem 1.5rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.06)'
+                  }}
+                >
+                  <item.icon style={{ color: '#E61E2A', marginBottom: '1rem' }} size={32} />
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: '950', marginBottom: '0.5rem', textTransform: 'uppercase' }}>{item.title}</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', margin: 0 }}>{item.desc}</p>
+                </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* 4. SERVICES SECTION */}
+      {/* ── 5. SERVICES SECTION ── */}
       <section id="services" className="section-padding" style={{ background: '#0F1012' }}>
         <div className="container-wide">
-          <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
-            <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '1rem' }}>OUR SERVICES</h2>
-            <div style={{ width: '80px', height: '4px', background: '#E61E2A', margin: '0 auto' }}></div>
-          </div>
+          <Reveal direction="up">
+            <div style={{ textAlign: 'center', marginBottom: '4.5rem' }}>
+              <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '1rem', fontWeight: 950 }}>OUR SERVICES</h2>
+              <div style={{ width: '80px', height: '4px', background: '#E61E2A', margin: '0 auto', borderRadius: '2px' }} />
+            </div>
+          </Reveal>
 
           {Object.entries(catalog).map(([category, services], catIndex) => (
-            <div key={category} style={{ marginBottom: '6rem' }}>
-              {/* CATEGORY HEADER */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(0.75rem, 2vw, 2rem)', marginBottom: '3rem', minWidth: 0 }}>
-                <h3 style={{ fontSize: 'clamp(1rem, 4vw, 1.5rem)', fontWeight: '950', textTransform: 'uppercase', color: 'rgba(255,255,255,0.9)', minWidth: 0 }}>{category}</h3>
-                <div style={{ flex: 1, minWidth: '1rem', height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
-              </div>
+            <div key={category} style={{ marginBottom: '5rem' }}>
+              <Reveal direction="left">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(0.75rem, 2vw, 2rem)', marginBottom: '2.5rem', minWidth: 0 }}>
+                  <h3 style={{ fontSize: 'clamp(1.05rem, 3.5vw, 1.45rem)', fontWeight: '950', textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', minWidth: 0 }}>
+                    {category}
+                  </h3>
+                  <div style={{ flex: 1, minWidth: '1rem', height: '1px', background: 'rgba(255,255,255,0.1)' }} />
+                </div>
+              </Reveal>
 
-              {/* SERVICES GRID */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: '1.5rem' }}>
                 {services.map((service, i) => {
                   const serviceKey = `${catIndex}-${i}`;
                   return (
-                    <div
-                      key={i}
-                      className="admin-card-hover"
-                      onClick={() => setOpenService(openService === serviceKey ? null : serviceKey)}
-                      style={{
-                        background: '#15171A',
-                        padding: '2rem',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(255,255,255,0.05)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column'
-                      }}
-                    >
-                      <div style={{ width: '40px', height: '40px', background: 'rgba(230, 30, 42, 0.1)', borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
-                        <ChevronRight
-                          style={{
-                            color: '#E61E2A',
-                            transform: openService === serviceKey ? 'rotate(90deg)' : 'rotate(0deg)',
-                            transition: 'transform 0.3s ease'
-                          }}
-                          size={20}
-                        />
-                      </div>
-                      <h4 style={{ fontSize: '1.1rem', fontWeight: '950', marginBottom: '1rem', textTransform: 'uppercase' }}>{service.name}</h4>
-                      <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', lineHeight: '1.6' }}>{service.desc}</p>
+                    <Reveal key={i} delay={Math.min(i * 70, 300)} direction="up">
+                      <div
+                        className="admin-card-hover"
+                        onClick={() => setOpenService(openService === serviceKey ? null : serviceKey)}
+                        style={{
+                          background: '#15171A',
+                          padding: '2rem',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255,255,255,0.06)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column'
+                        }}
+                      >
+                        <div style={{ width: '40px', height: '40px', background: 'rgba(230, 30, 42, 0.12)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
+                          <ChevronRight
+                            style={{
+                              color: '#E61E2A',
+                              transform: openService === serviceKey ? 'rotate(90deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.3s ease'
+                            }}
+                            size={20}
+                          />
+                        </div>
 
-                      {/* EXPANDABLE PRICE TABLE */}
-                      <div style={{
-                        maxHeight: openService === serviceKey ? '400px' : '0',
-                        overflow: 'hidden',
-                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                        opacity: openService === serviceKey ? 1 : 0,
-                        marginTop: openService === serviceKey ? '1.5rem' : '0'
-                      }}>
-                        <div style={{
-                          padding: '1rem',
-                          background: 'rgba(230, 30, 42, 0.05)',
-                          border: '1px dashed rgba(230, 30, 42, 0.2)',
-                          borderRadius: '4px',
-                        }}>
-                          <span style={{ fontSize: '0.7rem', fontWeight: '950', color: '#E61E2A', display: 'block', marginBottom: '10px', letterSpacing: '1px', textAlign: 'center', textTransform: 'uppercase' }}>Vehicle Pricing</span>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            {Object.entries(service.prices).map(([type, price]) => (
-                              <div key={type} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>{type}</span>
-                                <span style={{ fontSize: '0.9rem', fontWeight: '950', color: 'white' }}>₱{formatPrice(price)}</span>
-                              </div>
-                            ))}
+                        <h4 style={{ fontSize: '1.1rem', fontWeight: '950', marginBottom: '0.75rem', textTransform: 'uppercase' }}>
+                          {service.name}
+                        </h4>
+
+                        <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', lineHeight: '1.6', margin: 0 }}>
+                          {service.desc}
+                        </p>
+
+                        <div
+                          style={{
+                            maxHeight: openService === serviceKey ? '400px' : '0',
+                            overflow: 'hidden',
+                            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                            opacity: openService === serviceKey ? 1 : 0,
+                            marginTop: openService === serviceKey ? '1.5rem' : '0'
+                          }}
+                        >
+                          <div
+                            style={{
+                              padding: '1rem',
+                              background: 'rgba(230, 30, 42, 0.05)',
+                              border: '1px dashed rgba(230, 30, 42, 0.25)',
+                              borderRadius: '6px',
+                            }}
+                          >
+                            <span style={{ fontSize: '0.7rem', fontWeight: '950', color: '#E61E2A', display: 'block', marginBottom: '10px', letterSpacing: '1px', textAlign: 'center', textTransform: 'uppercase' }}>
+                              Vehicle Pricing
+                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              {Object.entries(service.prices).map(([type, price]) => (
+                                <div key={type} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                  <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>{type}</span>
+                                  <span style={{ fontSize: '0.9rem', fontWeight: '950', color: 'white' }}>₱{formatPrice(price)}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </Reveal>
                   );
                 })}
               </div>
@@ -364,125 +642,193 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* 5. FAQ SECTION */}
+      {/* ── 6. FAQ SECTION ── */}
       <section id="faq" className="section-padding" style={{ background: '#0A0B0D' }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 1rem' }}>
-          <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '4rem', textAlign: 'center' }}>FAQ</h2>
+        <div style={{ maxWidth: '820px', margin: '0 auto', padding: '0 1rem' }}>
+          <Reveal direction="up">
+            <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '3.5rem', textAlign: 'center', fontWeight: 950 }}>
+              FAQ
+            </h2>
+          </Reveal>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {displayFaqs.map((faq, i) => (
-              <div
-                key={i}
-                className="admin-card-hover"
-                onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                style={{
-                  background: '#15171A',
-                  padding: '1.5rem 2rem',
-                  borderRadius: '4px',
-                  border: '1px solid rgba(255,255,255,0.05)',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: '800', fontSize: '0.9rem' }}>{faq.question}</span>
-                  <ChevronRight
-                    size={20}
-                    style={{
-                      color: 'rgba(255,255,255,0.2)',
-                      transform: openFaq === i ? 'rotate(90deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.3s ease'
-                    }}
-                  />
-                </div>
-
-                {/* SMOOTH EXPANDABLE ANSWER — only rendered when the admin has
-                    supplied an answer; otherwise the row simply toggles closed. */}
-                {faq.answer && (
-                  <div style={{
-                    maxHeight: openFaq === i ? '400px' : '0',
-                    overflow: 'hidden',
-                    transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                    opacity: openFaq === i ? 1 : 0,
-                    marginTop: openFaq === i ? '1rem' : '0'
-                  }}>
-                    <p style={{
-                      fontSize: '0.85rem',
-                      color: 'rgba(255,255,255,0.5)',
-                      lineHeight: '1.6',
-                      paddingTop: '0.5rem',
-                      borderTop: '1px solid rgba(255,255,255,0.05)'
-                    }}>
-                      {faq.answer}
-                    </p>
+              <Reveal key={i} delay={i * 60} direction="up">
+                <div
+                  className="admin-card-hover"
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  style={{
+                    background: '#15171A',
+                    padding: '1.5rem 2rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    cursor: 'pointer',
+                    transition: 'all 0.25s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+                    <span style={{ fontWeight: '800', fontSize: '0.92rem' }}>{faq.question}</span>
+                    <ChevronRight
+                      size={20}
+                      style={{
+                        color: 'rgba(255,255,255,0.3)',
+                        transform: openFaq === i ? 'rotate(90deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.3s ease',
+                        flexShrink: 0
+                      }}
+                    />
                   </div>
-                )}
-              </div>
+
+                  {faq.answer && (
+                    <div
+                      style={{
+                        maxHeight: openFaq === i ? '400px' : '0',
+                        overflow: 'hidden',
+                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                        opacity: openFaq === i ? 1 : 0,
+                        marginTop: openFaq === i ? '1rem' : '0'
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: '0.85rem',
+                          color: 'rgba(255,255,255,0.55)',
+                          lineHeight: '1.65',
+                          paddingTop: '0.75rem',
+                          borderTop: '1px solid rgba(255,255,255,0.06)',
+                          margin: 0
+                        }}
+                      >
+                        {faq.answer}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* 6. CONTACT SECTION */}
+      {/* ── 7. CONTACT SECTION ── */}
       <section id="contact" className="section-padding" style={{ background: '#0F1012' }}>
-        <div className="container-wide" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 'clamp(1.5rem, 5vw, 6rem)' }}>
-          <div>
-            <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '2rem' }}>CONTACT US</h2>
-            <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '3rem', lineHeight: '1.8' }}>Ready to give your car the Comar Garage treatment? Get in touch with us for quotes, appointments, or any inquiries.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div className="container-wide" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 'clamp(2rem, 5vw, 5.5rem)' }}>
+          <Reveal direction="right">
+            <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '1.5rem', fontWeight: 950 }}>
+              CONTACT US
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.55)', marginBottom: '2.5rem', lineHeight: '1.8' }}>
+              Ready to give your car the Comar Garage treatment? Get in touch with us for quotes, appointments, or any inquiries.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               {contactItems.map((item, i) => (
-                <div key={i} style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', padding: '1rem', background: '#15171A', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <div style={{ width: '50px', height: '50px', background: '#0A0B0D', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.05)' }}><item.icon size={20} style={{ color: '#E61E2A' }} /></div>
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    gap: '1.25rem',
+                    alignItems: 'center',
+                    padding: '1.1rem 1.25rem',
+                    background: '#15171A',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.06)'
+                  }}
+                >
+                  <div style={{ width: '46px', height: '46px', background: '#0A0B0D', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+                    <item.icon size={20} style={{ color: '#E61E2A' }} />
+                  </div>
                   <div>
-                    <div style={{ fontSize: '0.7rem', fontWeight: '950', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>{item.label}</div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: '800' }}>{item.val}</div>
+                    <div style={{ fontSize: '0.68rem', fontWeight: '950', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                      {item.label}
+                    </div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: '800', marginTop: '0.15rem' }}>
+                      {item.val}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-          <div style={{ background: '#15171A', padding: 'clamp(1.5rem, 5vw, 3rem)', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <form style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}><label style={{ fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', opacity: 0.5 }}>Name</label><input type="text" style={{ background: '#0A0B0D', border: '1px solid rgba(255,255,255,0.1)', padding: '1rem', borderRadius: '4px', color: 'white', fontWeight: '700' }} placeholder="John Doe" /></div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}><label style={{ fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', opacity: 0.5 }}>Email</label><input type="email" style={{ background: '#0A0B0D', border: '1px solid rgba(255,255,255,0.1)', padding: '1rem', borderRadius: '4px', color: 'white', fontWeight: '700' }} placeholder="john@example.com" /></div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}><label style={{ fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', opacity: 0.5 }}>Message</label><textarea rows="5" style={{ background: '#0A0B0D', border: '1px solid rgba(255,255,255,0.1)', padding: '1rem', borderRadius: '4px', color: 'white', fontWeight: '700', resize: 'none' }} placeholder="Tell us about your project..."></textarea></div>
-              <button style={{ padding: '1.25rem', background: '#E61E2A', color: 'white', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.9rem', textTransform: 'uppercase', cursor: 'pointer' }}>SEND MESSAGE</button>
-            </form>
-          </div>
+          </Reveal>
+
+          <Reveal direction="left" delay={150}>
+            <div style={{ background: '#15171A', padding: 'clamp(1.5rem, 5vw, 3rem)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <form style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }} onSubmit={(e) => { e.preventDefault(); }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.5px' }}>Name</label>
+                    <input
+                      type="text"
+                      style={{ background: '#0A0B0D', border: '1px solid rgba(255,255,255,0.1)', padding: '0.9rem 1rem', borderRadius: '6px', color: 'white', fontWeight: '700', outline: 'none' }}
+                      placeholder="John Doe"
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.5px' }}>Email</label>
+                    <input
+                      type="email"
+                      style={{ background: '#0A0B0D', border: '1px solid rgba(255,255,255,0.1)', padding: '0.9rem 1rem', borderRadius: '6px', color: 'white', fontWeight: '700', outline: 'none' }}
+                      placeholder="john@example.com"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.5px' }}>Message</label>
+                  <textarea
+                    rows="5"
+                    style={{ background: '#0A0B0D', border: '1px solid rgba(255,255,255,0.1)', padding: '1rem', borderRadius: '6px', color: 'white', fontWeight: '700', resize: 'none', outline: 'none' }}
+                    placeholder="Tell us about your project..."
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  style={{
+                    padding: '1.15rem',
+                    background: '#E61E2A',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: '950',
+                    fontSize: '0.9rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    cursor: 'pointer',
+                    boxShadow: '0 8px 24px rgba(230, 30, 42, 0.3)',
+                    transition: 'transform 0.15s ease'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  SEND MESSAGE
+                </button>
+              </form>
+            </div>
+          </Reveal>
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer style={{ padding: '4rem 2rem', background: '#0A0B0D', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      {/* ── 8. FOOTER ── */}
+      <footer style={{ padding: '3.5rem 2rem', background: '#0A0B0D', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '2rem' }}>
           <div>
-            <div style={{ fontWeight: '950', fontSize: '1.2rem', letterSpacing: '-1px', fontStyle: 'italic', color: '#E61E2A', textTransform: 'uppercase' }}>{businessName}</div>
-            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', marginTop: '0.5rem' }}>© 2024 COMAR GARAGE. ALL RIGHTS RESERVED.</div>
+            <div style={{ fontWeight: '950', fontSize: '1.2rem', letterSpacing: '-0.5px', fontStyle: 'italic', color: '#E61E2A', textTransform: 'uppercase' }}>
+              {businessName}
+            </div>
+            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.35)', marginTop: '0.4rem' }}>
+              © 2024 COMAR GARAGE. ALL RIGHTS RESERVED.
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: '2rem' }}>
-            <Facebook size={18} style={{ color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }} />
-            <Instagram size={18} style={{ color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }} />
-            <Twitter size={18} style={{ color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }} />
+          <div style={{ display: 'flex', gap: '1.5rem' }}>
+            <Facebook size={18} style={{ color: 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#fff'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'} />
+            <Instagram size={18} style={{ color: 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#fff'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'} />
+            <Twitter size={18} style={{ color: 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#fff'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'} />
           </div>
         </div>
       </footer>
 
       {/* LOGIN MODAL */}
       {showLoginModal && <Login isModal onClose={() => setShowLoginModal(false)} />}
-
-      {/* GLOBAL RESPONSIVE & UTILITY STYLES */}
-      <style>{`
-        .section-padding { padding: clamp(4rem, 10vw, 8rem) clamp(1rem, 5vw, 4rem); }
-        .container-wide { max-width: 1200px; margin: 0 auto; width: 100%; }
-        .nav-link:hover { color: #E61E2A !important; }
-        
-        @media (max-width: 768px) {
-          .desktop-nav { display: none !important; }
-          .logo-text { font-size: 1.2rem !important; }
-          .hero-content h1 { font-size: 2.5rem !important; }
-        }
-      `}</style>
     </div>
   );
 };

@@ -181,8 +181,6 @@ export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
   const totalAmount = Number(booking.total_amount || 0);
   const { totalPaid, balance, hasProcessedRefund } = ps;
 
-  // Fleet / corporate billing — no upfront cash expected
-  // Detect by billing_type (case-insensitive), customer_type, fleet_account_id, or fleet_group_id
   const billingType = (booking.billing_type || '').toUpperCase();
   const isFleetAccount =
     billingType === 'FLEET' ||
@@ -214,11 +212,11 @@ export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
   if (totalAmount === 0 || totalPaid === 0) {
     return {
       statusKey: 'UNPAID',
-      text: `Unpaid — ₱${totalAmount.toLocaleString()} outstanding`,
+      text: `Unpaid \u2014 \u20b1${totalAmount.toLocaleString()} outstanding`,
       shortText: 'Unpaid',
       color: '#ef4444',
       balance: totalAmount,
-      subtext: `Full amount ₱${totalAmount.toLocaleString()} outstanding`,
+      subtext: `Full amount \u20b1${totalAmount.toLocaleString()} outstanding`,
     };
   }
 
@@ -232,13 +230,12 @@ export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
     };
   }
 
-  // 0 < totalPaid < totalAmount
   return {
     statusKey: 'PARTIALLY_PAID',
-    text: `Partially Paid — ₱${balance.toLocaleString()} remaining`,
+    text: `Partially Paid \u2014 \u20b1${balance.toLocaleString()} remaining`,
     shortText: 'Partial',
     color: '#f59e0b',
     balance,
-    subtext: `₱${balance.toLocaleString()} remaining`,
+    subtext: `\u20b1${balance.toLocaleString()} remaining`,
   };
 };
