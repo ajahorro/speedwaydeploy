@@ -18,6 +18,7 @@ import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
 import SegmentedTimePicker from '../../components/AdminSchedule/SegmentedTimePicker';
 import { BACKEND_URL } from '../../config/api';
+import { writeAdminAuditLog } from '../../services/auditLogService';
 
 // ── TAB DEFINITIONS: THE SINGLE SOURCE OF TRUTH ────────────────────────────
 //
@@ -749,7 +750,17 @@ export default function BusinessHub() {
 
   const canSave = (section) => !saving && isDirty(section) && sectionValid(section);
 
+  const hasRestrictionChanges = Boolean(
+    restrictionForm.reason.trim()
+    || restrictionForm.scope !== 'day'
+    || restrictionDate !== restrictionForm.startDate
+    || restrictionForm.endDate !== restrictionDate
+    || restrictionForm.startTime !== '08:00:00'
+    || restrictionForm.endTime !== '17:00:00'
+  );
+
   const handleCommitBlock = async () => {
+    if (!hasRestrictionChanges) return;
     const dateForBlock = restrictionForm.scope === 'range' ? restrictionForm.startDate : restrictionDate;
     const payload = restrictionForm.scope === 'range'
       ? {
@@ -815,6 +826,11 @@ export default function BusinessHub() {
       }
 
       setMessage({ type: 'success', text: 'Resource restriction saved and now enforced in the booking rules.' });
+      await writeAdminAuditLog({
+        actionType: 'SCHEDULE_SLOT_BLOCKED',
+        details: `Created a ${scopeLabel} shop closure for ${dateForBlock}.`,
+        metadata: { scope: restrictionForm.scope, date: dateForBlock, payload }
+      });
       setRestrictionForm((prev) => ({ ...prev, reason: '', scope: prev.scope === 'range' ? 'day' : prev.scope }));
       await fetchBlockedSlotsForDate(restrictionForm.scope === 'range' ? dateForBlock : restrictionDate);
     } catch (err) {
@@ -853,6 +869,11 @@ export default function BusinessHub() {
       }
 
       setMessage({ type: 'success', text: 'Restriction lifted successfully.' });
+      await writeAdminAuditLog({
+        actionType: 'SCHEDULE_SLOT_UNBLOCKED',
+        details: `Removed the shop closure for ${restrictionDate}.`,
+        metadata: { block_id: id, date: restrictionDate }
+      });
       await fetchBlockedSlotsForDate(restrictionDate);
     } catch (err) {
       console.error('Block delete failed:', err);
@@ -937,6 +958,11 @@ export default function BusinessHub() {
       // (react-hot-toast) instead of a bespoke inline banner.
       toast.success('Business settings saved successfully!');
       setMessage({ type: '', text: '' });
+      await writeAdminAuditLog({
+        actionType: 'BUSINESS_CONFIG_UPDATED',
+        details: `Updated Business Hub ${currentTab} settings.`,
+        metadata: { section: currentTab, fields: Object.keys(primaryPayload) }
+      });
 
       // Announce newly-added catalog items to opted-in customers only. We diff
       // the just-saved form against the previous baseline (pristine) so ONLY
@@ -1847,6 +1873,16 @@ export default function BusinessHub() {
       });
       await refreshConfig();
       setMessage({ type: 'success', text: successText });
+      await writeAdminAuditLog({
+        actionType: 'SERVICE_CATALOG_UPDATED',
+        details: successText,
+        metadata: {
+          custom_service_count: nextCustom.length,
+          vehicle_type_count: nextVehicle.length,
+          archived_service_count: nextArchivedIds.length,
+          deleted_service_count: nextDeletedIds.length
+        }
+      });
     } catch (err) {
       console.error('Catalog save failed:', err);
       setMessage({ type: 'error', text: err.message || 'Failed to save service catalog changes.' });
@@ -2730,12 +2766,15 @@ export default function BusinessHub() {
                   <button
                     type="button"
                     onClick={handleCommitBlock}
+                    disabled={!hasRestrictionChanges}
+                    aria-disabled={!hasRestrictionChanges}
                     style={{
                       ...buttonBase,
-                      background: 'var(--admin-brand)',
-                      color: '#fff',
-                      border: '1px solid var(--admin-brand)',
-                      cursor: 'pointer',
+                      background: hasRestrictionChanges ? 'var(--admin-brand)' : 'var(--admin-input-bg, var(--admin-bg))',
+                      color: hasRestrictionChanges ? '#fff' : 'var(--admin-text-secondary)',
+                      border: `1px solid ${hasRestrictionChanges ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
+                      cursor: hasRestrictionChanges ? 'pointer' : 'not-allowed',
+                      opacity: hasRestrictionChanges ? 1 : 0.6,
                       minWidth: '180px'
                     }}
                   >

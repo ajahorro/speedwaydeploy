@@ -8,6 +8,7 @@ import { logger } from '../../utils/logger';
 import { supabase } from '../../lib/supabase';
 // Shared backend-origin resolver (see config/api.js).
 import { BACKEND_URL } from '../../config/api';
+import { writeAdminAuditLog } from '../../services/auditLogService';
 
 /**
  * PromoManager (System A)
@@ -93,9 +94,7 @@ const defaultPromoDraft = {
   validFrom: new Date().toISOString().slice(0, 16),
   validUntil: '',
   neverExpires: false,
-  vehicleServiceMatrix: {
-    Sedan: ['Supreme Wash', 'Regular Wash']
-  }
+    vehicleServiceMatrix: {}
 };
 
 const PromoManager = ({ isMobile: isMobileProp = false }) => {
@@ -189,8 +188,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
           setActiveVehiclePopover(null);
         }
       } else {
-        const avail = getAvailableServicesForVehicle(vehicle).map(s => s.name);
-        matrix[vehicle] = avail;
+        matrix[vehicle] = [];
         setActiveVehiclePopover(vehicle);
       }
       return { ...prev, vehicleServiceMatrix: matrix };
@@ -359,6 +357,11 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       } else {
         syncPromoRules([nextRule, ...promoRules]);
       }
+      await writeAdminAuditLog({
+        actionType: 'PROMO_CREATED',
+        details: `Created promo "${nextRule.name}".`,
+        metadata: { promo_id: nextRule.id, mode: nextRule.mode, vehicle_types: nextRule.vehicleTypes }
+      });
     } catch (err) {
       // FAIL-CLOSED: an unreachable backend must NOT be treated as success. The
       // previous code optimistically synced the promo locally and then showed a
@@ -406,6 +409,11 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
           return;
         }
         syncPromoRules(nextRules);
+        await writeAdminAuditLog({
+          actionType: 'PROMO_DEACTIVATED',
+          details: `Deactivated promo "${target.name}".`,
+          metadata: { promo_id: promoId }
+        });
         toast.success(`Promo "${target.name}" removed.`);
       }
     });
