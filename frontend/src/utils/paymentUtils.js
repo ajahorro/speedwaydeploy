@@ -286,3 +286,4 @@ export const derivePaymentStatusBadge = (booking = {}, paymentSummary = null) =>
     balance
   };
 };
+

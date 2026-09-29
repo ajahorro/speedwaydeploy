@@ -1298,6 +1298,7 @@ const AdminBookingDetails = () => {
   // 🚀 DERIVED STATUS & LOCK LOGIC
   const vehicleStatuses = (vehicles || []).map(v => v.status?.toUpperCase());
   const anyUnitStarted = vehicleStatuses.includes('IN_PROGRESS');
+  const allUnitsFinished = vehicleStatuses.length > 0 && vehicleStatuses.every(s => s === 'COMPLETED' || s === 'CANCELLED');
   const isFullySettled = (booking?.total_amount || 0) > 0 && totalPaid >= (booking?.total_amount || 0);
 
   // Package plan frozen onto the booking at creation (see bookingService notes:
