@@ -194,6 +194,7 @@ const priceServiceName = (name) => String(name || '').trim().toLowerCase();
 
 const CUSTOM_SERVICES_CACHE_KEY = 'speedway_custom_services';
 const ARCHIVED_SERVICE_IDS_CACHE_KEY = 'speedway_archived_service_ids';
+const DELETED_SERVICE_IDS_CACHE_KEY = 'speedway_deleted_service_ids';
 
 /**
  * Read the admin's durable tombstone list of suppressed service ids.
@@ -229,6 +230,29 @@ export const setArchivedServiceIds = (ids) => {
     window.__speedway_archived_service_ids_cache = list;
   }
   return list;
+};
+
+export const setDeletedServiceIds = (ids) => {
+  const list = Array.isArray(ids) ? ids.map((v) => String(v || '')).filter(Boolean) : [];
+  if (typeof window !== 'undefined') {
+    window.__speedway_deleted_service_ids_cache = list;
+  }
+  return list;
+};
+
+const readDeletedServiceIds = () => {
+  if (typeof window === 'undefined') return [];
+
+  const collect = (value) => (Array.isArray(value) ? value.map((v) => String(v || '')).filter(Boolean) : []);
+
+  try {
+    const raw = window.localStorage.getItem(DELETED_SERVICE_IDS_CACHE_KEY);
+    if (raw) return collect(JSON.parse(raw));
+  } catch {
+    // A corrupt delete cache must not break the catalog.
+  }
+
+  return collect(window.__speedway_deleted_service_ids_cache);
 };
 
 /**
@@ -315,7 +339,8 @@ const buildServiceCatalog = () => {
   // Section 3: tombstones apply to the built-in catalog even when no custom row
   // exists at all, so this is read BEFORE the early-return below.
   const tombstonedIds = new Set(readArchivedServiceIds());
-  if (!custom.length && !tombstonedIds.size) return SERVICES_DATA;
+  const deletedIds = new Set(readDeletedServiceIds());
+  if (!custom.length && !tombstonedIds.size && !deletedIds.size) return SERVICES_DATA;
 
   // Group custom rows by the category they should appear under.
   const overridesById = new Map();   // id -> adapted entry
@@ -361,6 +386,7 @@ const buildServiceCatalog = () => {
         // Section 3: durable tombstone. Applies regardless of id drift between a
         // custom suppression row and the built-in it was meant to remove.
         if (tombstonedIds.has(builtIn.id)) return false;
+        if (deletedIds.has(builtIn.id)) return false;
         const types = Object.keys(builtIn.prices || {});
         // Suppress only when EVERY vehicle category it serves is suppressed —
         // archiving 'Regular Wash' for Sedan must not remove the SUV variant.

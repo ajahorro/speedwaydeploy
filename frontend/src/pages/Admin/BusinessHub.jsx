@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Building, Clock, Wrench, Tag, Save, AlertCircle, CheckCircle, Check,
+  Building, Wrench, Tag, Save, AlertCircle, CheckCircle, Check,
   Plus, X, Trash2, Archive, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { useConfig } from '../../context/ConfigContext';
@@ -13,7 +13,7 @@ import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
 import { validateQrRecipients } from '../../services/qrSecurityService';
 import { buildBusinessConfigUpdatePayload, stripUnsupportedBusinessConfigColumns } from '../../services/businessConfigPayload';
 import { sanitizeAlphaNum, sanitizeByFieldType, toTitleCase, VEHICLE_TYPE_OPTIONS } from '../../config/constants';
-import { SERVICES_DATA, setArchivedServiceIds as setArchivedServiceIdsCache } from '../../data/servicesCatalog';
+import { SERVICES_DATA, setArchivedServiceIds as setArchivedServiceIdsCache, setDeletedServiceIds as setDeletedServiceIdsCache } from '../../data/servicesCatalog';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
 import SegmentedTimePicker from '../../components/AdminSchedule/SegmentedTimePicker';
@@ -65,7 +65,7 @@ const SECTION_FIELDS = {
     'opening_hour', 'closing_hour', 'is_24_7', 'slots_per_hour', 'max_vehicles_per_staff',
     'booking_lead_time_minutes', 'max_advance_days', 'closed_weekdays', 'enforce_capacity'
   ],
-  services: ['custom_services', 'vehicle_types', 'archived_service_ids'],
+  services: ['custom_services', 'vehicle_types', 'archived_service_ids', 'deleted_service_ids'],
   faqs: ['faqs']
 };
 
@@ -136,8 +136,9 @@ const getVehicleTypeLabel = (value = '') => {
 // resurrected it at its original price — the "delete says success but it comes
 // back" bug. These ids are persisted alongside the service list so the
 // suppression survives the regeneration unconditionally.
-const flattenDefaultServices = (archivedIds = []) => {
+const flattenDefaultServices = (archivedIds = [], deletedIds = []) => {
   const tombstoned = new Set((archivedIds || []).map((id) => String(id || '')).filter(Boolean));
+  const deleted = new Set((deletedIds || []).map((id) => String(id || '')).filter(Boolean));
   const rows = [];
   Object.values(SERVICES_DATA || {}).forEach((services) => {
     (services || []).forEach((service) => {
@@ -153,6 +154,10 @@ const flattenDefaultServices = (archivedIds = []) => {
         const isTombstoned = tombstoned.has(id)
           || tombstoned.has(String(service.id || ''))
           || tombstoned.has(`${service.name}-${normalizedType}`);
+        const isDeleted = deleted.has(id)
+          || deleted.has(String(service.id || ''))
+          || deleted.has(`${service.name}-${normalizedType}`);
+        if (isDeleted) return;
         rows.push({
           id,
           name: service.name,
@@ -176,8 +181,8 @@ const flattenDefaultServices = (archivedIds = []) => {
   return rows;
 };
 
-const mergeCatalogServices = (customServices = [], archivedIds = []) => {
-  const defaults = flattenDefaultServices(archivedIds);
+const mergeCatalogServices = (customServices = [], archivedIds = [], deletedIds = []) => {
+  const defaults = flattenDefaultServices(archivedIds, deletedIds);
   const custom = Array.isArray(customServices) ? customServices.filter(Boolean) : [];
   const merged = [...defaults, ...custom];
   const unique = new Map();
@@ -454,6 +459,7 @@ export default function BusinessHub() {
   // session. Persisted to business_config.archived_service_ids on save so it is
   // restored on the next load (and applied by flattenDefaultServices).
   const [archivedServiceIds, setArchivedServiceIds] = useState([]);
+  const [deletedServiceIds, setDeletedServiceIds] = useState([]);
   // Tier 2.8: FAQ catalog editor state (add / edit / delete / reorder).
   const [faqForm, setFaqForm] = useState(EMPTY_NEW_FAQ);
   const [editingFaqId, setEditingFaqId] = useState(null);
@@ -483,6 +489,7 @@ export default function BusinessHub() {
     custom_services: [],
     // Section 3: ids of suppressed built-in services (durable delete tombstone).
     archived_service_ids: [],
+    deleted_service_ids: [],
     vehicle_types: [...DEFAULT_VEHICLE_TYPES],
     faqs: []
   });
@@ -543,16 +550,22 @@ export default function BusinessHub() {
         const configuredArchivedIds = Array.isArray(data.archived_service_ids)
           ? data.archived_service_ids.filter(Boolean)
           : [];
+        const configuredDeletedIds = Array.isArray(data.deleted_service_ids)
+          ? data.deleted_service_ids.filter(Boolean)
+          : [];
         setArchivedServiceIds(configuredArchivedIds);
+        setDeletedServiceIds(configuredDeletedIds);
         // Mirror the tombstone into the pricing cache BEFORE anything renders, so
         // the booking wizard and this page agree on which built-ins are suppressed.
         try {
           localStorage.setItem('speedway_archived_service_ids', JSON.stringify(configuredArchivedIds));
+          localStorage.setItem('speedway_deleted_service_ids', JSON.stringify(configuredDeletedIds));
           setArchivedServiceIdsCache(configuredArchivedIds);
+          setDeletedServiceIdsCache(configuredDeletedIds);
         } catch { /* storage unavailable — the DB value still governs the next load */ }
         const mergedServices = configuredServices.length > 0
           ? configuredServices
-          : flattenDefaultServices(configuredArchivedIds);
+          : flattenDefaultServices(configuredArchivedIds, configuredDeletedIds);
         const merged = {
           business_name: data.business_name || '',
           contact_number: data.contact_number || '',
@@ -574,6 +587,7 @@ export default function BusinessHub() {
           enforce_capacity: data.enforce_capacity !== false,
           custom_services: mergedServices,
           archived_service_ids: configuredArchivedIds,
+          deleted_service_ids: configuredDeletedIds,
           vehicle_types: Array.isArray(data.vehicle_types) && data.vehicle_types.length
             ? data.vehicle_types
             : [...DEFAULT_VEHICLE_TYPES],
@@ -687,18 +701,6 @@ export default function BusinessHub() {
       // Task B: profile requires a business name AND a complete QR recipient set.
       const qr = validateQrRecipients(businessForm);
       return Boolean(String(businessForm.business_name || '').trim()) && qr.ok;
-    }
-    if (section === 'hours') {
-      const slots = Number(businessForm.slots_per_hour);
-      const maxUnits = Number(businessForm.max_vehicles_per_staff);
-      // 24/7 ignores the finite window, so the opening<closing ordering only
-      // applies when the shop is NOT open 24 hours.
-      if (businessForm.is_24_7 === true) return slots >= 1 && maxUnits >= 1;
-      const opening = String(businessForm.opening_hour || '').trim();
-      const closing = String(businessForm.closing_hour || '').trim();
-      // Closing must be strictly after opening so the shop never opens "backwards".
-      const ordered = opening.length > 0 && closing.length > 0 && closing > opening;
-      return ordered && slots >= 1 && maxUnits >= 1;
     }
     if (section === 'schedule') {
       // Mirror the DB CHECK constraints from migration 20260925000001 so an
@@ -893,6 +895,7 @@ export default function BusinessHub() {
         supportsCustomServices: true,
         supportsVehicleTypes: true,
         supportsArchivedServiceIds: true,
+        supportsDeletedServiceIds: true,
         qrConfigComplete,
       });
 
@@ -1159,6 +1162,11 @@ export default function BusinessHub() {
     return (archivedServiceIds || []).filter((id) => !remove.has(String(id)));
   };
 
+  const tombstoneDeleted = (ids) => {
+    const add = (ids || []).flatMap(expandTombstoneIds);
+    return [...new Set([...(deletedServiceIds || []), ...add])];
+  };
+
   // ── Section 1: master edit-mode selection helpers ──────────────────────────
   const exitServiceEditMode = () => {
     setServiceEditMode(false);
@@ -1199,8 +1207,12 @@ export default function BusinessHub() {
   // `frontend/scripts/check-hook-order.cjs` guards this class of mistake; run it
   // after any reordering of hooks in this file.
   const allLoadedServices = useMemo(
-    () => mergeCatalogServices(businessForm.custom_services || [], businessForm.archived_service_ids || []),
-    [businessForm.custom_services, businessForm.archived_service_ids]
+    () => mergeCatalogServices(
+      businessForm.custom_services || [],
+      businessForm.archived_service_ids || [],
+      businessForm.deleted_service_ids || []
+    ),
+    [businessForm.custom_services, businessForm.archived_service_ids, businessForm.deleted_service_ids]
   );
 
   // Resolve checked ids back to the live service rows, so batch actions always
@@ -1374,7 +1386,10 @@ export default function BusinessHub() {
       next,
       businessForm.vehicle_types,
       `${list.length} service(s) deleted successfully.`,
-      { archivedServiceIds: tombstoneArchived([...byId.keys()]) }
+      {
+        archivedServiceIds,
+        deletedServiceIds: tombstoneDeleted([...byId.keys()])
+      }
     );
     if (editingServiceId && byId.has(String(editingServiceId))) {
       setEditingServiceId(null);
@@ -1494,7 +1509,7 @@ export default function BusinessHub() {
         next,
         businessForm.vehicle_types,
         `"${service.name}" is linked to ${referenceCount || 'existing'} booking(s), so it was archived instead of deleted to preserve booking history.`,
-        { archivedServiceIds: tombstoneArchived([service.id]) }
+        { archivedServiceIds, deletedServiceIds: tombstoneDeleted([service.id]) }
       );
     } else {
       const next = (businessForm.custom_services || []).filter((s) => s.id !== service.id);
@@ -1664,14 +1679,18 @@ export default function BusinessHub() {
   };
 
   const filteredServices = useMemo(() => {
-    const services = mergeCatalogServices(businessForm.custom_services || [], businessForm.archived_service_ids || []);
+    const services = mergeCatalogServices(
+      businessForm.custom_services || [],
+      businessForm.archived_service_ids || [],
+      businessForm.deleted_service_ids || []
+    );
     if (selectedVehicleFilter === 'All') return services;
     const targetKey = normalizeVehicleCategoryKey(selectedVehicleFilter);
     return services.filter((service) => {
       const serviceTypes = normalizeVehicleTypes(service).map((type) => normalizeVehicleCategoryKey(type));
       return serviceTypes.includes(targetKey);
     });
-  }, [businessForm.custom_services, businessForm.archived_service_ids, selectedVehicleFilter]);
+  }, [businessForm.custom_services, businessForm.archived_service_ids, businessForm.deleted_service_ids, selectedVehicleFilter]);
 
   // `options.archivedServiceIds` replaces the Section 3 tombstone list. When it is
   // omitted the CURRENT list is re-sent unchanged, so every existing catalog save
@@ -1680,6 +1699,9 @@ export default function BusinessHub() {
     const archivedIdsForSave = Array.isArray(options.archivedServiceIds)
       ? options.archivedServiceIds.filter(Boolean)
       : archivedServiceIds;
+    const deletedIdsForSave = Array.isArray(options.deletedServiceIds)
+      ? options.deletedServiceIds.filter(Boolean)
+      : deletedServiceIds;
     try {
       let id = recordId;
       if (!id) {
@@ -1699,11 +1721,13 @@ export default function BusinessHub() {
         custom_services: nextCustomServices || [],
         vehicle_types: normalizedVehicleTypes,
         archived_service_ids: archivedIdsForSave,
+        deleted_service_ids: deletedIdsForSave,
       }, {
         supportsFaqs: true,
         supportsCustomServices: true,
         supportsVehicleTypes: true,
         supportsArchivedServiceIds: true,
+        supportsDeletedServiceIds: true,
       });
 
       let { error } = await supabase
@@ -1740,23 +1764,31 @@ export default function BusinessHub() {
       const nextArchivedIds = Array.isArray(primaryPayload.archived_service_ids)
         ? primaryPayload.archived_service_ids.filter(Boolean)
         : archivedIdsForSave;
+      const nextDeletedIds = Array.isArray(primaryPayload.deleted_service_ids)
+        ? primaryPayload.deleted_service_ids.filter(Boolean)
+        : deletedIdsForSave;
       try {
         localStorage.setItem('speedway_archived_service_ids', JSON.stringify(nextArchivedIds));
+        localStorage.setItem('speedway_deleted_service_ids', JSON.stringify(nextDeletedIds));
         setArchivedServiceIdsCache(nextArchivedIds);
+        setDeletedServiceIdsCache(nextDeletedIds);
       } catch { /* storage unavailable — the DB value still governs the next load */ }
       setArchivedServiceIds(nextArchivedIds);
+      setDeletedServiceIds(nextDeletedIds);
 
       setBusinessForm((prev) => ({
         ...prev,
         custom_services: nextCustom,
         vehicle_types: nextVehicle,
-        archived_service_ids: nextArchivedIds
+        archived_service_ids: nextArchivedIds,
+        deleted_service_ids: nextDeletedIds
       }));
       setPristine({
         ...businessForm,
         custom_services: nextCustom,
         vehicle_types: nextVehicle,
-        archived_service_ids: nextArchivedIds
+        archived_service_ids: nextArchivedIds,
+        deleted_service_ids: nextDeletedIds
       });
       await refreshConfig();
       setMessage({ type: 'success', text: successText });
@@ -1942,7 +1974,6 @@ export default function BusinessHub() {
   // that constant stays serialisable data.
   const TAB_ICONS = {
     profile: Building,
-    hours: Clock,
     schedule: CalendarClock,
     services: Wrench,
     promos: Tag,

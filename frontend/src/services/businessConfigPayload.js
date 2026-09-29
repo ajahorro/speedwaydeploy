@@ -8,6 +8,7 @@ export const buildBusinessConfigUpdatePayload = (form, {
   supportsCustomServices = false,
   supportsVehicleTypes = false,
   supportsArchivedServiceIds = false,
+  supportsDeletedServiceIds = false,
   qrConfigComplete = false,
 } = {}) => {
   const payload = {
@@ -53,6 +54,12 @@ export const buildBusinessConfigUpdatePayload = (form, {
       : [];
   }
 
+  if (supportsDeletedServiceIds) {
+    payload.deleted_service_ids = Array.isArray(form.deleted_service_ids)
+      ? form.deleted_service_ids.filter(Boolean)
+      : [];
+  }
+
   if (supportsFaqs) {
     payload.faqs = form.faqs;
   }
@@ -66,6 +73,7 @@ export const stripUnsupportedBusinessConfigColumns = (payload, error) => {
   if (isMissingColumnError(error, 'vehicle_types')) unsupported.push('vehicle_types');
   if (isMissingColumnError(error, 'faqs')) unsupported.push('faqs');
   if (isMissingColumnError(error, 'archived_service_ids')) unsupported.push('archived_service_ids');
+  if (isMissingColumnError(error, 'deleted_service_ids')) unsupported.push('deleted_service_ids');
 
   if (isMissingColumnError(error, 'is_24_7')) unsupported.push('is_24_7');
 

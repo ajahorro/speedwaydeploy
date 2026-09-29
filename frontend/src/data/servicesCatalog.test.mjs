@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildFrozenServiceSnapshot, buildBookingServiceSnapshot, getServiceCatalog } from './servicesCatalog.js';
+import { buildFrozenServiceSnapshot, buildBookingServiceSnapshot, getServiceCatalog, setDeletedServiceIds } from './servicesCatalog.js';
 
 test('buildFrozenServiceSnapshot preserves a frozen booking-time record', () => {
   const snapshot = buildFrozenServiceSnapshot({
@@ -57,6 +57,31 @@ test('getServiceCatalog keeps only active custom services and respects vehicle a
     assert.equal(customEntries[0].name, 'Live Service');
     assert.equal(customEntries[0].prices.SUV, 600);
     assert.equal(customEntries[0].prices.Sedan, undefined);
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.localStorage = previousStorage;
+  }
+});
+
+test('deleted built-ins stay hidden while archived state remains separate', () => {
+  const previousWindow = globalThis.window;
+  const previousStorage = globalThis.localStorage;
+  const store = {
+    speedway_custom_services: '[]',
+    speedway_archived_service_ids: '[]',
+    speedway_deleted_service_ids: JSON.stringify(['wash_1']),
+  };
+  const mockStorage = {
+    getItem: (key) => store[key] || null,
+    setItem: (key, value) => { store[key] = String(value); },
+  };
+  globalThis.window = { localStorage: mockStorage };
+  globalThis.localStorage = mockStorage;
+
+  try {
+    setDeletedServiceIds(['wash_1']);
+    const catalog = getServiceCatalog();
+    assert.equal(Object.values(catalog).flat().some((service) => service.name === 'Regular Wash'), false);
   } finally {
     globalThis.window = previousWindow;
     globalThis.localStorage = previousStorage;
