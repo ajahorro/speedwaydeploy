@@ -55,12 +55,13 @@ const describePasswordError = (err) => {
 };
 
 /**
- * Clears the caller's own first-login flag, tolerating a missing/ungranted RPC.
+ * Clears the caller's own first-login flag through the owner-only RPCs.
  *
  * Returns true when the flag is confirmed clear, false when it could not be
  * confirmed. It never throws: the password has ALREADY been changed by this
  * point, so propagating here would tell the user the operation failed when it
- * did not, and would leave the gate rendered with no way forward.
+ * did not. Direct profile updates are intentionally not attempted because the
+ * database trigger protects this column from normal authenticated writes.
  */
 const clearFirstLoginFlag = async () => {
   // Preferred: the tolerant, idempotent repair RPC (migration 20261019000003).
@@ -71,16 +72,7 @@ const clearFirstLoginFlag = async () => {
   const original = await supabase.rpc('complete_first_login_password_change');
   if (!original.error) return true;
 
-  // Both unavailable: repair the row directly. RLS permits a user to update
-  // their OWN profile, so this works even when the RPCs were never migrated.
-  const uid = (await supabase.auth.getUser()).data?.user?.id;
-  if (uid) {
-    const { error: directError } = await supabase
-      .from('profiles')
-      .update({ must_change_password: false })
-      .eq('id', uid);
-    if (!directError) return true;
-  }
+  // The privileged-column trigger correctly rejects direct authenticated writes.
   return false;
 };
 
