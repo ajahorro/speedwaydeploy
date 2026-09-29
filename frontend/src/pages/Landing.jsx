@@ -413,7 +413,7 @@ const Landing = () => {
             <img
               src="/comarlogo-Photoroom.png"
               alt={businessName}
-              style={{ width: 'clamp(116px, 17vw, 176px)', height: '48px', objectFit: 'contain', objectPosition: 'left center', display: 'block' }}
+              style={{ width: 'clamp(160px, 14vw, 190px)', height: 'auto', display: 'block' }}
             />
           </div>
         </div>
