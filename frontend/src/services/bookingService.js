@@ -310,7 +310,7 @@ export const createBooking = async (customerId, bookingData) => {
     const payMethod = bookingData.payment?.method || 'Cash';
     const detectedRef = bookingData.payment?.ocrData?.referenceNo || null;
     const manualRef = bookingData.payment?.manualRefNumber || bookingData.payment?.referenceNumber || null;
-    const finalRefNumber = manualRef || detectedRef || '';
+    const finalRefNumber = String(manualRef || detectedRef || '').trim();
 
     rpcPayment = {
       amount: paymentAmount,
@@ -320,7 +320,7 @@ export const createBooking = async (customerId, bookingData) => {
       verified_by: bookingData.adminActorId || null,
       verified_at: new Date().toISOString(),
       receipt_url: receiptPublicUrl,
-      reference_number: finalRefNumber,
+      reference_number: finalRefNumber || null,
       detected_ref: detectedRef,
       detected_amount: bookingData.payment?.ocrData?.amount || null,
       notes: `ADMIN_CONFIRMED|METHOD:${payMethod}|TYPE:${bookingData.payment?.type || 'Full'}|AMOUNT:${paymentAmount}${finalRefNumber ? `|REF:${finalRefNumber}` : ''}`
@@ -388,7 +388,7 @@ export const createBooking = async (customerId, bookingData) => {
       transfer_fee: transferFee,
       net_credit: netCredit,
       notes: `PAYMENT_DIGITAL|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${paymentAmount}|OCR_NET:${detectedAmount > 0 ? detectedAmount : 'NULL'}|GROSS:${detectedGross > 0 ? detectedGross : 'NULL'}|FEE:${transferFee}|NET:${netCredit}`,
-      reference_number: detectedReference || ''
+      reference_number: String(detectedReference || '').trim() || null
     };
   }
 
@@ -437,6 +437,9 @@ export const createBooking = async (customerId, bookingData) => {
 
   if (rpcError) {
     console.error('Atomic Booking RPC Error:', rpcError);
+    if (rpcError.code === '23505' && /unique_reference_number/i.test(rpcError.message || '')) {
+      throw new Error('This payment transaction reference has already been used. Please check the receipt or enter the correct reference.');
+    }
     throw new Error(`Master Booking Error: ${rpcError.message}`);
   }
 

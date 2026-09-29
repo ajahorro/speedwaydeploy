@@ -37,6 +37,7 @@ const promoSnapshotFile = '20261016000004_create_booking_atomic_promo_snapshot.s
 // OCR is authoritative for settled ledger totals when the submitted amount is stale.
 const financialLedgerFile = '20261019000005_booking_financial_ledger.sql';
 const ocrTruthLedgerFile = '20261019000006_ocr_truth_settled_ledger.sql';
+const emptyPaymentReferenceFile = '20261021000007_normalize_empty_payment_references.sql';
 
 // Shims mirror the REAL columns probed from the live Supabase DB.
 const SHIMS = `
@@ -156,6 +157,21 @@ const count = async (db, table, where = '') =>
   try {
     await db.exec(SHIMS);
     console.log('-- shims applied --');
+
+    await db.exec('create unique index unique_reference_number on public.payments (reference_number)');
+    await db.exec(fs.readFileSync(path.join(dir, emptyPaymentReferenceFile), 'utf8'));
+    await db.query("insert into public.payments (reference_number) values (''), ('   ')");
+    const blankReferenceRows = await q(db, 'select reference_number from public.payments order by created_at');
+    asserts.push(['blank payment references normalize to NULL and may repeat', blankReferenceRows.length === 2 && blankReferenceRows.every((row) => row.reference_number === null)]);
+
+    await db.query("insert into public.payments (reference_number) values ('TXN-UNIQUE-PROBE')");
+    let duplicateReferenceRejected = false;
+    try {
+      await db.query("insert into public.payments (reference_number) values ('TXN-UNIQUE-PROBE')");
+    } catch (error) {
+      duplicateReferenceRejected = /unique_reference_number/.test(error.message);
+    }
+    asserts.push(['nonempty payment references remain unique', duplicateReferenceRejected]);
 
     // Apply the migrations verbatim (parse + execute check).
     await db.exec(fs.readFileSync(path.join(dir, rpcFile), 'utf8'));
