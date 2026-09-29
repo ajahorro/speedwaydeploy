@@ -203,11 +203,16 @@ export const AuthProvider = ({ children }) => {
       };
     }
 
-    // ── Section 1.2: DB-backed lockout ────────────────────────────────────────
-    // The lock lives in the DB (profiles.locked_until, evaluated as NOW() <
-    // locked_until), NOT in localStorage. Refreshing or reopening the browser
-    // therefore cannot clear it. We check BEFORE submitting credentials so a
-    // locked user never burns an auth round-trip.
+    // ── Section 1.2: DB-backed, STAGED lockout ───────────────────────────────
+    // The ladder lives in the DB (profiles.lockout_stage / locked_until,
+    // evaluated as NOW() < locked_until), NOT in localStorage. Refreshing or
+    // reopening the browser therefore cannot clear it. We check BEFORE
+    // submitting credentials so a locked user never burns an auth round-trip.
+    //
+    // The ladder is: failures 1-4 free → 5th locks 5 min → 6th free, 7th locks
+    // 10 min → 8th escalates (security notice + reset email). The rungs live in
+    // `login_lockout_policy` so the copy below states what the DB will actually
+    // do rather than hard-coding a second, drifting copy of the numbers.
     //
     // Skipped entirely when the lockout RPCs are not deployed, so an un-migrated
     // database does not spray 404s into the console on every login.
@@ -217,6 +222,16 @@ export const AuthProvider = ({ children }) => {
         const { data: lockState } = await supabase.rpc('check_login_lock', { p_email: normalizedEmail });
         if (lockState?.locked) {
           const minutes = lockState.minutes_left ?? Math.ceil((lockState.seconds_left || 0) / 60);
+          // Once the escalation rung has been reached, "wait N minutes and try
+          // again" is the WRONG advice — the account is held for an hour and the
+          // owner has been emailed. Say that instead, or they will sit refreshing
+          // the login form for an hour waiting for a lock that never lifts.
+          if (lockState.security_notice_sent || lockState.escalates_next) {
+            return {
+              data: { user: null },
+              error: new Error('This account is temporarily locked after repeated failed attempts. A security notice with a password-reset link has been emailed to you — check your inbox to reset your password.')
+            };
+          }
           return {
             data: { user: null },
             error: new Error(`Account temporarily locked. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`)
@@ -258,18 +273,45 @@ export const AuthProvider = ({ children }) => {
         message: authError?.message
       });
 
-      // Record the failure in the DB. At 5 consecutive failures the RPC sets
-      // locked_until = now() + 20 minutes and reports the lock back to us.
+      // Record the failure in the DB. The staged ladder decides what happens:
+      // a short lock at 5 then 10 minutes, or — past the last rung — an
+      // escalation that emails a security notice + password-reset link and holds
+      // the account for an hour. The wording here must match what the RPC
+      // actually did, because this string is the only thing the user sees.
       let failureError = new Error('Invalid login credentials.');
       if (lockoutAvailable) {
         try {
-          const { data: lockState } = await supabase.rpc('register_failed_login', { p_email: normalizedEmail });
-          if (lockState?.locked) {
-            const minutes = lockState.minutes_left ?? 20;
-            failureError = new Error(`Too many failed login attempts. Account locked for ${minutes} minutes.`);
+          const { data: lockState } = await supabase.rpc('register_failed_login_staged', { p_email: normalizedEmail });
+
+          if (lockState?.escalated) {
+            // THE SECURITY NOTICE. The email is queued server-side (the backend
+            // mailer drains `login_security_notices`), so this only needs to
+            // tell the truth: someone tried to sign in as this account, a reset
+            // link is on its way, and — if it was not you — ignore it but change
+            // your password. `notice_queued` is false when a previous failure in
+            // this episode already sent the mail, so we must not promise a second
+            // email that will never arrive.
+            failureError = new Error(lockState.notice_queued
+              ? 'Too many incorrect passwords. For your security, we have emailed a notice and a password-reset link to this account. If you did not try to sign in, you can ignore it — but please change your password.'
+              : 'Too many incorrect passwords. This account is temporarily locked. Check your email for the password-reset link we sent earlier.');
+          } else if (lockState?.locked) {
+            const minutes = lockState.minutes_left ?? 5;
+            // Say what comes NEXT as well as what is happening now, so the user
+            // is not surprised by the escalation.
+            const nextHint = lockState.next_stage_escalates
+              ? ' One more wrong password will lock the account and email you a password-reset link.'
+              : (lockState.next_stage_lock_minutes
+                ? ` ${lockState.next_stage_attempts_allowed > 0 ? '' : 'One more wrong password '}then waits ${lockState.next_stage_lock_minutes} minutes.`
+                : '');
+            failureError = new Error(`Too many incorrect passwords. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.${nextHint}`);
           } else if (typeof lockState?.attempts_remaining === 'number') {
-            const used = 5 - lockState.attempts_remaining;
-            failureError = new Error(`Invalid login credentials. Attempt ${used} of 5.`);
+            // Still inside a rung's free allowance. Phrase it as the honest
+            // budget left rather than an "attempt N of 5" that implies a single
+            // global counter — there is no such counter any more.
+            const remaining = lockState.attempts_remaining;
+            failureError = new Error(remaining > 0
+              ? `Invalid login credentials. ${remaining} attempt${remaining === 1 ? '' : 's'} left before the account is temporarily locked.`
+              : 'Invalid login credentials. The next wrong password will temporarily lock the account.');
           }
         } catch (recordError) {
           logger.warn('Failed to register login failure', recordError);

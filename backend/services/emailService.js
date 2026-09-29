@@ -264,11 +264,75 @@ const sendStatusUpdateEmail = async ({ customerEmail, customerName, bookingId, s
   })
 });
 
+/**
+ * 🛡️ THE WRONG-PASSWORD SECURITY NOTICE.
+ *
+ * Sent when the staged login throttle is exhausted (`register_failed_login_staged`
+ * escalates and queues a row in `login_security_notices`): the account has had
+ * too many consecutive wrong passwords, so we stop accepting attempts and we tell
+ * the OWNER what is happening.
+ *
+ * The copy answers the two questions the owner will actually have:
+ *   1. "Was this me?" — if yes, the button below resets it and lifts the lock
+ *      immediately. If no, someone is trying to guess their password and they
+ *      should change it. The email covers BOTH, because we cannot tell which
+ *      case it is and guessing would be worse than saying so.
+ *   2. "Do I have to do anything?" — no. If it was not them the email can be
+ *      ignored; the account is already locked. That is what makes this a WARNING
+ *      rather than an obligation, which is exactly how the shop owner described
+ *      it.
+ *
+ * It states the attempt count and the lock expiry so the owner has something
+ * concrete to act on, rather than a vague "suspicious activity" message.
+ *
+ * `resetLink` is built by the caller from a REAL password-confirmation token, so
+ * the button reuses the single "Forgot password" LINK flow (hashed, single-use,
+ * 15-minute TTL — see EMAIL_AUTH_POLICY.md) rather than inventing a second reset
+ * mechanism that only this email understands.
+ */
+const sendWrongPasswordSecurityNotice = async ({ email, attempts, lockedUntil, resetLink }) => send({
+  to: email,
+  subject: 'Security alert: repeated failed sign-in attempts on your Comar Garage account',
+  html: buildEmailShell({
+    title: 'Security Alert',
+    eyebrow: 'COMAR GARAGE ACCOUNT SECURITY',
+    bodyHtml: `
+      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi there,</p>
+      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">
+        Someone entered the <strong>wrong password</strong> for your Comar Garage account too many times in a row, so we have <strong>temporarily locked sign-in</strong> to keep your account safe.
+      </p>
+      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin: 12px 0 18px;">
+        <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 10px;">
+          <span style="color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Account</span>
+          <strong style="color: #111827; text-align: right; word-break: break-all;">${escapeHtml(email)}</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 10px;">
+          <span style="color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Failed attempts</span>
+          <strong style="color: #111827; text-align: right;">${escapeHtml(attempts)}</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+          <span style="color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Sign-in locked until</span>
+          <strong style="color: #111827; text-align: right;">${escapeHtml(lockedUntil ? new Date(lockedUntil).toLocaleString() : 'about 1 hour after the last attempt')}</strong>
+        </div>
+      </div>
+      <p style="margin: 0 0 12px; font-size: 15px; color: #374151; line-height: 1.7;"><strong>If this was you</strong>, just reset your password with the button below and you can sign in again right away.</p>
+      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;"><strong>If this was not you</strong>, someone may be trying to get into your account. You can safely ignore this email and your account will stay locked — but for your security we strongly recommend changing your password now.</p>
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 14px 16px;">
+        <p style="margin: 0; font-size: 13px; color: #991b1b; line-height: 1.6; font-weight: 600;">For your protection, sign-in stays locked until the time shown above. Resetting your password lifts the lock immediately.</p>
+      </div>
+    `,
+    ctaLink: resetLink,
+    ctaLabel: 'Reset My Password',
+    footerNote: 'Comar Garage Detail Studio | Account Security. This is an automated security message about your account.'
+  })
+});
+
 module.exports = {
   buildEmailShell,
   send,
   sendBookingConfirmationEmail,
   sendPasswordResetEmail,
+  sendWrongPasswordSecurityNotice,
   sendAccountInviteEmail,
   sendAdminInviteEmail,
   sendInviteAccountEmail,

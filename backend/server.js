@@ -14,7 +14,7 @@ const { checkEnvironment } = require('./config/startupGuard');
 const startupConfig = checkEnvironment();
 const { validateBookingRequest } = require('./services/scheduleValidation');
 const { Resend } = require('resend');
-const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEmail, sendAccountInviteEmail, sendAdminInviteEmail, sendInviteAccountEmail, sendEmergencyRecoveryEmail, sendQrChangeOtpEmail } = require('./services/emailService');
+const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEmail, sendWrongPasswordSecurityNotice, sendAccountInviteEmail, sendAdminInviteEmail, sendInviteAccountEmail, sendEmergencyRecoveryEmail, sendQrChangeOtpEmail } = require('./services/emailService');
 // EMAIL AUTH POLICY: single source of truth for LINK vs OTP per flow.
 // See docs/EMAIL_AUTH_POLICY.md. Guards below keep UI copy and delivery in sync.
 const { DELIVERY, assertDelivery } = require('./config/emailPolicy');
@@ -2112,6 +2112,111 @@ const sendPasswordSecurityAlert = async ({ email, purpose }) => send({
   })
 });
 
+/**
+ * 🛡️ THE WRONG-PASSWORD SECURITY NOTICE — the delivery half.
+ *
+ * `register_failed_login_staged()` (migration 20261021000003) is the DECISION:
+ * when the ladder is exhausted it holds the account and writes a row into
+ * `login_security_notices`. It deliberately does NOT send mail — the database
+ * has no mail transport, and putting one there would mean a second place where
+ * tokens are minted.
+ *
+ * This worker is the DELIVERY. It drains that queue, mints a real single-use
+ * reset token through the SAME `createPasswordConfirmationRequest` helper the
+ * "Forgot password" flow uses, and emails the warning + reset link.
+ *
+ * WITHOUT THIS the escalation is silent: the queue row is written and nobody is
+ * ever told, so the requirement ("a confirmation email should be sent to the
+ * user") would be unmet while every test still passed. That is why it exists.
+ *
+ * WHY `claim_login_security_notices` AND NOT A PLAIN SELECT
+ * -------------------------------------------------------
+ * The claim RPC flips `sent_at` inside a `FOR UPDATE SKIP LOCKED` transaction, so
+ * two backend instances polling at the same moment cannot both mail the same
+ * row. Selecting first and updating after would let both workers see the row and
+ * the owner would get two identical alerts.
+ *
+ * The claim happens BEFORE the send on purpose: if the mail provider then fails,
+ * the notice is marked sent and NOT retried. That is the correct trade for a
+ * SECURITY email — a duplicate "someone is attacking your account" alert is more
+ * alarming than a missing one, and the account is already locked either way, so
+ * the user is not left unprotected by a lost mail.
+ */
+const processLoginSecurityNotices = async () => {
+  if (!supabaseAdmin) return;
+
+  try {
+    const { data: notices, error } = await supabaseAdmin.rpc('claim_login_security_notices', { p_limit: 10 });
+
+    if (error) {
+      // Not deployed yet is expected on an un-migrated database; anything else
+      // is a real fault worth shouting about.
+      const missing = /could not find the function|schema cache|does not exist/i.test(error.message || '');
+      if (!missing) console.error('❌ [SECURITY-NOTICE] Claim failed:', error.message);
+      return;
+    }
+
+    for (const notice of (notices || [])) {
+      try {
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('id, email, full_name, locked_until')
+          .eq('id', notice.user_id)
+          .maybeSingle();
+
+        const email = notice.email || profile?.email;
+        if (!email) {
+          console.warn(`⚠️ [SECURITY-NOTICE] No email for user ${notice.user_id}; skipping.`);
+          continue;
+        }
+
+        // The reset link must be a REAL, single-use, expiring token — the same
+        // flow as "Forgot password". Reusing it means the button in a security
+        // alert cannot become a second, weaker way into an account.
+        let resetLink = `${process.env.FRONTEND_URL || 'https://comargarage.com'}/reset-password`;
+        try {
+          const { token } = await createPasswordConfirmationRequest({
+            userId: profile?.id || notice.user_id,
+            email,
+            purpose: 'RESET'
+          });
+          resetLink = `${process.env.FRONTEND_URL || 'https://comargarage.com'}/reset-password?token=${token}`;
+        } catch (tokenError) {
+          // Still send the WARNING even if we could not mint a token: knowing
+          // that someone is attacking the account matters more than the
+          // convenience of the one-click button.
+          console.warn('⚠️ [SECURITY-NOTICE] Reset token minting failed; sending the alert without a link:', tokenError.message);
+        }
+
+        await sendWrongPasswordSecurityNotice({
+          email,
+          attempts: notice.attempts_at_escalation,
+          lockedUntil: profile?.locked_until,
+          resetLink
+        });
+
+        console.log(`🛡️ [SECURITY-NOTICE] Sent wrong-password alert to ${email} after ${notice.attempts_at_escalation} failed attempts.`);
+      } catch (noticeError) {
+        console.error(`❌ [SECURITY-NOTICE] Failed to deliver notice ${notice.id}:`, noticeError.message);
+      }
+    }
+  } catch (err) {
+    console.error('❌ [SECURITY-NOTICE] Worker error:', err.message);
+  }
+};
+
+// Drain the escalation queue on the same cadence as the no-show sweep. The
+// claim RPC makes repeated runs safe, so an overlapping tick is a no-op.
+//
+// The first run is deferred by a tick rather than called inline: this worker
+// uses `createPasswordConfirmationRequest`, which is declared with `const`
+// FURTHER DOWN this file. Calling it synchronously here would hit the temporal
+// dead zone (`Cannot access 'createPasswordConfirmationRequest' before
+// initialization`) and crash the process at boot. `setInterval` is deferred by
+// nature, so only the immediate call needs the wrapper.
+setInterval(processLoginSecurityNotices, 5 * 60000);
+setTimeout(processLoginSecurityNotices, 0);
+
 const createPasswordConfirmationRequest = async ({ userId, email, purpose, newPassword = null }) => {
   const token = crypto.randomBytes(32).toString('base64url');
   const encrypted = newPassword ? encryptPendingPassword(newPassword) : {};
@@ -3768,7 +3873,34 @@ app.post('/api/garage/sync', async (req, res) => {
  * 🛡️ REQ-ADM-02, REQ-SYS-02: No-Show Detection Engine
  * NOSHOW_GRACE_MINUTES = 60
  * REMINDER_LEAD_MINUTES = 60
- * Identifies bookings past start time and transitions to FLAGGED_NOSHOW.
+ *
+ * THE 24-HOUR RULE (and why this function no longer owns it)
+ * ----------------------------------------------------------
+ * The lifecycle is a TWO-PHASE state machine, and the authoritative definition
+ * lives in the DATABASE (migration 20261021000001):
+ *
+ *     T0       = start_datetime
+ *     T0 + 1h  → phase 1: FLAGGED_NOSHOW   (staff never pressed Start Service)
+ *     T0 + 25h → phase 2: cancelled        (24h undo window closed, terminal)
+ *
+ * This function used to re-implement phase 1 in JavaScript, and the two copies
+ * DISAGREED:
+ *   * it set `needs_attention = true` on every flag. That is the double-count —
+ *     a no-show then appeared BOTH under "No-Show" AND under "Flagged for
+ *     Review", two containers for one booking, because the DB migration
+ *     deliberately leaves that flag alone.
+ *   * it measured overdue-ness against `grace_period_until` while the DB
+ *     measures it against `start_datetime + 1h`. Two clocks for one rule means
+ *     a booking can be flagged by one sweep and not the other.
+ *
+ * It now DELEGATES to `run_no_show_lifecycle()`, which runs both phases under
+ * the same clock the UI and the undo endpoint read. One rule, one clock, one
+ * place to change it. The reminder (phase B) is the only thing left here: it is
+ * a courtesy notification, not a state transition, so it is not part of the
+ * lifecycle and does not belong in the DB state machine.
+ *
+ * IDEMPOTENT: the RPC re-asserts its own status predicates, so running this
+ * every 5 minutes (or twice in one minute) is a no-op when nothing is due.
  */
 const NOSHOW_GRACE_MINUTES = 60;
 const REMINDER_LEAD_MINUTES = 60;
@@ -3777,118 +3909,111 @@ const checkOverdueBookings = async () => {
   if (!supabaseAdmin) return;
 
   const now = new Date();
-  const overdueThreshold = new Date(now.getTime() - NOSHOW_GRACE_MINUTES * 60000);
   const reminderThreshold = new Date(now.getTime() + REMINDER_LEAD_MINUTES * 60000);
 
   console.log(`🕒 [SYSTEM] RUNNING NO-SHOW AUDIT: ${now.toISOString()}`);
 
   try {
-    // Case-tolerant: catches scheduled, confirmed, and reinstated pending_confirmation bookings that have passed their grace window.
-    const { data: bookings, error } = await supabaseAdmin
-      .from('bookings')
-      .select('*, customer:profiles!bookings_customer_id_fkey(email, full_name), payments(id, amount, status)')
-      .in('status', ['scheduled', 'confirmed', 'pending', 'PENDING', 'CONFIRMED', 'pending_confirmation']);
+    // ── A. THE LIFECYCLE (flag → 24h window → cancel), in the database ──────
+    // No fallback re-implementation on purpose: if the RPC is absent the
+    // correct behaviour is to do NOTHING and say so loudly, not to silently
+    // re-run the divergent JS copy that caused the double-count. A missed sweep
+    // is recoverable (the next run picks the booking up); a booking flagged
+    // into the wrong containers, or cancelled on a different clock than the UI
+    // shows, is not.
+    const { data: lifecycle, error: lifecycleError } = await supabaseAdmin.rpc('run_no_show_lifecycle');
 
-    if (error) throw error;
+    if (lifecycleError) {
+      const rpcMissing = /could not find the function|schema cache|does not exist/i.test(lifecycleError.message || '');
+      if (rpcMissing) {
+        console.warn('⚠️ [NO-SHOW] run_no_show_lifecycle() is not deployed (migration 20261021000001). No-show sweeping is DISABLED — bookings will not be flagged or auto-cancelled until it is applied.');
+      } else {
+        console.error('❌ [NO-SHOW] Lifecycle sweep failed:', lifecycleError.message);
+      }
+    } else {
+      const flagged = Number(lifecycle?.flagged || 0);
+      const cancelled = Number(lifecycle?.cancelled || 0);
 
-    for (const booking of (bookings || [])) {
-      const status = normalizeStatus(booking.status);
-      const startTime = new Date(booking.start_datetime);
-      const graceWindowExpired = shouldRestoreGraceWindow(booking.status, booking.grace_period_until, now);
-
-      if (status === 'pending_confirmation' && !graceWindowExpired) {
-        continue;
+      if (flagged > 0 || cancelled > 0) {
+        console.log(`⚠️ [NO-SHOW] Lifecycle: flagged ${flagged}, auto-cancelled ${cancelled} (24h window closed).`);
       }
 
-      // A. NO-SHOW FLAG (30 MINS) → FLAGGED_NOSHOW
-      if (startTime < overdueThreshold || graceWindowExpired) {
-        console.log(`⚠️ [FLAGGED_NOSHOW] Booking ${booking.id} flagged (30m+ No-Show or expired grace window)`);
-
-        // Check if booking has verified payments for refund auto-flag
-        const hasPaidPayments = (booking.payments || []).some(p => p.status === 'PAID');
-
-        const updatePayload = {
-          status: 'FLAGGED_NOSHOW',
-          needs_attention: true
-        };
-
-        // REQ-CST-11: Auto-flag for refund if payment exists
-        if (hasPaidPayments) {
-          updatePayload.refund_status = 'PENDING';
-          console.log(`💰 [REFUND] Booking ${booking.id} auto-flagged for refund (paid booking)`);
-        }
-
-        const { error: updateError } = await supabaseAdmin
+      // Notify only the bookings THIS sweep flagged, so the customer gets one
+      // email per no-show rather than one per 5-minute poll. `flagged` is a
+      // count, not a list, so we read back the rows the RPC just touched: a
+      // booking flagged within the last minute is one this run is responsible
+      // for. Already-notified bookings are excluded by the same window.
+      if (flagged > 0) {
+        const since = new Date(now.getTime() - 2 * 60000).toISOString();
+        const { data: freshlyFlagged, error: fetchError } = await supabaseAdmin
           .from('bookings')
-          .update({ ...updatePayload, staff_id: null, grace_period_until: null })
-          .eq('id', booking.id);
+          .select('id, customer:profiles!bookings_customer_id_fkey(email, full_name), payments(id, amount, status)')
+          .eq('status', 'FLAGGED_NOSHOW')
+          .gte('updated_at', since);
 
-        if (updateError) {
-          console.error(`❌ [FLAGGED_NOSHOW] Update failed for ${booking.id}:`, updateError.message);
-          continue; // Skip email if we couldn't update the status
+        if (fetchError) {
+          console.warn('📧 No-Show notification lookup failed:', fetchError.message);
         }
 
-        await supabaseAdmin.from('audit_logs').insert({
-          booking_id: booking.id,
-          action_type: 'SYSTEM_FLAG_NOSHOW',
-          actor_name: 'SYSTEM_AUDITOR',
-          actor_role: 'SYSTEM',
-          details: `Booking automatically flagged as No-Show (${NOSHOW_GRACE_MINUTES}m threshold).${hasPaidPayments ? ' Refund auto-queued.' : ''}`
-        });
-
-        // Send No-Show notification through the shared lifecycle email template.
-        if (booking.customer?.email) {
+        for (const booking of (freshlyFlagged || [])) {
+          if (!booking.customer?.email) continue;
+          const hasPaidPayments = (booking.payments || []).some(p => String(p.status || '').toUpperCase() === 'PAID');
           try {
-            const projectUrl = process.env.SUPABASE_URL;
-            const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-            const noShowResponse = await fetch(`${projectUrl}/functions/v1/booking-lifecycle`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
-              body: JSON.stringify({
-                bookingId: booking.id,
-                newStatus: 'FLAGGED_NOSHOW',
-                remarks: hasPaidPayments ? 'A refund request has been automatically filed because a payment was detected.' : ''
-              })
-            });
-            if (!noShowResponse.ok) throw new Error(await noShowResponse.text());
+            await dispatchLifecycleEmail(
+              booking.id,
+              'FLAGGED_NOSHOW',
+              hasPaidPayments ? 'A refund request has been automatically filed because a payment was detected.' : ''
+            );
           } catch (emailErr) {
             console.warn('📧 No-Show email failed:', emailErr.message);
           }
         }
       }
+    }
 
-      // B. URGENT REMINDER (15 MINS) - REQ-SYS-02
-      else if (booking.status?.toLowerCase() === 'confirmed' && startTime <= reminderThreshold && startTime > now && !booking.reminder_sent) {
-        console.log(`📧 [REMINDER] Triggering one-hour reminder for ${booking.customer?.email}`);
+    // ── B. URGENT REMINDER (15 MINS) - REQ-SYS-02 ───────────────────────────
+    // Unchanged in behaviour, but now the ONLY thing this sweep does itself.
+    const { data: upcoming, error } = await supabaseAdmin
+      .from('bookings')
+      .select('*, customer:profiles!bookings_customer_id_fkey(email, full_name)')
+      .in('status', ['confirmed', 'CONFIRMED'])
+      .lte('start_datetime', reminderThreshold.toISOString())
+      .gt('start_datetime', now.toISOString())
+      .eq('reminder_sent', false);
 
-        if (booking.customer?.email) {
-          try {
-            const projectUrl = process.env.SUPABASE_URL;
-            const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-            const reminderResponse = await fetch(`${projectUrl}/functions/v1/booking-lifecycle`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
-              body: JSON.stringify({ bookingId: booking.id, newStatus: 'CONFIRMED', reminder: true })
-            });
-            if (!reminderResponse.ok) throw new Error(await reminderResponse.text());
-          } catch (emailErr) {
-            console.warn('📧 Reminder email failed:', emailErr.message);
-          }
+    if (error) throw error;
 
-          await supabaseAdmin
-            .from('bookings')
-            .update({ reminder_sent: true })
-            .eq('id', booking.id);
-        }
+    for (const booking of (upcoming || [])) {
+      console.log(`📧 [REMINDER] Triggering one-hour reminder for ${booking.customer?.email}`);
+
+      if (!booking.customer?.email) continue;
+
+      try {
+        const projectUrl = process.env.SUPABASE_URL;
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const reminderResponse = await fetch(`${projectUrl}/functions/v1/booking-lifecycle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
+          body: JSON.stringify({ bookingId: booking.id, newStatus: 'CONFIRMED', reminder: true })
+        });
+        if (!reminderResponse.ok) throw new Error(await reminderResponse.text());
+      } catch (emailErr) {
+        console.warn('📧 Reminder email failed:', emailErr.message);
       }
+
+      await supabaseAdmin
+        .from('bookings')
+        .update({ reminder_sent: true })
+        .eq('id', booking.id);
     }
   } catch (err) {
     console.error('❌ No-Show Audit Error:', err.message);
   }
 };
 
-// Run the audit worker on a single backend instance in production. The query is
-// status-scoped, so already processed bookings are not handled again.
+// Run the audit worker on a single backend instance in production. The DB
+// lifecycle is status-scoped and idempotent, and the reminder query filters on
+// `reminder_sent`, so repeated runs cannot double-process a booking.
 setInterval(checkOverdueBookings, 5 * 60000);
 checkOverdueBookings();
 
@@ -4070,139 +4195,52 @@ app.post('/api/bookings/undo-no-show', async (req, res) => {
   }
 
   try {
-    // `.maybeSingle()` rather than `.single()`.
+    // ── The 24-hour window is enforced in the DATABASE ──────────────────────
     //
-    // `.single()` raises PGRST116 ("Cannot coerce the result to a single JSON
-    // object") when no row matches, which the catch below rethrows as a raw
-    // 500 — an internal-looking error for what is really "this booking does not
-    // exist". Reproduced against the live project. `.maybeSingle()` returns null
-    // instead, so a missing row becomes a clean 404.
-    const { data: booking, error: bookingError } = await supabaseAdmin
-      .from('bookings')
-      .select('id, status, bay_id, customer_id, start_datetime, end_datetime, refund_status, staff_id, needs_attention, payment_status, grace_period_until')
-      .eq('id', bookingId)
-      .maybeSingle();
+    // This handler used to re-implement the whole undo: read the booking, decide
+    // whether a refund was pending, then write the new status — with NO time
+    // check of any kind. The undo was therefore available forever, which is how
+    // a booking flagged days earlier could still be reverted.
+    //
+    // It also duplicated booking state logic that the UI also duplicated, so the
+    // three copies could (and did) disagree. `undo_no_show` now owns the rule:
+    // it re-derives the phase from `start_datetime` against `now()` and refuses
+    // with UNDO_WINDOW_EXPIRED. Delegating also means a replayed request, a
+    // stale browser tab or a direct API call hits the same control.
+    //
+    // NOTE: the previous implementation also wrote `payment_status: 'approved'`
+    // to public.payments, which is not a member of booking_payment_status — the
+    // exact enum defect its own comment above claimed to have fixed. Going
+    // through the RPC removes that write entirely.
+    const { data, error } = await supabaseAdmin.rpc('undo_no_show', {
+      p_booking_id: bookingId,
+      p_actor_name: actorName || 'ADMIN',
+      p_pending_refund: Boolean(pendingRefund),
+    });
 
-    if (bookingError) throw bookingError;
+    if (error) throw error;
 
-    if (!booking) {
-      return res.status(404).json({
+    const result = data || {};
+
+    if (!result.success) {
+      // Map the RPC's stable codes to HTTP statuses the client already handles.
+      const statusByCode = {
+        BOOKING_NOT_FOUND: 404,
+        NOT_FLAGGED_NOSHOW: 409,
+        UNDO_WINDOW_EXPIRED: 409,
+        REFUND_ALREADY_PROCESSED: 400,
+      };
+      const status = statusByCode[result.error] || 400;
+      return res.status(status).json({
         success: false,
-        error: 'Booking not found. It may have been deleted, or the page is showing a stale record — reload and try again.'
+        error: result.message || result.error || 'Unable to restore the booking.',
+        code: result.error || null,
+        undoDeadline: result.deadline || null,
       });
     }
 
-    const normalizedBookingStatus = normalizeStatus(booking.status);
-    if (!['flagged_noshow', 'no_show'].includes(normalizedBookingStatus)) {
-      return res.status(409).json({ success: false, error: 'Booking is not currently flagged as no-show.' });
-    }
-
-    const { data: payments, error: paymentError } = await supabaseAdmin
-      .from('payments')
-      .select('id, status, payment_status, method, amount')
-      .eq('booking_id', bookingId);
-
-    if (paymentError) throw paymentError;
-
-    const normalizedPaymentStatuses = (payments || []).map(payment => String(payment.payment_status || payment.status || '').trim().toLowerCase().replace(/[_\s-]+/g, '_'));
-    const hasCompletedRefund = ['refunded', 'refund_processed', 'refundprocessed'].some(value => normalizedPaymentStatuses.includes(value))
-      || ['refunded', 'refund_processed', 'refundprocessed'].includes(String(booking.payment_status || booking.refund_status || '').trim().toLowerCase().replace(/[_\s-]+/g, '_'))
-      || (payments || []).some(payment => {
-          const status = String(payment.status || '').trim().toLowerCase().replace(/[_\s-]+/g, '_');
-          const method = String(payment.method || '').trim().toLowerCase();
-          return ['refunded', 'refund_processed', 'refundprocessed'].includes(status)
-            || (method === 'system_refund' && Number(payment.amount || 0) < 0);
-        });
-
-    if (hasCompletedRefund) {
-      return res.status(400).json({
-        success: false,
-        error: 'Cannot undo no-show status: Payment refund has already been completed.'
-      });
-    }
-
-    const refundPendingStates = ['refund_pending', 'flagged_for_refund', 'flaggedforrefund', 'refundpending'];
-    const hasPendingRefund = Boolean(pendingRefund)
-      || ['pending', 'queued', 'processing', 'email_pending'].some(state => String(booking.refund_status || '').toLowerCase().includes(state))
-      || normalizedPaymentStatuses.some(status => refundPendingStates.includes(status))
-      || (payments || []).some(payment => {
-          const status = String(payment.status || '').trim().toLowerCase().replace(/[_\s-]+/g, '_');
-          return ['refund_pending', 'flagged_for_refund', 'flaggedforrefund', 'refundpending'].includes(status)
-            || ['refund_pending', 'flagged_for_refund', 'flaggedforrefund', 'refundpending'].includes(String(payment.payment_status || '').trim().toLowerCase().replace(/[_\s-]+/g, '_'));
-        });
-
-    // ── payment_status is an ENUM, not free text ────────────────────────────
-    //
-    // This payload used to write 'approved', which is NOT a member of
-    // booking_payment_status (unpaid | pending | paid | refunded). Postgres
-    // rejected it with 22P02 on EVERY call, so undo-no-show always returned 500
-    // and the admin saw a raw error. Reproduced against the live database:
-    //
-    //     invalid input value for enum booking_payment_status: "approved"
-    //
-    // This is the third instance of the same defect class in this codebase
-    // (create_booking_atomic and persist_ocr_result were the others), so the
-    // value is now VALIDATED against the enum rather than assumed.
-    //
-    // Mapping the intent: 'approved' meant "settled enough to proceed". The
-    // enum's word for that is 'paid'. An unrecognised value falls back to
-    // 'pending' (awaiting confirmation), never 'unpaid' — the booking already
-    // exists and money may have moved, so "never paid" would be wrong.
-    const VALID_BOOKING_PAYMENT_STATUSES = ['unpaid', 'pending', 'paid', 'refunded'];
-    const requestedPaymentStatus = String(booking.payment_status || '').trim().toLowerCase();
-
-    // A pending refund means the money has NOT settled, so the booking stays
-    // pending regardless of what it held before. An invalid enum member would
-    // 500 the whole request, which is why this is validated here.
-    const resolvedPaymentStatus = hasPendingRefund
-      ? 'pending'
-      : (VALID_BOOKING_PAYMENT_STATUSES.includes(requestedPaymentStatus)
-        ? requestedPaymentStatus
-        : (requestedPaymentStatus === 'approved' ? 'paid' : 'pending'));
-
-    const restorePayload = {
-      status: 'pending_confirmation',
-      staff_id: null,
-      bay_id: booking.bay_id || null,
-      needs_attention: false,
-      refund_status: hasPendingRefund ? null : booking.refund_status,
-      // A validated enum member, never free text.
-      payment_status: resolvedPaymentStatus,
-      updated_at: new Date().toISOString(),
-      reminder_sent: false,
-      grace_period_until: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-    };
-
-    const { error: updateError } = await supabaseAdmin
-      .from('bookings')
-      .update(restorePayload)
-      .eq('id', bookingId);
-
-    if (updateError) throw updateError;
-
-    if (hasPendingRefund) {
-      const pendingPaymentIds = (payments || [])
-        .filter(payment => {
-          const status = String(payment.status || '').trim().toLowerCase().replace(/[_\s-]+/g, '_');
-          const paymentStatus = String(payment.payment_status || '').trim().toLowerCase().replace(/[_\s-]+/g, '_');
-          return ['refund_pending', 'flagged_for_refund', 'flaggedforrefund', 'refundpending', 'pending', 'queued', 'processing', 'email_pending'].includes(status)
-            || ['refund_pending', 'flagged_for_refund', 'flaggedforrefund', 'refundpending'].includes(paymentStatus);
-        })
-        .map(payment => payment.id);
-
-      if (pendingPaymentIds.length > 0) {
-        const { error: paymentUpdateError } = await supabaseAdmin
-          .from('payments')
-          .update({
-            status: 'PAID',
-            payment_status: 'approved'
-          })
-          .in('id', pendingPaymentIds);
-
-        if (paymentUpdateError) throw paymentUpdateError;
-      }
-    }
-
+    // Vehicles move back to SCHEDULED. Non-fatal: the booking itself is already
+    // restored, and a vehicle row that cannot be updated must not fail the undo.
     const { error: vehicleError } = await supabaseAdmin
       .from('booking_vehicles')
       .update({ status: 'SCHEDULED', started_at: null, completed_at: null })
@@ -4218,20 +4256,23 @@ app.post('/api/bookings/undo-no-show', async (req, res) => {
       actor_name: actorName || 'ADMIN',
       actor_role: 'ADMIN',
       actor_id: adminId || null,
-      details: `Admin reverted no-show for booking ${bookingId}. ${hasPendingRefund ? 'Pending refund request intercepted and cancelled.' : 'No refund request was pending.'}`
+      details: result.undone_by
+        ? `Admin ${result.undone_by} reverted no-show for booking ${bookingId} within the 24-hour window.${pendingRefund ? ' Pending refund request intercepted and cancelled.' : ''}`
+        : `Admin reverted no-show for booking ${bookingId} within the 24-hour window.`,
     });
 
     return res.json({
       success: true,
       message: 'No-show was reverted successfully and pending refund requests were intercepted.',
-      bookingStatus: 'pending_confirmation',
-      gracePeriodUntil: restorePayload.grace_period_until
+      bookingStatus: 'scheduled',
+      undoDeadline: result.undo_deadline || null,
     });
   } catch (err) {
     console.error('❌ Undo No-Show Error:', err.message);
     return res.status(500).json({ success: false, error: err.message || 'Unable to restore the booking.' });
   }
 });
+
 
 app.post('/api/bookings/add-service', async (req, res) => {
   const { bookingId, vehicleId, serviceName, price, durationMinutes = 60, paymentAmount, paymentType = 'Downpayment', paymentMethod = 'Cash', referenceNumber = '' } = req.body;

@@ -19,7 +19,6 @@ import DetailTimeline from '../../components/AdminSchedule/DetailTimeline';
 import { AlertTriangle, Info } from 'lucide-react';
 
 import { useUI } from '../../context/UIContext';
-import { sendStatusEmail } from '../../services/notificationService';
 // Shared backend-origin resolver (see config/api.js) — a localhost VITE_BACKEND_URL
 // must never be baked into a deployed build.
 import { BACKEND_URL } from '../../config/api';
@@ -151,38 +150,32 @@ const AdminSchedule = () => {
     }
   };
 
+  /**
+   * 🛡️ THE 24-HOUR RULE — delegated to the database, never re-implemented here.
+   *
+   * This used to be a THIRD copy of the no-show sweep (alongside the DB lifecycle
+   * and the backend worker), and all three disagreed. This one:
+   *   * set `needs_attention: true`, which is the DOUBLE-COUNT — a no-show then
+   *     appeared under both "No-Show" AND "Flagged for Review";
+   *   * always set `refund_status: 'QUEUED'` even when no money was ever paid;
+   *   * measured the 1-hour grace in the BROWSER's clock, so an admin whose
+   *     machine is 10 minutes fast flagged bookings the server did not;
+   *   * sent the no-show email from the client, so the email could be skipped
+   *     entirely by closing the tab.
+   *
+   * `run_no_show_lifecycle()` is now the ONLY implementation: it flags at
+   * start_datetime + 1h and auto-cancels at +25h, on the server's clock, and the
+   * backend worker sends the notifications. This call exists only to make the
+   * admin's Refresh button push the sweep immediately instead of waiting for the
+   * next scheduled run — a convenience, never the control.
+   *
+   * Best-effort: if the RPC is not deployed yet the schedule page must still
+   * render. A failed sweep is recoverable; a broken calendar is not.
+   */
   const flagOverdueBookings = async () => {
-    const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { data: overdueBookings, error } = await supabase
-      .from('bookings')
-      .select('id')
-      .in('status', ['scheduled', 'confirmed'])
-      .lte('start_datetime', cutoff);
-
-    if (error || !overdueBookings?.length) return;
-
-    for (const overdue of overdueBookings) {
-      const { error: updateError } = await supabase
-        .from('bookings')
-        .update({
-          status: 'FLAGGED_NOSHOW',
-          needs_attention: true,
-          staff_id: null,
-          bay_id: null,
-          refund_status: 'QUEUED',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', overdue.id)
-        .in('status', ['scheduled', 'confirmed']);
-
-      if (updateError) continue;
-
-      await supabase.from('payments')
-        .update({ status: 'REFUND_PENDING' })
-        .eq('booking_id', overdue.id)
-        .in('status', ['PAID', 'FOR_VERIFICATION']);
-
-      await sendStatusEmail(overdue.id, 'FLAGGED_NOSHOW', 'No-show: service was not started within one hour of the scheduled time.');
+    const { error } = await supabase.rpc('run_no_show_lifecycle');
+    if (error) {
+      logger.warn('No-show lifecycle sweep unavailable; the scheduled server sweep will still run.', error);
     }
   };
 
