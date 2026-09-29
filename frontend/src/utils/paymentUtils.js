@@ -167,123 +167,78 @@ export const getPaymentStatusUI = (status) => {
 };
 
 /**
- * Strictly derives the headline payment status badge from the transaction ledger.
+ * derivePaymentStatusBadge
  *
- * RULES (strictly enforced):
- *   1. If Total Paid = ₱0 (and no corporate/fleet billing):
- *      -> Status: "Unpaid" (with full balance shown)
- *   2. If 0 < Total Paid < Total Booking Value:
- *      -> Status: "Partially Paid" (showing remaining balance)
- *   3. If Total Paid >= Total Booking Value (and value > 0):
- *      -> Status: "Fully Paid"
- *   4. Special Case (Fleet Accounts): Bypasses upfront cash:
- *      -> Status: "Billed to Corporate Account" / "Account Invoice Pending"
- *   5. Refunded:
- *      -> Status: "Refunded"
- *   6. Verifying:
- *      -> Status: "Payment Verifying"
+ * Derives the payment status badge strictly from the financial ledger.
+ * NEVER reads booking.payment_status directly — only totalPaid vs totalAmount.
+ *
+ * @param {object} booking   - booking row (must include total_amount + payments[])
+ * @param {object} [summary] - pre-computed calculatePaymentSummary() result (optional)
+ * @returns {{ statusKey, text, shortText, color, balance, subtext? }}
  */
-export const derivePaymentStatusBadge = (booking = {}, paymentSummary = null) => {
-  const summary = paymentSummary || calculatePaymentSummary(booking);
-  const totalPaid = Number(summary.totalPaid || 0);
-  const totalAmount = Number(booking.total_amount ?? summary.totalAmount ?? 0);
-  const balance = Math.max(0, totalAmount - totalPaid);
-  const hasProcessedRefund = Boolean(summary.hasProcessedRefund || summary.status === 'REFUNDED');
-  const isVerifying = Boolean(summary.status === 'VERIFYING' || summary.isPendingVerification);
+export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
+  const ps = summary || calculatePaymentSummary(booking);
+  const totalAmount = Number(booking.total_amount || 0);
+  const { totalPaid, balance, hasProcessedRefund } = ps;
 
-  // Check if corporate / fleet account billing applies without upfront cash
-  const isFleetBilling = Boolean(
-    booking.billing_type === 'FLEET' ||
-    booking.billing_type === 'CORPORATE' ||
-    booking.payment_method === 'FLEET_INVOICE' ||
-    booking.payment_method === 'CORPORATE_BILLING' ||
-    booking.payment_method === 'INVOICE' ||
-    (booking.fleet_group_id && totalPaid === 0 && totalAmount > 0 && !hasProcessedRefund) ||
-    ((booking.vehicles || []).some(v => v.fleet_group_id) && totalPaid === 0 && totalAmount > 0 && !hasProcessedRefund)
-  );
+  // Fleet / corporate billing — no upfront cash expected
+  // Detect by billing_type (case-insensitive), customer_type, fleet_account_id, or fleet_group_id
+  const billingType = (booking.billing_type || '').toUpperCase();
+  const isFleetAccount =
+    billingType === 'FLEET' ||
+    booking.customer_type === 'fleet' ||
+    booking.fleet_account_id != null ||
+    booking.fleet_group_id != null;
 
-  // 1. Fully refunded (money was returned and no net credit remains)
-  if (hasProcessedRefund && totalPaid <= 0) {
-    return {
-      statusKey: 'REFUNDED',
-      text: 'Refunded',
-      color: 'var(--status-danger)',
-      balance: 0
-    };
-  }
-
-  // 2. Pending verification (OCR or manual proof awaiting verification, no settled money yet)
-  if (isVerifying && totalPaid <= 0) {
-    return {
-      statusKey: 'VERIFYING',
-      text: `Payment Verifying • ₱${totalAmount.toLocaleString()}`,
-      color: '#3b82f6',
-      balance: totalAmount
-    };
-  }
-
-  // 3. Special Case (Fleet Accounts): Bypasses upfront cash, billed to corporate
-  if (isFleetBilling && totalPaid <= 0) {
+  if (isFleetAccount && totalPaid === 0) {
     return {
       statusKey: 'FLEET_BILLING',
       text: 'Billed to Corporate Account',
-      subtext: 'Account Invoice Pending',
+      shortText: 'Fleet Billed',
       color: '#8b5cf6',
-      balance: totalAmount
+      balance,
+      subtext: 'Account Invoice Pending',
     };
   }
 
-  // 4. Total Paid = 0: Strictly "Unpaid" (with the full balance shown)
-  if (totalPaid <= 0) {
+  if (hasProcessedRefund && totalPaid === 0) {
+    return {
+      statusKey: 'REFUNDED',
+      text: 'Refunded',
+      shortText: 'Refunded',
+      color: '#ef4444',
+      balance: 0,
+    };
+  }
+
+  if (totalAmount === 0 || totalPaid === 0) {
     return {
       statusKey: 'UNPAID',
-      text: totalAmount > 0 ? `Unpaid • Balance: ₱${totalAmount.toLocaleString()}` : 'Unpaid',
+      text: `Unpaid — ₱${totalAmount.toLocaleString()} outstanding`,
       shortText: 'Unpaid',
       color: '#ef4444',
-      balance: totalAmount
+      balance: totalAmount,
+      subtext: `Full amount ₱${totalAmount.toLocaleString()} outstanding`,
     };
   }
 
-  // 5. 0 < Total Paid < Total Booking Value: Strictly "Partially Paid" (showing remaining balance)
-  if (totalPaid > 0 && totalPaid < totalAmount) {
-    return {
-      statusKey: 'PARTIALLY_PAID',
-      text: `Partially Paid • Balance: ₱${balance.toLocaleString()}`,
-      shortText: 'Partially Paid',
-      color: '#f59e0b',
-      balance
-    };
-  }
-
-  // 6. Total Paid >= Total Booking Value (and total value > 0): Strictly "Fully Paid"
-  if (totalAmount > 0 && totalPaid >= totalAmount) {
+  if (totalPaid >= totalAmount) {
     return {
       statusKey: 'FULLY_PAID',
       text: 'Fully Paid',
-      shortText: 'Fully Paid',
+      shortText: 'Paid',
       color: '#10b981',
-      balance: 0
+      balance: 0,
     };
   }
 
-  // 7. Total Amount is 0 and Total Paid is 0
-  if (totalAmount === 0 && totalPaid === 0) {
-    return {
-      statusKey: 'NO_CHARGE',
-      text: 'No Charge',
-      shortText: 'No Charge',
-      color: 'var(--admin-text-secondary)',
-      balance: 0
-    };
-  }
-
-  // Fallback: never claim Fully Paid if totalPaid is 0
+  // 0 < totalPaid < totalAmount
   return {
-    statusKey: totalPaid >= totalAmount ? 'FULLY_PAID' : 'UNPAID',
-    text: totalPaid >= totalAmount ? 'Fully Paid' : `Unpaid • Balance: ₱${balance.toLocaleString()}`,
-    shortText: totalPaid >= totalAmount ? 'Fully Paid' : 'Unpaid',
-    color: totalPaid >= totalAmount ? '#10b981' : '#ef4444',
-    balance
+    statusKey: 'PARTIALLY_PAID',
+    text: `Partially Paid — ₱${balance.toLocaleString()} remaining`,
+    shortText: 'Partial',
+    color: '#f59e0b',
+    balance,
+    subtext: `₱${balance.toLocaleString()} remaining`,
   };
 };
-

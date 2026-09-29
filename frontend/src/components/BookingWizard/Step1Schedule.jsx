@@ -6,6 +6,7 @@ import { isDateBookable } from '../../domain/schedule/rules';
 import CustomCalendar from './CustomCalendar';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { sanitizeVehicleText } from '../../config/constants';
+import TimeSlotPicker from '../TimeSlotPicker';
 
 const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, onNext, onBack, onCancel, customerDetailsLocked = false, adminMode = false }) => {
   const [availableSlots, setAvailableSlots] = useState([]);
@@ -260,34 +261,11 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
                 </span>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))', gap: '0.75rem' }}>
-                {availableSlots.map(slot => (
-                  <button
-                    key={slot.time}
-                    onClick={() => handleTimeSelect(slot.time)}
-                    className="admin-card-hover"
-                    style={{
-                      padding: '0.75rem 0.5rem',
-                      background: bookingData.time === slot.time ? 'var(--admin-brand)' : 'var(--admin-input-bg)',
-                      color: bookingData.time === slot.time ? '#fff' : 'var(--admin-text-primary)',
-                      border: `1px solid ${bookingData.time === slot.time ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
-                      borderRadius: 'var(--admin-radius-md)',
-                      cursor: 'pointer',
-                      fontWeight: '900',
-                      fontSize: '0.9rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.5rem',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}><Clock size={15} /> {slot.time}</span>
-                    <small style={{ display: 'block', marginTop: '0.25rem', fontSize: '0.65rem', fontWeight: '700', opacity: bookingData.time === slot.time ? 0.9 : 0.7 }}>{slot.availableBays} capacity slot{slot.availableBays === 1 ? '' : 's'} available</small>
-                  </button>
-                ))}
-              </div>
+              <TimeSlotPicker
+                slots={availableSlots}
+                selectedTime={bookingData.time}
+                onSelect={(time) => handleTimeSelect(time)}
+              />
             )}
           </div>
         </div>

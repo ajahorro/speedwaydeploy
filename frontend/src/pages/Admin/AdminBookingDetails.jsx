@@ -28,6 +28,7 @@ import FloatingBubbleChat from '../../components/FloatingBubbleChat';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
 import { logger } from '../../utils/logger';
+import TimeSlotPicker from '../../components/TimeSlotPicker';
 
 import { sendStatusEmail, sendBookingConfirmationEmail, sendPaymentReceiptEmail, sendNotificationEmail } from '../../services/notificationService';
 import { sendStaffAssignmentNotification } from '../../services/EmailService';
@@ -2241,17 +2242,12 @@ const AdminBookingDetails = () => {
               ) : rescheduleSlots.length === 0 ? (
                 <div style={{ padding: '1rem', color: 'var(--status-danger)', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.78rem', fontWeight: '800', textAlign: 'center' }}>No available bay capacity for this date. Please select another date.</div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.5rem', maxHeight: '180px', overflowY: 'auto', paddingRight: '0.25rem' }}>
-                  {rescheduleSlots.map(slot => {
-                    const isSelected = rescheduleTime === slot.time;
-                    return (
-                      <button key={slot.time} type="button" onClick={() => setRescheduleTime(slot.time)} style={{ padding: '0.65rem 0.4rem', background: isSelected ? 'var(--admin-brand)' : 'var(--admin-bg)', color: isSelected ? '#fff' : 'var(--admin-text-primary)', border: `1px solid ${isSelected ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', fontSize: '0.75rem', transition: 'all 0.15s ease' }}>
-                        <div>{slot.time}</div>
-                        <small style={{ display: 'block', marginTop: '0.2rem', opacity: isSelected ? 0.9 : 0.6, fontSize: '0.62rem' }}>{slot.availableBays} bay{slot.availableBays === 1 ? '' : 's'} open</small>
-                      </button>
-                    );
-                  })}
-                </div>
+                <TimeSlotPicker
+                  slots={rescheduleSlots}
+                  selectedTime={rescheduleTime}
+                  onSelect={setRescheduleTime}
+                  compact
+                />
               )}
             </div>
 
