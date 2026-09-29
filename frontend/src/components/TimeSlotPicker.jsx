@@ -11,10 +11,10 @@ import React, { useState } from 'react';
  */
 
 const TIME_PERIODS = [
-  { key: 'morning',   label: 'Morning',   minHour: 6,  maxHour: 11 },
-  { key: 'afternoon', label: 'Afternoon', minHour: 12, maxHour: 17 },
-  { key: 'evening',   label: 'Evening',   minHour: 18, maxHour: 23 },
-  { key: 'overnight', label: 'Overnight', minHour: 0,  maxHour: 5  },
+  { key: 'morning',   label: 'Morning',   emoji: '🌅', minHour: 6,  maxHour: 11 },
+  { key: 'afternoon', label: 'Afternoon', emoji: '☀️', minHour: 12, maxHour: 17 },
+  { key: 'evening',   label: 'Evening',   emoji: '🌙', minHour: 18, maxHour: 23 },
+  { key: 'overnight', label: 'Overnight', emoji: '🦉', minHour: 0,  maxHour: 5  },
 ];
 
 function getPeriodKey(hour) {
@@ -31,12 +31,8 @@ function getCapacityColor(bays) {
 }
 
 export default function TimeSlotPicker({ slots = [], selectedTime, onSelect, compact = false }) {
-  // Start all groups collapsed by default
-  const [collapsed, setCollapsed] = useState(() => {
-    const init = {};
-    TIME_PERIODS.forEach(p => { init[p.key] = true; });
-    return init;
-  });
+  // Start all groups expanded
+  const [collapsed, setCollapsed] = useState({});
 
   const toggleGroup = (key) =>
     setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
@@ -104,6 +100,7 @@ export default function TimeSlotPicker({ slots = [], selectedTime, onSelect, com
                 textTransform: 'uppercase',
                 letterSpacing: '0.8px',
               }}>
+                <span style={{ fontSize: compact ? '0.85rem' : '0.95rem' }}>{group.emoji}</span>
                 {group.label}
                 <span style={{
                   background: 'var(--admin-input-bg)',

@@ -778,12 +778,13 @@ const CustomerBookingDetails = () => {
                 ) : rescheduleSlots.length === 0 ? (
                   <div style={{ padding: '1rem', color: 'var(--status-danger)', background: 'rgba(239,68,68,.06)', border: '1px solid rgba(239,68,68,.25)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '800' }}>No available slots for this date. Choose another date.</div>
                 ) : (
-                  <TimeSlotPicker
-                    slots={rescheduleSlots}
-                    selectedTime={rescheduleTime}
-                    onSelect={setRescheduleTime}
-                    compact
-                  />
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '.5rem', maxHeight: 'clamp(150px, 28vh, 240px)', overflowY: 'auto', paddingRight: '.25rem' }}>
+                    {rescheduleSlots.map(slot => (
+                      <button key={slot.time} type="button" onClick={() => setRescheduleTime(slot.time)} style={{ padding: '.65rem .4rem', background: rescheduleTime === slot.time ? 'var(--admin-brand)' : 'var(--admin-bg)', color: rescheduleTime === slot.time ? '#fff' : 'var(--admin-text-primary)', border: `1px solid ${rescheduleTime === slot.time ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', fontSize: '.75rem' }}>
+                        {slot.time}<small style={{ display: 'block', marginTop: '.25rem', opacity: .75 }}>{slot.availableBays} bay{slot.availableBays === 1 ? '' : 's'} open</small>
+                      </button>
+                    ))}
+                  </div>
                 )}
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
                   <button onClick={() => setShowRescheduleModal(false)} style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900' }}>GO BACK</button>

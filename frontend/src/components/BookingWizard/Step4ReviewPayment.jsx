@@ -949,12 +949,16 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
             {/* Cash Flow */}
             {!isGcash && (
-              <div style={{ background: 'rgba(var(--admin-warning-rgb), 0.1)', border: '1px solid rgba(var(--admin-warning-rgb), 0.3)', padding: '1.5rem', borderRadius: 'var(--admin-radius-md)', color: 'var(--admin-warning)', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-                <ShieldAlert size={24} style={{ flexShrink: 0 }} />
+              <div style={{ background: adminMode ? 'rgba(16, 185, 129, 0.1)' : 'rgba(var(--admin-warning-rgb), 0.1)', border: `1px solid ${adminMode ? 'rgba(16, 185, 129, 0.35)' : 'rgba(var(--admin-warning-rgb), 0.3)'}`, padding: '1.5rem', borderRadius: 'var(--admin-radius-md)', color: adminMode ? '#10b981' : 'var(--admin-warning)', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                <ShieldAlert size={24} style={{ flexShrink: 0, color: adminMode ? '#10b981' : 'var(--status-warning)' }} />
                 <div>
-                  <div style={{ fontSize: '1rem', fontWeight: '900', marginBottom: '0.5rem', color: 'var(--status-warning)' }}>On-Site Cash Payment</div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: '600', lineHeight: 1.5, color: 'var(--status-warning)' }}>
-                    By selecting Cash, your booking will be marked as PENDING. Your slot is not fully secured until you arrive at the shop. We recommend arriving 15 minutes early.
+                  <div style={{ fontSize: '1rem', fontWeight: '900', marginBottom: '0.5rem', color: adminMode ? '#10b981' : 'var(--status-warning)' }}>
+                    {adminMode ? 'On-Site Cash Payment (Admin Walk-In)' : 'On-Site Cash Payment'}
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: '600', lineHeight: 1.5, color: adminMode ? 'var(--admin-text-primary)' : 'var(--status-warning)' }}>
+                    {adminMode
+                      ? 'The booking is being recorded directly by the admin and will be automatically CONFIRMED. Payment is recorded to the financial ledger immediately without entering payment verification.'
+                      : 'By selecting Cash, your booking will be marked as PENDING. Your slot is not fully secured until you arrive at the shop. We recommend arriving 15 minutes early.'}
                   </div>
                 </div>
               </div>

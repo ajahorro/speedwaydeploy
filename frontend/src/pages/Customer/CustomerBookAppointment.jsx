@@ -247,7 +247,11 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
           setIsSubmitted(true);
           return;
         }
-        await createBooking(user.id, bookingData);
+        await createBooking(user.id, {
+          ...bookingData,
+          adminWalkIn: Boolean(adminMode || bookingData.adminWalkIn),
+          adminActorId: adminMode ? user?.id : (bookingData.adminActorId || null)
+        });
       }
       setHasDraftChanges(false);
       toastManager.success('Booking submitted successfully!');

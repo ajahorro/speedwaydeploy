@@ -168,7 +168,7 @@ export const createBooking = async (customerId, bookingData) => {
   // taken by the admin, so they skip the manual payment-verification pipeline
   // and are scheduled immediately as CONFIRMED. Customer self-service bookings
   // still start as 'scheduled' and await verification.
-  const isAdminWalkIn = Boolean(bookingData.adminWalkIn);
+  const isAdminWalkIn = Boolean(bookingData.adminWalkIn || bookingData.adminMode);
   const initialBookingStatus = isAdminWalkIn ? 'confirmed' : 'scheduled';
 
   // Task B: freeze the QR recipient target onto the booking at creation, so the
@@ -197,7 +197,7 @@ export const createBooking = async (customerId, bookingData) => {
       model: vehicle.model,
       plate_number: vehicle.plateNumber,
       fleet_group_id: vehicle.fleetGroupId || bookingData.fleetGroupId || null,
-      status: 'SCHEDULED'
+      status: isAdminWalkIn ? 'CONFIRMED' : 'SCHEDULED'
     },
     services: (vehicle.services || []).map((service) => {
       const snapshot = buildBookingServiceSnapshot(service, vehicle.type, 'booking');
@@ -252,7 +252,8 @@ export const createBooking = async (customerId, bookingData) => {
   // as "verified enough to book", and the RPC refuses an absent verdict.
   const ocrData = bookingData.payment?.ocrData || null;
   const ocrVerdict = (() => {
-    if (bookingData.payment?.method === 'Cash') return isAdminWalkIn ? 'PAID' : 'UNPAID';
+    if (isAdminWalkIn) return 'PAID';
+    if (bookingData.payment?.method === 'Cash') return 'UNPAID';
     if (!ocrData) return null;
 
     // A server-supplied verdict wins when present (backend /api/ocr/audit).
@@ -274,87 +275,109 @@ export const createBooking = async (customerId, bookingData) => {
     // No usable verdict at all — let the RPC refuse it rather than guessing.
     return null;
   })();
-  if ((bookingData.adminWalkIn && bookingData.payment?.method === 'Cash') || (!bookingData.adminWalkIn && bookingData.payment?.method === 'Cash') || (bookingData.payment?.method === 'GCash' && bookingData.payment.proofOfPayment)) {
-    if (bookingData.payment.method === 'Cash') {
-      const cashAmount = bookingData.adminWalkIn && bookingData.payment.type === 'Manual'
-        ? Number(bookingData.payment.manualAmount || 0)
-        : bookingData.payment.type === 'Downpayment' ? getRequiredDownpayment(totalAmount) : totalAmount;
-      rpcPayment = {
-        amount: cashAmount,
-        method: 'Cash',
-        payment_type: bookingData.payment.type || 'Full',
-        status: bookingData.adminWalkIn ? 'PAID' : 'PENDING',
-        verified_by: bookingData.adminWalkIn ? bookingData.adminActorId || null : null,
-        verified_at: bookingData.adminWalkIn ? new Date().toISOString() : null,
-        notes: `PAYMENT_CASH|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${cashAmount}`
-      };
-    } else {
-      const file = bookingData.payment.proofOfPayment;
-      const fileExt = file.name.split('.').pop();
-      const filePath = `receipts/${Date.now()}-${file.name}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('payment-receipts')
-        .upload(filePath, file);
+  if (isAdminWalkIn) {
+    // Admin bookings are confirmed on-site by the admin themselves.
+    // Payment is marked as PAID immediately and does not enter the verification queue.
+    const paymentAmount = bookingData.payment?.type === 'Manual'
+      ? Number(bookingData.payment?.manualAmount || 0)
+      : bookingData.payment?.type === 'Downpayment'
+        ? getRequiredDownpayment(totalAmount)
+        : totalAmount;
 
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(filePath);
-
-      const paymentAmount = bookingData.payment.type === 'Full' ? totalAmount : getRequiredDownpayment(totalAmount);
-      // 🛠️ HOTFIX (Gross vs Net): the OCR now returns `amount` as the NET the
-      // shop receives, plus the `grossAmount` the customer sent and the
-      // `transferFee` that was deducted. We compare the NET against the required
-      // amount (that is the real money), and we must NOT subtract the fee a
-      // SECOND time when computing the net credit.
-      const detectedAmount = Number(bookingData.payment?.ocrData?.amount || 0);
-      const detectedGross = Number(bookingData.payment?.ocrData?.grossAmount || 0);
-      const detectedReference = bookingData.payment?.ocrData?.referenceNo || null;
-      const requiredDownpayment = getRequiredDownpayment(totalAmount);
-      if (
-        !bookingData.adminWalkIn &&
-        !bookingData.payment?.ocrData?.isManualReview &&
-        detectedAmount < requiredDownpayment
-      ) {
-        throw new Error(`The detected payment amount must be at least ₱${requiredDownpayment.toLocaleString()} for the required downpayment.`);
+    let receiptPublicUrl = null;
+    if (bookingData.payment?.proofOfPayment) {
+      try {
+        const file = bookingData.payment.proofOfPayment;
+        const filePath = `receipts/${Date.now()}-${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('payment-receipts')
+          .upload(filePath, file);
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(filePath);
+          receiptPublicUrl = publicUrl;
+        }
+      } catch (e) {
+        console.warn('Admin receipt upload failed (non-fatal):', e);
       }
-
-      // Task B: Net Payment Credit = the money the shop ACTUALLY received.
-      // `detectedAmount` is ALREADY net (the OCR/service enforced gross − fee), so
-      // we must not deduct the fee again. We only fall back to subtracting the fee
-      // when the OCR gave us a GROSS figure without a net (legacy shape).
-      const transferFee = Math.max(0, Number(bookingData.payment?.ocrData?.transferFee || 0));
-      const netReceived = detectedAmount > 0        ? detectedAmount
-        : (detectedGross > 0 ? Math.max(0, detectedGross - transferFee) : paymentAmount);
-      const netCredit = netReceived;
-      rpcExcess = Math.max(0, netCredit - paymentAmount);
-
-      rpcPayment = {
-        amount: paymentAmount,
-        method: 'GCash',
-        payment_type: bookingData.payment.type || 'Full',
-        status: 'FOR_VERIFICATION',
-        // ── OCR VERDICT ──────────────────────────────────────────────────────
-        // create_booking_atomic allow-lists this value and DERIVES the booking's
-        // payment_status from it. The OCR is meant to be a source of truth, and
-        // this is the only point at which its verdict can reach the database —
-        // the payment row does not exist yet at RPC time, so the verdict cannot
-        // be read from there.
-        //
-        // A rejected verdict makes the RPC refuse the booking outright, which is
-        // what stops a non-receipt image from completing one. An unrecognised
-        // value is refused too, so a caller cannot smuggle a bad string into the
-        // enum column.
-        verdict: ocrVerdict,
-        receipt_url: publicUrl,
-        detected_amount: detectedAmount > 0 ? detectedAmount : null,
-        detected_ref: detectedReference,
-        transfer_fee: transferFee,
-        net_credit: netCredit,
-        notes: `PAYMENT_DIGITAL|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${paymentAmount}|OCR_NET:${detectedAmount > 0 ? detectedAmount : 'NULL'}|GROSS:${detectedGross > 0 ? detectedGross : 'NULL'}|FEE:${transferFee}|NET:${netCredit}`,
-        reference_number: detectedReference || ''
-      };
     }
+
+    const payMethod = bookingData.payment?.method || 'Cash';
+    rpcPayment = {
+      amount: paymentAmount,
+      method: payMethod,
+      payment_type: bookingData.payment?.type || 'Full',
+      status: 'PAID',
+      verified_by: bookingData.adminActorId || null,
+      verified_at: new Date().toISOString(),
+      receipt_url: receiptPublicUrl,
+      notes: `ADMIN_CONFIRMED|METHOD:${payMethod}|TYPE:${bookingData.payment?.type || 'Full'}|AMOUNT:${paymentAmount}`
+    };
+  } else if (bookingData.payment?.method === 'Cash') {
+    const cashAmount = bookingData.payment.type === 'Downpayment' ? getRequiredDownpayment(totalAmount) : totalAmount;
+    rpcPayment = {
+      amount: cashAmount,
+      method: 'Cash',
+      payment_type: bookingData.payment.type || 'Full',
+      status: 'PENDING',
+      verified_by: null,
+      verified_at: null,
+      notes: `PAYMENT_CASH|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${cashAmount}`
+    };
+  } else if (bookingData.payment?.method === 'GCash' && bookingData.payment.proofOfPayment) {
+    const file = bookingData.payment.proofOfPayment;
+    const fileExt = file.name.split('.').pop();
+    const filePath = `receipts/${Date.now()}-${file.name}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('payment-receipts')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(filePath);
+
+    const paymentAmount = bookingData.payment.type === 'Full' ? totalAmount : getRequiredDownpayment(totalAmount);
+    // 🛠️ HOTFIX (Gross vs Net): the OCR now returns `amount` as the NET the
+    // shop receives, plus the `grossAmount` the customer sent and the
+    // `transferFee` that was deducted. We compare the NET against the required
+    // amount (that is the real money), and we must NOT subtract the fee a
+    // SECOND time when computing the net credit.
+    const detectedAmount = Number(bookingData.payment?.ocrData?.amount || 0);
+    const detectedGross = Number(bookingData.payment?.ocrData?.grossAmount || 0);
+    const detectedReference = bookingData.payment?.ocrData?.referenceNo || null;
+    const requiredDownpayment = getRequiredDownpayment(totalAmount);
+    if (
+      !bookingData.payment?.ocrData?.isManualReview &&
+      detectedAmount < requiredDownpayment
+    ) {
+      throw new Error(`The detected payment amount must be at least ₱${requiredDownpayment.toLocaleString()} for the required downpayment.`);
+    }
+
+    // Task B: Net Payment Credit = the money the shop ACTUALLY received.
+    // `detectedAmount` is ALREADY net (the OCR/service enforced gross − fee), so
+    // we must not deduct the fee again. We only fall back to subtracting the fee
+    // when the OCR gave us a GROSS figure without a net (legacy shape).
+    const transferFee = Math.max(0, Number(bookingData.payment?.ocrData?.transferFee || 0));
+    const netReceived = detectedAmount > 0        ? detectedAmount
+      : (detectedGross > 0 ? Math.max(0, detectedGross - transferFee) : paymentAmount);
+    const netCredit = netReceived;
+    rpcExcess = Math.max(0, netCredit - paymentAmount);
+
+    rpcPayment = {
+      amount: paymentAmount,
+      method: 'GCash',
+      payment_type: bookingData.payment.type || 'Full',
+      status: 'FOR_VERIFICATION',
+      verdict: ocrVerdict,
+      receipt_url: publicUrl,
+      detected_amount: detectedAmount > 0 ? detectedAmount : null,
+      detected_ref: detectedReference,
+      transfer_fee: transferFee,
+      net_credit: netCredit,
+      notes: `PAYMENT_DIGITAL|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${paymentAmount}|OCR_NET:${detectedAmount > 0 ? detectedAmount : 'NULL'}|GROSS:${detectedGross > 0 ? detectedGross : 'NULL'}|FEE:${transferFee}|NET:${netCredit}`,
+      reference_number: detectedReference || ''
+    };
   }
 
   // 1. Atomically create the master booking, its vehicles, their services, and
@@ -370,6 +393,9 @@ export const createBooking = async (customerId, bookingData) => {
         start_datetime: combineDateAndTime(bookingData.date, bookingData.time),
         end_datetime: calculateEstimatedEnd(bookingData.date, bookingData.time, vehicles),
         status: initialBookingStatus,
+        payment_status: isAdminWalkIn
+          ? (rpcPayment && rpcPayment.amount >= totalAmount ? 'paid' : (rpcPayment && rpcPayment.amount > 0 ? 'partially_paid' : 'unpaid'))
+          : undefined,
         total_amount: totalAmount,
         // EC-1: the master bookings.vehicle_type column must be populated. The
         // RPC derives it from the first vehicle as a fallback, but sending it
