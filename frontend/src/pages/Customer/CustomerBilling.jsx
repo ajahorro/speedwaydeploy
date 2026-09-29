@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CreditCard, FileText, Clock, Printer } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -12,7 +12,11 @@ const CustomerBilling = () => {
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [selectedPayment, setSelectedPayment] = useState(null);
 
-  const fetchData = useCallback(async () => {
+  useEffect(() => {
+    if (user?.id) fetchData();
+  }, [user?.id]);
+
+  const fetchData = async () => {
     if (!user?.id) return;
     try {
       const { data, error } = await supabase
@@ -36,11 +40,7 @@ const CustomerBilling = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (user?.id) fetchData();
-  }, [user?.id, fetchData]);
+  };
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val || 0);
   // FLAT, TAX-FREE pricing: the total IS the subtotal. There is no tax to

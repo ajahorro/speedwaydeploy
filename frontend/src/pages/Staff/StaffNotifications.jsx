@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import PageHeader from '../../components/PageHeader';
 import { Bell, CheckCircle, Trash2, Search, AlertTriangle } from 'lucide-react';
@@ -59,7 +59,7 @@ const StaffNotifications = () => {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [selectedNotification, setSelectedNotification] = useState(null);
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = async () => {
     if (!userId) {
       setLoading(false);
       return;
@@ -80,7 +80,7 @@ const StaffNotifications = () => {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  };
 
   useEffect(() => {
     fetchNotifications();
@@ -102,7 +102,7 @@ const StaffNotifications = () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
       supabase.removeChannel(channel);
     };
-  }, [userId, fetchNotifications]);
+  }, [userId]);
 
   const handleMarkAsRead = async (id, silent = false) => {
     try {

@@ -136,10 +136,6 @@ const CustomerBookingDetails = () => {
       if (active) setRescheduleSlotsLoading(false);
     });
     return () => { active = false; };
-    // `rescheduleTime` is intentionally NOT a dependency: it is read only to
-    // CLEAR a selection the new slot list no longer offers. Adding it would
-    // re-run this effect every time setRescheduleTime fires, an infinite loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showRescheduleModal, rescheduleDate, booking?.id, booking?.start_datetime, booking?.end_datetime, vehicles]);
 
   const confirmReschedule = async () => {

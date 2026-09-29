@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Send, Image as ImageIcon, Bot, Check, CheckCheck, Loader2, AlertCircle, X } from 'lucide-react';
@@ -24,7 +24,7 @@ const BookingChat = ({ bookingId }) => {
   const fileRef = useRef(null);
 
   // --- FETCH MESSAGES ---
-  const markMessagesAsRead = useCallback(async (messageList) => {
+  const markMessagesAsRead = async (messageList) => {
     const unreadIds = messageList
       .filter(message => message.sender_id !== user?.id && !message.is_read)
       .map(message => message.id);
@@ -39,9 +39,9 @@ const BookingChat = ({ bookingId }) => {
       .in('id', unreadIds);
     if (readError) console.error('Unable to mark chat messages as read:', readError);
     await refreshUnreadCount();
-  }, [user?.id, refreshUnreadCount]);
+  };
 
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = async () => {
     const { data, error } = await supabase
       .from('booking_messages')
       .select('*, read_at, sender:profiles!booking_messages_sender_id_fkey(full_name, first_name, last_name, role)')
@@ -56,7 +56,7 @@ const BookingChat = ({ bookingId }) => {
       reportThreadUnread(bookingId, conversationMessages.filter(message => message.sender_id !== user?.id && !message.is_read).length);
       await markMessagesAsRead(conversationMessages);
     }
-  }, [bookingId, user?.id, reportThreadUnread, markMessagesAsRead]);
+  };
 
   useEffect(() => {
     if (!bookingId || !user?.id) return undefined;
@@ -137,7 +137,7 @@ const BookingChat = ({ bookingId }) => {
       active = false;
       if (channel) supabase.removeChannel(channel);
     };
-  }, [bookingId, user?.id, profile, refreshUnreadCount, reportThreadUnread, fetchMessages]);
+  }, [bookingId, user?.id, profile, refreshUnreadCount, reportThreadUnread]);
 
   // Smart Auto-scroll (REQ-NFR-30)
   const prevMsgCount = useRef(0);

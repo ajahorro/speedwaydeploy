@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -16,7 +16,11 @@ const StaffWorkHistory = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const fetchHistory = useCallback(async () => {
+  useEffect(() => {
+    fetchHistory();
+  }, [profile?.id]);
+
+  const fetchHistory = async () => {
     if (!profile?.id) return;
     setLoading(true);
     try {
@@ -47,11 +51,7 @@ const StaffWorkHistory = () => {
     } finally {
       setLoading(false);
     }
-  }, [profile?.id]);
-
-  useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
+  };
 
   const filteredHistory = history.filter(item => 
     item.plate_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||

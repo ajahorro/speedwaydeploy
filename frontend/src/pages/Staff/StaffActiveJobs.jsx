@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { useUI } from '../../context/UIContext';
@@ -19,9 +19,9 @@ const StaffActiveJobs = () => {
 
   useEffect(() => {
     fetchActiveTasks();
-  }, [fetchActiveTasks]);
+  }, [profile?.id]);
 
-  const fetchActiveTasks = useCallback(async () => {
+  const fetchActiveTasks = async () => {
     if (!profile?.id) return;
     setLoading(true);
     try {
@@ -38,7 +38,7 @@ const StaffActiveJobs = () => {
 
       if (error) throw error;
 
-      const activeUnits = (data || []).flatMap(b =>
+      const activeUnits = (data || []).flatMap(b => 
         b.vehicles.map(v => ({
           ...v,
           booking_id: b.id,
@@ -57,7 +57,7 @@ const StaffActiveJobs = () => {
     } finally {
       setLoading(false);
     }
-  }, [profile?.id]);
+  };
 
   const handleUpdateStatus = async (task, newStatus) => {
     const toastId = toast.loading(`Updating ${task.plate_number}...`);

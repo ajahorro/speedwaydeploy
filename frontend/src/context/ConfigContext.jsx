@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { SHOP_CONFIG } from '../config/constants';
 import { logger } from '../utils/logger';
@@ -53,7 +53,7 @@ export const ConfigProvider = ({ children }) => {
     }
   };
 
-  const refreshConfig = useCallback(async () => {
+  const refreshConfig = async () => {
     try {
       logger.admin('Synchronizing live shop configuration...');
       const { data, error } = await supabase
@@ -119,7 +119,7 @@ export const ConfigProvider = ({ children }) => {
       logger.error('Config Sync Error', err);
       setSettings(prev => ({ ...prev, loaded: true })); // Proceed with defaults
     }
-  }, []);
+  };
 
   useEffect(() => {
     refreshConfig();
@@ -139,7 +139,7 @@ export const ConfigProvider = ({ children }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refreshConfig]);
+  }, []);
 
   return (
     <ConfigContext.Provider value={{ settings, refreshConfig }}>

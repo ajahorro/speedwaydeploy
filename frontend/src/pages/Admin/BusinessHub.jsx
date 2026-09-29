@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Building, Clock, Wrench, Tag, Save, AlertCircle, CheckCircle,
@@ -454,10 +454,6 @@ export default function BusinessHub() {
   });
   const [pristine, setPristine] = useState(null);
   const [recordId, setRecordId] = useState(null);
-  // Mirrors businessForm for callbacks that must read it WITHOUT depending on it
-  // (an interval/one-shot fetch would otherwise re-run on every form keystroke).
-  const businessFormRef = useRef(businessForm);
-  businessFormRef.current = businessForm;
   // Task B: the QR change modal owns its own OTP flow. Saving the profile does
   // NOT commit QR changes — those go through the verified [Change QR] path only.
   const [showQrModal, setShowQrModal] = useState(false);
@@ -474,15 +470,15 @@ export default function BusinessHub() {
 
   useEffect(() => {
     fetchBusinessConfig();
-  }, [fetchBusinessConfig]);
+  }, []);
 
   useEffect(() => {
     if (currentTab === 'schedule') {
       fetchBlockedSlotsForDate(restrictionDate);
     }
-  }, [currentTab, restrictionDate, fetchBlockedSlotsForDate]);
+  }, [currentTab, restrictionDate]);
 
-  const fetchBlockedSlotsForDate = useCallback(async (dateValue) => {
+  const fetchBlockedSlotsForDate = async (dateValue) => {
     if (!dateValue) return;
     try {
       const { data, error } = await supabase
@@ -497,9 +493,9 @@ export default function BusinessHub() {
       console.error('Failed to load blocked slots:', err);
       setBlockedSlots([]);
     }
-  }, []);
+  };
 
-  const fetchBusinessConfig = useCallback(async () => {
+  const fetchBusinessConfig = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -540,10 +536,8 @@ export default function BusinessHub() {
         setPristine(merged);
         setRecordId(data.id);
       } else {
-        // No row yet — treat the initial defaults as pristine. `businessForm`
-        // is read through a ref so the mount-only fetch callback does not need it
-        // as a dependency (which would re-run the load on every keystroke).
-        setPristine((prev) => prev ?? businessFormRef.current);
+        // No row yet — treat the initial defaults as pristine.
+        setPristine((prev) => prev ?? businessForm);
       }
     } catch (err) {
       console.error('Failed to load business config:', err);
@@ -551,7 +545,7 @@ export default function BusinessHub() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   // Task B: block tab switches / navigation while a section has unsaved edits.
   // NOTE: computed further below, AFTER `isDirty` is defined. Referencing the
@@ -925,7 +919,7 @@ export default function BusinessHub() {
     try { localStorage.setItem('speedway_custom_services', JSON.stringify(next)); } catch { /* ignore quota errors */ }
   };
 
-  const normalizeVehicleTypes = useCallback((service) => {
+  const normalizeVehicleTypes = (service) => {
     const rawTypes = Array.isArray(service?.applicableVehicleTypes)
       ? service.applicableVehicleTypes
       : Array.isArray(service?.vehicleTypes)
@@ -943,7 +937,7 @@ export default function BusinessHub() {
       .filter((type) => available.has(type) || available.has(normalizeVehicleCategoryKey(type)));
 
     return [...new Set(normalized.map((type) => normalizeVehicleCategoryKey(type)))];
-  }, [businessForm.vehicle_types]);
+  };
 
   const getAvailableVehicleTypes = () => {
     const values = [...new Set([...(businessForm.vehicle_types || [...DEFAULT_VEHICLE_TYPES]), ...DEFAULT_VEHICLE_TYPES])]
@@ -1270,7 +1264,7 @@ export default function BusinessHub() {
           return serviceTypes.includes(normalizeVehicleCategoryKey(selectedVehicleFilter));
         });
     return services.filter((s) => s.is_active !== false && s.archived !== true);
-  }, [allLoadedServices, selectedVehicleFilter, normalizeVehicleTypes]);
+  }, [allLoadedServices, selectedVehicleFilter]);
 
   const addServiceDraft = () => {
     setServiceDrafts((prev) => [...prev, createServiceDraft()]);
@@ -1305,7 +1299,7 @@ export default function BusinessHub() {
           return serviceTypes.includes(normalizeVehicleCategoryKey(selectedVehicleFilter));
         });
     return services.filter((s) => s.is_active === false || s.archived === true);
-  }, [allLoadedServices, selectedVehicleFilter, normalizeVehicleTypes]);
+  }, [allLoadedServices, selectedVehicleFilter]);
 
   const toggleServicePanel = (panelKey) => {
     setServicePanels((prev) => ({ ...prev, [panelKey]: !prev[panelKey] }));
@@ -1319,7 +1313,7 @@ export default function BusinessHub() {
       const serviceTypes = normalizeVehicleTypes(service).map((type) => normalizeVehicleCategoryKey(type));
       return serviceTypes.includes(targetKey);
     });
-  }, [businessForm.custom_services, selectedVehicleFilter, normalizeVehicleTypes]);
+  }, [businessForm.custom_services, selectedVehicleFilter]);
 
   const saveCatalogState = async (nextCustomServices, nextVehicleTypes, successText) => {
     try {

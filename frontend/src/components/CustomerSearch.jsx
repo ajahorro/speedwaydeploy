@@ -4,17 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 
-// Static route table, hoisted to MODULE scope for a stable identity across renders.
-const pages = [
-  { name: 'Dashboard', path: '/customer', icon: LayoutDashboard, category: 'Pages' },
-  { name: 'Book Appointment', path: '/customer/book', icon: Calendar, category: 'Pages' },
-  { name: 'My Bookings', path: '/customer/bookings', icon: ClipboardList, category: 'Pages' },
-  { name: 'Transactions & Billing', path: '/customer/billing', icon: FileText, category: 'Pages' },
-  { name: 'Vehicle Garage', path: '/customer/garage', icon: Car, category: 'Pages' },
-  { name: 'Notifications', path: '/customer/notifications', icon: FileText, category: 'Pages' },
-  { name: 'Settings', path: '/customer/settings', icon: Settings, category: 'Pages' }
-];
-
 const CustomerSearch = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -22,6 +11,16 @@ const CustomerSearch = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
+
+  const pages = [
+    { name: 'Dashboard', path: '/customer', icon: LayoutDashboard, category: 'Pages' },
+    { name: 'Book Appointment', path: '/customer/book', icon: Calendar, category: 'Pages' },
+    { name: 'My Bookings', path: '/customer/bookings', icon: ClipboardList, category: 'Pages' },
+    { name: 'Transactions & Billing', path: '/customer/billing', icon: FileText, category: 'Pages' },
+    { name: 'Vehicle Garage', path: '/customer/garage', icon: Car, category: 'Pages' },
+    { name: 'Notifications', path: '/customer/notifications', icon: FileText, category: 'Pages' },
+    { name: 'Settings', path: '/customer/settings', icon: Settings, category: 'Pages' }
+  ];
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -73,9 +72,6 @@ const CustomerSearch = () => {
 
     const timeoutId = setTimeout(searchCustomerData, 250);
     return () => clearTimeout(timeoutId);
-    // `pages` is a module-scope constant now, so it is intentionally NOT a
-    // dependency — its identity cannot change between renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, user?.id]);
 
   const handleSelect = (path) => {

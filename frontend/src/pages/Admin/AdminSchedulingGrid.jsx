@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { 
@@ -19,7 +19,7 @@ const AdminSchedulingGrid = ({ onBack }) => {
   // Expanded Command Hours: 06:00 AM - 11:00 PM
   const timeSlots = Array.from({ length: 18 }, (_, i) => i + 6);
 
-  const fetchGridData = useCallback(async () => {
+  const fetchGridData = async () => {
     setLoading(true);
     try {
       const startOfDay = new Date(selectedDate);
@@ -48,7 +48,7 @@ const AdminSchedulingGrid = ({ onBack }) => {
 
       if (bookingError) throw bookingError;
       setBookings(bookingData || []);
-
+      
       logger.admin(`Grid synchronized for ${selectedDate.toDateString()}`);
     } catch (err) {
       logger.error('Grid Sync Error', err);
@@ -56,11 +56,11 @@ const AdminSchedulingGrid = ({ onBack }) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate]);
+  };
 
   useEffect(() => {
     fetchGridData();
-  }, [selectedDate, fetchGridData]);
+  }, [selectedDate]);
 
   const getStatusColor = (status) => {
     switch (status) {
