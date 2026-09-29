@@ -148,10 +148,14 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
-  } catch (error) {
-    const isAuthorizationFailure = /Authentication|Authenticated user|Administrator access/i.test(error?.message || '')
+  } catch (error: unknown) {
+    // `error` is `unknown` in a catch clause: reading `.message` off it directly
+    // is a type error (TS18046) and is NOT guaranteed to be an Error at runtime —
+    // a thrown string or object would produce `undefined`. Normalise it first.
+    const message = error instanceof Error ? error.message : String(error)
+    const isAuthorizationFailure = /Authentication|Authenticated user|Administrator access/i.test(message)
     return new Response(JSON.stringify({
-      error: error.message,
+      error: message,
       ...(isAuthorizationFailure ? {} : { emailPending: true }),
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

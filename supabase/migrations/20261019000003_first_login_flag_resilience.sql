@@ -45,6 +45,18 @@
 -- ============================================================================
 
 -- ── 1. (Re)assert the original owner-only completion function ───────────────
+-- DROP first: `create or replace` CANNOT change a function's return type, and a
+-- database that already has an older variant (different RETURNS, or a different
+-- argument list) fails with:
+--
+--   ERROR: 42P13: cannot change return type of existing function
+--   HINT: Use DROP FUNCTION complete_first_login_password_change() first.
+--
+-- Dropping is safe: the function holds no data and is recreated immediately
+-- below. IF EXISTS makes the migration idempotent on a database that never had
+-- it (the un-migrated case this migration exists to repair).
+drop function if exists public.complete_first_login_password_change();
+
 create or replace function public.complete_first_login_password_change()
 returns jsonb
 language plpgsql security definer set search_path = public
@@ -76,6 +88,12 @@ comment on function public.complete_first_login_password_change() is
 -- Identical authorisation (own account only) but ALWAYS reports the resulting
 -- state rather than assuming the row changed, and never raises merely because
 -- the flag was already clear. Safe to call repeatedly.
+--
+-- Also dropped first for the same 42P13 reason: if an earlier attempt at this
+-- migration already created it with a different shape, `create or replace` alone
+-- would refuse to proceed.
+drop function if exists public.clear_first_login_flag();
+
 create or replace function public.clear_first_login_flag()
 returns jsonb
 language plpgsql security definer set search_path = public

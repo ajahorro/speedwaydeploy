@@ -1,7 +1,33 @@
 {
     "git.ignoreLimitWarning": true,
+
+    // ── Supabase Edge Functions are DENO modules, not Node ─────────────────
+    // These files import from URLs (https://deno.land/..., https://esm.sh/...)
+    // and use the Deno.* global. The built-in TypeScript server has no idea what
+    // those are, so it reports a per-import "TS2307 Cannot find module" plus a
+    // cascade of implication errors (TS7006 'implicitly has any', TS18046
+    // ''error' is of type unknown', TS2339 on remote module types). Those are
+    // EDITOR diagnosis noise, not defects in the functions.
+    //
+    // The Deno language server is the correct one for this folder, so we let it
+    // own the directory and switch the TS server off there. deno.json (in
+    // supabase/functions) supplies the config that resolves the URL imports.
     "deno.enable": true,
     "deno.enablePaths": [
         "./supabase/functions"
-    ]
+    ],
+    "deno.config": "./supabase/functions/deno.json",
+    "deno.lint": true,
+    "deno.unstable": [],
+
+    // Hand the folder to Deno: stop the TS server from double-reporting it.
+    "typescript.validate.enable": false,
+    "javascript.validate.enable": false,
+    "typescript.tsserver.maxTsServerMemory": 4096,
+
+    // Keep the TS server fast by excluding generated/edge output from its crawl.
+    "search.exclude": {
+        "**/dist": true,
+        "**/node_modules": true
+    }
 }
