@@ -307,16 +307,18 @@ const Landing = () => {
           width: 100%;
           height: 100%;
           object-fit: cover;
-          /* Desktop: show the centre-right which has the gradient/car */
           object-position: center center;
           z-index: 0;
           opacity: 0.55;
         }
         @media (max-width: 768px) {
           .hero-video {
-            /* Mobile: force to centre so the red gradient radiance is visible */
+            /* Mobile: center without cropping */
+            object-fit: contain;
             object-position: center center;
-            opacity: 0.45;
+            width: 100%;
+            height: 100%;
+            opacity: 0.65;
           }
           .hero-content h1 { font-size: clamp(2rem, 8vw, 3rem) !important; }
 
@@ -502,10 +504,11 @@ const Landing = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          background: 'radial-gradient(ellipse at center, rgba(169, 27, 24, 0.22) 0%, rgba(10, 11, 13, 0.88) 65%, #0A0B0D 100%)'
         }}
       >
-        {/* Background video — object-position: center keeps the red glow centered on mobile */}
+        {/* Background video — centered without cropping on mobile */}
         <video
           className="hero-video"
           autoPlay
@@ -514,6 +517,7 @@ const Landing = () => {
           playsInline
           preload="auto"
         >
+          <source src="/Celeme231_pindown.io_1790707258.mp4" type="video/mp4" />
           <source src="/hero-bg.mp4" type="video/mp4" />
         </video>
 
@@ -521,8 +525,9 @@ const Landing = () => {
         <div style={{
           position: 'absolute',
           inset: 0,
-          background: 'linear-gradient(to bottom, rgba(10,11,13,0.55) 0%, rgba(10,11,13,0.35) 50%, rgba(10,11,13,0.75) 100%)',
-          zIndex: 1
+          background: 'linear-gradient(to bottom, rgba(10,11,13,0.5) 0%, rgba(10,11,13,0.25) 50%, rgba(10,11,13,0.7) 100%)',
+          zIndex: 1,
+          pointerEvents: 'none'
         }} />
 
         <div className="hero-content" style={{ position: 'relative', zIndex: 2, textAlign: 'center', maxWidth: '900px', padding: '0 2rem' }}>
