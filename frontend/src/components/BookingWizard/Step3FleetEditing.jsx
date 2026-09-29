@@ -236,7 +236,7 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 350px), 1fr))', gap: '1.5rem', minWidth: 0 }}>
         {vehicles.map((v, idx) => (
           <div 
             key={v.id}
@@ -342,7 +342,7 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
       </div>
 
       {/* Action Footer */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem', marginTop: '1rem', gap: '1rem' }}>
+      <div className="booking-step3-actions" style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem', marginTop: '1rem', gap: '1rem' }}>
         <button
           onClick={onBack}
           style={{

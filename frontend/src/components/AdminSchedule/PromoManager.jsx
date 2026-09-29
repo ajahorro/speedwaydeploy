@@ -430,7 +430,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
           Section 4 — z-index layering: the panel becomes a positioned stacking
           context that lifts above the campaign cards/tables below whenever a
           vehicle-service dropdown is open, so selects never render behind them. */}
-      <div style={{ position: 'relative', zIndex: activeVehiclePopover ? 40 : 'auto', background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '1.25rem', marginBottom: '1.5rem', fontFamily: 'inherit' }}>
+      <div style={{ position: 'relative', zIndex: activeVehiclePopover ? 40 : 'auto', minWidth: 0, fontFamily: 'inherit' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div style={{ fontSize: '15px', fontWeight: '900', color: 'var(--admin-text-primary)' }}>
             Promotion Engine &amp; Dynamic Binding
@@ -496,7 +496,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
         </div>
 
         {/* Responsive grid: single column on small screens, 3 columns up top. */}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1.3fr', gap: '1rem', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr 1.3fr', gap: '1rem', alignItems: 'start', minWidth: 0 }}>
           {/* Column 1: Basic Details */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
             <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--admin-text-primary)' }}>Basic Details</div>
