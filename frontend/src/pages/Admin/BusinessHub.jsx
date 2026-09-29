@@ -1184,6 +1184,29 @@ export default function BusinessHub() {
     ));
   };
 
+  // ── SINGLE SOURCE OF TRUTH FOR THE SERVICE LIST ───────────────────────────
+  //
+  // DECLARATION ORDER IS LOAD-BEARING. `allLoadedServices` is read by
+  // `selectedServiceRows` below (both in the body AND in its dependency array),
+  // so it must be initialized FIRST. It used to be declared ~320 lines further
+  // down, which meant this line:
+  //
+  //     }, [selectedServiceIds, allLoadedServices]);
+  //
+  // read a `const` that had not been initialized yet. A TDZ violation is not
+  // `undefined` — it throws a ReferenceError naming the minified binding
+  // ("Cannot access 'Vt' before initialization") from inside the render pass,
+  // which the error boundary reports as a crash of the Admin Screen. It only
+  // fires when this component actually renders, which is why the Admin Business
+  // Hub -- and not the app boot -- was the screen that died.
+  //
+  // `frontend/scripts/check-hook-order.cjs` guards this class of mistake; run it
+  // after any reordering of hooks in this file.
+  const allLoadedServices = useMemo(
+    () => mergeCatalogServices(businessForm.custom_services || [], businessForm.archived_service_ids || []),
+    [businessForm.custom_services, businessForm.archived_service_ids]
+  );
+
   // Resolve checked ids back to the live service rows, so batch actions always
   // operate on current data (never a stale snapshot captured when the box was ticked).
   const selectedServiceRows = useMemo(() => {
@@ -1515,11 +1538,6 @@ export default function BusinessHub() {
       return changed ? next : prev;
     });
   }, [visibleFaqs]);
-
-  const allLoadedServices = useMemo(
-    () => mergeCatalogServices(businessForm.custom_services || [], businessForm.archived_service_ids || []),
-    [businessForm.custom_services, businessForm.archived_service_ids]
-  );
 
   const activeServices = useMemo(() => {
     const services = selectedVehicleFilter === 'All'
