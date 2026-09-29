@@ -344,6 +344,7 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
       {/* Action Footer */}
       <div className="booking-step3-actions" style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem', marginTop: '1rem', gap: '1rem' }}>
         <button
+          className="booking-step3-back"
           onClick={onBack}
           style={{
             padding: '1rem 2rem',

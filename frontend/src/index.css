@@ -130,6 +130,10 @@
 }
 
 @media (max-width: 640px) {
+  .booking-step3-back {
+    display: none !important;
+  }
+
   .booking-step3-actions {
     align-items: stretch !important;
     flex-direction: column;
