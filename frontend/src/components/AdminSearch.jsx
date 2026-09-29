@@ -4,27 +4,30 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
 
+// Static route table. Hoisted to MODULE scope so its identity is stable across
+// renders — declared inside the component it was a NEW array on every render,
+// which is what put it in the search effect's dependency graph.
+const PAGES = [
+  { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, category: 'Pages' },
+  { name: 'Booking Management', path: '/admin/bookings', icon: ClipboardList, category: 'Pages' },
+  { name: 'Payment Verification', path: '/admin/payments', icon: CreditCard, category: 'Pages' },
+  { name: 'Schedule', path: '/admin/schedule', icon: Calendar, category: 'Pages' },
+  { name: 'Refund Hub', path: '/admin/refunds', icon: ClipboardList, category: 'Pages' },
+  { name: 'Analytics', path: '/admin/analytics', icon: LayoutDashboard, category: 'Pages' },
+  { name: 'Audit Logs', path: '/admin/audit-logs', icon: History, category: 'Pages' },
+  { name: 'Staff Management', path: '/admin/staff', icon: User, category: 'Pages' },
+  { name: 'Users', path: '/admin/users', icon: User, category: 'Pages' },
+  { name: 'Notifications', path: '/admin/notifications', icon: Bell, category: 'Pages' },
+  { name: 'Settings', path: '/admin/settings', icon: Settings, category: 'Pages' },
+  { name: 'Profile', path: '/admin/profile', icon: Shield, category: 'Pages' },
+];
+
 const AdminSearch = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
   const searchRef = useRef(null);
-
-  const pages = [
-    { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, category: 'Pages' },
-    { name: 'Booking Management', path: '/admin/bookings', icon: ClipboardList, category: 'Pages' },
-    { name: 'Payment Verification', path: '/admin/payments', icon: CreditCard, category: 'Pages' },
-    { name: 'Schedule', path: '/admin/schedule', icon: Calendar, category: 'Pages' },
-    { name: 'Refund Hub', path: '/admin/refunds', icon: ClipboardList, category: 'Pages' },
-    { name: 'Analytics', path: '/admin/analytics', icon: LayoutDashboard, category: 'Pages' },
-    { name: 'Audit Logs', path: '/admin/audit-logs', icon: History, category: 'Pages' },
-    { name: 'Staff Management', path: '/admin/staff', icon: User, category: 'Pages' },
-    { name: 'Users', path: '/admin/users', icon: User, category: 'Pages' },
-    { name: 'Notifications', path: '/admin/notifications', icon: Bell, category: 'Pages' },
-    { name: 'Settings', path: '/admin/settings', icon: Settings, category: 'Pages' },
-    { name: 'Profile', path: '/admin/profile', icon: Shield, category: 'Pages' },
-  ];
 
   useEffect(() => {
     const handleClickOutside = (event) => {

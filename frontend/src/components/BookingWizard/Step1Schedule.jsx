@@ -69,7 +69,7 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
     } finally {
       if (!silent) setIsLoadingSlots(false);
     }
-  }, [bookingData.date, totalDuration, bookingData.vehicles, adminMode, bookingData.time, setBookingData]); // eslint-disable-line
+  }, [bookingData.date, totalDuration, bookingData.vehicles, adminMode, bookingData.time, setBookingData]);
 
   // Recompute on date / duration / vehicle / mode change.
   useEffect(() => {

@@ -128,9 +128,9 @@ producing exactly the reported "confirmation link goes to localhost".
 
 | Setting | Value |
 |---|---|
-| **Site URL** | `https://your-deployed-frontend.example.com` |
-| **Redirect URLs** | `https://your-deployed-frontend.example.com/auth/callback` |
-| | `https://your-deployed-frontend.example.com/password-confirmation` |
+| **Site URL** | `https://comargarage.com` |
+| **Redirect URLs** | `https://comargarage.com/auth/callback` |
+| | `https://comargarage.com/password-confirmation` |
 | | `http://localhost:5173/auth/callback` *(keep for local dev)* |
 | | `http://localhost:5173/password-confirmation` *(keep for local dev)* |
 

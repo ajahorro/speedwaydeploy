@@ -375,6 +375,20 @@ const AdminPayments = () => {
     return '#3b82f6'; // Blue for FOR_VERIFICATION / Pending
   };
 
+  // ── Section 5: cash payments have no digital evidence to verify ─────────────
+  // A cash settlement is handed over at the counter, so the OCR "Payment
+  // Verification Archive", the AI scan action and the digital reference fields
+  // must be hidden ENTIRELY rather than rendered empty.
+  const isCashPayment = (payment) => String(payment?.method || '').trim().toLowerCase() === 'cash';
+
+  // ── Section 5: financial immutability ──────────────────────────────────────
+  // Once money has actually moved (payment settled/refunded), the trail is
+  // closed: no verify/reject/override affordances may be offered at all.
+  const SETTLED_PAYMENT_STATUSES = ['PAID', 'REFUNDED', 'REFUND_PENDING', 'PROCESSED', 'COMPLETED'];
+  const isPaymentLocked = (payment) => SETTLED_PAYMENT_STATUSES.includes(
+    String(payment?.status || '').trim().toUpperCase()
+  );
+
   const canAccessReceipt = (booking) => {
     // REQ-ADM-10: Admins can access receipts if payment is PAID OR if refund is PROCESSED
     return (booking?.payments || []).some(p => p.status === 'PAID') || booking?.refund_status === 'PROCESSED';
@@ -481,22 +495,22 @@ const AdminPayments = () => {
     setTimeout(() => popup.print(), 300);
   };
 
-  const cardStyle = { 
-    background: 'var(--admin-card)', 
-    border: '1px solid var(--admin-border)', 
-    borderRadius: 'var(--admin-radius)', 
-    overflow: 'hidden', 
-    boxShadow: 'var(--admin-card-shadow)', 
-    color: 'var(--admin-text-primary)' 
+  const cardStyle = {
+    background: 'var(--admin-card)',
+    border: '1px solid var(--admin-border)',
+    borderRadius: 'var(--admin-radius)',
+    overflow: 'hidden',
+    boxShadow: 'var(--admin-card-shadow)',
+    color: 'var(--admin-text-primary)'
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
-      <PageHeader 
-        badge="FINANCIAL AUDIT" 
-        title="PAYMENT TRANSACTIONS" 
-        subtitle="Verify and manage customer payment records for fleet sessions." 
-        onRefresh={fetchPayments} 
+      <PageHeader
+        badge="FINANCIAL AUDIT"
+        title="PAYMENT TRANSACTIONS"
+        subtitle="Verify and manage customer payment records for fleet sessions."
+        onRefresh={fetchPayments}
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1fr', gap: isMobile ? '1rem' : '2rem' }}>
@@ -513,29 +527,29 @@ const AdminPayments = () => {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: isMobile ? '100%' : '200px', position: 'relative' }}>
               <Search size={18} color="var(--admin-text-secondary)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', zIndex: 1 }} />
-              <input 
-                type="text" 
-                placeholder="SEARCH REFERENCE..." 
-                value={state.searchTerm} 
-                onChange={(e) => setState(prev => ({ ...prev, searchTerm: e.target.value }))} 
-                style={{ flex: 1, background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', padding: '0.85rem 1rem 0.85rem 2.75rem', color: 'var(--admin-text-primary)', outline: 'none', fontWeight: '950', fontSize: '0.75rem', width: '100%' }} 
+              <input
+                type="text"
+                placeholder="SEARCH REFERENCE..."
+                value={state.searchTerm}
+                onChange={(e) => setState(prev => ({ ...prev, searchTerm: e.target.value }))}
+                style={{ flex: 1, background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', padding: '0.85rem 1rem 0.85rem 2.75rem', color: 'var(--admin-text-primary)', outline: 'none', fontWeight: '950', fontSize: '0.75rem', width: '100%' }}
               />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: isMobile ? '100%' : 'auto' }}>
               <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--admin-bg)', padding: '0.25rem', borderRadius: 'var(--admin-radius-sm)', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'center' : 'flex-start', border: '1px solid var(--admin-border)' }}>
                 {['PENDING', 'PROCESSED', 'ALL'].map(f => (
-                  <button 
-                    key={f} 
-                    onClick={() => setState(prev => ({ ...prev, filter: f, methodFilter: f === 'PROCESSED' ? prev.methodFilter : 'ALL' }))} 
-                    style={{ 
-                      flex: isMobile ? 1 : 'none', 
-                      padding: '0.5rem 1rem', 
-                      borderRadius: 'calc(var(--admin-radius-sm) - 2px)', 
-                      border: 'none', 
-                      background: state.filter === f ? 'var(--admin-brand)' : 'transparent', 
-                      color: state.filter === f ? 'white' : 'var(--admin-text-secondary)', 
-                      fontSize: '0.65rem', 
-                      fontWeight: '950', 
+                  <button
+                    key={f}
+                    onClick={() => setState(prev => ({ ...prev, filter: f, methodFilter: f === 'PROCESSED' ? prev.methodFilter : 'ALL' }))}
+                    style={{
+                      flex: isMobile ? 1 : 'none',
+                      padding: '0.5rem 1rem',
+                      borderRadius: 'calc(var(--admin-radius-sm) - 2px)',
+                      border: 'none',
+                      background: state.filter === f ? 'var(--admin-brand)' : 'transparent',
+                      color: state.filter === f ? 'white' : 'var(--admin-text-secondary)',
+                      fontSize: '0.65rem',
+                      fontWeight: '950',
                       cursor: 'pointer',
                       textTransform: 'uppercase'
                     }}
@@ -576,13 +590,13 @@ const AdminPayments = () => {
           ) : filteredItems.length === 0 ? (
             <div style={{ ...cardStyle, padding: '4rem', textAlign: 'center', opacity: 0.5, textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: '900' }}>No transactions found</div>
           ) : filteredItems.map(p => (
-            <div 
-              key={p.id} 
-              onClick={() => setState(prev => ({ ...prev, selectedItem: p }))} 
-              style={{ 
-                ...cardStyle, 
-                padding: isMobile ? '1rem' : '1.25rem', 
-                cursor: 'pointer', 
+            <div
+              key={p.id}
+              onClick={() => setState(prev => ({ ...prev, selectedItem: p }))}
+              style={{
+                ...cardStyle,
+                padding: isMobile ? '1rem' : '1.25rem',
+                cursor: 'pointer',
                 border: state.selectedItem?.id === p.id ? '2px solid var(--admin-brand)' : '1px solid var(--admin-border)',
                 background: state.selectedItem?.id === p.id ? 'rgba(169, 27, 24, 0.03)' : 'var(--admin-card)',
                 transition: '0.2s'
@@ -632,13 +646,13 @@ const AdminPayments = () => {
                   </div>
                 </div>
 
-                {state.selectedItem.receipt_url && (
+                {!isCashPayment(state.selectedItem) && state.selectedItem.receipt_url && (
                   <div>
                     <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.75rem', letterSpacing: '0.5px' }}>CUSTOMER RECEIPT</div>
                     <div style={{ width: '100%', height: '240px', background: 'var(--admin-bg)', borderRadius: 'var(--admin-radius-sm)', overflow: 'hidden', border: '1px solid var(--admin-border)', position: 'relative' }}>
                       <img src={state.selectedItem.receipt_url} alt="Receipt" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                      
-                      <button 
+
+                      <button
                         onClick={() => handleAIScan(state.selectedItem.receipt_url, state.selectedItem)}
                         disabled={state.isScanning}
                         style={{
@@ -656,10 +670,10 @@ const AdminPayments = () => {
                     </div>
 
                     {state.selectedItem.ai_verified && (
-                      <div style={{ 
-                        marginTop: '1rem', padding: '0.85rem', background: 'rgba(16, 185, 129, 0.1)', 
-                        border: '1px solid #10b981', borderRadius: '12px', display: 'flex', 
-                        alignItems: 'center', gap: '0.75rem' 
+                      <div style={{
+                        marginTop: '1rem', padding: '0.85rem', background: 'rgba(16, 185, 129, 0.1)',
+                        border: '1px solid #10b981', borderRadius: '12px', display: 'flex',
+                        alignItems: 'center', gap: '0.75rem'
                       }}>
                         <CheckCircle size={18} color="var(--status-success)" />
                         <div>
@@ -672,11 +686,18 @@ const AdminPayments = () => {
                 )}
 
                 <div style={{ marginTop: 'auto', display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
-                  {state.selectedItem.status === 'FOR_VERIFICATION' && (
+                  {state.selectedItem.status === 'FOR_VERIFICATION' && !isPaymentLocked(state.selectedItem) && (
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
-                      <label style={{ position: 'absolute', marginTop: '-2rem', right: 0, fontSize: '0.62rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
+                      {!isCashPayment(state.selectedItem) && (
+                        <label style={{ position: 'absolute', marginTop: '-2rem', right: 0, fontSize: '0.62rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
+                      )}
                       <button onClick={() => handleRejectPayment(state.selectedItem)} style={{ flex: 1, padding: '0.85rem', background: 'rgba(239,68,68,0.1)', color: 'var(--status-danger)', border: '1px solid #ef4444', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px' }}>REJECT</button>
                       <button onClick={() => handleVerifyPayment(state.selectedItem)} style={{ flex: 2, padding: '0.85rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px' }}>VERIFY PAID</button>
+                    </div>
+                  )}
+                  {isPaymentLocked(state.selectedItem) && (
+                    <div style={{ width: '100%', padding: '0.6rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.6rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                      Settled — this transaction is locked for audit.
                     </div>
                   )}
                   <button onClick={() => handleViewReceipt(state.selectedItem)} style={{ width: '100%', padding: '0.85rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
@@ -717,7 +738,8 @@ const AdminPayments = () => {
               </div>
             </div>
 
-            {state.selectedItem.receipt_url && (
+            {/* Section 5: a cash settlement carries no digital receipt to verify. */}
+            {!isCashPayment(state.selectedItem) && state.selectedItem.receipt_url && (
               <div>
                 <div style={{ fontSize: '0.7rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Customer Receipt</div>
                 <div style={{ width: '100%', height: '250px', background: 'var(--admin-bg)', borderRadius: '1rem', overflow: 'hidden', border: '1px solid var(--admin-border)' }}>
@@ -727,11 +749,18 @@ const AdminPayments = () => {
             )}
 
             <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
-              {state.selectedItem.status === 'FOR_VERIFICATION' && (
+              {state.selectedItem.status === 'FOR_VERIFICATION' && !isPaymentLocked(state.selectedItem) && (
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button onClick={() => handleRejectPayment(state.selectedItem)} style={{ flex: 1, padding: '1rem', background: 'rgba(239,68,68,0.1)', color: 'var(--status-danger)', border: 'none', borderRadius: '0.75rem', fontWeight: '800', cursor: 'pointer' }}>REJECT</button>
-                  <label style={{ position: 'absolute', right: '1.5rem', marginTop: '-2.25rem', fontSize: '0.62rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
+                  {!isCashPayment(state.selectedItem) && (
+                    <label style={{ position: 'absolute', right: '1.5rem', marginTop: '-2.25rem', fontSize: '0.62rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
+                  )}
                   <button onClick={() => handleVerifyPayment(state.selectedItem)} style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '0.75rem', fontWeight: '900', cursor: 'pointer' }}>VERIFY PAID</button>
+                </div>
+              )}
+              {isPaymentLocked(state.selectedItem) && (
+                <div style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '0.75rem', fontSize: '0.62rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  Settled — this transaction is locked for audit.
                 </div>
               )}
               <button onClick={() => handleViewReceipt(state.selectedItem)} style={{ width: '100%', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '0.75rem', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>

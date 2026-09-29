@@ -280,8 +280,58 @@ const flatten = (catalog) => Object.values(catalog).flat();
 
   check('an empty custom list returns the built-in catalog by reference (no needless copy)', () => {
     setCustomServices([]);
+    store['speedway_archived_service_ids'] = JSON.stringify([]);
     assert.strictEqual(getServiceCatalog(), SERVICES_DATA);
   });
+
+  // ── SCENARIO 7: TOMBSTONED built-in cannot resurrect (Section 3) ──────────
+  // The reported "delete says success but it comes back" bug. Suppression via a
+  // custom row alone is not durable: it only works while that row's id EXACTLY
+  // matches the built-in's generated id. The tombstone list suppresses by id
+  // independently of any custom row, so this must hold with NO custom row at all.
+  console.log('\n=== SCENARIO 7: tombstoned built-in stays deleted (Section 3) ===');
+
+  setCustomServices([]);
+  const builtInWashId = flatten(SERVICES_DATA).find((s) => s.name === 'Regular Wash').id;
+
+  check('with an empty tombstone the built-in is present', () => {
+    store['speedway_archived_service_ids'] = JSON.stringify([]);
+    assert.ok(
+      flatten(getServiceCatalog()).find((s) => s.name === 'Regular Wash'),
+      'harness: the built-in should be present before it is tombstoned'
+    );
+  });
+
+  check('a tombstoned built-in is suppressed even with NO custom row', () => {
+    // This is the exact shape that used to resurrect: no custom row carries the
+    // id, so only the tombstone can suppress it. `wash_1` is the real generated
+    // id of the built-in 'Regular Wash' row.
+    store['speedway_archived_service_ids'] = JSON.stringify([builtInWashId]);
+    const wash = flatten(getServiceCatalog()).find((s) => s.name === 'Regular Wash');
+    assert.ok(!wash, 'a tombstoned built-in reappeared — the delete is not durable');
+  });
+
+  check('the tombstone targets only the archived built-in', () => {
+    store['speedway_archived_service_ids'] = JSON.stringify([builtInWashId]);
+    const names = flatten(getServiceCatalog()).map((s) => s.name);
+    assert.ok(!names.includes('Regular Wash'), 'the tombstoned service is still listed');
+    assert.ok(names.length > 0, 'tombstoning one service must not empty the whole catalog');
+  });
+
+  check('removing the tombstone restores the built-in', () => {
+    store['speedway_archived_service_ids'] = JSON.stringify([]);
+    assert.ok(
+      flatten(getServiceCatalog()).find((s) => s.name === 'Regular Wash'),
+      'clearing the tombstone must restore the built-in (Restore must be reversible)'
+    );
+  });
+
+  check('a corrupt tombstone cache degrades to an unfiltered catalog', () => {
+    store['speedway_archived_service_ids'] = '{not valid json';
+    assert.strictEqual(flatten(getServiceCatalog()).length, flatten(SERVICES_DATA).length);
+  });
+
+  store['speedway_archived_service_ids'] = JSON.stringify([]);
 
   console.log(`\n=== ${passed} passed, ${failed} failed ===`);
   process.exit(failed === 0 ? 0 : 1);

@@ -7,11 +7,16 @@ import { emitEventToMany, EVENTS } from '../services/eventEngine';
 import { useGlobalChat } from '../context/ChatContext';
 
 /**
- * BookingChat — Unified real-time chat per booking.
+ * BookingChat — the CUSTOMER's single real-time conversation.
  * Participants: Customer, Admin, Assigned Technician.
  * Supports text messages, image uploads, and system auto-messages.
+ *
+ * Section 2: the thread identity is the CUSTOMER, not the booking. A customer
+ * has ONE continuous conversation across every booking; `bookingId` is now the
+ * booking being viewed, used only to TAG outgoing messages with the booking they
+ * relate to (booking_messages.booking_id, nullable).
  */
-const BookingChat = ({ bookingId }) => {
+const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
   const { user, profile } = useAuth();
   const { refreshUnreadCount, reportThreadUnread } = useGlobalChat();
   const [messages, setMessages] = useState([]);
@@ -19,6 +24,12 @@ const BookingChat = ({ bookingId }) => {
   const [sending, setSending] = useState(false);
   const [attachment, setAttachment] = useState(null);
   const [error, setError] = useState('');
+  // Section 2: the resolved customer thread, and the booking the next message
+  // will be tagged with. `tagBookingId` is nullable — a message may have no
+  // booking context at all.
+  const [customerId, setCustomerId] = useState(customerIdProp || null);
+  const [tagBookingId, setTagBookingId] = useState(bookingId || '');
+  const [bookingOptions, setBookingOptions] = useState([]);
   const bottomRef = useRef(null);
   const chatContainerRef = useRef(null);
   const fileRef = useRef(null);
@@ -41,25 +52,44 @@ const BookingChat = ({ bookingId }) => {
     await refreshUnreadCount();
   };
 
-  const fetchMessages = async () => {
+  // Section 2: load the whole CUSTOMER thread. Every message the customer has
+  // ever sent, across every booking, in one continuous timeline.
+  const fetchMessages = async (resolvedCustomerId) => {
+    const threadCustomerId = resolvedCustomerId || customerId;
+    if (!threadCustomerId) return;
+
     const { data, error } = await supabase
       .from('booking_messages')
       .select('*, read_at, sender:profiles!booking_messages_sender_id_fkey(full_name, first_name, last_name, role)')
-      .eq('booking_id', bookingId)
+      .eq('customer_id', threadCustomerId)
       .order('created_at', { ascending: true });
 
     if (!error && data) {
       const conversationMessages = data.filter(message => message.message_type !== 'system');
       setMessages(conversationMessages);
       // Publish this thread's own unread count so the launcher can badge the
-      // exact booking instead of only showing a global total.
-      reportThreadUnread(bookingId, conversationMessages.filter(message => message.sender_id !== user?.id && !message.is_read).length);
+      // exact customer conversation instead of only showing a global total.
+      reportThreadUnread(threadCustomerId, conversationMessages.filter(message => message.sender_id !== user?.id && !message.is_read).length);
       await markMessagesAsRead(conversationMessages);
     }
   };
 
+  // Section 2: the bookings a message can be tagged with — the customer's own
+  // bookings, newest first. Powers the tag selector in the composer.
+  const fetchBookingOptions = async (threadCustomerId) => {
+    if (!threadCustomerId) return;
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('id, status, created_at, vehicle_type, total_amount')
+      .eq('customer_id', threadCustomerId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (!error && data) setBookingOptions(data);
+  };
+
   useEffect(() => {
-    if (!bookingId || !user?.id) return undefined;
+    if (!bookingId && !customerIdProp) return undefined;
+    if (!user?.id) return undefined;
     // 🛡️ SCENARIO 6 — ACCOUNT REVOCATION.
     // If the profile reports the account is inactive (banned) or missing
     // (deleted), do NOT open a realtime channel at all. Previously the socket
@@ -75,35 +105,49 @@ const BookingChat = ({ bookingId }) => {
     let active = true;
     let channel;
     const startChat = async () => {
-      const { data: booking, error: bookingError } = await supabase
-        .from('bookings')
-        .select('customer_id')
-        .eq('id', bookingId)
-        .maybeSingle();
-      // Scenario 6: an RLS/authorization failure here means the session is no
-      // longer entitled to this booking (revoked/banned). Do not retry and do
-      // not open a channel — surface a single, calm state instead of looping.
-      if (bookingError) {
-        console.warn('[Chat] Conversation unavailable (session revoked or access denied).');
+      // Section 2: resolve the owning CUSTOMER for this thread. Either the parent
+      // passed one directly, or we read it off the booking being viewed.
+      let threadCustomerId = customerIdProp || null;
+      if (!threadCustomerId && bookingId) {
+        const { data: booking, error: bookingError } = await supabase
+          .from('bookings')
+          .select('customer_id')
+          .eq('id', bookingId)
+          .maybeSingle();
+        // Scenario 6: an RLS/authorization failure here means the session is no
+        // longer entitled to this booking (revoked/banned). Do not retry and do
+        // not open a channel — surface a single, calm state instead of looping.
+        if (bookingError) {
+          console.warn('[Chat] Conversation unavailable (session revoked or access denied).');
+          setMessages([]);
+          reportThreadUnread(bookingId, 0);
+          return;
+        }
+        threadCustomerId = booking?.customer_id || null;
+      }
+
+      if (!active || !threadCustomerId) {
         setMessages([]);
-        reportThreadUnread(bookingId, 0);
+        reportThreadUnread(bookingId || customerIdProp, 0);
         return;
       }
-      if (!active || !booking?.customer_id) {
-        setMessages([]);
-        reportThreadUnread(bookingId, 0);
-        return;
-      }
-      fetchMessages();
-      // Real-time subscription is created only after the booking is confirmed
-      // to belong to a registered customer account.
+
+      setCustomerId(threadCustomerId);
+      await Promise.all([
+        fetchMessages(threadCustomerId),
+        fetchBookingOptions(threadCustomerId)
+      ]);
+
+      // Real-time subscription is created only after the thread is confirmed to
+      // belong to a registered customer account, and is scoped to the WHOLE
+      // customer conversation — not a single booking.
       channel = supabase
-        .channel(`chat-${bookingId}`)
+        .channel(`chat-customer-${threadCustomerId}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
           table: 'booking_messages',
-          filter: `booking_id=eq.${bookingId}`
+          filter: `customer_id=eq.${threadCustomerId}`
         }, (payload) => {
           if (payload.new.message_type === 'system') return;
           setMessages(prev => {
@@ -117,13 +161,13 @@ const BookingChat = ({ bookingId }) => {
               else await refreshUnreadCount();
             });
           }
-          fetchMessages();
+          fetchMessages(threadCustomerId);
         })
         .on('postgres_changes', {
           event: 'UPDATE',
           schema: 'public',
           table: 'booking_messages',
-          filter: `booking_id=eq.${bookingId}`
+          filter: `customer_id=eq.${threadCustomerId}`
         }, (payload) => {
           setMessages(prev => prev.map(message => message.id === payload.new.id ? { ...message, ...payload.new } : message));
         })
@@ -137,7 +181,13 @@ const BookingChat = ({ bookingId }) => {
       active = false;
       if (channel) supabase.removeChannel(channel);
     };
-  }, [bookingId, user?.id, profile, refreshUnreadCount, reportThreadUnread]);
+  }, [bookingId, customerIdProp, user?.id, profile, refreshUnreadCount, reportThreadUnread]);
+
+  // Section 2: keep the tag selector pointed at the booking in view when the
+  // parent changes it, but never silently drop a tag the user chose.
+  useEffect(() => {
+    if (bookingId) setTagBookingId(bookingId);
+  }, [bookingId]);
 
   // Smart Auto-scroll (REQ-NFR-30)
   const prevMsgCount = useRef(0);
@@ -170,7 +220,9 @@ const BookingChat = ({ bookingId }) => {
       // Optimistically append to state
       const optimisticMsg = {
         id: tempId,
-        booking_id: bookingId,
+        // Section 2: the thread key is customer_id; booking_id is the tag.
+        customer_id: customerId,
+        booking_id: tagBookingId || null,
         sender_id: user?.id || profile?.id,
         message: textToSend,
         message_text: textToSend,
@@ -187,25 +239,27 @@ const BookingChat = ({ bookingId }) => {
 
     try {
       const { error } = await supabase.from('booking_messages').insert({
-        booking_id: bookingId,
+        customer_id: customerId,
+        // Nullable: the previous message selected in the tag selector, or null
+        // when the message carries no booking context at all.
+        booking_id: tagBookingId || null,
         sender_id: user?.id || profile?.id,
         message: textToSend,
         message_type: 'text',
         is_read: false
       });
       if (error) throw error;
-      const { data: booking } = await supabase.from('bookings').select('customer_id').eq('id', bookingId).maybeSingle();
       const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'ADMIN').eq('is_active', true);
       const recipients = [...new Set([
-        booking?.customer_id,
+        customerId,
         ...(admins || []).map(admin => admin.id)
       ].filter(recipientId => recipientId && recipientId !== (user?.id || profile?.id)))];
       if (recipients.length > 0) {
         await emitEventToMany(EVENTS.MESSAGE_RECEIVED, {
           userIds: recipients,
-          bookingId,
+          bookingId: tagBookingId || null,
           meta: {
-            bookingRef: bookingId.substring(0, 8).toUpperCase(),
+            bookingRef: tagBookingId ? tagBookingId.substring(0, 8).toUpperCase() : 'GENERAL',
             senderName: profile?.full_name || profile?.first_name || 'A user',
             messageText: textToSend
           }
@@ -250,14 +304,15 @@ const BookingChat = ({ bookingId }) => {
     setError('');
     try {
       const safeName = attachment.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const filePath = `chat/${bookingId}/${Date.now()}_${safeName}`;
+      const filePath = `chat/${customerId || bookingId}/${Date.now()}_${safeName}`;
       const { error: uploadErr } = await supabase.storage.from('chat_media').upload(filePath, attachment);
       if (uploadErr) throw uploadErr;
 
       const { data: { publicUrl } } = supabase.storage.from('chat_media').getPublicUrl(filePath);
       const isImage = attachment.type.startsWith('image/');
       const { error: insertError } = await supabase.from('booking_messages').insert({
-        booking_id: bookingId,
+        customer_id: customerId,
+        booking_id: tagBookingId || null,
         sender_id: user.id,
         message: publicUrl,
         // Store the human-readable filename, NOT the storage URL. The chat
@@ -268,18 +323,17 @@ const BookingChat = ({ bookingId }) => {
         is_read: false
       });
       if (insertError) throw insertError;
-      const { data: booking } = await supabase.from('bookings').select('customer_id').eq('id', bookingId).maybeSingle();
       const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'ADMIN').eq('is_active', true);
       const recipients = [...new Set([
-        booking?.customer_id,
+        customerId,
         ...(admins || []).map(admin => admin.id)
       ].filter(recipientId => recipientId && recipientId !== user.id))];
       if (recipients.length > 0) {
         await emitEventToMany(EVENTS.MESSAGE_RECEIVED, {
           userIds: recipients,
-          bookingId,
+          bookingId: tagBookingId || null,
           meta: {
-            bookingRef: bookingId.substring(0, 8).toUpperCase(),
+            bookingRef: tagBookingId ? tagBookingId.substring(0, 8).toUpperCase() : 'GENERAL',
             senderName: profile?.full_name || profile?.first_name || 'A user',
             messageText: safeName,
             isAttachment: true,
@@ -373,6 +427,14 @@ const BookingChat = ({ bookingId }) => {
                   </div>
                 )}
 
+                {/* Section 2: show which booking a message was tagged with, so the
+                    continuous customer thread keeps its booking context visible. */}
+                {msg.booking_id && (
+                  <div style={{ fontSize: '0.58rem', fontWeight: 900, color: 'var(--admin-text-secondary)', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '999px', padding: '0.12rem 0.5rem', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+                    Re: #{String(msg.booking_id).slice(0, 8).toUpperCase()}
+                  </div>
+                )}
+
                 {/* Bubble */}
                 {msg.message_type === 'image' ? (
                   <img
@@ -422,6 +484,29 @@ const BookingChat = ({ bookingId }) => {
           })
         )}
         <div ref={bottomRef} />
+      </div>
+
+      {/* Section 2: booking tag selector. A message may be tagged with a specific
+          booking (nullable) so the single customer thread keeps booking context. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', borderTop: '1px solid var(--admin-border)', background: 'var(--admin-bg)' }}>
+        <label htmlFor="chat-booking-tag" style={{ fontSize: '0.6rem', fontWeight: 950, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
+          Tag booking
+        </label>
+        <select
+          id="chat-booking-tag"
+          name="chat_booking_tag"
+          value={tagBookingId || ''}
+          onChange={(e) => setTagBookingId(e.target.value)}
+          style={{ flex: 1, minWidth: 0, padding: '0.35rem 0.6rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.7rem', fontWeight: 800, outline: 'none' }}
+        >
+          {/* Nullable tag: a message is allowed to carry no booking context. */}
+          <option value="">No booking (general inquiry)</option>
+          {bookingOptions.map((booking) => (
+            <option key={booking.id} value={booking.id}>
+              #{booking.id.slice(0, 8).toUpperCase()} • {booking.vehicle_type || 'Service'} • {new Date(booking.created_at).toLocaleDateString('en-US')}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Input Area */}

@@ -7,11 +7,13 @@ import BookingChat from './BookingChat';
 const FloatingBubbleChat = () => {
   const {
     isOpen,
+    activeCustomerId,
     activeBookingId,
     globalUnreadCount,
     threadUnread,
     closeChat,
-    openChatForBooking
+    openChatForBooking,
+    openChatForCustomer
   } = useGlobalChat();
   const { user, profile } = useAuth();
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -50,9 +52,10 @@ const FloatingBubbleChat = () => {
 
   if (!user?.id) return null;
 
-  const role = profile?.role?.toUpperCase();
-  const rolePrefix = role === 'ADMIN' ? '/admin' : role === 'STAFF' ? '/staff' : '/customer';
-  const unreadThreadIds = Object.keys(threadUnread || {}).filter(threadId => threadUnread[threadId] > 0);
+  // Section 2: a "thread" is a CUSTOMER, so unread keys are customer ids — not
+  // booking ids. `activeBookingId` only supplies the tag context once a thread is
+  // open, which is why the panel is keyed on activeCustomerId below.
+  const unreadCustomerIds = Object.keys(threadUnread || {}).filter(threadId => threadUnread[threadId] > 0);
 
   const handlePointerDown = (event) => {
     dragRef.current = {
@@ -95,42 +98,46 @@ const FloatingBubbleChat = () => {
 
   return (
     <div style={{ position: 'fixed', right: '1.25rem', bottom: '1.25rem', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', transform: `translate(${offset.x}px, ${offset.y}px)`, touchAction: 'none' }}>
-      {isOpen && activeBookingId && (
+      {isOpen && activeCustomerId && (
         <div ref={chatRef} style={{ width: 'clamp(300px, 90vw, 420px)', height: 'clamp(400px, 78vh, 620px)', marginBottom: '0.75rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)' }}>
-            <span style={{ fontWeight: '900', fontSize: '0.8rem' }}>Booking #{activeBookingId.slice(0, 8).toUpperCase()}</span>
+            <span style={{ fontWeight: '900', fontSize: '0.8rem' }}>
+              {activeBookingId ? `Booking #${activeBookingId.slice(0, 8).toUpperCase()}` : 'Support Chat'}
+            </span>
             <button onClick={closeChat} aria-label="Close support chat" style={{ background: 'none', border: 0, color: 'var(--admin-text-on-brand)', cursor: 'pointer' }}><X size={18} /></button>
           </div>
-          <div style={{ flex: 1, minHeight: 0 }}><BookingChat bookingId={activeBookingId} /></div>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <BookingChat bookingId={activeBookingId || undefined} customerId={activeCustomerId} />
+          </div>
         </div>
       )}
 
       {/* Non-disruptive per-thread digest: tells the user WHICH conversation is
           waiting without forcing the panel open. */}
-      {!isOpen && !activeBookingId && unreadThreadIds.length > 0 && (
+      {!isOpen && !activeCustomerId && unreadCustomerIds.length > 0 && (
         <div style={{ width: 'clamp(240px, 80vw, 320px)', marginBottom: '0.75rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
           <div style={{ padding: '0.6rem 0.85rem', borderBottom: '1px solid var(--admin-border)', fontSize: '0.65rem', fontWeight: '950', letterSpacing: '1px', color: 'var(--admin-brand)', textTransform: 'uppercase' }}>
             Unread conversations
           </div>
-          {unreadThreadIds.slice(0, 4).map(threadId => (
+          {unreadCustomerIds.slice(0, 4).map(customerThreadId => (
             <button
-              key={threadId}
+              key={customerThreadId}
               type="button"
-              onClick={() => openChatForBooking(threadId)}
+              onClick={() => openChatForCustomer(customerThreadId)}
               style={{ width: '100%', background: 'none', border: 0, borderBottom: '1px solid var(--admin-border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', padding: '0.6rem 0.85rem', textAlign: 'left' }}
             >
               <span style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--admin-text-primary)' }}>
-                {rolePrefix}/bookings/{threadId.slice(0, 8).toUpperCase()}
+                Customer {customerThreadId.slice(0, 8).toUpperCase()}
               </span>
               <span style={{ minWidth: '20px', height: '20px', padding: '0 5px', borderRadius: '999px', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', fontSize: '0.62rem', fontWeight: '900', display: 'grid', placeItems: 'center' }}>
-                {threadUnread[threadId] > 99 ? '99+' : threadUnread[threadId]}
+                {threadUnread[customerThreadId] > 99 ? '99+' : threadUnread[customerThreadId]}
               </span>
             </button>
           ))}
         </div>
       )}
 
-      {isOpen && !activeBookingId && (
+      {isOpen && !activeCustomerId && (
         <div style={{ width: 'clamp(280px, 85vw, 360px)', marginBottom: '0.75rem', padding: '1.25rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '700' }}>
           Open a booking to start a support conversation.
         </div>

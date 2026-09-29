@@ -2,7 +2,11 @@
   "//": "Supabase Edge Functions run on DENO, not Node. This file tells the Deno language server (and the VS Code TypeScript server) that these are Deno modules, so that: https://deno.land/... and https://esm.sh/... imports resolve instead of erroring with TS2307 'Cannot find module', Deno.* globals exist, and untyped remote modules stop cascading into a flood of TS7006 'implicitly has any' errors. Ref: https://supabase.com/docs/guides/functions/local-development",
   "compilerOptions": {
     "allowJs": true,
-    "lib": ["deno.window", "dom", "dom.iterable"],
+    "lib": [
+      "deno.window",
+      "dom",
+      "dom.iterable"
+    ],
     "strict": false,
     "noImplicitAny": false,
     "strictNullChecks": false
@@ -13,7 +17,11 @@
   },
   "lint": {
     "rules": {
-      "exclude": ["no-explicit-any", "no-unused-vars", "require-await"]
+      "exclude": [
+        "no-explicit-any",
+        "no-unused-vars",
+        "require-await"
+      ]
     }
   },
   "fmt": {

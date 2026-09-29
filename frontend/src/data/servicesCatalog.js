@@ -193,6 +193,43 @@ const priceVehicleKey = (value) => {
 const priceServiceName = (name) => String(name || '').trim().toLowerCase();
 
 const CUSTOM_SERVICES_CACHE_KEY = 'speedway_custom_services';
+const ARCHIVED_SERVICE_IDS_CACHE_KEY = 'speedway_archived_service_ids';
+
+/**
+ * Read the admin's durable tombstone list of suppressed service ids.
+ *
+ * Section 3 (fake-success delete bug): suppressing a built-in ONLY by writing an
+ * `archived: true` custom row is fragile — if that row's id does not exactly
+ * match the built-in's generated id, the merge silently drops the suppression
+ * and the built-in reappears. This list is written independently of the custom
+ * rows, so a built-in stays gone regardless of id drift.
+ */
+const readArchivedServiceIds = () => {
+  if (typeof window === 'undefined') return [];
+
+  const collect = (value) => (Array.isArray(value) ? value.map((v) => String(v || '')).filter(Boolean) : []);
+
+  try {
+    const raw = window.localStorage.getItem(ARCHIVED_SERVICE_IDS_CACHE_KEY);
+    if (raw) return collect(JSON.parse(raw));
+  } catch {
+    // A corrupt tombstone cache must not empty the catalog.
+  }
+
+  return collect(window.__speedway_archived_service_ids_cache);
+};
+
+/**
+ * Section 3: record a tombstone in the module-level cache the next catalog build
+ * reads. Mirrors the format BusinessHub persists to business_config.
+ */
+export const setArchivedServiceIds = (ids) => {
+  const list = Array.isArray(ids) ? ids.map((v) => String(v || '')).filter(Boolean) : [];
+  if (typeof window !== 'undefined') {
+    window.__speedway_archived_service_ids_cache = list;
+  }
+  return list;
+};
 
 /**
  * Read the admin-authored services.
@@ -275,7 +312,10 @@ const adaptCustomService = (service, vehicleTypes) => {
  */
 const buildServiceCatalog = () => {
   const custom = readCustomServices();
-  if (!custom.length) return SERVICES_DATA;
+  // Section 3: tombstones apply to the built-in catalog even when no custom row
+  // exists at all, so this is read BEFORE the early-return below.
+  const tombstonedIds = new Set(readArchivedServiceIds());
+  if (!custom.length && !tombstonedIds.size) return SERVICES_DATA;
 
   // Group custom rows by the category they should appear under.
   const overridesById = new Map();   // id -> adapted entry
@@ -318,6 +358,9 @@ const buildServiceCatalog = () => {
     merged[category] = services
       .filter((builtIn) => {
         if (suppressedIds.has(builtIn.id)) return false;
+        // Section 3: durable tombstone. Applies regardless of id drift between a
+        // custom suppression row and the built-in it was meant to remove.
+        if (tombstonedIds.has(builtIn.id)) return false;
         const types = Object.keys(builtIn.prices || {});
         // Suppress only when EVERY vehicle category it serves is suppressed —
         // archiving 'Regular Wash' for Sedan must not remove the SUV variant.

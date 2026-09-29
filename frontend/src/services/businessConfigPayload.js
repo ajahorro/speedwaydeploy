@@ -7,6 +7,7 @@ export const buildBusinessConfigUpdatePayload = (form, {
   supportsFaqs = false,
   supportsCustomServices = false,
   supportsVehicleTypes = false,
+  supportsArchivedServiceIds = false,
   qrConfigComplete = false,
 } = {}) => {
   const payload = {
@@ -43,6 +44,15 @@ export const buildBusinessConfigUpdatePayload = (form, {
     payload.vehicle_types = form.vehicle_types || [];
   }
 
+  // Section 3: durable tombstone list. Suppressed built-in services are recorded
+  // by ID here so flattenDefaultServices() can re-apply the suppression on every
+  // load — a built-in cannot resurrect just because no custom row carries the id.
+  if (supportsArchivedServiceIds) {
+    payload.archived_service_ids = Array.isArray(form.archived_service_ids)
+      ? form.archived_service_ids.filter(Boolean)
+      : [];
+  }
+
   if (supportsFaqs) {
     payload.faqs = form.faqs;
   }
@@ -55,6 +65,7 @@ export const stripUnsupportedBusinessConfigColumns = (payload, error) => {
   if (isMissingColumnError(error, 'custom_services')) unsupported.push('custom_services');
   if (isMissingColumnError(error, 'vehicle_types')) unsupported.push('vehicle_types');
   if (isMissingColumnError(error, 'faqs')) unsupported.push('faqs');
+  if (isMissingColumnError(error, 'archived_service_ids')) unsupported.push('archived_service_ids');
 
   if (isMissingColumnError(error, 'is_24_7')) unsupported.push('is_24_7');
 

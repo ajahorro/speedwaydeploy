@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Building, Clock, Wrench, Tag, Save, AlertCircle, CheckCircle,
+  Building, Clock, Wrench, Tag, Save, AlertCircle, CheckCircle, Check,
   Plus, X, Trash2, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { useConfig } from '../../context/ConfigContext';
@@ -13,7 +13,7 @@ import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
 import { validateQrRecipients } from '../../services/qrSecurityService';
 import { buildBusinessConfigUpdatePayload, stripUnsupportedBusinessConfigColumns } from '../../services/businessConfigPayload';
 import { sanitizeAlphaNum, sanitizeByFieldType, toTitleCase, VEHICLE_TYPE_OPTIONS } from '../../config/constants';
-import { SERVICES_DATA } from '../../data/servicesCatalog';
+import { SERVICES_DATA, setArchivedServiceIds as setArchivedServiceIdsCache } from '../../data/servicesCatalog';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
 import SegmentedTimePicker from '../../components/AdminSchedule/SegmentedTimePicker';
@@ -64,7 +64,7 @@ const SECTION_FIELDS = {
   ],
   hours: ['opening_hour', 'closing_hour', 'is_24_7', 'slots_per_hour', 'max_vehicles_per_staff'],
   schedule: ['booking_lead_time_minutes', 'max_advance_days', 'closed_weekdays', 'enforce_capacity'],
-  services: ['custom_services', 'vehicle_types'],
+  services: ['custom_services', 'vehicle_types', 'archived_service_ids'],
   faqs: ['faqs']
 };
 
@@ -127,15 +127,33 @@ const getVehicleTypeLabel = (value = '') => {
   return match ? match.label : normalized || 'Vehicle';
 };
 
-const flattenDefaultServices = () => {
+// Section 3: built-in suppression tombstone.
+//
+// `flattenDefaultServices()` regenerates the built-in catalog on every load and
+// stamps every row `archived: false`. A built-in the admin deleted was therefore
+// only suppressed while a custom row with the EXACT same id existed; any id drift
+// resurrected it at its original price — the "delete says success but it comes
+// back" bug. These ids are persisted alongside the service list so the
+// suppression survives the regeneration unconditionally.
+const flattenDefaultServices = (archivedIds = []) => {
+  const tombstoned = new Set((archivedIds || []).map((id) => String(id || '')).filter(Boolean));
   const rows = [];
   Object.values(SERVICES_DATA || {}).forEach((services) => {
     (services || []).forEach((service) => {
       const priceMap = service?.prices || {};
       Object.entries(priceMap).forEach(([vehicleKey, price]) => {
         const normalizedType = normalizeVehicleCategoryKey(vehicleKey);
+        const id = `${service.id || service.name}-${normalizedType}`;
+        // A tombstone may be recorded against EITHER id form:
+        //   * the raw built-in id (`wash_1`) — what the archive/delete handlers
+        //     tombstone, and the id SERVICES_DATA itself uses, or
+        //   * the per-vehicle flatten id (`wash_1-Sedan`) — what this function emits.
+        // Accepting both is what makes the suppression durable in every path.
+        const isTombstoned = tombstoned.has(id)
+          || tombstoned.has(String(service.id || ''))
+          || tombstoned.has(`${service.name}-${normalizedType}`);
         rows.push({
-          id: `${service.id || service.name}-${normalizedType}`,
+          id,
           name: service.name,
           description: service.desc || service.description || '',
           price: Number(price || 0),
@@ -144,8 +162,11 @@ const flattenDefaultServices = () => {
           vehicle_type: normalizedType,
           applicableVehicleTypes: [normalizedType],
           vehicleTypes: [normalizedType],
-          is_active: true,
-          archived: false,
+          is_active: !isTombstoned,
+          // A tombstoned built-in is still emitted (so it can appear under the
+          // "Archived" view and be restored) but is flagged archived, which every
+          // downstream filter already respects.
+          archived: isTombstoned,
           source: 'default'
         });
       });
@@ -154,8 +175,8 @@ const flattenDefaultServices = () => {
   return rows;
 };
 
-const mergeCatalogServices = (customServices = []) => {
-  const defaults = flattenDefaultServices();
+const mergeCatalogServices = (customServices = [], archivedIds = []) => {
+  const defaults = flattenDefaultServices(archivedIds);
   const custom = Array.isArray(customServices) ? customServices.filter(Boolean) : [];
   const merged = [...defaults, ...custom];
   const unique = new Map();
@@ -417,6 +438,21 @@ export default function BusinessHub() {
   // it is editing.
   const [editingServiceId, setEditingServiceId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
+  // Section 1: master Edit mode for the Service Catalog table.
+  //
+  // Tier 1 = master mode: checkboxes appear on every row plus master
+  // Archive/Restore and Delete buttons that act on the whole selection.
+  // Tier 2 = the per-row 'Edit' button (unchanged) for a single service.
+  //
+  // The two tiers are mutually exclusive BY SELECTION SIZE: once more than one
+  // checkbox is ticked, the per-row Edit buttons would let the admin open two
+  // conflicting edits, so they are hidden and only batch actions remain.
+  const [serviceEditMode, setServiceEditMode] = useState(false);
+  const [selectedServiceIds, setSelectedServiceIds] = useState([]);
+  // Section 3: tombstone list mirrored into component state for the current edit
+  // session. Persisted to business_config.archived_service_ids on save so it is
+  // restored on the next load (and applied by flattenDefaultServices).
+  const [archivedServiceIds, setArchivedServiceIds] = useState([]);
   // Tier 2.8: FAQ catalog editor state (add / edit / delete / reorder).
   const [faqForm, setFaqForm] = useState(EMPTY_NEW_FAQ);
   const [editingFaqId, setEditingFaqId] = useState(null);
@@ -449,6 +485,8 @@ export default function BusinessHub() {
     closed_weekdays: [],
     enforce_capacity: true,
     custom_services: [],
+    // Section 3: ids of suppressed built-in services (durable delete tombstone).
+    archived_service_ids: [],
     vehicle_types: [...DEFAULT_VEHICLE_TYPES],
     faqs: []
   });
@@ -506,7 +544,19 @@ export default function BusinessHub() {
       if (error) throw error;
       if (data) {
         const configuredServices = Array.isArray(data.custom_services) ? data.custom_services : [];
-        const mergedServices = configuredServices.length > 0 ? configuredServices : flattenDefaultServices();
+        const configuredArchivedIds = Array.isArray(data.archived_service_ids)
+          ? data.archived_service_ids.filter(Boolean)
+          : [];
+        setArchivedServiceIds(configuredArchivedIds);
+        // Mirror the tombstone into the pricing cache BEFORE anything renders, so
+        // the booking wizard and this page agree on which built-ins are suppressed.
+        try {
+          localStorage.setItem('speedway_archived_service_ids', JSON.stringify(configuredArchivedIds));
+          setArchivedServiceIdsCache(configuredArchivedIds);
+        } catch { /* storage unavailable — the DB value still governs the next load */ }
+        const mergedServices = configuredServices.length > 0
+          ? configuredServices
+          : flattenDefaultServices(configuredArchivedIds);
         const merged = {
           business_name: data.business_name || '',
           contact_number: data.contact_number || '',
@@ -527,6 +577,7 @@ export default function BusinessHub() {
           closed_weekdays: Array.isArray(data.closed_weekdays) ? data.closed_weekdays : [],
           enforce_capacity: data.enforce_capacity !== false,
           custom_services: mergedServices,
+          archived_service_ids: configuredArchivedIds,
           vehicle_types: Array.isArray(data.vehicle_types) && data.vehicle_types.length
             ? data.vehicle_types
             : [...DEFAULT_VEHICLE_TYPES],
@@ -845,6 +896,7 @@ export default function BusinessHub() {
         supportsFaqs: true,
         supportsCustomServices: true,
         supportsVehicleTypes: true,
+        supportsArchivedServiceIds: true,
         qrConfigComplete,
       });
 
@@ -1080,12 +1132,205 @@ export default function BusinessHub() {
     setNewService({ ...draft });
   };
 
-  const archiveService = (id) => {
-    const next = businessForm.custom_services.map((s) =>
+  // Section 3: add/remove ids from the durable tombstone list. Built-in services
+  // have no custom row to mutate, so suppression is recorded by id instead — the
+  // only representation that survives flattenDefaultServices() regenerating the
+  // built-in catalog on the next load.
+  //
+  // Both id forms are recorded: the raw row id (`wash_1`) and the per-vehicle
+  // flatten ids (`wash_1-Sedan`). flattenDefaultServices accepts either, and
+  // recording both means the tombstone still matches if the id scheme changes.
+  const expandTombstoneIds = (id) => {
+    const base = String(id || '').trim();
+    if (!base) return [];
+    const expansions = [base];
+    const match = base.match(/^(.*?)-(Sedan|SUV|Van\/L300|Regular|Bigbike)$/);
+    if (match) {
+      expansions.push(match[1]);
+    } else {
+      ['Sedan', 'SUV', 'Van/L300', 'Regular', 'Bigbike'].forEach((type) => expansions.push(`${base}-${type}`));
+    }
+    return expansions;
+  };
+
+  const tombstoneArchived = (ids) => {
+    const add = (ids || []).flatMap(expandTombstoneIds);
+    return [...new Set([...(archivedServiceIds || []), ...add])];
+  };
+
+  const unTombstoneArchived = (ids) => {
+    const remove = new Set((ids || []).map((id) => String(id || '')).filter(Boolean));
+    return (archivedServiceIds || []).filter((id) => !remove.has(String(id)));
+  };
+
+  // ── Section 1: master edit-mode selection helpers ──────────────────────────
+  const exitServiceEditMode = () => {
+    setServiceEditMode(false);
+    setSelectedServiceIds([]);
+  };
+
+  const enterServiceEditMode = () => {
+    setServiceEditMode(true);
+    setSelectedServiceIds([]);
+    setEditingServiceId(null);
+    setEditingService(null);
+    setEditingServiceForm(null);
+  };
+
+  const toggleServiceSelection = (id) => {
+    const key = String(id);
+    setSelectedServiceIds((prev) => (
+      prev.includes(key) ? prev.filter((entry) => entry !== key) : [...prev, key]
+    ));
+  };
+
+  // Resolve checked ids back to the live service rows, so batch actions always
+  // operate on current data (never a stale snapshot captured when the box was ticked).
+  const selectedServiceRows = useMemo(() => {
+    if (!selectedServiceIds.length) return [];
+    const wanted = new Set(selectedServiceIds.map((id) => String(id)));
+    return allLoadedServices.filter((service) => wanted.has(String(service.id)));
+  }, [selectedServiceIds, allLoadedServices]);
+
+  // Section 1: multi-select conflict guard. More than one checked row hides every
+  // per-row Edit button, so a batch selection can never open competing editors.
+  const isMultiSelect = selectedServiceIds.length > 1;
+
+  const archiveService = async (id) => {
+    const service = (businessForm.custom_services || []).find((s) => s.id === id);
+    const next = (businessForm.custom_services || []).map((s) =>
       s.id === id ? { ...s, archived: true, is_active: false, archivedAt: new Date().toISOString() } : s
     );
-    persistCustomServices(next);
-    setMessage({ type: 'success', text: 'Service archived. Historical bookings are preserved.' });
+    // Persist immediately (not localStorage-only) so the suppression is durable.
+    await saveCatalogState(
+      next,
+      businessForm.vehicle_types,
+      `Service "${service?.name || 'Service'}" archived. Historical bookings are preserved.`,
+      { archivedServiceIds: tombstoneArchived([id]) }
+    );
+  };
+
+  // Section 3: batch archive / batch delete. The master toolbar acts on every
+  // checked row at once; both paths record tombstones for the whole selection so
+  // a batch delete of BUILT-IN services cannot resurrect them on the next load.
+  // Section 1: master Archive/Restore. A single button toggles the whole
+  // selection: rows that are currently active get archived, and rows that are
+  // already archived get restored — so one control serves both directions.
+  const batchArchiveServices = async (services) => {
+    const list = Array.isArray(services) ? services.filter(Boolean) : [];
+    if (!list.length) return;
+    const isArchivedRow = (s) => s.is_active === false || s.archived === true;
+    const toArchive = list.filter((s) => !isArchivedRow(s));
+    const toRestore = list.filter(isArchivedRow);
+    const archiveIds = new Set(toArchive.map((s) => String(s.id)));
+    const restoreIds = new Set(toRestore.map((s) => String(s.id)));
+    const archivedAt = new Date().toISOString();
+
+    const next = (businessForm.custom_services || []).map((s) => {
+      const key = String(s.id);
+      if (archiveIds.has(key)) return { ...s, archived: true, is_active: false, archivedAt };
+      if (restoreIds.has(key)) return { ...s, archived: false, is_active: true, updatedAt: archivedAt };
+      return s;
+    });
+
+    const parts = [];
+    if (toArchive.length) parts.push(`${toArchive.length} archived`);
+    if (toRestore.length) parts.push(`${toRestore.length} restored`);
+
+    await saveCatalogState(
+      next,
+      businessForm.vehicle_types,
+      `Service catalog updated: ${parts.join(' and ')}. Historical bookings are preserved.`,
+      {
+        archivedServiceIds: [
+          ...tombstoneArchived([...archiveIds]),
+          ...unTombstoneArchived([...restoreIds])
+        ]
+      }
+    );
+    setSelectedServiceIds([]);
+  };
+
+  const batchDeleteServices = async (services) => {
+    const list = Array.isArray(services) ? services.filter(Boolean) : [];
+    if (!list.length) return;
+    const byId = new Map(list.map((s) => [String(s.id), s]));
+    const next = (businessForm.custom_services || []).filter((s) => !byId.has(String(s.id)));
+    // Every removed id becomes a tombstone — this is what stops
+    // flattenDefaultServices() from regenerating a deleted built-in.
+    await saveCatalogState(
+      next,
+      businessForm.vehicle_types,
+      `${list.length} service(s) deleted successfully.`,
+      { archivedServiceIds: tombstoneArchived([...byId.keys()]) }
+    );
+    if (editingServiceId && byId.has(String(editingServiceId))) {
+      setEditingServiceId(null);
+      setNewService(EMPTY_NEW_SERVICE);
+    }
+    setSelectedServiceIds([]);
+  };
+
+  // Section 1: batch delete must respect the SAME foreign-key rule as a single
+  // delete (Section 3) — a service referenced by past bookings is soft-archived
+  // rather than hard-deleted, so booking history keeps naming it. One usage
+  // lookup covers the whole selection.
+  const requestBatchDelete = () => {
+    if (!selectedServiceRows.length) return;
+    const count = selectedServiceRows.length;
+    // Snapshot the rows so the modal's confirm handler cannot act on a selection
+    // the admin changed while the dialog was open.
+    const rowsSnapshot = [...selectedServiceRows];
+    openModal({
+      title: `Delete ${count} service${count === 1 ? '' : 's'}?`,
+      message: 'Services linked to past bookings will be archived instead of deleted so booking history is preserved. Services with no booking history are removed permanently. Continue?',
+      confirmText: 'Delete Services',
+      cancelText: 'Keep Services',
+      type: 'danger',
+      onConfirm: () => commitBatchDelete(rowsSnapshot),
+    });
+  };
+
+  const commitBatchDelete = async (services) => {
+    const list = Array.isArray(services) ? services.filter(Boolean) : [];
+    if (!list.length) return;
+
+    // Ask the backend which of these names are referenced by real bookings.
+    let inUseNames = new Set();
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/services/usage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ names: list.map((s) => s.name).filter(Boolean) })
+      });
+      const result = await res.json();
+      if (result?.success) {
+        inUseNames = new Set(
+          Object.entries(result.usage || {})
+            .filter(([, count]) => Number(count) > 0)
+            .map(([name]) => name)
+        );
+      } else {
+        // Safe path: if the check did not succeed, treat everything as in use.
+        inUseNames = new Set(list.map((s) => s.name).filter(Boolean));
+      }
+    } catch {
+      inUseNames = new Set(list.map((s) => s.name).filter(Boolean));
+    }
+
+    const toArchive = list.filter((s) => inUseNames.has(s.name));
+    const toDelete = list.filter((s) => !inUseNames.has(s.name));
+
+    if (toArchive.length) await batchArchiveServices(toArchive);
+    if (toDelete.length) await batchDeleteServices(toDelete);
+
+    setMessage({
+      type: 'success',
+      text: [
+        toDelete.length ? `${toDelete.length} service(s) deleted.` : '',
+        toArchive.length ? `${toArchive.length} service(s) archived instead of deleted (linked to past bookings).` : '',
+      ].filter(Boolean).join(' '),
+    });
   };
 
   // ---- Section 3.1: Delete with soft-archive fallback ----
@@ -1132,10 +1377,25 @@ export default function BusinessHub() {
       const next = (businessForm.custom_services || []).map((s) =>
         s.id === service.id ? { ...s, archived: true, is_active: false, archivedAt } : s
       );
-      await saveCatalogState(next, businessForm.vehicle_types, `"${service.name}" is linked to ${referenceCount || 'existing'} booking(s), so it was archived instead of deleted to preserve booking history.`);
+      // Tombstone the id too: for a built-in, this is the ONLY durable marker
+      // (there is no custom row to carry `archived: true`).
+      await saveCatalogState(
+        next,
+        businessForm.vehicle_types,
+        `"${service.name}" is linked to ${referenceCount || 'existing'} booking(s), so it was archived instead of deleted to preserve booking history.`,
+        { archivedServiceIds: tombstoneArchived([service.id]) }
+      );
     } else {
       const next = (businessForm.custom_services || []).filter((s) => s.id !== service.id);
-      await saveCatalogState(next, businessForm.vehicle_types, `Service "${service.name}" deleted successfully.`);
+      // A deleted built-in must ALSO be tombstoned; otherwise
+      // flattenDefaultServices() regenerates it on the next load and the delete
+      // silently reverts (the reported "fake success" bug).
+      await saveCatalogState(
+        next,
+        businessForm.vehicle_types,
+        `Service "${service.name}" deleted successfully.`,
+        { archivedServiceIds: tombstoneArchived([service.id]) }
+      );
       // If the row being deleted was open in the editor, drop the stale edit.
       if (editingServiceId === service.id) {
         setEditingServiceId(null);
@@ -1144,12 +1404,17 @@ export default function BusinessHub() {
     }
   };
 
-  const restoreService = (id) => {
-    const next = businessForm.custom_services.map((s) =>
+  const restoreService = async (id) => {
+    const service = (businessForm.custom_services || []).find((s) => s.id === id);
+    const next = (businessForm.custom_services || []).map((s) =>
       s.id === id ? { ...s, archived: false, is_active: true } : s
     );
-    persistCustomServices(next);
-    setMessage({ type: 'success', text: 'Service restored.' });
+    await saveCatalogState(
+      next,
+      businessForm.vehicle_types,
+      `Service "${service?.name || 'Service'}" restored.`,
+      { archivedServiceIds: unTombstoneArchived([id]) }
+    );
   };
 
   // ---- FAQ catalog helpers (Tab 4) — Tier 2.8 ----
@@ -1252,8 +1517,8 @@ export default function BusinessHub() {
   }, [visibleFaqs]);
 
   const allLoadedServices = useMemo(
-    () => mergeCatalogServices(businessForm.custom_services || []),
-    [businessForm.custom_services]
+    () => mergeCatalogServices(businessForm.custom_services || [], businessForm.archived_service_ids || []),
+    [businessForm.custom_services, businessForm.archived_service_ids]
   );
 
   const activeServices = useMemo(() => {
@@ -1306,16 +1571,22 @@ export default function BusinessHub() {
   };
 
   const filteredServices = useMemo(() => {
-    const services = mergeCatalogServices(businessForm.custom_services || []);
+    const services = mergeCatalogServices(businessForm.custom_services || [], businessForm.archived_service_ids || []);
     if (selectedVehicleFilter === 'All') return services;
     const targetKey = normalizeVehicleCategoryKey(selectedVehicleFilter);
     return services.filter((service) => {
       const serviceTypes = normalizeVehicleTypes(service).map((type) => normalizeVehicleCategoryKey(type));
       return serviceTypes.includes(targetKey);
     });
-  }, [businessForm.custom_services, selectedVehicleFilter]);
+  }, [businessForm.custom_services, businessForm.archived_service_ids, selectedVehicleFilter]);
 
-  const saveCatalogState = async (nextCustomServices, nextVehicleTypes, successText) => {
+  // `options.archivedServiceIds` replaces the Section 3 tombstone list. When it is
+  // omitted the CURRENT list is re-sent unchanged, so every existing catalog save
+  // keeps the suppressions it already had.
+  const saveCatalogState = async (nextCustomServices, nextVehicleTypes, successText, options = {}) => {
+    const archivedIdsForSave = Array.isArray(options.archivedServiceIds)
+      ? options.archivedServiceIds.filter(Boolean)
+      : archivedServiceIds;
     try {
       let id = recordId;
       if (!id) {
@@ -1334,10 +1605,12 @@ export default function BusinessHub() {
         ...businessForm,
         custom_services: nextCustomServices || [],
         vehicle_types: normalizedVehicleTypes,
+        archived_service_ids: archivedIdsForSave,
       }, {
         supportsFaqs: true,
         supportsCustomServices: true,
         supportsVehicleTypes: true,
+        supportsArchivedServiceIds: true,
       });
 
       let { error } = await supabase
@@ -1369,16 +1642,28 @@ export default function BusinessHub() {
       const nextVehicle = Array.isArray(primaryPayload.vehicle_types) && primaryPayload.vehicle_types.length
         ? primaryPayload.vehicle_types
         : normalizedVehicleTypes;
+      // Section 3: mirror the tombstone locally so the suppression takes effect
+      // immediately, without waiting for the next business_config fetch.
+      const nextArchivedIds = Array.isArray(primaryPayload.archived_service_ids)
+        ? primaryPayload.archived_service_ids.filter(Boolean)
+        : archivedIdsForSave;
+      try {
+        localStorage.setItem('speedway_archived_service_ids', JSON.stringify(nextArchivedIds));
+        setArchivedServiceIdsCache(nextArchivedIds);
+      } catch { /* storage unavailable — the DB value still governs the next load */ }
+      setArchivedServiceIds(nextArchivedIds);
 
       setBusinessForm((prev) => ({
         ...prev,
         custom_services: nextCustom,
-        vehicle_types: nextVehicle
+        vehicle_types: nextVehicle,
+        archived_service_ids: nextArchivedIds
       }));
       setPristine({
         ...businessForm,
         custom_services: nextCustom,
-        vehicle_types: nextVehicle
+        vehicle_types: nextVehicle,
+        archived_service_ids: nextArchivedIds
       });
       await refreshConfig();
       setMessage({ type: 'success', text: successText });
@@ -1517,7 +1802,19 @@ export default function BusinessHub() {
         : entry
     );
 
-    await saveCatalogState(nextServices, businessForm.vehicle_types, isArchived ? 'Service restored successfully!' : 'Service archived successfully!');
+    // Section 3: keep the durable tombstone in lockstep with the row toggle, so a
+    // built-in archived/restored here is suppressed/unsuppressed on the next load
+    // even though flattenDefaultServices() rebuilds it from scratch.
+    await saveCatalogState(
+      nextServices,
+      businessForm.vehicle_types,
+      isArchived ? 'Service restored successfully!' : 'Service archived successfully!',
+      {
+        archivedServiceIds: isArchived
+          ? unTombstoneArchived([service.id])
+          : tombstoneArchived([service.id])
+      }
+    );
   };
 
   const isVehicleCategoryValid = () => {
@@ -2454,8 +2751,10 @@ export default function BusinessHub() {
 
               {servicePanels.existing && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                    <div>
+                  {/* Section 1: toolbar. 'Select Vehicle' and the master 'Edit' button
+                      share this row; entering edit mode reveals the batch actions. */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '1rem' }}>
+                    <div style={{ flex: '1 1 220px', minWidth: '200px' }}>
                       <label htmlFor="service-vehicle-filter" style={labelStyle}>Select Vehicle</label>
                       <select
                         id="service-vehicle-filter"
@@ -2470,12 +2769,54 @@ export default function BusinessHub() {
                         ))}
                       </select>
                     </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {!serviceEditMode ? (
+                        <button
+                          type="button"
+                          onClick={enterServiceEditMode}
+                          style={{ ...buttonBase, background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: '1px solid var(--admin-brand)' }}
+                        >
+                          <Tag size={14} /> Edit
+                        </button>
+                      ) : (
+                        <>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            {selectedServiceIds.length} selected
+                          </span>
+                          <button
+                            type="button"
+                            disabled={!selectedServiceRows.length}
+                            onClick={() => batchArchiveServices(selectedServiceRows)}
+                            style={{ ...buttonBase, background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', opacity: selectedServiceRows.length ? 1 : 0.45, cursor: selectedServiceRows.length ? 'pointer' : 'not-allowed' }}
+                          >
+                            <ArchiveRestore size={14} /> Archive/Restore
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!selectedServiceRows.length}
+                            onClick={requestBatchDelete}
+                            style={{ ...buttonBase, background: 'rgba(239,68,68,0.1)', color: 'var(--status-danger)', border: '1px solid rgba(239,68,68,0.4)', opacity: selectedServiceRows.length ? 1 : 0.45, cursor: selectedServiceRows.length ? 'pointer' : 'not-allowed' }}
+                          >
+                            <Trash2 size={14} /> Delete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={exitServiceEditMode}
+                            style={{ ...buttonBase, background: 'transparent', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)' }}
+                          >
+                            <Check size={14} /> Done
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '880px' }}>
                       <thead>
                         <tr>
+                          {serviceEditMode && <th style={{ ...{ width: '34px', fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }} aria-label="Select services" />}
                           <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Service Name</th>
                           <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>General Service</th>
                           <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Duration (Mins)</th>
@@ -2488,6 +2829,17 @@ export default function BusinessHub() {
                         {filteredServices.length > 0 ? (
                           filteredServices.map((service) => (
                             <tr key={service.id}>
+                              {serviceEditMode && (
+                                <td style={{ padding: '0.9rem 0.5rem', borderBottom: '1px solid var(--admin-border)' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedServiceIds.includes(String(service.id))}
+                                    onChange={() => toggleServiceSelection(service.id)}
+                                    aria-label={`Select ${service.name}`}
+                                    style={{ width: '15px', height: '15px', accentColor: 'var(--admin-brand)', cursor: 'pointer', margin: 0 }}
+                                  />
+                                </td>
+                              )}
                               <td style={{ padding: '0.9rem 0.5rem', fontSize: '0.8rem', fontWeight: 900, color: 'var(--admin-text-primary)', borderBottom: '1px solid var(--admin-border)' }}>{service.name}</td>
                               <td style={{ padding: '0.9rem 0.5rem', fontSize: '0.72rem', color: service.generalService || service.category ? 'var(--admin-text-secondary)' : 'var(--admin-text-secondary)', fontWeight: 700, borderBottom: '1px solid var(--admin-border)' }}>
                                 {service.generalService || service.category || (service.source === 'default' ? Object.keys(SERVICES_DATA).find((cat) => (SERVICES_DATA[cat] || []).some((s) => s.name === service.name)) || 'Built-in' : 'Custom Services')}
@@ -2501,18 +2853,28 @@ export default function BusinessHub() {
                               </td>
                               <td style={{ padding: '0.9rem 0.5rem', borderBottom: '1px solid var(--admin-border)', textAlign: 'right' }}>
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                  <button type="button" onClick={() => { setEditingService(service); setEditingServiceForm({ name: service.name || '', price: String(service.price ?? ''), duration: String(service.durationMinutes || 60), description: service.description || '', generalService: service.generalService || service.category || 'Custom Services' }); }} style={ghostButton}>Edit</button>
-                                  <button type="button" onClick={() => handleArchiveRestoreService(service)} style={{ ...ghostButton, color: service.is_active === false || service.archived === true ? 'var(--admin-brand)' : 'var(--status-danger)', borderColor: service.is_active === false || service.archived === true ? 'var(--admin-border)' : 'rgba(239,68,68,0.4)' }}>
-                                    {service.is_active === false || service.archived === true ? 'Restore' : 'Archive'}
-                                  </button>
-                                  <button type="button" onClick={() => requestDeleteService(service)} style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(239,68,68,0.4)' }}>Delete</button>
+                                  {/* Section 1: the per-row Edit button is the "specific" tier.
+                                      It is hidden once MORE THAN ONE row is checked, because a
+                                      batch selection is edited through the master toolbar only —
+                                      that is the multi-select conflict guard. */}
+                                  {!isMultiSelect && (
+                                    <button type="button" onClick={() => { setEditingService(service); setEditingServiceForm({ name: service.name || '', price: String(service.price ?? ''), duration: String(service.durationMinutes || 60), description: service.description || '', generalService: service.generalService || service.category || 'Custom Services' }); }} style={ghostButton}>Edit</button>
+                                  )}
+                                  {!serviceEditMode && (
+                                    <>
+                                      <button type="button" onClick={() => handleArchiveRestoreService(service)} style={{ ...ghostButton, color: service.is_active === false || service.archived === true ? 'var(--admin-brand)' : 'var(--status-danger)', borderColor: service.is_active === false || service.archived === true ? 'var(--admin-border)' : 'rgba(239,68,68,0.4)' }}>
+                                        {service.is_active === false || service.archived === true ? 'Restore' : 'Archive'}
+                                      </button>
+                                      <button type="button" onClick={() => requestDeleteService(service)} style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(239,68,68,0.4)' }}>Delete</button>
+                                    </>
+                                  )}
                                 </div>
                               </td>
                             </tr>
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={6} style={{ padding: '1rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontWeight: 700, fontSize: '0.78rem' }}>
+                            <td colSpan={serviceEditMode ? 7 : 6} style={{ padding: '1rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontWeight: 700, fontSize: '0.78rem' }}>
                               No services for this vehicle category.
                             </td>
                           </tr>

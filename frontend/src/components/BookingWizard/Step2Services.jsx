@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Car, CheckCircle2, Circle, Layers, Lock, Plus, Trash2, X } from 'lucide-react';
+import { Car, Check, Layers, Lock, Plus, Trash2, X } from 'lucide-react';
 import { getServiceCatalog, getBestPromoForService, fetchActivePromos, priceVehicleServices } from '../../data/servicesCatalog';
 import { fetchUserGarage, fetchFleetGroups } from '../../services/garageService';
 import { supabase } from '../../lib/supabase';
@@ -33,7 +33,10 @@ const normalizePlate = (plate) => String(plate || '').toUpperCase().replace(/[^A
 
 const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext, onCancel, onCancelNewVehicle }) => {
   const { user } = useAuth();
-  const vehicles = bookingData.vehicles || [];
+  // useMemo so the identity is STABLE. A bare `|| []` produced a NEW array on
+  // every render whenever bookingData.vehicles was unset, which made every hook
+  // depending on `vehicles` (the `units` memo below) recompute constantly.
+  const vehicles = useMemo(() => bookingData.vehicles || [], [bookingData.vehicles]);
   const [garageVehicles, setGarageVehicles] = useState([]);
   const [fleetGroups, setFleetGroups] = useState([]);
   const [fleetToAddId, setFleetToAddId] = useState('');
@@ -264,8 +267,13 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
   )));
 
   const removeUnit = (unit) => updateVehicles((current) => current.length === unit.vehicles.length ? [emptyVehicle()] : current.filter((vehicle) => !unit.vehicles.some((member) => member.id === vehicle.id)));
+  // Section 3: an ARCHIVED (soft-deleted) service must not be bookable. The merge
+  // in servicesCatalog.js already drops tombstoned built-ins, but a service can
+  // also carry the flag on its own row, so the wizard filters defensively here.
+  const isServiceBookable = (service) => Boolean(service) && service.archived !== true && service.is_active !== false;
+
   const categoriesFor = (vehicle) => Object.entries(SERVICE_CATALOG)
-    .filter(([category, services]) => (category === 'Motorcycle Specialist') === isMotorcycle(vehicle.type) && services.some((service) => Number(service.prices[vehicle.type]) > 0))
+    .filter(([category, services]) => (category === 'Motorcycle Specialist') === isMotorcycle(vehicle.type) && (services || []).some((service) => isServiceBookable(service) && Number(service.prices?.[vehicle.type]) > 0))
     .map(([category]) => category)
     // Premise 4: "Promos" is a first-class SERVICE TYPE alongside the standard
     // catalogue categories. It is always appended (even when the vehicle has no
@@ -525,7 +533,11 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
           is removed to give the necessary controls their space back. */}
       {units.map((unit, index) => {
         const vehicle = unit.vehicles[0]; const complete = Boolean(vehicle.type && vehicle.brand?.trim() && vehicle.model?.trim() && vehicle.plateNumber?.trim().length >= 4);
-        const category = categoryFor(unit); const categories = categoriesFor(vehicle); const services = SERVICE_CATALOG[category] || [];
+        const category = categoryFor(unit); const categories = categoriesFor(vehicle);
+        // 'Archived' is a hard exclusion, not a display flag: an archived service
+        // never appears in the picker at all (Section 3 — archived services must
+        // not be bookable by the customer).
+        const services = (SERVICE_CATALOG[category] || []).filter(isServiceBookable);
         const selectedServices = vehicle.services || [];
         const unitGross = unit.vehicles.reduce((sum, member) => sum + unitGrossSubtotal(member), 0);
         const total = unit.vehicles.reduce((sum, member) => sum + unitSubtotal(member), 0);
@@ -592,10 +604,8 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
                 const selected = unit.vehicles.every((member) => member.services?.some((item) => item.id === service.id));
 
                 return (
-                  <button
+                  <label
                     key={service.id}
-                    type="button"
-                    onClick={() => toggleService(unit, service)}
                     style={{
                       width: '100%',
                       marginBottom: '.6rem',
@@ -603,6 +613,9 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
                       display: 'flex',
                       gap: '.75rem',
                       textAlign: 'left',
+                      // `relative` anchors the visually-hidden checkbox below, so it
+                      // stays inside this row instead of escaping to the page body.
+                      position: 'relative',
                       background: selected ? 'rgba(var(--admin-brand-rgb), .08)' : 'var(--admin-bg)',
                       color: 'var(--admin-text-primary)',
                       border: `1px solid ${selected ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
@@ -610,7 +623,42 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
                       cursor: 'pointer'
                     }}
                   >
-                    <span>{selected ? <CheckCircle2 size={19} color="var(--admin-brand)" /> : <Circle size={19} color="var(--admin-text-secondary)" />}</span>
+                    {/* Section 4.1: a standard HTML checkbox drives selection (bound
+                        to the derived `selected` state). Visually hidden so the row
+                        keeps its dark-theme card look, but it stays a real, focusable,
+                        screen-reader-announced control. */}
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleService(unit, service)}
+                      aria-label={`Select ${service.name}`}
+                      style={{
+                        position: 'absolute',
+                        width: 1,
+                        height: 1,
+                        padding: 0,
+                        margin: -1,
+                        overflow: 'hidden',
+                        clip: 'rect(0, 0, 0, 0)',
+                        whiteSpace: 'nowrap',
+                        border: 0
+                      }}
+                    />
+                    <span aria-hidden="true">
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 19,
+                        height: 19,
+                        borderRadius: 4,
+                        border: `1.5px solid ${selected ? 'var(--admin-brand)' : 'var(--admin-text-secondary)'}`,
+                        background: selected ? 'var(--admin-brand)' : 'transparent',
+                        color: 'var(--admin-text-on-brand)'
+                      }}>
+                        {selected ? <Check size={13} strokeWidth={3.5} /> : null}
+                      </span>
+                    </span>
                     <span style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', flexWrap: 'wrap' }}>
                         <strong style={{ fontSize: '.85rem' }}>{service.name}</strong>
@@ -632,7 +680,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
                         ₱{effectivePrice.toLocaleString()}
                       </strong>
                     </div>
-                  </button>
+                  </label>
                 );
               })}
               </>
