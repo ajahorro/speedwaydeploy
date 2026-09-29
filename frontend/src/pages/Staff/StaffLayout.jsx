@@ -66,6 +66,7 @@ const StaffLayout = () => {
     { icon: ClipboardList, label: 'My Jobs', path: '/staff' },
     { icon: History, label: 'Work History', path: '/staff/history' },
     { icon: Clock, label: 'Duty & Shift', path: '/staff/duty' },
+    { icon: Bell, label: 'Notifications', path: '/staff/notifications' },
   ];
 
   const handleToggleShift = async () => {
@@ -210,6 +211,11 @@ const StaffLayout = () => {
             >
               <item.icon size={16} strokeWidth={2.25} />
               {item.label}
+              {item.path === '/staff/notifications' && unreadCount > 0 && (
+                <span style={{ marginLeft: 'auto', minWidth: '18px', padding: '0.1rem 0.35rem', borderRadius: '9px', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', fontSize: '0.65rem', textAlign: 'center' }}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -281,7 +287,7 @@ const StaffLayout = () => {
       </aside>
 
       {/* Main Content */}
-      <main style={{ flex: 1, minWidth: 0, height: '100vh', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', position: 'relative', background: 'var(--admin-bg)' }}>
+      <main style={{ flex: 1, minWidth: 0, marginLeft: isMobile ? 0 : '260px', height: '100vh', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', position: 'relative', background: 'var(--admin-bg)' }}>
         {/* Top Header */}
         <header style={{
           height: '70px', background: 'var(--admin-card)', backdropFilter: 'blur(10px)',
@@ -303,7 +309,7 @@ const StaffLayout = () => {
               </h2>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '1.25rem', flexWrap: 'nowrap', overflowX: 'hidden', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '1.25rem', flexWrap: 'nowrap', flexShrink: 0 }}>
             {/* 🟢 Header Status Badge */}
             <div style={{
               padding: isMobile ? '0.35rem 0.6rem' : '0.4rem 0.85rem', background: 'var(--admin-input-bg)',

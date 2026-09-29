@@ -3,7 +3,7 @@ import { supabase, createUniqueChannel } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import {
   ClipboardList, Clock, CheckCircle2, AlertCircle,
-  Car, User, ArrowRight, Play, Loader2, Image, Save, UploadCloud, TrendingUp, Bell
+  Car, User, ArrowRight, Play, Loader2, Image, Save, UploadCloud, TrendingUp, Bell, LogIn
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
@@ -15,7 +15,7 @@ import PhotoProofUploader from '../../components/Photos/PhotoProofUploader';
 import IntakeWarningBadge from '../../components/Photos/IntakeWarningBadge';
 import { BACKEND_URL } from '../../config/api';
 const StaffDashboard = () => {
-  const { profile } = useAuth();
+  const { profile, toggleShift } = useAuth();
   const { openModal } = useUI();
   const navigate = useNavigate();
   const isMobile = useMediaQuery('(max-width: 1024px)');
@@ -25,6 +25,7 @@ const StaffDashboard = () => {
   const [localNotes, setLocalNotes] = useState({});
   const [broadcasts, setBroadcasts] = useState([]);
   const [shiftTimer, setShiftTimer] = useState('OFF DUTY');
+  const [isClockingIn, setIsClockingIn] = useState(false);
   // Batch 5: per-unit photo counts, keyed by task.id -> { before, after }.
   // Drives the intake soft-warning and the completion hard-gate on the client.
   const [photoCounts, setPhotoCounts] = useState({});
@@ -178,6 +179,16 @@ const StaffDashboard = () => {
       && scheduled.getDate() === today.getDate();
   };
 
+  const handleClockIn = async () => {
+    if (!profile?.id || typeof toggleShift !== 'function' || profile.is_clocked_in || isClockingIn) return;
+    setIsClockingIn(true);
+    try {
+      await toggleShift(true);
+    } finally {
+      setIsClockingIn(false);
+    }
+  };
+
   const requestUpdateStatus = (task, newStatus) => {
     openModal({
       title: newStatus === 'COMPLETED' ? 'Finalize Service?' : 'Start Service?',
@@ -277,7 +288,7 @@ const StaffDashboard = () => {
           subtitle={`Ready for duty, ${profile?.full_name?.split(' ')[0]}. Vehicles assigned to you for detailing today.`}
         />
 
-        <div style={{ background: 'var(--admin-card)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--admin-border)', minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ background: 'var(--admin-card)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--admin-border)', minWidth: isMobile ? 0 : '320px', width: isMobile ? '100%' : undefined, maxWidth: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <TrendingUp size={14} color="var(--status-success)" /> Shift Tracker
@@ -298,6 +309,16 @@ const StaffDashboard = () => {
               <div style={{ fontSize: '0.55rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>Current Shift</div>
             </div>
           </div>
+          {!profile?.is_clocked_in && (
+            <button
+              type="button"
+              onClick={handleClockIn}
+              disabled={!profile?.id || isClockingIn}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', padding: '0.75rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '4px', fontWeight: '900', textTransform: 'uppercase', cursor: isClockingIn ? 'wait' : 'pointer', opacity: !profile?.id || isClockingIn ? 0.65 : 1 }}
+            >
+              <LogIn size={16} /> {isClockingIn ? 'Clocking In...' : 'Clock In'}
+            </button>
+          )}
         </div>
       </div>
 

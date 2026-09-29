@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { X, ExternalLink, Info, Calendar, Star, Megaphone, Bell, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -108,7 +109,7 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
     ] : []);
   };
 
-  return (
+  return createPortal((
     <div style={{
       position: 'fixed', inset: 0, zIndex: 999999,
       background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
@@ -212,7 +213,7 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
         </div>
       </div>
     </div>
-  );
+  ), document.body);
 };
 
 export default NotificationDetailsModal;

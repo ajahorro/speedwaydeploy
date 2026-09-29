@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { User, Settings, LogOut } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -40,6 +41,8 @@ const HeaderProfileDropdown = ({
   const isMobile = useMediaQuery('(max-width: 1024px)');
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
+  const triggerRef = useRef(null);
+  const [menuPosition, setMenuPosition] = useState(null);
 
   const hasRoute = (value) => typeof value === 'string' && value.trim().length > 0;
   const canNavigateProfile = hasRoute(profilePath);
@@ -51,7 +54,7 @@ const HeaderProfileDropdown = ({
     if (!isOpen) return undefined;
 
     const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
+      if (!menuRef.current?.contains(event.target) && !triggerRef.current?.contains(event.target)) {
         setIsOpen(false);
       }
     };
@@ -59,13 +62,42 @@ const HeaderProfileDropdown = ({
       if (event.key === 'Escape') setIsOpen(false);
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('pointerdown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('pointerdown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen]);
+
+  const updateMenuPosition = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setMenuPosition({
+      top: Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - 220)),
+      right: Math.max(8, window.innerWidth - rect.right),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    updateMenuPosition();
+    window.addEventListener('resize', updateMenuPosition);
+    window.addEventListener('scroll', updateMenuPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition);
+      window.removeEventListener('scroll', updateMenuPosition, true);
+    };
+  }, [isOpen, updateMenuPosition]);
+
+  const toggleMenu = () => {
+    if (isOpen) {
+      setIsOpen(false);
+      return;
+    }
+    updateMenuPosition();
+    setIsOpen(true);
+  };
 
   // ── Derived identity (defensive against a null/partial profile) ────────────
   const firstName = profile?.first_name || '';
@@ -108,10 +140,11 @@ const HeaderProfileDropdown = ({
   };
 
   return (
-    <div ref={menuRef} style={{ position: 'relative', flexShrink: 0 }}>
+    <div style={{ position: 'relative', flexShrink: 0 }}>
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setIsOpen((open) => !open)}
+        onClick={toggleMenu}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label={`Account menu for ${fullName}`}
@@ -163,13 +196,14 @@ const HeaderProfileDropdown = ({
         </span>
       </button>
 
-      {isOpen && (
+      {isOpen && menuPosition && createPortal((
         <div
+          ref={menuRef}
           role="menu"
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 0.5rem)',
-            right: 0,
+            position: 'fixed',
+            top: menuPosition.top,
+            right: menuPosition.right,
             minWidth: '200px',
             maxWidth: 'min(280px, 90vw)',
             background: 'var(--admin-card)',
@@ -177,8 +211,9 @@ const HeaderProfileDropdown = ({
             borderRadius: 'var(--admin-radius, 8px)',
             boxShadow: 'var(--admin-card-shadow)',
             padding: '0.35rem',
-            zIndex: 60,
-            overflow: 'hidden',
+            zIndex: 10000,
+            maxHeight: 'min(360px, calc(100dvh - 16px))',
+            overflowY: 'auto',
           }}
         >
           {/* Identity header (email) — useful context, never a nav target. */}
@@ -232,7 +267,7 @@ const HeaderProfileDropdown = ({
             </>
           )}
         </div>
-      )}
+      ), document.body)}
     </div>
   );
 };
