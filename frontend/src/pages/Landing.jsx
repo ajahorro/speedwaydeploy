@@ -23,8 +23,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useConfig } from '../context/ConfigContext';
 import { getServiceCatalog } from '../data/servicesCatalog';
 
-// ─── Smooth Scroll-Reveal Component ──────────────────────────────────────────
-// Slightly slower / gentler transitions vs the previous version (0.85 s, ease-out cubic).
+// ─── Smooth Cinematic Scroll-Reveal Component ────────────────────────────────
+// Slow, luxurious transition (1.4s, cubic-bezier ease-out + soft focal blur)
 function Reveal({ children, delay = 0, direction = 'up', style: extraStyle = {}, className = '' }) {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
@@ -36,17 +36,17 @@ function Reveal({ children, delay = 0, direction = 'up', style: extraStyle = {},
       ([entry]) => {
         if (entry.isIntersecting) { setVisible(true); obs.disconnect(); }
       },
-      { threshold: 0.1, rootMargin: '0px 0px -30px 0px' }
+      { threshold: 0.08, rootMargin: '0px 0px -25px 0px' }
     );
     obs.observe(el);
     return () => obs.disconnect();
   }, []);
 
   const translateMap = {
-    up:    'translateY(24px)',
-    down:  'translateY(-24px)',
-    left:  'translateX(24px)',
-    right: 'translateX(-24px)',
+    up:    'translateY(28px)',
+    down:  'translateY(-28px)',
+    left:  'translateX(28px)',
+    right: 'translateX(-28px)',
   };
 
   return (
@@ -55,10 +55,10 @@ function Reveal({ children, delay = 0, direction = 'up', style: extraStyle = {},
       className={className}
       style={{
         opacity: visible ? 1 : 0,
-        transform: visible ? 'translate(0,0) scale(1)' : `${translateMap[direction] || 'translateY(24px)'} scale(0.99)`,
-        // Slower, gentler: 0.85 s vs previous 0.65 s, cubic-bezier emphasises ease-out
-        transition: `opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms, transform 0.85s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms`,
-        willChange: 'opacity, transform',
+        transform: visible ? 'translate(0,0) scale(1)' : `${translateMap[direction] || 'translateY(28px)'} scale(0.985)`,
+        filter: visible ? 'blur(0px)' : 'blur(4px)',
+        transition: `opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms, transform 1.4s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms, filter 1.4s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`,
+        willChange: 'opacity, transform, filter',
         ...extraStyle,
       }}
     >
@@ -203,12 +203,12 @@ const Landing = () => {
       {/* ── GLOBAL CSS ── */}
       <style>{`
         html { scroll-behavior: smooth; }
-        .section-padding { padding: clamp(4rem, 10vw, 8rem) clamp(1rem, 5vw, 4rem); }
-        .container-wide  { max-width: 1200px; margin: 0 auto; width: 100%; }
+        .section-padding { padding: clamp(3rem, 5.5vw, 5.5rem) clamp(1rem, 5vw, 3.5rem); }
+        .container-wide  { max-width: 1140px; margin: 0 auto; width: 100%; }
 
-        /* Card hover */
+        /* Card hover - slow, gentle response */
         .lp-card-hover {
-          transition: transform 0.28s ease, border-color 0.28s ease, box-shadow 0.28s ease;
+          transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s ease, box-shadow 0.4s ease;
         }
         .lp-card-hover:hover {
           transform: translateY(-4px);
@@ -229,7 +229,7 @@ const Landing = () => {
           cursor: pointer;
           color: white;
           padding: 8px;
-          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
           flex-shrink: 0;
         }
         .three-lines-btn:hover {
@@ -250,12 +250,12 @@ const Landing = () => {
           border: none;
           border-radius: 8px;
           color: rgba(255, 255, 255, 0.85);
-          font-size: 0.95rem;
+          font-size: 0.9rem;
           font-weight: 800;
           text-transform: uppercase;
           letter-spacing: 1.2px;
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: all 0.3s ease;
           text-align: left;
         }
         .menu-link-item:hover {
@@ -273,7 +273,7 @@ const Landing = () => {
           z-index: 1050;
           opacity: 0;
           pointer-events: none;
-          transition: opacity 0.3s ease;
+          transition: opacity 0.4s ease;
         }
         .menu-drawer-backdrop.is-open {
           opacity: 1;
@@ -291,7 +291,7 @@ const Landing = () => {
           border-left: 1px solid rgba(255, 255, 255, 0.1);
           z-index: 1060;
           transform: translateX(100%);
-          transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+          transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
           display: flex;
           flex-direction: column;
           box-shadow: -10px 0 35px rgba(0, 0, 0, 0.6);
@@ -300,7 +300,7 @@ const Landing = () => {
         }
         .menu-drawer.is-open { transform: translateX(0); }
 
-        /* Hero video */
+        /* Hero video — zoom to cover screen gracefully */
         .hero-video {
           position: absolute;
           inset: 0;
@@ -310,23 +310,24 @@ const Landing = () => {
           object-position: center center;
           z-index: 0;
           opacity: 0.55;
+          pointer-events: none;
         }
         @media (max-width: 768px) {
           .hero-video {
-            /* Mobile: center without cropping */
-            object-fit: contain;
+            /* Mobile phone view: zoom to fit phone screen edge-to-edge properly */
+            object-fit: cover;
             object-position: center center;
             width: 100%;
             height: 100%;
-            opacity: 0.65;
+            opacity: 0.58;
           }
-          .hero-content h1 { font-size: clamp(2rem, 8vw, 3rem) !important; }
+          .hero-content h1 { font-size: clamp(1.85rem, 6.5vw, 2.5rem) !important; }
 
           /* Mobile services collapse toggle */
           .cat-toggle-btn { display: flex !important; }
           .cat-services-grid {
             overflow: hidden;
-            transition: max-height 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease;
+            transition: max-height 0.7s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.55s ease;
           }
           .cat-services-grid.collapsed {
             max-height: 0 !important;
@@ -345,10 +346,21 @@ const Landing = () => {
           .cat-services-grid { max-height: none !important; opacity: 1 !important; }
         }
 
-        /* Fluid text */
-        .text-fluid-h1 { font-size: clamp(2.8rem, 7vw, 5.5rem); }
-        .text-fluid-h2 { font-size: clamp(1.8rem, 4vw, 3rem); }
-        .text-fluid-body { font-size: clamp(0.9rem, 1.5vw, 1.1rem); }
+        /* Fluid text - refined desktop sizes so it is not oversized */
+        .text-fluid-h1 {
+          font-size: clamp(1.85rem, 3.2vw, 3.25rem);
+          line-height: 1.05;
+          letter-spacing: -1px;
+        }
+        .text-fluid-h2 {
+          font-size: clamp(1.35rem, 2.2vw, 2.15rem);
+          line-height: 1.2;
+          letter-spacing: 0.5px;
+        }
+        .text-fluid-body {
+          font-size: clamp(0.85rem, 1vw, 1.02rem);
+          line-height: 1.7;
+        }
       `}</style>
 
       {/* ── 1. STICKY HEADER ── */}
@@ -508,7 +520,7 @@ const Landing = () => {
           background: 'radial-gradient(ellipse at center, rgba(169, 27, 24, 0.22) 0%, rgba(10, 11, 13, 0.88) 65%, #0A0B0D 100%)'
         }}
       >
-        {/* Background video — centered without cropping on mobile */}
+        {/* Background video — zoom to fit phone screen on mobile, cover widescreen on desktop */}
         <video
           className="hero-video"
           autoPlay
@@ -517,7 +529,7 @@ const Landing = () => {
           playsInline
           preload="auto"
         >
-          <source src="/Celeme231_pindown.io_1790707258.mp4" type="video/mp4" />
+          <source src="/S7ggroup_pindown.io_1790707925.mp4" type="video/mp4" />
           <source src="/hero-bg.mp4" type="video/mp4" />
         </video>
 
@@ -530,36 +542,36 @@ const Landing = () => {
           pointerEvents: 'none'
         }} />
 
-        <div className="hero-content" style={{ position: 'relative', zIndex: 2, textAlign: 'center', maxWidth: '900px', padding: '0 2rem' }}>
-          <Reveal delay={120} direction="up">
-            <h1 className="text-fluid-h1" style={{ fontWeight: '950', lineHeight: '0.92', textTransform: 'uppercase', marginBottom: '1.5rem', letterSpacing: '-2px' }}>
+        <div className="hero-content" style={{ position: 'relative', zIndex: 2, textAlign: 'center', maxWidth: '850px', padding: '0 2rem' }}>
+          <Reveal delay={250} direction="up">
+            <h1 className="text-fluid-h1" style={{ fontWeight: '950', textTransform: 'uppercase', marginBottom: '1.25rem' }}>
               TURN THE COLOR <br />
               <span style={{ color: '#E61E2A' }}>TO THE MAXIMUM</span>
             </h1>
           </Reveal>
 
-          <Reveal delay={280} direction="up">
-            <p className="text-fluid-body" style={{ color: 'rgba(255,255,255,0.75)', maxWidth: '600px', margin: '0 auto 2.5rem', lineHeight: '1.65', fontWeight: '600' }}>
+          <Reveal delay={650} direction="up">
+            <p className="text-fluid-body" style={{ color: 'rgba(255,255,255,0.75)', maxWidth: '580px', margin: '0 auto 2.25rem', fontWeight: '500' }}>
               Experience premium automotive detailing services that bring out the true brilliance of your vehicle. Our expert team uses cutting-edge techniques to deliver stunning results.
             </p>
           </Reveal>
 
-          <Reveal delay={440} direction="up">
+          <Reveal delay={1050} direction="up">
             <button
               onClick={handleAuthAction}
               style={{
-                padding: '1.25rem 3.5rem',
+                padding: '1.15rem 3.25rem',
                 background: '#E61E2A',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
                 fontWeight: '950',
-                fontSize: '0.9rem',
+                fontSize: '0.88rem',
                 textTransform: 'uppercase',
                 letterSpacing: '2px',
                 cursor: 'pointer',
                 boxShadow: '0 10px 30px rgba(230, 30, 42, 0.38)',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+                transition: 'transform 0.3s ease, box-shadow 0.3s ease'
               }}
               onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 14px 34px rgba(230, 30, 42, 0.52)'; }}
               onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 10px 30px rgba(230, 30, 42, 0.38)'; }}
@@ -574,8 +586,8 @@ const Landing = () => {
       <section id="about" className="section-padding" style={{ background: '#0A0B0D' }}>
         <div className="container-wide" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 'clamp(2rem, 5vw, 4.5rem)', alignItems: 'center' }}>
           <Reveal direction="right">
-            <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '1.75rem', fontWeight: 950 }}>ABOUT US</h2>
-            <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.65)', lineHeight: '1.8', marginBottom: '1.5rem' }}>
+            <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '1.5rem', fontWeight: 950 }}>ABOUT US</h2>
+            <p style={{ fontSize: 'clamp(0.92rem, 1.05vw, 1.05rem)', color: 'rgba(255,255,255,0.65)', lineHeight: '1.75', marginBottom: '1.5rem' }}>
               At Comar Garage, we believe that every vehicle deserves to look its absolute best.
               Founded with a passion for automotive excellence, we have grown into one of the region's
               most trusted detailing centers.
@@ -703,17 +715,17 @@ const Landing = () => {
                               style={{
                                 color: '#E61E2A',
                                 transform: openService === serviceKey ? 'rotate(90deg)' : 'rotate(0deg)',
-                                transition: 'transform 0.3s ease'
+                                transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)'
                               }}
                               size={20}
                             />
                           </div>
 
-                          <h4 style={{ fontSize: '1.1rem', fontWeight: '950', marginBottom: '0.75rem', textTransform: 'uppercase' }}>
+                          <h4 style={{ fontSize: '1.05rem', fontWeight: '950', marginBottom: '0.65rem', textTransform: 'uppercase' }}>
                             {service.name}
                           </h4>
 
-                          <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', lineHeight: '1.6', margin: 0 }}>
+                          <p style={{ fontSize: '0.84rem', color: 'rgba(255,255,255,0.55)', lineHeight: '1.6', margin: 0 }}>
                             {service.desc}
                           </p>
 
@@ -721,7 +733,7 @@ const Landing = () => {
                             style={{
                               maxHeight: openService === serviceKey ? '400px' : '0',
                               overflow: 'hidden',
-                              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                              transition: 'all 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
                               opacity: openService === serviceKey ? 1 : 0,
                               marginTop: openService === serviceKey ? '1.5rem' : '0'
                             }}
@@ -769,7 +781,7 @@ const Landing = () => {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {displayFaqs.map((faq, i) => (
-              <Reveal key={i} delay={i * 55} direction="up">
+              <Reveal key={i} delay={i * 60} direction="up">
                 <div
                   className="lp-card-hover"
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
@@ -779,7 +791,7 @@ const Landing = () => {
                     borderRadius: '8px',
                     border: '1px solid rgba(255,255,255,0.06)',
                     cursor: 'pointer',
-                    transition: 'all 0.25s ease'
+                    transition: 'all 0.35s ease'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
@@ -789,7 +801,7 @@ const Landing = () => {
                       style={{
                         color: 'rgba(255,255,255,0.3)',
                         transform: openFaq === i ? 'rotate(90deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.3s ease',
+                        transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
                         flexShrink: 0
                       }}
                     />
@@ -800,7 +812,7 @@ const Landing = () => {
                       style={{
                         maxHeight: openFaq === i ? '400px' : '0',
                         overflow: 'hidden',
-                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                        transition: 'all 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
                         opacity: openFaq === i ? 1 : 0,
                         marginTop: openFaq === i ? '1rem' : '0'
                       }}
