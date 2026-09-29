@@ -2107,8 +2107,8 @@ const sendPasswordSecurityAlert = async ({ email, purpose }) => send({
   html: buildEmailShell({
     title: purpose === 'RESET' ? 'Password Reset Complete' : 'Password Update Complete',
     eyebrow: 'COMAR GARAGE ACCOUNT SECURITY',
-    bodyHtml: '<p style="margin:0;color:#374151;line-height:1.7;">Your Speedway account password was successfully updated. If you did not make this change, contact support immediately.</p>',
-    footerNote: 'Speedway Detail Studio | Account Security'
+    bodyHtml: '<p style="margin:0;color:#374151;line-height:1.7;">Your Comar Garage account password was successfully updated. If you did not make this change, contact support immediately.</p>',
+    footerNote: 'Comar Garage Detail Studio | Account Security'
   })
 });
 
@@ -2319,10 +2319,10 @@ app.post('/api/auth/request-email-change', async (req, res) => {
       await resendClient.emails.send({
         from: RESEND_FROM,
         to: oldEmail,
-        subject: 'Speedway: Authorize Email Change',
+        subject: 'Comar Garage: Authorize Email Change',
         html: `
           <div style="font-family: sans-serif; padding: 20px; color: #333;">
-            <h2 style="color: #A91B18;">SPEEDWAY SECURITY</h2>
+            <h2 style="color: #A91B18;">COMAR GARAGE SECURITY</h2>
             <p>You requested to change your account email to <strong>${newEmail}</strong>.</p>
             <p>Enter the following authorization code to confirm this change:</p>
             <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; padding: 10px; background: #f4f4f4; border-radius: 5px; display: inline-block;">
@@ -2450,7 +2450,7 @@ app.get('/api/admin/profiles', async (req, res) => {
 // Generates a temporary password, creates the auth user + profile atomically
 // (guarded by the create_invited_account RPC which blocks duplicates across BOTH
 // auth.users and profiles), and delivers the credentials via the branded Resend
-// relay so the email matches the dark-mode Speedway shell.
+// relay so the email matches the dark-mode Comar Garage shell.
 const generateTemporaryPassword = () => {
   // URL-safe, human-transcribable temporary password. Satisfies Supabase's
   // default minimum length and avoids ambiguous characters (0/O, 1/l).
@@ -3059,10 +3059,10 @@ app.post('/api/admin/broadcast', async (req, res) => {
                 to: [p.email],
                 subject: 'System Announcement 📣',
                 html: `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
-                  <h2 style="color: #E61E2A;">Speedway System Announcement</h2>
+                  <h2 style="color: #E61E2A;">Comar Garage System Announcement</h2>
                   <p style="font-size: 16px; color: #e5e7eb;">${message.trim()}</p>
                   <hr style="border: none; border-top: 1px solid #374151; margin: 20px 0;" />
-                  <p style="font-size: 12px; color: #9ca3af;">This is an automated operational signal from Speedway Admin Command Center.</p>
+                  <p style="font-size: 12px; color: #9ca3af;">This is an automated operational signal from Comar Garage Admin Command Center.</p>
                 </div>`
               });
               await new Promise(r => setTimeout(r, 100)); // rate limiting buffer
@@ -3101,7 +3101,7 @@ app.post('/api/admin/announce-catalog', async (req, res) => {
       if (names.length) {
         sendPreferenceGatedAnnouncement({
           preferenceKey: 'emailNewServices',
-          subject: 'New services at Speedway ✨',
+          subject: 'New services at Comar Garage ✨',
           bodyHtml: `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
             <h2 style="color: #E61E2A;">New services just added</h2>
             <p style="font-size: 16px; color: #e5e7eb;">Hi {{name}},</p>
@@ -3268,7 +3268,7 @@ app.post('/api/admin/promos', async (req, res) => {
         preferenceKey: 'emailNewPromos',
         subject: `New promo: ${nextRule.name} 🎉`,
         bodyHtml: `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
-          <h2 style="color: #E61E2A;">Speedway has a new promo</h2>
+          <h2 style="color: #E61E2A;">Comar Garage has a new promo</h2>
           <p style="font-size: 16px; color: #e5e7eb;">Hi {{name}},</p>
           <p style="font-size: 16px; color: #e5e7eb;">A new promotion is now live: <strong>${nextRule.name}</strong>.</p>
           <p style="font-size: 14px; color: #9ca3af;">Book now to take advantage of it.</p>
@@ -5083,7 +5083,7 @@ app.locals.validateBookingRequest = validateBookingRequest;
 
 app.listen(PORT, () => {
   console.log('\n' + '*'.repeat(50));
-  console.log(`🚀 SPEEDWAY SHADOW BACKEND: http://localhost:${PORT}`);
+  console.log(`🚀 COMAR GARAGE BACKEND: http://localhost:${PORT}`);
   console.log('*'.repeat(50) + '\n');
 }).on('error', (err) => {
   if (err.code === 'EADDRINUSE') {

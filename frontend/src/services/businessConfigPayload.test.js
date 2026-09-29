@@ -8,13 +8,13 @@ import {
 
 test('buildBusinessConfigUpdatePayload includes faqs when supported', () => {
   const payload = buildBusinessConfigUpdatePayload({
-    business_name: 'Speedway Studio',
+    business_name: 'Comar Garage Studio',
     contact_number: '09123456789',
     email_address: 'hello@example.com',
     business_address: 'Test Street',
     opening_hour: '08:00',
     closing_hour: '17:00',
-    qr_account_name: 'Speedway Studio',
+    qr_account_name: 'Comar Garage Studio',
     qr_account_number: '09123456789',
     payment_qr_url: 'https://cdn.example.com/qr.png',
     qr_config_complete: true,
@@ -30,18 +30,18 @@ test('buildBusinessConfigUpdatePayload includes faqs when supported', () => {
   }, { supportsFaqs: true });
 
   assert.equal(payload.faqs.length, 1);
-  assert.equal(payload.business_name, 'Speedway Studio');
+  assert.equal(payload.business_name, 'Comar Garage Studio');
 });
 
 test('stripUnsupportedBusinessConfigColumns removes unsupported fields only when the DB says they are missing', () => {
   const payload = buildBusinessConfigUpdatePayload({
-    business_name: 'Speedway Studio',
+    business_name: 'Comar Garage Studio',
     contact_number: '09123456789',
     email_address: 'hello@example.com',
     business_address: 'Test Street',
     opening_hour: '08:00',
     closing_hour: '17:00',
-    qr_account_name: 'Speedway Studio',
+    qr_account_name: 'Comar Garage Studio',
     qr_account_number: '09123456789',
     payment_qr_url: 'https://cdn.example.com/qr.png',
     qr_config_complete: true,
@@ -67,7 +67,7 @@ test('stripUnsupportedBusinessConfigColumns removes unsupported fields only when
   assert.equal(stripped.custom_services, payload.custom_services);
   assert.equal(stripped.faqs, payload.faqs);
   assert.equal(stripped.vehicle_types, undefined);
-  assert.equal(stripped.business_name, 'Speedway Studio');
+  assert.equal(stripped.business_name, 'Comar Garage Studio');
 });
 
 test('isMissingColumnError catches the schema-cache error shape', () => {

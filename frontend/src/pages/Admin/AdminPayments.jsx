@@ -455,7 +455,7 @@ const AdminPayments = () => {
           <div class="wrap">
             <div class="brand">
               <h1>COMAR GARAGE</h1>
-              <div class="subtitle">AutoxMoto Detail Studio</div>
+              <div class="subtitle">Comar Garage Detail Studio</div>
               <div class="line"></div>
             </div>
             <div class="meta">

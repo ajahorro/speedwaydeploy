@@ -1,5 +1,5 @@
 /**
- * SPEEDWAY GLOBAL CONFIGURATION
+ * COMAR GARAGE GLOBAL CONFIGURATION
  * Centralized constants for white-label scalability.
  * REQ-NFR-01, REQ-NFR-05: Single source of truth for all business rules.
  */

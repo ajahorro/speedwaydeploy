@@ -1,7 +1,7 @@
 {
   "name": "speedway-email-service",
   "version": "1.0.0",
-  "description": "Shadow backend for Speedway AutoxMoto email logging and delivery",
+  "description": "Backend for Comar Garage Detail Studio email logging and delivery",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

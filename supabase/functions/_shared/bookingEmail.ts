@@ -440,7 +440,7 @@ export const buildStatusEmail = ({ booking, payment, customerName, newStatus, re
     ${ctaButton('VIEW IN PORTAL')}`;
 
   return {
-    subject: `Speedway Update: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} is now ${statusKey}`,
+    subject: `Comar Garage Update: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} is now ${statusKey}`,
     html: shell('Booking Status Update', body),
     amounts,
   };
@@ -463,7 +463,7 @@ export const buildReminderEmail = ({ booking, payment, customerName }: {
     ${ctaButton('VIEW IN PORTAL')}`;
 
   return {
-    subject: 'Reminder: Your confirmed Speedway appointment is in 1 hour',
+    subject: 'Reminder: Your confirmed Comar Garage appointment is in 1 hour',
     html: shell('Appointment Reminder', body),
     amounts,
   };
