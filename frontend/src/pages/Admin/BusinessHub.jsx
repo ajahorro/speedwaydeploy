@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Building, Clock, Wrench, Tag, Save, AlertCircle, CheckCircle, Check,
-  Plus, X, Trash2, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown
+  Plus, X, Trash2, Archive, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { useConfig } from '../../context/ConfigContext';
 import { useUI } from '../../context/UIContext';
@@ -43,7 +43,6 @@ import { BACKEND_URL } from '../../config/api';
 // rather than stored here, so this constant stays plain data.
 const TAB_DEFINITIONS = [
   { id: 'profile', label: 'Business Profile' },
-  { id: 'hours', label: 'Hours & Capacity' },
   { id: 'schedule', label: 'Schedule Rules' },
   // The Service Catalog editor lives at `currentTab === 'services'` below.
   // It was unreachable because it was missing from BOTH lists above.
@@ -62,8 +61,10 @@ const SECTION_FIELDS = {
     'qr_account_name', 'qr_account_number', 'payment_qr_url',
     'faqs'
   ],
-  hours: ['opening_hour', 'closing_hour', 'is_24_7', 'slots_per_hour', 'max_vehicles_per_staff'],
-  schedule: ['booking_lead_time_minutes', 'max_advance_days', 'closed_weekdays', 'enforce_capacity'],
+  schedule: [
+    'opening_hour', 'closing_hour', 'is_24_7', 'slots_per_hour', 'max_vehicles_per_staff',
+    'booking_lead_time_minutes', 'max_advance_days', 'closed_weekdays', 'enforce_capacity'
+  ],
   services: ['custom_services', 'vehicle_types', 'archived_service_ids'],
   faqs: ['faqs']
 };
@@ -678,7 +679,7 @@ export default function BusinessHub() {
   // Task B: block tab switches / navigation while a section has unsaved edits.
   // Declared here so it sits AFTER `isDirty` — the hook is called unconditionally
   // on every render, preserving hook order.
-  const anyDirty = ['profile', 'hours', 'schedule', 'services', 'faqs'].some((s) => isDirty(s));
+  const anyDirty = ['profile', 'schedule', 'services', 'faqs'].some((s) => isDirty(s));
   const leaveGuard = useUnsavedChangesGuard(anyDirty, { message: 'You have unsaved changes. Are you sure you want to leave? Your changes will be lost.' });
 
   const sectionValid = (section) => {
@@ -2061,7 +2062,6 @@ export default function BusinessHub() {
             <SectionHeading>Store Identification &amp; Contact</SectionHeading>
             <div style={gridStyle}>
               <Field label="Business Name" required htmlFor="business-name">
-                <small style={{ display: 'block', margin: '-.35rem 0 .5rem', color: 'var(--admin-text-secondary)', fontSize: '.72rem' }}>Total bays available for overlapping bookings.</small>
                 <input
                   id="business-name"
                   name="business_name"
@@ -2287,111 +2287,117 @@ export default function BusinessHub() {
           </form>
         )}
 
-        {/* Tab 2: Hours & Service Capacity */}
-        {currentTab === 'hours' && (
-          <form onSubmit={handleSaveSection} style={cardStyle}>
-            <SectionHeading>Operating Schedule &amp; Daily Capacity</SectionHeading>
-
-            {/* 24/7 switch: the single source of truth for a full-day window. When
-                on, the finite opening/closing window is ignored everywhere. */}
-            <label
-              htmlFor="business-is-24-7"
-              style={{
-                display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
-                padding: '0.9rem 1rem', background: 'var(--admin-bg)',
-                border: `1px solid ${businessForm.is_24_7 ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
-                borderRadius: 'var(--admin-radius-sm)', cursor: 'pointer'
-              }}
-            >
-              <input
-                id="business-is-24-7"
-                name="is_24_7"
-                type="checkbox"
-                checked={businessForm.is_24_7 === true}
-                onChange={(e) => handleInputChange('is_24_7', e.target.checked)}
-                style={{ marginTop: '0.15rem', width: '1.05rem', height: '1.05rem', accentColor: 'var(--admin-brand)', cursor: 'pointer' }}
-              />
-              <span>
-                <span style={{ display: 'block', fontWeight: 900, color: 'var(--admin-text-primary)', fontSize: '0.82rem' }}>
-                  Open 24 hours (24/7)
-                </span>
-                <span style={{ display: 'block', marginTop: '0.2rem', fontSize: '0.7rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
-                  Bookable every hour of the day. Opening and closing times below are ignored while this is on.
-                </span>
-              </span>
-            </label>
-
-            <div style={gridStyle}>
-              <Field label="Opening Time" required={businessForm.is_24_7 !== true}>
-                <input
-                  id="business-opening-hour"
-                  name="opening_hour"
-                  type="time"
-                  disabled={businessForm.is_24_7 === true}
-                  value={formatTimeForInput(businessForm.opening_hour)}
-                  onChange={(e) => handleInputChange('opening_hour', e.target.value)}
-                  style={{ ...inputStyle, opacity: businessForm.is_24_7 === true ? 0.5 : 1, cursor: businessForm.is_24_7 === true ? 'not-allowed' : 'text' }}
-                />
-              </Field>
-              <Field label="Closing Time" required={businessForm.is_24_7 !== true}>
-                <input
-                  id="business-closing-hour"
-                  name="closing_hour"
-                  type="time"
-                  disabled={businessForm.is_24_7 === true}
-                  value={formatTimeForInput(businessForm.closing_hour)}
-                  onChange={(e) => handleInputChange('closing_hour', e.target.value)}
-                  style={{ ...inputStyle, opacity: businessForm.is_24_7 === true ? 0.5 : 1, cursor: businessForm.is_24_7 === true ? 'not-allowed' : 'text' }}
-                />
-              </Field>
-              <Field label="Total Bookable Bays" required>
-                <small style={{ display: 'block', margin: '-.35rem 0 .5rem', color: 'var(--admin-text-secondary)', fontSize: '.72rem' }}>Maximum bays available for overlapping bookings.</small>
-                <input
-                  id="business-slots-per-hour"
-                  name="slots_per_hour"
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={businessForm.slots_per_hour}
-                  onChange={(e) => handleInputChange('slots_per_hour', e.target.value)}
-                  style={inputStyle}
-                />
-              </Field>
-              <Field label="Maximum Concurrent Vehicles Per Staff Member" required>
-                <small style={{ display: 'block', margin: '-.35rem 0 .5rem', color: 'var(--admin-text-secondary)', fontSize: '.72rem' }}>Staff workload limit; this is separate from bay capacity.</small>
-                <input
-                  id="business-max-vehicles-per-staff"
-                  name="max_vehicles_per_staff"
-                  type="number"
-                  min="1"
-                  max="12"
-                  value={businessForm.max_vehicles_per_staff}
-                  onChange={(e) => handleInputChange('max_vehicles_per_staff', e.target.value)}
-                  style={inputStyle}
-                />
-              </Field>
-            </div>
-            {!sectionValid('hours') && (
-              <Hint>
-                {businessForm.is_24_7 === true
-                  ? 'Capacities must be at least 1.'
-                  : 'Opening and closing times are required, closing must be after opening, and capacities must be at least 1.'}
-              </Hint>
-            )}
-
-            <SaveBar
-              canSave={canSave('hours')}
-              saving={saving}
-              dirty={isDirty('hours')}
-              label="Save Schedule Changes"
-            />
-          </form>
-        )}
-
-        {/* Tab 3: Schedule Rules (Batch 6 — booking restrictions) */}
+        {/* Tab 2: Schedule Rules (hours, capacity, and booking restrictions) */}
         {currentTab === 'schedule' && (
           <form onSubmit={handleSaveSection} style={cardStyle}>
             <div style={{ display: 'grid', gap: '1.25rem' }}>
+              <div
+                style={{
+                  border: '1px solid var(--admin-border)',
+                  borderRadius: 'var(--admin-radius)',
+                  background: 'var(--admin-card)',
+                  padding: '1.2rem 1.25rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem'
+                }}
+              >
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: 'var(--admin-text-primary)' }}>
+                    Operating Hours &amp; Capacity
+                  </h2>
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.74rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                    Set when the shop is open and how many vehicles can be handled at once.
+                  </p>
+                </div>
+
+                <label
+                  htmlFor="business-is-24-7"
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+                    padding: '0.9rem 1rem', background: 'var(--admin-bg)',
+                    border: `1px solid ${businessForm.is_24_7 ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
+                    borderRadius: 'var(--admin-radius-sm)', cursor: 'pointer'
+                  }}
+                >
+                  <input
+                    id="business-is-24-7"
+                    name="is_24_7"
+                    type="checkbox"
+                    checked={businessForm.is_24_7 === true}
+                    onChange={(e) => handleInputChange('is_24_7', e.target.checked)}
+                    style={{ marginTop: '0.15rem', width: '1.05rem', height: '1.05rem', accentColor: 'var(--admin-brand)', cursor: 'pointer' }}
+                  />
+                  <span>
+                    <span style={{ display: 'block', fontWeight: 900, color: 'var(--admin-text-primary)', fontSize: '0.82rem' }}>
+                      Open 24 hours (24/7)
+                    </span>
+                    <span style={{ display: 'block', marginTop: '0.2rem', fontSize: '0.7rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                      Bookable every hour of the day. Opening and closing times below are ignored while this is on.
+                    </span>
+                  </span>
+                </label>
+
+                <div style={gridStyle}>
+                  <Field label="Opening Time" required={businessForm.is_24_7 !== true} htmlFor="business-opening-hour">
+                    <input
+                      id="business-opening-hour"
+                      name="opening_hour"
+                      type="time"
+                      disabled={businessForm.is_24_7 === true}
+                      value={formatTimeForInput(businessForm.opening_hour)}
+                      onChange={(e) => handleInputChange('opening_hour', e.target.value)}
+                      style={{ ...inputStyle, opacity: businessForm.is_24_7 === true ? 0.5 : 1, cursor: businessForm.is_24_7 === true ? 'not-allowed' : 'text' }}
+                    />
+                  </Field>
+                  <Field label="Closing Time" required={businessForm.is_24_7 !== true} htmlFor="business-closing-hour">
+                    <input
+                      id="business-closing-hour"
+                      name="closing_hour"
+                      type="time"
+                      disabled={businessForm.is_24_7 === true}
+                      value={formatTimeForInput(businessForm.closing_hour)}
+                      onChange={(e) => handleInputChange('closing_hour', e.target.value)}
+                      style={{ ...inputStyle, opacity: businessForm.is_24_7 === true ? 0.5 : 1, cursor: businessForm.is_24_7 === true ? 'not-allowed' : 'text' }}
+                    />
+                  </Field>
+                  <Field label="Total Bookable Bays" required htmlFor="business-slots-per-hour">
+                    <input
+                      id="business-slots-per-hour"
+                      name="slots_per_hour"
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={businessForm.slots_per_hour}
+                      onChange={(e) => handleInputChange('slots_per_hour', e.target.value)}
+                      style={inputStyle}
+                    />
+                    <small style={{ display: 'block', margin: '0.45rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '.72rem', lineHeight: 1.4 }}>Maximum bays available for overlapping bookings.</small>
+                  </Field>
+                  <Field label="Maximum Concurrent Vehicles Per Staff Member" required htmlFor="business-max-vehicles-per-staff">
+                    <input
+                      id="business-max-vehicles-per-staff"
+                      name="max_vehicles_per_staff"
+                      type="number"
+                      min="1"
+                      max="12"
+                      value={businessForm.max_vehicles_per_staff}
+                      onChange={(e) => handleInputChange('max_vehicles_per_staff', e.target.value)}
+                      style={inputStyle}
+                    />
+                    <small style={{ display: 'block', margin: '0.45rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '.72rem', lineHeight: 1.4 }}>Staff workload limit; this is separate from bay capacity.</small>
+                  </Field>
+                </div>
+
+                {!sectionValid('schedule') && (
+                  <Hint>
+                    {businessForm.is_24_7 === true
+                      ? 'Capacities must be at least 1.'
+                      : 'Opening and closing times are required, closing must be after opening, and capacities must be at least 1.'}
+                  </Hint>
+                )}
+              </div>
+
               <div
                 style={{
                   border: '1px solid var(--admin-border)',
