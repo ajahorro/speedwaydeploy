@@ -344,7 +344,29 @@ const Landing = () => {
         @media (min-width: 769px) {
           .cat-toggle-btn { display: none !important; }
           .cat-services-grid { max-height: none !important; opacity: 1 !important; }
+          .desktop-nav { display: flex !important; }
+          .desktop-actions { display: flex !important; }
+          .three-lines-btn { display: none !important; }
+          .menu-drawer, .menu-drawer-backdrop { display: none !important; }
         }
+
+        /* Mobile: hide desktop nav and actions, show three-lines hamburger button */
+        @media (max-width: 768px) {
+          .desktop-nav { display: none !important; }
+          .desktop-actions { display: none !important; }
+          .three-lines-btn { display: inline-flex !important; }
+        }
+
+        .nav-link {
+          color: rgba(255, 255, 255, 0.82);
+          font-size: 0.8rem;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 1.5px;
+          cursor: pointer;
+          transition: color 0.25s ease;
+        }
+        .nav-link:hover { color: #E61E2A !important; }
 
         /* Fluid text - refined desktop sizes so it is not oversized */
         .text-fluid-h1 {
@@ -370,7 +392,7 @@ const Landing = () => {
           top: 0,
           left: 0,
           right: 0,
-          height: scrolled ? '64px' : '72px',
+          height: scrolled ? '64px' : '74px',
           background: scrolled ? 'rgba(10, 11, 13, 0.96)' : 'rgba(10, 11, 13, 0.45)',
           backdropFilter: 'blur(18px)',
           borderBottom: scrolled ? '1px solid rgba(255,255,255,0.08)' : '1px solid transparent',
@@ -382,17 +404,88 @@ const Landing = () => {
           transition: 'all 0.35s cubic-bezier(0.22, 1, 0.36, 1)'
         }}
       >
-        {/* LOGO */}
-        <div
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          style={{ cursor: 'pointer' }}
-        >
-          <div style={{ color: 'white', fontSize: 'clamp(1.1rem, 3vw, 1.7rem)', fontWeight: 950, letterSpacing: '0.08em', fontStyle: 'italic', textTransform: 'uppercase' }}>
-            {businessName}
+        {/* LOGO (Left) */}
+        <div style={{ flex: 1 }}>
+          <div
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+          >
+            <div style={{ color: 'white', fontSize: 'clamp(1.1rem, 2.5vw, 1.65rem)', fontWeight: 950, letterSpacing: '0.08em', fontStyle: 'italic', textTransform: 'uppercase' }}>
+              {businessName}
+            </div>
           </div>
         </div>
 
-        {/* THREE-LINES BUTTON */}
+        {/* DESKTOP NAVIGATION (Middle) - Hidden on Mobile */}
+        <nav className="desktop-nav" style={{ display: 'flex', gap: 'clamp(1.2rem, 2.2vw, 2.5rem)', alignItems: 'center' }}>
+          {NAV_LINKS.map(link => (
+            <span
+              key={link.id}
+              onClick={() => scrollToSection(link.id)}
+              className="nav-link"
+            >
+              {link.label}
+            </span>
+          ))}
+        </nav>
+
+        {/* DESKTOP ACTIONS (Right) - Hidden on Mobile */}
+        <div className="desktop-actions" style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', alignItems: 'center' }}>
+          {user && (
+            <button
+              onClick={() => signOut()}
+              style={{
+                padding: '0.65rem 1.25rem',
+                background: 'transparent',
+                color: 'rgba(255,255,255,0.7)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '6px',
+                fontWeight: '800',
+                fontSize: '0.78rem',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#ef4444'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+            >
+              <LogOut size={15} />
+              <span>SIGN OUT</span>
+            </button>
+          )}
+
+          <button
+            onClick={handleAuthAction}
+            style={{
+              padding: '0.7rem 1.65rem',
+              background: '#E61E2A',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              fontWeight: '950',
+              fontSize: '0.82rem',
+              textTransform: 'uppercase',
+              letterSpacing: '1.2px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              boxShadow: '0 4px 16px rgba(230, 30, 42, 0.35)',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(230, 30, 42, 0.5)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(230, 30, 42, 0.35)'; }}
+          >
+            {user ? <LayoutDashboard size={16} /> : <LogIn size={16} />}
+            <span>{!isInitialized || authLoading ? 'SYNCING...' : (user ? 'DASHBOARD' : 'LOGIN')}</span>
+          </button>
+        </div>
+
+        {/* THREE-LINES BUTTON - Mobile View Only (media_1790708236894.png) */}
         <button
           className="three-lines-btn"
           onClick={() => setMenuOpen(o => !o)}
