@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate, NavLink, Outlet } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { supabase, createUniqueChannel } from '../../lib/supabase';
 import {
   LayoutDashboard, PlusCircle, ClipboardList, CreditCard,
   Car, Bell, Settings, LogOut, Menu, X
@@ -67,8 +67,7 @@ const CustomerLayout = () => {
     fetchUnreadCount();
 
     // Real-time subscription for instant badge updates
-    const channel = supabase
-      .channel(`customer-notif-badge-${user?.id}`)
+    const channel = createUniqueChannel(`customer-notif-badge-${user?.id}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'notifications',
         filter: `user_id=eq.${user?.id}`

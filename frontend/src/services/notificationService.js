@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, createUniqueChannel } from '../lib/supabase';
 import { BACKEND_URL } from '../config/api';
 
 /**
@@ -55,8 +55,7 @@ export const clearAllNotifications = async (userId) => {
 };
 
 export const subscribeToNotifications = (userId, callback) => {
-  return supabase
-    .channel(`notifications-${userId}`)
+  return createUniqueChannel(`notifications-${userId}`)
     .on(
       'postgres_changes',
       {
@@ -205,8 +204,13 @@ export const sendNotificationEmail = async (notificationId) => {
     }
     return data;
   } catch (error) {
-    console.error('[NotificationService] Notification email error:', await describeFunctionError(error));
-    return { error: await describeFunctionError(error) };
+    // A failure here is non-fatal by design: the in-app notification row is
+    // already persisted, so the bell still shows it. Log it with the cause the
+    // edge function returned instead of a generic line, so an outage is
+    // distinguishable from a bad id.
+    const detail = await describeFunctionError(error);
+    console.warn(`[NotificationService] Notification email not sent: ${detail}`);
+    return { error: detail };
   }
 };
 

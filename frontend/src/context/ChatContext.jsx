@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, createUniqueChannel } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 
 const ChatContext = createContext(null);
@@ -107,8 +107,7 @@ export const ChatProvider = ({ children }) => {
 
     refreshUnreadCount();
 
-    const channel = supabase
-      .channel(`global-chat-unread-${user.id}`)
+    const channel = createUniqueChannel(`global-chat-unread-${user.id}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',

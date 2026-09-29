@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
-import { 
-  CheckCircle, AlertCircle, Search, RotateCw, Filter, 
+import { supabase, createUniqueChannel } from '../../lib/supabase';
+import {
+  CheckCircle, AlertCircle, Search, RotateCw, Filter,
   CreditCard, XCircle, ArrowRight, Car, Sparkles, Loader2,
   FileText, ShieldCheck, Printer, X
 } from 'lucide-react';
@@ -98,7 +98,7 @@ const AdminPayments = () => {
   useEffect(() => {
     fetchPayments();
 
-    const channel = supabase.channel('admin-payments-sync')
+    const channel = createUniqueChannel('admin-payments-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => fetchPayments())
       .subscribe();
 

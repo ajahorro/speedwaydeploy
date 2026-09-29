@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { fetchCustomerBookings, subscribeToCustomerBookings } from '../services/bookingService';
 import { fetchNotifications, subscribeToNotifications } from '../services/notificationService';
 import { useAuth } from '../hooks/useAuth';
-import { supabase } from '../lib/supabase';
+import { supabase, createUniqueChannel } from '../lib/supabase';
 
 const UnifiedContext = createContext();
 
@@ -30,6 +30,20 @@ export const UnifiedProvider = ({ children }) => {
         }
     }, [user]);
 
+    // Refresh the booking list without letting a failure escape.
+    //
+    // `fetchCustomerBookings` THROWS on a request error, and this runs from a
+    // realtime callback: the rejection had no `.catch`, so it escaped the promise
+    // chain and was caught by the global error boundary — which unmounted the
+    // entire screen ("allBookings.filter is not a function") and marked the
+    // context's array as undefined for every consumer. A failed refresh must
+    // leave the previous list on screen, not take the app down with it.
+    const refreshBookings = useCallback(() => {
+        fetchCustomerBookings(user.id)
+            .then((data) => setBookings(Array.isArray(data) ? data : []))
+            .catch((error) => console.error('[UnifiedContext] Booking refresh failed:', error));
+    }, [user]);
+
     useEffect(() => {
         if (!user) {
             setBookings([]);
@@ -41,21 +55,20 @@ export const UnifiedProvider = ({ children }) => {
         loadData();
 
         // Real-Time Listeners
-        const bookingSub = subscribeToCustomerBookings(user.id, () => {
-            fetchCustomerBookings(user.id).then(setBookings);
-        });
+        const bookingSub = subscribeToCustomerBookings(user.id, refreshBookings);
 
         // Booking status is also represented by child vehicle and payment rows.
         // Subscribe to those tables as well so list/dashboard projections do not
         // wait for a master-row update or a manual refresh.
-        const childStateSub = supabase
-            .channel(`customer-booking-state-${user.id}`)
+        const childStateSub = createUniqueChannel(`customer-booking-state-${user.id}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'booking_vehicles' }, () => loadData())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => loadData())
             .subscribe();
 
         const notificationSub = subscribeToNotifications(user.id, () => {
-            fetchNotifications(user.id).then(setNotifications);
+            fetchNotifications(user.id)
+                .then((data) => setNotifications(Array.isArray(data) ? data : []))
+                .catch((error) => console.error('[UnifiedContext] Notification refresh failed:', error));
         });
 
         return () => {
@@ -63,7 +76,7 @@ export const UnifiedProvider = ({ children }) => {
             if (childStateSub) supabase.removeChannel(childStateSub);
             if (notificationSub) notificationSub.unsubscribe();
         };
-    }, [user, loadData]);
+    }, [user, loadData, refreshBookings]);
 
     const unreadCount = notifications.filter(n => !n.is_read).length;
 

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, createUniqueChannel } from '../lib/supabase';
 import { SHOP_CONFIG } from '../config/constants';
 import { logger } from '../utils/logger';
 
@@ -125,8 +125,7 @@ export const ConfigProvider = ({ children }) => {
     refreshConfig();
 
     // REAL-TIME SYNC: Listen for live updates to business settings
-    const channel = supabase
-      .channel('public:business_config')
+    const channel = createUniqueChannel('public:business_config')
       .on('postgres_changes', 
           { event: '*', schema: 'public', table: 'business_config' }, 
           () => {

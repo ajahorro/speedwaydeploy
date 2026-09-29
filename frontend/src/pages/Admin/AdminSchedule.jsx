@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { supabase, createUniqueChannel } from '../../lib/supabase';
 import { Calendar as CalendarIcon, ShieldAlert, Lock, Zap, CheckCircle2, RotateCw, ChevronDown, ChevronUp, ChevronRight, X, Check, Sliders } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
@@ -56,7 +56,7 @@ const AdminSchedule = () => {
   useEffect(() => {
     fetchDailyContext();
     // 🛡️ REAL-TIME SYNCHRONIZATION (REQ-ADM-02)
-    const channel = supabase.channel('admin-schedule-live')
+    const channel = createUniqueChannel('admin-schedule-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
         fetchDailyContext();
         fetchMonthData();

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, createUniqueChannel } from '../../lib/supabase';
 import PageHeader from '../../components/PageHeader';
 import { Bell, CheckCircle, Trash2, Search, AlertTriangle } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -94,7 +94,7 @@ const StaffNotifications = () => {
 
     window.addEventListener('visibilitychange', handleVisibilityChange);
 
-    const channel = supabase.channel(`staff-notifs-${userId}`)
+    const channel = createUniqueChannel(`staff-notifs-${userId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, () => fetchNotifications())
       .subscribe();
 

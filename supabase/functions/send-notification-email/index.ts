@@ -12,6 +12,14 @@ const resendFrom = Deno.env.get('RESEND_FROM') || 'Comar Garage <notifications@c
 const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
 const escapeHtml = (value: unknown) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;')
 
+// `notifications.id` is a uuid column, so a malformed id makes PostgREST reject
+// the filter with 22P02 (`invalid input syntax for type uuid`) — a 500 for what
+// is really a bad request. The column is also text-typed in some deployed
+// schemas, where the same value simply matches nothing. Validate the FORMAT here
+// and let the lookup below decide whether the row exists; never let a caller's
+// id shape turn into a server error.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -19,6 +27,17 @@ serve(async (req) => {
     const { notificationId } = await req.json()
     if (!notificationId) throw new Error('Notification ID is required.')
 
+    if (!UUID_PATTERN.test(String(notificationId))) {
+      return new Response(JSON.stringify({
+        ok: true,
+        skipped: 'NOTIFICATION_NOT_FOUND',
+        message: 'Notification id is not a valid uuid; nothing to email.',
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // Service-role client on purpose: the rows that need emailing are created by
+    // database TRIGGERS (notify_admins_new_booking), so a lookup under the
+    // caller's own RLS can legitimately return nothing for a row that exists.
     const { data: notification, error: notificationError } = await supabase
       .from('notifications')
       .select('id, user_id, booking_id, title, message, action_url')
@@ -49,8 +68,8 @@ serve(async (req) => {
     const email = recipient?.email
     if (!email) return new Response(JSON.stringify({ ok: true, skipped: 'recipient has no email' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
-    const bookingRef = notification.booking_id ? `#${notification.booking_id.slice(0, 8).toUpperCase()}` : ''
-    const subject = `${notification.title}${bookingRef ? ` ${bookingRef}` : ''} - Comar Garage`
+    const bookingRef = notification.booking_id ? `#${String(notification.booking_id).slice(0, 8).toUpperCase()}` : ''
+    const subject = `${notification.title || 'Notification'}${bookingRef ? ` ${bookingRef}` : ''} - Comar Garage`
     const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;color:#111827"><div style="background:#a91b18;padding:22px;text-align:center;color:#fff"><h1 style="margin:0;font-size:22px;letter-spacing:2px">COMAR GARAGE</h1></div><div style="padding:28px"><p>Hi ${escapeHtml(recipient?.full_name || 'Valued Customer')},</p><h2 style="color:#a91b18">${escapeHtml(notification.title)}</h2><p style="font-size:15px;line-height:1.7">${escapeHtml(notification.message)}</p>${notification.action_url ? `<p><a href="${escapeHtml(notification.action_url)}" style="display:inline-block;background:#a91b18;color:#fff;padding:12px 20px;border-radius:5px;text-decoration:none;font-weight:700">VIEW IN PORTAL</a></p>` : ''}</div><div style="background:#f8fafc;padding:16px;text-align:center;font-size:12px;color:#6b7280">Comar Garage Detail Studio</div></div>`
     const { data, error } = await resend.emails.send({ from: resendFrom, to: [email], subject, html })
     if (error) throw error

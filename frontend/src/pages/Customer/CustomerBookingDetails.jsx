@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { supabase, createUniqueChannel } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import {
   ArrowLeft, Clock, Car, ShieldCheck,
@@ -262,7 +262,7 @@ const CustomerBookingDetails = () => {
 
   useEffect(() => {
     fetchAll();
-    const channel = supabase.channel(`customer-booking-${id}`)
+    const channel = createUniqueChannel(`customer-booking-${id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `id=eq.${id}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `booking_id=eq.${id}` }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'booking_vehicles', filter: `booking_id=eq.${id}` }, () => fetchAll())

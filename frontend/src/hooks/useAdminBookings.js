@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, createUniqueChannel } from '../lib/supabase';
 import { logger } from '../utils/logger';
 import { calculatePaymentStatus } from '../utils/paymentUtils';
 import toast from 'react-hot-toast';
@@ -20,7 +20,7 @@ export const useAdminBookings = () => {
     setLoading(true);
     try {
       logger.admin('Syncing Live Booking Directory...');
-      
+
       const { data, error } = await supabase
         .from('bookings')
         .select(`
@@ -66,8 +66,7 @@ export const useAdminBookings = () => {
     refresh();
 
     // Multi-table Supabase Realtime subscription
-    const channel = supabase
-      .channel('admin-bookings-realtime')
+    const channel = createUniqueChannel('admin-bookings-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, debouncedRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, debouncedRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'booking_vehicles' }, debouncedRefresh)

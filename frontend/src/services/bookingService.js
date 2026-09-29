@@ -1,5 +1,12 @@
-import { supabase } from '../lib/supabase';
-import { emitEvent, EVENTS } from './eventEngine';
+import { supabase, createUniqueChannel } from '../lib/supabase';
+// NOTE: this module must not import eventEngine/notificationService at the top
+// level. eventEngine imports notificationService, and both are pulled back in by
+// this module's consumers, which closes a cycle that evaluates one of them in the
+// TDZ and throws `Cannot access '<symbol>' before initialization` at render time.
+// `emitEvent`/`EVENTS` used to be imported here and were never referenced — a
+// dead import that silently shipped the cycle. Emit booking events from the
+// caller (see AdminWalkInWizard / CustomerBookAppointment) or via
+// emitEventToMany, which reach eventEngine through an acyclic path.
 import { SHOP_CONFIG } from '../config/constants';
 import { getEffectivePriceForService, calculateBookingDiscountSummary, buildBookingServiceSnapshot, validateServiceRequirements, describeServiceRequirementViolation } from '../data/servicesCatalog';
 import { getRequiredDownpayment } from '../utils/paymentUtils';
@@ -578,8 +585,7 @@ export const fetchBookingById = async (bookingId) => {
  * Returns the channel so the caller can unsubscribe.
  */
 export const subscribeToBooking = (bookingId, callback) => {
-  const channel = supabase
-    .channel(`booking-${bookingId}`)
+  const channel = createUniqueChannel(`booking-${bookingId}`)
     .on('postgres_changes', {
       event: '*',
       schema: 'public',
@@ -595,8 +601,7 @@ export const subscribeToBooking = (bookingId, callback) => {
  * Subscribe to all bookings for a customer (for dashboard live updates).
  */
 export const subscribeToCustomerBookings = (customerId, callback) => {
-  const channel = supabase
-    .channel(`customer-bookings-${customerId}`)
+  const channel = createUniqueChannel(`customer-bookings-${customerId}`)
     .on('postgres_changes', {
       event: '*',
       schema: 'public',

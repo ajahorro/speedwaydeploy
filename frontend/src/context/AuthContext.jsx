@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, createUniqueChannel } from '../lib/supabase';
 import { logger } from '../utils/logger';
 import toast from 'react-hot-toast';
 import { BACKEND_URL } from '../config/api';

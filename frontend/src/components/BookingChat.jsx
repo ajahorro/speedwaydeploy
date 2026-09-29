@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, createUniqueChannel } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Send, Image as ImageIcon, Bot, Check, CheckCheck, Loader2, AlertCircle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -141,8 +141,10 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
       // Real-time subscription is created only after the thread is confirmed to
       // belong to a registered customer account, and is scoped to the WHOLE
       // customer conversation — not a single booking.
-      channel = supabase
-        .channel(`chat-customer-${threadCustomerId}`)
+      // A unique topic is required: the bubble chat and an inline chat panel can
+      // be mounted for the same customer at once, and reusing the topic would
+      // append to an already-subscribed channel (see createUniqueChannel).
+      channel = createUniqueChannel(`chat-customer-${threadCustomerId}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',

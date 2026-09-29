@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar as CalendarIcon, Clock, Phone, AlertCircle } from 'lucide-react';
 import { getAvailableSlots } from '../../services/scheduleService';
-import { supabase } from '../../lib/supabase';
+import { supabase, createUniqueChannel } from '../../lib/supabase';
 import { isDateBookable } from '../../domain/schedule/rules';
 import CustomCalendar from './CustomCalendar';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
@@ -89,8 +89,7 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
       clearTimeout(debounce);
       debounce = setTimeout(() => fetchSlots(true), 600);
     };
-    const channel = supabase
-      .channel(`slots:${bookingData.date}`)
+    const channel = createUniqueChannel(`slots:${bookingData.date}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, trigger)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'blocked_slots' }, trigger)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'business_config' }, trigger)

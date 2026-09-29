@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, createUniqueChannel } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ClipboardList, Clock, CheckCircle2, AlertCircle, 
+import {
+  ClipboardList, Clock, CheckCircle2, AlertCircle,
   Car, User, ArrowRight, Play, Loader2, Image, Save, UploadCloud, TrendingUp, Bell
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -64,8 +64,7 @@ const StaffDashboard = () => {
     fetchAssignedTasks();
 
     // 📡 REQ-SYS-05: Real-time synchronization
-    const channel = supabase
-      .channel(`staff-tasks-${profile?.id}`)
+    const channel = createUniqueChannel(`staff-tasks-${profile?.id}`)
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 

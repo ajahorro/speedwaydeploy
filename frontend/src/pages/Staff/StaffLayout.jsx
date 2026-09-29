@@ -5,7 +5,7 @@ import {
   Menu, Bell, History, Clock, Settings, LogOut
 } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { supabase } from '../../lib/supabase';
+import { supabase, createUniqueChannel } from '../../lib/supabase';
 import { useUI } from '../../context/UIContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../context/ThemeContext';
@@ -49,8 +49,7 @@ const StaffLayout = () => {
 
     window.addEventListener('visibilitychange', handleVisibilityChange);
 
-    const channel = supabase
-      .channel(`staff-notif-badge-${userId}`)
+    const channel = createUniqueChannel(`staff-notif-badge-${userId}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'notifications',
         filter: `user_id=eq.${userId}`

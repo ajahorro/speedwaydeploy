@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, createUniqueChannel } from '../lib/supabase';
 import { fetchCustomerBookings } from '../services/bookingService';
 
 /**
@@ -65,8 +65,7 @@ export const useBookings = (customerId) => {
     if (!customerId) return;
 
     // Unified multi-table subscription
-    const channel = supabase
-      .channel(`customer-bookings-unified-${customerId}`)
+    const channel = createUniqueChannel(`customer-bookings-unified-${customerId}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'bookings',
         filter: `customer_id=eq.${customerId}`

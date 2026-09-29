@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate, NavLink, Outlet } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { supabase, createUniqueChannel } from '../../lib/supabase';
 import {
   LayoutDashboard, Building2, ClipboardList, CheckSquare, Calendar, UserPlus,
   Bell, Undo, BarChart2, History, Users, User,
@@ -65,8 +65,7 @@ const AdminLayout = () => {
     window.addEventListener('notificationsRead', handleNotificationsRead);
 
     // Real-time subscription for instant badge updates
-    const channel = supabase
-      .channel(`admin-notif-badge-${user?.id}`)
+    const channel = createUniqueChannel(`admin-notif-badge-${user?.id}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'notifications',
         filter: `user_id=eq.${user?.id}`
