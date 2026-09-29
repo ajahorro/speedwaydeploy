@@ -35,6 +35,12 @@ export const createBooking = async (customerId, bookingData) => {
   let bookingCustomerId = Object.prototype.hasOwnProperty.call(bookingData || {}, 'customerId')
     ? (bookingData.customerId ?? null)
     : (customerId ?? null);
+  const isAdminWalkIn = Boolean(bookingData.adminWalkIn || bookingData.adminMode);
+
+  // If this is an admin walk-in, ensure the admin's own user ID never becomes the customer_id
+  if (isAdminWalkIn && bookingCustomerId && bookingCustomerId === bookingData.adminActorId) {
+    bookingCustomerId = null;
+  }
   const vehicles = bookingData.vehicles || [];
 
   // 🛡️ SCENARIO 1 — GUEST-TO-CUSTOMER IDENTITY COLLISION (last-line safety net).
@@ -168,7 +174,6 @@ export const createBooking = async (customerId, bookingData) => {
   // taken by the admin, so they skip the manual payment-verification pipeline
   // and are scheduled immediately as CONFIRMED. Customer self-service bookings
   // still start as 'scheduled' and await verification.
-  const isAdminWalkIn = Boolean(bookingData.adminWalkIn || bookingData.adminMode);
   const initialBookingStatus = isAdminWalkIn ? 'confirmed' : 'scheduled';
 
   // Task B: freeze the QR recipient target onto the booking at creation, so the
@@ -303,6 +308,10 @@ export const createBooking = async (customerId, bookingData) => {
     }
 
     const payMethod = bookingData.payment?.method || 'Cash';
+    const detectedRef = bookingData.payment?.ocrData?.referenceNo || null;
+    const manualRef = bookingData.payment?.manualRefNumber || bookingData.payment?.referenceNumber || null;
+    const finalRefNumber = manualRef || detectedRef || '';
+
     rpcPayment = {
       amount: paymentAmount,
       method: payMethod,
@@ -311,7 +320,10 @@ export const createBooking = async (customerId, bookingData) => {
       verified_by: bookingData.adminActorId || null,
       verified_at: new Date().toISOString(),
       receipt_url: receiptPublicUrl,
-      notes: `ADMIN_CONFIRMED|METHOD:${payMethod}|TYPE:${bookingData.payment?.type || 'Full'}|AMOUNT:${paymentAmount}`
+      reference_number: finalRefNumber,
+      detected_ref: detectedRef,
+      detected_amount: bookingData.payment?.ocrData?.amount || null,
+      notes: `ADMIN_CONFIRMED|METHOD:${payMethod}|TYPE:${bookingData.payment?.type || 'Full'}|AMOUNT:${paymentAmount}${finalRefNumber ? `|REF:${finalRefNumber}` : ''}`
     };
   } else if (bookingData.payment?.method === 'Cash') {
     const cashAmount = bookingData.payment.type === 'Downpayment' ? getRequiredDownpayment(totalAmount) : totalAmount;

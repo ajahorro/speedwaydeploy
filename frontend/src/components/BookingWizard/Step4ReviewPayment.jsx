@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, CheckCircle2, Wallet, Banknote, ShieldAlert, AlertTriangle, Package as PackageIcon } from 'lucide-react';
+import { Upload, CheckCircle2, Wallet, Banknote, ShieldAlert, AlertTriangle, Package as PackageIcon, Hash, Camera } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useConfig } from '../../context/ConfigContext';
 import { calculateBookingDiscountSummary, validateServiceRequirements, describeServiceRequirementViolation } from '../../data/servicesCatalog';
@@ -17,6 +17,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   const { settings } = useConfig();
   const [isUploading, setIsUploading] = useState(false);
   const [receiptDetails, setReceiptDetails] = useState(null);
+  const [adminDigitalMode, setAdminDigitalMode] = useState('ocr'); // 'ocr' | 'reference'
+  const [manualRefInput, setManualRefInput] = useState(bookingData.payment?.manualRefNumber || bookingData.payment?.referenceNumber || '');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -144,7 +146,9 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
       }));
 
       try {
-        const targetAmount = bookingData.payment.type === 'Full' ? grandTotal : getRequiredDownpayment(grandTotal);
+        const targetAmount = bookingData.payment.type === 'Manual'
+          ? (Number(bookingData.payment.manualAmount) || grandTotal)
+          : (bookingData.payment.type === 'Full' ? grandTotal : getRequiredDownpayment(grandTotal));
         // The shop's registered payee for THIS checkout (config.qr_account_name).
         // The backend compares the receipt's recipient against this BEFORE it
         // parses amounts, so a wrong payee aborts the scan immediately.
@@ -397,7 +401,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
   const isGcash = bookingData.payment.method === 'GCash';
   const isDuplicateReceipt = Boolean(receiptDetails?.isDuplicate);
-  const isDatedWrong = receiptDetails?.isDateMatch === false;
+  const isDatedWrong = false; // Date guard removed per user specification
   const isNameMismatch = receiptDetails?.isNameMatch === false;
   const isReceiptRejected = receiptDetails?.status === 'REJECTED';
   // DIRECTIVE 1: HARD-BLOCKING VALIDATION — with one exception.
@@ -421,16 +425,17 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
     Number.isFinite(Number(receiptDetails.amount)) &&
     Number(receiptDetails.amount) < downpaymentAmount
   );
-  const isWarningReceipt = isDuplicateReceipt || isDatedWrong || isNameMismatch || ['REJECTED', 'MISMATCHED', 'NAME_MISMATCH', 'DATE_MISMATCH', 'MANUAL_REVIEW'].includes(receiptDetails?.status);
+  const isWarningReceipt = isDuplicateReceipt || isNameMismatch || ['REJECTED', 'MISMATCHED', 'NAME_MISMATCH', 'MANUAL_REVIEW'].includes(receiptDetails?.status);
   const hasReceiptNotes = Boolean(receiptDetails?.description && receiptDetails.description !== 'No additional receipt notes were extracted.');
   const manualAmount = Number(bookingData.payment.manualAmount || 0);
-  // TIGHTENED LOGIC: must have terms AND (either Cash OR GCash with Proof)
-  // Added !isUploading to ensure OCR finishes before submission is allowed.
-  // Added `receiptVerified` so the ON-PAGE SUBMIT button stays hard-disabled
-  // (grayed out) until the receipt passes validation OR a manual-review pass.
+
+  const adminRefNumberValid = adminDigitalMode === 'reference' ? Boolean(manualRefInput.trim().length >= 4) : true;
+  const adminOcrProofValid = adminDigitalMode === 'ocr' ? Boolean(bookingData.payment?.proofOfPayment !== null && !isUploading) : true;
+
   const adminPaymentValid = !adminMode || (
     ['Downpayment', 'Full', 'Manual'].includes(bookingData.payment.type) &&
-    (bookingData.payment.type !== 'Manual' || (manualAmount > 0 && manualAmount <= grandTotal))
+    (bookingData.payment.type !== 'Manual' || (manualAmount > 0 && manualAmount <= grandTotal)) &&
+    (!isGcash || (adminDigitalMode === 'reference' ? adminRefNumberValid : adminOcrProofValid))
   );
   // 🛡️ SC-22 — PREREQUISITE GATE.
   // A dependent add-on (e.g. "Waxx Add-on") requires a wash on the same vehicle.
@@ -445,7 +450,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   const isValid = requirementCheck.ok && (adminMode || termsAccepted) && !isUnderpaidReceipt && adminPaymentValid && (
     adminMode || !isGcash || (receiptVerified && bookingData.payment.proofOfPayment !== null && !isUploading)
   ) && (
-    manualReviewAllowedReceipt || (!receiptDetails?.isDuplicate && !isDatedWrong && !isNameMismatch && !isReceiptRejected)
+    manualReviewAllowedReceipt || (!receiptDetails?.isDuplicate && !isNameMismatch && !isReceiptRejected)
   );
 
   const handleConfirmSubmit = () => {
@@ -671,6 +676,218 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
             )}
             </div>}
 
+
+            {/* Admin GCash: toggle OCR vs Reference Number */}
+            {isGcash && adminMode && (
+              <div style={{ background: 'var(--admin-bg)', padding: '1.5rem', borderRadius: 'var(--admin-radius-md)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', marginBottom: '0.75rem', textTransform: 'uppercase' }}>
+                    Digital Payment Proof
+                  </label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => { setAdminDigitalMode('ocr'); setManualRefInput(''); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, manualRefNumber: '' } })); }}
+                      style={{
+                        flex: 1, padding: '0.85rem 1rem', borderRadius: 'var(--admin-radius-sm)',
+                        background: adminDigitalMode === 'ocr' ? 'var(--admin-brand)' : 'var(--admin-card)',
+                        color: adminDigitalMode === 'ocr' ? '#fff' : 'var(--admin-text-secondary)',
+                        border: `1px solid ${adminDigitalMode === 'ocr' ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
+                        fontSize: '0.75rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', transition: 'all 0.2s'
+                      }}
+                    >
+                      <Camera size={15} /> Add Photo (OCR)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAdminDigitalMode('reference'); setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null, ocrData: null } })); }}
+                      style={{
+                        flex: 1, padding: '0.85rem 1rem', borderRadius: 'var(--admin-radius-sm)',
+                        background: adminDigitalMode === 'reference' ? 'var(--admin-brand)' : 'var(--admin-card)',
+                        color: adminDigitalMode === 'reference' ? '#fff' : 'var(--admin-text-secondary)',
+                        border: `1px solid ${adminDigitalMode === 'reference' ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
+                        fontSize: '0.75rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', transition: 'all 0.2s'
+                      }}
+                    >
+                      <Hash size={15} /> Input Reference No.
+                    </button>
+                  </div>
+                </div>
+
+                {adminDigitalMode === 'reference' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>
+                      Payment Reference Number
+                    </label>
+                    <input
+                      type="text"
+                      value={manualRefInput}
+                      onChange={e => {
+                        const cleaned = e.target.value.replace(/[^a-zA-Z0-9-]/g, '').toUpperCase();
+                        setManualRefInput(cleaned);
+                        setBookingData(prev => ({ ...prev, payment: { ...prev.payment, manualRefNumber: cleaned } }));
+                      }}
+                      placeholder="e.g. 1234-5678-9012"
+                      maxLength={50}
+                      style={{
+                        width: '100%', boxSizing: 'border-box', padding: '0.85rem 1rem',
+                        background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)',
+                        border: `1px solid ${manualRefInput.length >= 4 ? 'var(--admin-brand)' : 'var(--admin-input-border)'}`,
+                        borderRadius: '6px', fontWeight: '900', fontSize: '0.95rem', fontFamily: 'monospace', letterSpacing: '1px',
+                        outline: 'none'
+                      }}
+                    />
+                    <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>
+                      Only letters (A–Z), numbers (0–9), and hyphens (-) are allowed. Minimum 4 characters.
+                    </div>
+                    {manualRefInput.length > 0 && manualRefInput.length < 4 && (
+                      <div style={{ fontSize: '0.7rem', color: 'var(--status-danger)', fontWeight: '800' }}>
+                        Reference number too short (minimum 4 characters).
+                      </div>
+                    )}
+                    {manualRefInput.length >= 4 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--admin-success)', fontWeight: '800' }}>
+                        <CheckCircle2 size={13} /> Reference number accepted
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* OCR mode: identical flow to customer */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <input
+                      type="file"
+                      id="admin-receipt-upload"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      style={{ display: 'none' }}
+                    />
+
+                    {!receiptDetails ? (
+                      <label
+                        htmlFor="admin-receipt-upload"
+                        className="admin-card-hover"
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem',
+                          padding: '2.5rem 2rem', border: '2px dashed var(--admin-brand)', borderRadius: 'var(--admin-radius-lg)',
+                          background: 'rgba(var(--admin-brand-rgb), 0.02)',
+                          cursor: 'pointer', transition: 'all 0.3s ease'
+                        }}
+                      >
+                        {isUploading ? (
+                          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+                            <div style={{ position: 'relative', width: '60px', height: '60px' }}>
+                              <div style={{ position: 'absolute', inset: 0, border: '4px solid rgba(var(--admin-brand-rgb), 0.1)', borderRadius: '50%' }} />
+                              <div style={{ position: 'absolute', inset: 0, border: '4px solid var(--admin-brand)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                            </div>
+                            <div>
+                              <div style={{ color: 'var(--admin-brand)', fontWeight: '950', fontSize: '1rem', marginBottom: '0.5rem', letterSpacing: '1px' }}>⏳ Verifying receipt details...</div>
+                              <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '800', textTransform: 'uppercase' }}>{scanStep}</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <Upload size={36} color="var(--admin-brand)" />
+                            <div style={{ textAlign: 'center' }}>
+                              <div style={{ color: 'var(--admin-brand)', fontWeight: '950', fontSize: '1rem', letterSpacing: '1px' }}>UPLOAD PAYMENT RECEIPT</div>
+                              <div style={{ color: 'var(--admin-text-secondary)', fontWeight: '800', fontSize: '0.7rem', marginTop: '0.4rem', textTransform: 'uppercase' }}>Supports E-Wallet & Bank Receipts</div>
+                            </div>
+                          </>
+                        )}
+                      </label>
+                    ) : (
+                      /* OCR RESULTS CARD — same as customer */
+                      <div style={{
+                        background: 'var(--admin-card)',
+                        borderRadius: 'var(--admin-radius-lg)',
+                        border: `1px solid ${isWarningReceipt ? 'var(--status-warning)' : 'var(--admin-success)'}`,
+                        overflow: 'hidden',
+                        animation: 'fadeIn 0.5s ease'
+                      }}>
+                        <div style={{
+                          background: isWarningReceipt ? 'rgba(245, 158, 11, 0.1)' : 'rgba(var(--admin-success-rgb), 0.1)',
+                          padding: '1.25rem',
+                          borderBottom: `1px solid ${isWarningReceipt ? 'rgba(245, 158, 11, 0.2)' : 'rgba(var(--admin-success-rgb), 0.2)'}`,
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: isWarningReceipt ? 'var(--status-warning)' : 'var(--admin-success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {isWarningReceipt ? <AlertTriangle size={20} color="#fff" /> : <CheckCircle2 size={20} color="#fff" />}
+                            </div>
+                            <div>
+                              <div style={{ color: isDuplicateReceipt ? 'var(--status-danger)' : (isNameMismatch || manualReviewAllowedReceipt ? 'var(--status-warning)' : 'var(--admin-success)'), fontWeight: '950', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                {manualReviewAllowedReceipt ? 'Pending Manual Review' : (isDuplicateReceipt ? 'Duplicate Receipt Detected' : (receiptDetails.status === 'REJECTED' ? 'Verification Failed' : (isNameMismatch ? 'Recipient Name Mismatch' : (receiptDetails.status === 'MISMATCHED' ? 'Amount Discrepancy' : 'AI Audit Verified'))))}
+                              </div>
+                              <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '800' }}>
+                                {manualReviewAllowedReceipt ? 'AI SERVICE OFFLINE: STAFF WILL VERIFY MANUALLY' : (isDuplicateReceipt ? 'SYSTEM ALERT: REFERENCE ALREADY USED' : (receiptDetails.status === 'REJECTED' ? 'SYSTEM ALERT: INVALID FORMAT' : (isNameMismatch ? 'WARNING: RECIPIENT DOES NOT MATCH SHOP' : (receiptDetails.status === 'MISMATCHED' ? 'WARNING: PRICE MISMATCH' : 'SECURITY SIGNATURE: LOCAL OCR + SERVER AUDIT'))))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                          {hasReceiptNotes && <div style={{ background: 'var(--admin-bg)', padding: '1rem', borderRadius: 'var(--admin-radius-sm)', border: `1px solid ${receiptDetails.status === 'REJECTED' ? 'rgba(239, 68, 68, 0.3)' : 'var(--admin-border)'}`, fontSize: '0.8rem', color: receiptDetails.status === 'REJECTED' ? 'var(--status-danger)' : 'var(--admin-text-secondary)', lineHeight: 1.5, fontStyle: 'italic', fontWeight: receiptDetails.status === 'REJECTED' ? '700' : 'normal' }}>{receiptDetails.description}</div>}
+
+                          {receiptDetails.status !== 'REJECTED' ? (
+                            <>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                <div>
+                                  <div style={labelStyle}>Reference No.</div>
+                                  <div style={{ color: 'var(--admin-text-primary)', fontSize: '0.9rem', fontWeight: '900', fontFamily: 'monospace' }}>{receiptDetails.referenceNo}</div>
+                                </div>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                <div>
+                                  <div style={labelStyle}>Recipient</div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--admin-text-primary)', fontSize: '0.85rem', fontWeight: '900' }}>
+                                    {receiptDetails.recipient}<CheckCircle2 size={12} color="var(--admin-success)" />
+                                  </div>
+                                </div>
+                                <div>
+                                  <div style={labelStyle}>Payment Date</div>
+                                  <div style={{ color: 'var(--admin-text-primary)', fontSize: '0.85rem', fontWeight: '800' }}>{receiptDetails.date}</div>
+                                </div>
+                              </div>
+                              <div className="receipt-amount-summary" style={{ marginTop: '0.5rem', padding: '1.25rem', background: 'rgba(var(--admin-brand-rgb), 0.03)', borderRadius: 'var(--admin-radius-md)', border: '1px solid var(--admin-border)' }}>
+                                <div>
+                                  <div style={{ fontSize: '0.65rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Amount Extracted</div>
+                                  <div style={{ color: 'var(--admin-text-primary)', fontSize: '1.5rem', fontWeight: '950' }}>₱{receiptDetails.amount.toLocaleString()}</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: '0.65rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Expected Amount</div>
+                                  <div style={{ color: 'var(--admin-text-primary)', fontSize: '1.5rem', fontWeight: '950' }}>₱{Number(receiptDetails.requiredAmount || 0).toLocaleString()}</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: '0.65rem', fontWeight: '900', color: (receiptDetails.status === 'MISMATCHED' || manualReviewAllowedReceipt) ? 'var(--status-warning)' : 'var(--admin-success)', textTransform: 'uppercase' }}>Status</div>
+                                  <div style={{ color: (receiptDetails.status === 'MISMATCHED' || manualReviewAllowedReceipt) ? 'var(--status-warning)' : 'var(--admin-success)', fontSize: '0.85rem', fontWeight: '950', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    {manualReviewAllowedReceipt ? 'MANUAL REVIEW' : receiptDetails.status} {receiptDetails.status === 'MATCHED' ? <CheckCircle2 size={16} /> : <ShieldAlert size={16} />}
+                                  </div>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed var(--status-danger)', textAlign: 'center' }}>
+                              <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '800', color: 'var(--status-danger)' }}>
+                                AI analysis inconclusive. You may proceed, and staff will manually verify this receipt before the appointment.
+                              </p>
+                            </div>
+                          )}
+
+                          {isDuplicateReceipt && (
+                            <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed var(--status-danger)', textAlign: 'center' }}>
+                              <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '800', color: 'var(--status-danger)' }}>This reference number has already been used. Upload a different proof of payment.</p>
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '.75rem', padding: '1rem', borderTop: '1px solid var(--admin-border)', flexWrap: 'wrap' }}>
+                          <button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>Upload Different Receipt</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {isGcash && !adminMode && (
               <div style={{ background: 'var(--admin-bg)', padding: '1.5rem', borderRadius: 'var(--admin-radius-md)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
@@ -839,9 +1056,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                           fontWeight: receiptDetails.status === 'REJECTED' ? '700' : 'normal'
                         }}>{receiptDetails.description}</div>}
 
-                        {/* Directive 1: verdict banners. Green = auto-verified,
-                            amber = accepted for manual review (OCR unavailable),
-                            red = validation failed. */}
+                        {/* Directive 1: verdict banners. */}
                         {!adminMode && isGcash && receiptVerified && !manualReviewAllowedReceipt && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '1rem', background: 'rgba(var(--admin-success-rgb), 0.1)', border: '1px solid var(--admin-success)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-success)', fontWeight: '900', fontSize: '.85rem' }}>
                             <CheckCircle2 size={18} /> Receipt verified successfully!

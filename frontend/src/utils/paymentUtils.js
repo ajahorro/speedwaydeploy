@@ -239,3 +239,4 @@ export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
     subtext: `\u20b1${balance.toLocaleString()} remaining`,
   };
 };
+

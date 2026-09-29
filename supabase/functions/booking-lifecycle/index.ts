@@ -300,8 +300,9 @@ serve(async (req: Request): Promise<Response> => {
     const row = booking as unknown as BookingRow
 
     const customer = row.profiles
-    const email = customer?.email || row.customer_email
-    const customerName = customer?.full_name || row.customer_name || 'Valued Customer'
+    // Prioritize customer details entered directly on the booking (critical for walk-ins so admin details never leak)
+    const email = row.customer_email || customer?.email
+    const customerName = row.customer_name || customer?.full_name || 'Valued Customer'
     if (!email) throw new Error('No customer email found for this booking.')
 
     // Newest payment is the one this event concerns.

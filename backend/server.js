@@ -780,8 +780,8 @@ app.post('/api/emails/booking-confirmation', async (req, res) => {
       if (cError) throw new Error(cError.message || 'Customer profile lookup failed');
     }
 
-    const customerEmail = customer?.email || booking.customer_email;
-    const customerName = customer?.full_name || booking.customer_name || 'Customer';
+    const customerEmail = booking.customer_email || customer?.email;
+    const customerName = booking.customer_name || customer?.full_name || 'Customer';
     if (!customerEmail) throw new Error('Customer email not found for confirmation email');
 
     const vehicles = booking.booking_vehicles || [];
@@ -812,14 +812,14 @@ app.post('/api/emails/booking-confirmation', async (req, res) => {
     if (resendClient && !confirmationResult.success) {
       await resendClient.emails.send({
         from: RESEND_FROM,
-        to: customer.email,
+        to: customerEmail,
         subject: `BOOKING CONFIRMED: ${bookingId.substring(0, 8).toUpperCase()}`,
         html: `
           <div style="font-family: sans-serif; max-width: 600px; border: 1px solid #eee; padding: 20px;">
             <h2 style="color: #A91B18; margin-top: 0;">COMAR GARAGE</h2>
             <h3 style="text-transform: uppercase; border-bottom: 2px solid #eee; padding-bottom: 10px;">Booking Confirmation</h3>
             
-            <p>Hi <strong>${customer.full_name}</strong>,</p>
+            <p>Hi <strong>${customerName}</strong>,</p>
             <p>Your booking has been successfully <strong>APPROVED</strong> and scheduled. We are excited to see you!</p>
             
             <div style="background: #111; color: #fff; padding: 15px; border-radius: 4px; margin: 20px 0;">
@@ -1675,12 +1675,10 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // receipt inside a symmetric time window (default ±24 h): the pre-midnight
     // receipt passes, while a genuinely stale (days-old) or future-dated receipt
     // is still flagged. A receipt with no readable date still cannot auto-verify.
-    const dateCheck = ocrGuard.receiptDateWithinTolerance(receiptDate, new Date());
-    const isDateMatch = dateCheck.ok;
-    const isDateToday = isDateMatch && dateCheck.reason === 'WITHIN_TOLERANCE' && receiptDate
-      && receiptDate.getFullYear() === new Date().getFullYear()
-      && receiptDate.getMonth() === new Date().getMonth()
-      && receiptDate.getDate() === new Date().getDate();
+    // Date verification guard removed per user specification:
+    // Scans everything else (recipient, amount, reference, duplicates) except date/time.
+    const isDateMatch = true;
+    const isDateToday = true;
 
     // A payment reference is single-use. Check this before accepting the
     // receipt so the same transfer cannot be attached to another booking.
@@ -2011,7 +2009,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     const failureReason = isDuplicate
       ? 'FLAGGED_DETAILS_MISMATCH'
       : (qrVersionMismatch ? 'FLAGGED_QR_VERSION_MISMATCH'
-        : (!isAmountMatch ? 'FLAGGED_AMOUNT_MISMATCH' : (!isDateMatch ? 'FLAGGED_DATE_MISMATCH' : null)));
+        : (!isAmountMatch ? 'FLAGGED_AMOUNT_MISMATCH' : null));
 
     return res.json({
       valid: isValidReceipt,
