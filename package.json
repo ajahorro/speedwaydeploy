@@ -8,7 +8,7 @@
     "preflight": "node scripts/preflight-migrations.mjs",
     "sync-secrets": "node scripts/sync-secrets.mjs",
     "test:deno": "node scripts/verify-deno-types.mjs",
-    "deploy-functions": "supabase functions deploy send-refund-receipt send-status-email send-notification-email booking-lifecycle"
+    "deploy-functions": "npx supabase functions deploy send-refund-receipt send-status-email send-notification-email booking-lifecycle"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
