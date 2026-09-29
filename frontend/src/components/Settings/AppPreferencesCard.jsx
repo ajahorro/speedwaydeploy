@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import { COMMUNICATION_PREFERENCES } from '../../config/legalContent';
 import { loadPreferences, savePreferences } from '../../utils/preferenceStore';
+import { playJobAssignmentChime } from '../../utils/jobAssignmentChime';
 import { SettingsSection, SettingRow, ToggleSwitch, SegmentedControl } from './SettingsPrimitives';
 
 /**
@@ -44,16 +45,19 @@ const AppPreferencesCard = ({ role = 'customer' }) => {
   }, [userId]);
 
   const isAdmin = role === 'admin';
-  // Admin settings show ONLY the interface theme. Email/SMS communication
-  // toggles belong to the customer/staff experience; admins manage system-wide
-  // communications from the notification tools, not personal preferences.
-  const visiblePrefs = isAdmin ? [] : COMMUNICATION_PREFERENCES.filter((p) => !p.roles || p.roles.includes(role));
+  // Staff get only the implemented assignment chime. Admin communications are system-wide.
+  const visiblePrefs = isAdmin
+    ? []
+    : role === 'staff'
+      ? [{ key: 'soundHapticChime', label: 'Assignment chime', description: 'Play a short tone and vibrate when a new vehicle is assigned.', defaultValue: false }]
+      : COMMUNICATION_PREFERENCES.filter((pref) => !pref.roles || pref.roles.includes(role));
 
   const handleToggle = async (key) => {
     if (savingKey) return;
     const next = { ...prefs, [key]: !prefs[key] };
     setPrefs(next); // optimistic
     setSavingKey(key);
+    if (key === 'soundHapticChime' && next[key]) playJobAssignmentChime();
     const result = await savePreferences(userId, next);
     setSavingKey(null);
     if (!result.success) {

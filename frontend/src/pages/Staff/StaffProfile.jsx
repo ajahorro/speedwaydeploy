@@ -4,9 +4,11 @@ import { supabase } from '../../lib/supabase';
 import { User, Mail, Phone, Shield, Key, Save, Loader2, UserCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../../components/PageHeader';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 const StaffProfile = () => {
   const { profile, user, verifyPassword, requestPasswordChange, resendPasswordChange } = useAuth();
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const [loading, setLoading] = useState(false);
   const [passLoading, setPassLoading] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -54,7 +56,7 @@ const StaffProfile = () => {
     background: 'var(--admin-card)',
     border: '1px solid var(--admin-border)',
     borderRadius: '8px',
-    padding: '2rem',
+    padding: isMobile ? '1.25rem' : '2rem',
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem'
@@ -101,14 +103,14 @@ const StaffProfile = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', maxWidth: '800px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%', maxWidth: '1200px', paddingBottom: '4rem' }}>
       <PageHeader
         badge="ACCOUNT SETTINGS"
         title="Technician Profile"
         subtitle="Manage your identity, credentials, and account security settings."
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '2rem', alignItems: 'start' }}>
 
         {/* Identity Section */}
         <section style={cardStyle}>
@@ -124,7 +126,7 @@ const StaffProfile = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '1.5rem' }}>
             <div>
               <div style={labelStyle}>Primary Email</div>
               <div style={{ ...inputStyle, opacity: 0.6, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -185,7 +187,7 @@ const StaffProfile = () => {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '1.5rem' }}>
               <div>
                 <div style={labelStyle}>New Password</div>
                 <input

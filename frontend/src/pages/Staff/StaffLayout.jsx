@@ -190,6 +190,7 @@ const StaffLayout = () => {
             <NavLink
               key={item.path}
               to={item.path}
+              end={item.path === '/staff'}
               className="admin-card-hover"
               style={({ isActive }) => ({
                 display: 'flex',

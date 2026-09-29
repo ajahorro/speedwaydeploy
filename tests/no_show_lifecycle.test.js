@@ -21,6 +21,7 @@ const { PGlite } = require('@electric-sql/pglite');
 const dir = path.join(__dirname, '..', 'supabase', 'migrations');
 const noShowFile = '20261021000001_no_show_lifecycle_and_undo_window.sql';
 const evidenceFile = '20261021000002_service_start_stop_evidence_gates.sql';
+const vehicleEvidenceFile = '20261021000008_vehicle_evidence_gates.sql';
 const throttleFile = '20261021000003_staged_login_throttle.sql';
 
 const q = async (db, sql, params = []) => (await db.query(sql, params)).rows;
@@ -52,6 +53,12 @@ create table public.bookings (
   cancellation_reason text, updated_at timestamptz default now()
 );
 
+create table public.booking_vehicles (
+  id uuid primary key default gen_random_uuid(),
+  booking_id uuid references public.bookings(id) on delete cascade,
+  status text
+);
+
 create table public.payments (
   id uuid primary key default gen_random_uuid(),
   booking_id uuid references public.bookings(id) on delete cascade,
@@ -61,7 +68,9 @@ create table public.payments (
 create table public.service_photos (
   id uuid primary key default gen_random_uuid(),
   booking_id uuid references public.bookings(id) on delete cascade,
-  phase text, archived boolean default false
+  booking_vehicle_id uuid references public.booking_vehicles(id) on delete cascade,
+  phase text, archived boolean default false, archived_at timestamptz,
+  storage_path text
 );
 
 -- is_admin() is referenced by the policy on login_security_notices.
@@ -83,7 +92,7 @@ returns void language plpgsql as $$ begin return; end $$;
     await db.exec(SHIMS);
     console.log('-- shims applied --');
 
-    for (const f of [noShowFile, evidenceFile, throttleFile]) {
+    for (const f of [noShowFile, evidenceFile, vehicleEvidenceFile, throttleFile]) {
       await db.exec(fs.readFileSync(path.join(dir, f), 'utf8'));
       console.log(`PASS  ${f} (parsed + executed)`);
     }
@@ -255,6 +264,33 @@ returns void language plpgsql as $$ begin return; end $$;
     const ev = (await q(db, `select public.booking_evidence_state('66666666-6666-4666-8666-666666666666') as r`))[0].r;
     check('evidence state reports before+after present', ev.has_before_photo === true && ev.has_after_photo === true);
     check('evidence state reports the no-show phase', ev.no_show_phase === 'UNDO_WINDOW_OPEN', String(ev.no_show_phase));
+
+    await db.exec(`
+      insert into public.bookings (id, status, start_datetime)
+      values ('99999999-9999-4999-8999-999999999999','scheduled', now());
+      insert into public.service_photos (booking_id, phase, archived_at)
+      values ('99999999-9999-4999-8999-999999999999','before', now());
+    `);
+    const archivedEvidence = (await q(db, `select public.booking_has_photo_phase('99999999-9999-4999-8999-999999999999','before') as present`))[0].present;
+    check('archived_at evidence does not satisfy the photo gate', archivedEvidence === false);
+
+    const vehicleId = '88888888-8888-4888-8888-888888888888';
+    await db.exec(`insert into public.booking_vehicles (id, booking_id, status) values ('${vehicleId}', '66666666-6666-4666-8666-666666666666', 'SCHEDULED');`);
+    let unitStartBlocked = false;
+    try { await db.exec(`update public.booking_vehicles set status='IN_PROGRESS' where id='${vehicleId}';`); }
+    catch (error) { unitStartBlocked = /SERVICE_START_BLOCKED_NO_BEFORE_PHOTO/.test(error.message); }
+    check('vehicle start is blocked until its own before photo exists', unitStartBlocked);
+
+    await db.exec(`insert into public.service_photos (booking_id, booking_vehicle_id, phase) values ('66666666-6666-4666-8666-666666666666', '${vehicleId}', 'before');`);
+    await db.exec(`update public.booking_vehicles set status='IN_PROGRESS' where id='${vehicleId}';`);
+    let unitCompleteBlocked = false;
+    try { await db.exec(`update public.booking_vehicles set status='COMPLETED' where id='${vehicleId}';`); }
+    catch (error) { unitCompleteBlocked = /SERVICE_COMPLETE_BLOCKED_NO_AFTER_PHOTO/.test(error.message); }
+    check('vehicle completion is blocked until its own after photo exists', unitCompleteBlocked);
+
+    await db.exec(`insert into public.service_photos (booking_id, booking_vehicle_id, phase) values ('66666666-6666-4666-8666-666666666666', '${vehicleId}', 'after');`);
+    await db.exec(`update public.booking_vehicles set status='COMPLETED' where id='${vehicleId}';`);
+    check('vehicle completion succeeds after its own after photo exists', true);
 
     // ── Login throttle ladder ───────────────────────────────────────────────
     console.log('\n== 6. staged login throttle ==');

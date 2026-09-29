@@ -4547,8 +4547,23 @@ app.post('/api/bookings/update-status', async (req, res) => {
       const scheduledDate = new Date(masterBooking.start_datetime);
       const nowDate = new Date();
       const isScheduledDate = scheduledDate.toDateString() === nowDate.toDateString();
-      if (currentMaster !== 'confirmed' || !masterBooking.staff_id || !isScheduledDate) {
+      if (!['confirmed', 'in_progress'].includes(currentMaster) || !masterBooking.staff_id || !isScheduledDate) {
         return res.status(409).json({ success: false, error: 'Service can only start on the scheduled date after confirmation and staff assignment.' });
+      }
+
+      const { count: beforePhotoCount, error: beforePhotoCountError } = await supabaseAdmin
+        .from('service_photos')
+        .select('id', { count: 'exact', head: true })
+        .eq('booking_vehicle_id', unitId)
+        .eq('phase', 'before')
+        .is('archived_at', null);
+      if (beforePhotoCountError) throw beforePhotoCountError;
+      if (!beforePhotoCount || beforePhotoCount < 1) {
+        return res.status(409).json({
+          success: false,
+          error: 'At least 1 before-service photo is required before this unit can be started.',
+          code: 'PHOTO_PROOF_REQUIRED'
+        });
       }
     }
 
@@ -4570,32 +4585,21 @@ app.post('/api/bookings/update-status', async (req, res) => {
       // truth; this server-side check means the rule cannot be bypassed by a
       // direct API call that skips the client UI.
       //
-      // Admin override: an ADMIN actor may complete without a photo only when a
-      // non-empty `overrideReason` is supplied. The override is written to the
-      // audit log below so it is never silent.
-      const { photoOverrideReason, overrideReason } = req.body;
-      const overrideText = String(photoOverrideReason || overrideReason || '').trim();
-      const isAdmin = String(actor.profile.role).toUpperCase() === 'ADMIN';
-
       const { count: afterPhotoCount, error: photoCountError } = await supabaseAdmin
         .from('service_photos')
         .select('id', { count: 'exact', head: true })
         .eq('booking_vehicle_id', unitId)
-        .eq('phase', 'after');
+        .eq('phase', 'after')
+        .is('archived_at', null);
 
       if (photoCountError) throw photoCountError;
 
       if (!afterPhotoCount || afterPhotoCount < 1) {
-        if (!(isAdmin && overrideText)) {
-          return res.status(409).json({
-            success: false,
-            error: 'At least 1 completion (after) photo is required before this unit can be marked complete.',
-            code: 'PHOTO_PROOF_REQUIRED',
-            adminOverrideSupported: true
-          });
-        }
-        // Record the override on the request so the audit-log step can include it.
-        req._photoOverride = { reason: overrideText, actorId: actor.profile.id };
+        return res.status(409).json({
+          success: false,
+          error: 'At least 1 completion (after) photo is required before this unit can be marked complete.',
+          code: 'PHOTO_PROOF_REQUIRED'
+        });
       }
     }
 
@@ -4705,18 +4709,6 @@ app.post('/api/bookings/update-status', async (req, res) => {
       details: `Unit ${unitId} updated to ${newStatus}. Master status: ${targetMasterStatus || 'unchanged'}`
     });
 
-    // 🛡️ Batch 5: Record any COMPLETED-without-photo admin override as its own
-    // audit entry so it is separately queryable and never silent.
-    if (req._photoOverride) {
-      await supabaseAdmin.from('audit_logs').insert({
-        booking_id: bookingId,
-        action_type: 'PHOTO_PROOF_OVERRIDE',
-        actor_name: actorName || 'Admin',
-        actor_role: actorRole || 'ADMIN',
-        details: `Admin override: unit ${unitId} completed without a required after-photo. Reason: ${req._photoOverride.reason}`
-      });
-    }
-
     return res.json({
       success: true,
       masterStatus: targetMasterStatus || currentMaster,
@@ -4725,6 +4717,16 @@ app.post('/api/bookings/update-status', async (req, res) => {
 
   } catch (err) {
     console.error('Propagation Error:', err);
+    if (err.code === '23514' && /SERVICE_START_BLOCKED_NO_BEFORE_PHOTO|SERVICE_COMPLETE_BLOCKED_NO_AFTER_PHOTO/.test(err.message || '')) {
+      const needsBefore = /SERVICE_START_BLOCKED_NO_BEFORE_PHOTO/.test(err.message || '');
+      return res.status(409).json({
+        success: false,
+        error: needsBefore
+          ? 'At least 1 before-service photo is required before this unit can be started.'
+          : 'At least 1 completion (after) photo is required before this unit can be marked complete.',
+        code: 'PHOTO_PROOF_REQUIRED'
+      });
+    }
     return res.status(500).json({ success: false, error: err.message });
   }
 });

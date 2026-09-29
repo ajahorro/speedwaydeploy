@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, Image as ImageIcon, Loader2, Camera } from 'lucide-react';
-import { fetchBookingPhotos, resolvePhotoUrls } from '../../services/photoService';
+import { fetchBookingPhotos, fetchVehiclePhotos, resolvePhotoUrls } from '../../services/photoService';
 
 /**
  * PhotoProofGallery — Batch 5
@@ -11,7 +11,7 @@ import { fetchBookingPhotos, resolvePhotoUrls } from '../../services/photoServic
  *
  * Tokens only (var(...)); dark/light adaptive; 375px safe (full-width on mobile).
  */
-const PhotoProofGallery = ({ bookingId, open, onClose }) => {
+const PhotoProofGallery = ({ bookingId, bookingVehicleId = null, open, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [photos, setPhotos] = useState([]);
   const [lightbox, setLightbox] = useState(null);
@@ -19,10 +19,12 @@ const PhotoProofGallery = ({ bookingId, open, onClose }) => {
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      if (!open || !bookingId) return;
+      if (!open || (!bookingId && !bookingVehicleId)) return;
       setLoading(true);
       try {
-        const rows = await fetchBookingPhotos(bookingId);
+        const rows = bookingVehicleId
+          ? await fetchVehiclePhotos(bookingVehicleId)
+          : await fetchBookingPhotos(bookingId);
         const resolved = await resolvePhotoUrls(rows);
         if (!cancelled) setPhotos(resolved);
       } finally {
@@ -31,7 +33,7 @@ const PhotoProofGallery = ({ bookingId, open, onClose }) => {
     };
     run();
     return () => { cancelled = true; };
-  }, [open, bookingId]);
+  }, [open, bookingId, bookingVehicleId]);
 
   if (!open) return null;
 

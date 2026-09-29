@@ -101,6 +101,7 @@ export const fetchVehiclePhotos = async (bookingVehicleId) => {
     .from('service_photos')
     .select('*')
     .eq('booking_vehicle_id', bookingVehicleId)
+    .is('archived_at', null)
     .order('uploaded_at', { ascending: true });
   if (error) {
     logger.warn('Failed to fetch vehicle photos', error);
@@ -115,6 +116,7 @@ export const fetchBookingPhotos = async (bookingId) => {
     .from('service_photos')
     .select('*')
     .eq('booking_id', bookingId)
+    .is('archived_at', null)
     .order('uploaded_at', { ascending: true });
   if (error) {
     logger.warn('Failed to fetch booking photos', error);

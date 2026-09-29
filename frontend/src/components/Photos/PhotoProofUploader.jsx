@@ -226,7 +226,7 @@ const PhotoProofUploader = ({
           <AlertTriangle size={14} color="var(--status-warning)" />
           {phase === 'after'
             ? 'No completion photo yet — at least 1 is required before this unit can be completed.'
-            : 'No intake photo yet. Recommended before starting work.'}
+            : 'No intake photo yet — at least 1 is required before this unit can be started.'}
         </div>
       ) : (
         <div

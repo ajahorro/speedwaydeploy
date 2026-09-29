@@ -226,13 +226,13 @@ const StaffWorkHistory = () => {
                       </div>
                     </td>
                     <td style={tableRowStyle}>
-                      {item.photo_proof_url ? (
-                        <a href={item.photo_proof_url} target="_blank" rel="noreferrer" style={{ color: 'var(--admin-brand)', fontSize: '0.75rem', textDecoration: 'underline' }}>
-                          View Image
-                        </a>
-                      ) : (
-                        <span style={{ fontSize: '0.75rem', color: '#444' }}>No Proof</span>
-                      )}
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); navigate(`/staff/job/${item.id}`); }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-brand)', padding: '0.4rem 0.6rem', fontSize: '0.68rem', fontWeight: 800, cursor: 'pointer' }}
+                      >
+                        <FileText size={13} /> View Evidence
+                      </button>
                     </td>
                   </tr>
                 ))

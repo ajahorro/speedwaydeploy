@@ -157,14 +157,14 @@ export const COMMUNICATION_PREFERENCES = Object.freeze([
     label: 'Email booking updates',
     description: 'Receive email alerts when your booking status changes or a payment is verified.',
     defaultValue: true,
-    roles: ['customer', 'staff', 'admin'],
+    roles: ['customer', 'admin'],
   },
   {
     key: 'promoEmailSms',
     label: 'Promotional SMS / discounts',
     description: 'Receive occasional promotions, discount codes, and seasonal offers.',
     defaultValue: false,
-    roles: ['customer', 'staff', 'admin'],
+    roles: ['customer', 'admin'],
   },
   // ── Granular customer marketing toggles (opt-in). Each is OFF by default;
   // promos/services/vehicles are only emailed when the customer explicitly
@@ -189,34 +189,6 @@ export const COMMUNICATION_PREFERENCES = Object.freeze([
     description: 'Get an email when the shop starts servicing a new vehicle category.',
     defaultValue: false,
     roles: ['customer'],
-  },
-  {
-    key: 'jobAssignmentAlerts',
-    label: 'Job Assignment Alerts',
-    description: 'Alert when a vehicle is assigned to your bay.',
-    defaultValue: true,
-    roles: ['staff'],
-  },
-  {
-    key: 'scheduleRosterChanges',
-    label: 'Schedule & Roster Changes',
-    description: 'Alert when shift hours change.',
-    defaultValue: true,
-    roles: ['staff'],
-  },
-  {
-    key: 'soundHapticChime',
-    label: 'Sound & Haptic Chime',
-    description: 'Audio chime on new job queue.',
-    defaultValue: false,
-    roles: ['staff'],
-  },
-  {
-    key: 'staffLandingView',
-    label: 'Default Landing View',
-    description: 'Choose which job board opens first for your workstation.',
-    defaultValue: 'assigned',
-    roles: ['staff'],
   },
 ]);/**
  * Internal Shop SOP & Quality-Control guidelines shown to STAFF.

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { supabase, createUniqueChannel } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -14,6 +14,8 @@ import LoadingState from '../../components/LoadingState';
 import PhotoProofUploader from '../../components/Photos/PhotoProofUploader';
 import IntakeWarningBadge from '../../components/Photos/IntakeWarningBadge';
 import { BACKEND_URL } from '../../config/api';
+import { loadPreferences } from '../../utils/preferenceStore';
+import { playJobAssignmentChime } from '../../utils/jobAssignmentChime';
 const StaffDashboard = () => {
   const { profile, toggleShift } = useAuth();
   const { openModal } = useUI();
@@ -26,6 +28,10 @@ const StaffDashboard = () => {
   const [broadcasts, setBroadcasts] = useState([]);
   const [shiftTimer, setShiftTimer] = useState('OFF DUTY');
   const [isClockingIn, setIsClockingIn] = useState(false);
+  const [soundHapticChime, setSoundHapticChime] = useState(false);
+  const soundHapticChimeRef = useRef(false);
+  const knownTaskIdsRef = useRef(new Set());
+  const hasLoadedTasksRef = useRef(false);
   // Batch 5: per-unit photo counts, keyed by task.id -> { before, after }.
   // Drives the intake soft-warning and the completion hard-gate on the client.
   const [photoCounts, setPhotoCounts] = useState({});
@@ -34,6 +40,22 @@ const StaffDashboard = () => {
       ...prev,
       [taskId]: { before: 0, after: 0, ...(prev[taskId] || {}), [phase]: count }
     }));
+
+  useEffect(() => {
+    soundHapticChimeRef.current = soundHapticChime;
+  }, [soundHapticChime]);
+
+  useEffect(() => {
+    let mounted = true;
+    loadPreferences(profile?.id)
+      .then((preferences) => {
+        if (mounted) setSoundHapticChime(Boolean(preferences.soundHapticChime));
+      })
+      .catch(() => {
+        if (mounted) setSoundHapticChime(false);
+      });
+    return () => { mounted = false; };
+  }, [profile?.id]);
 
   useEffect(() => {
     if (!profile?.is_clocked_in) {
@@ -114,6 +136,14 @@ const StaffDashboard = () => {
         }))
       ).filter(v => v.status?.toUpperCase() !== 'COMPLETED');
 
+      const newPendingAssignment = hasLoadedTasksRef.current && allVehicleTasks.some((task) =>
+        !knownTaskIdsRef.current.has(task.id)
+          && ['PENDING', 'SCHEDULED'].includes(task.status?.toUpperCase())
+      );
+      if (newPendingAssignment && soundHapticChimeRef.current) playJobAssignmentChime();
+      knownTaskIdsRef.current = new Set(allVehicleTasks.map((task) => task.id));
+      hasLoadedTasksRef.current = true;
+
       setTasks(allVehicleTasks);
       const notesObj = {};
       allVehicleTasks.forEach(t => { notesObj[t.id] = t.service_notes || ''; });
@@ -141,7 +171,7 @@ const StaffDashboard = () => {
     }
   };
 
-  const handleUpdateStatus = async (task, newStatus, overrideReason = '') => {
+  const handleUpdateStatus = async (task, newStatus) => {
     if (task.booking_status?.toLowerCase() === 'completed' || task.booking_status?.toLowerCase() === 'cancelled') {
       return toast.error('Booking is finalized.');
     }
@@ -156,9 +186,7 @@ const StaffDashboard = () => {
           newStatus: newStatus,
           notes: localNotes[task.id],
           actorName: profile?.full_name || 'Staff',
-          actorRole: 'STAFF',
-          // Batch 5: only meaningful for admins completing without an after photo.
-          overrideReason: overrideReason || undefined
+          actorRole: 'STAFF'
         })
       });
       const result = await response.json().catch(() => ({}));
@@ -171,7 +199,7 @@ const StaffDashboard = () => {
   };
 
   const canStartTask = (task) => {
-    if (!profile?.is_clocked_in || !task.start_datetime) return false;
+    if (!profile?.is_clocked_in || !task.start_datetime || (photoCounts[task.id]?.before || 0) < 1) return false;
     const scheduled = new Date(task.start_datetime);
     const today = new Date();
     return scheduled.getFullYear() === today.getFullYear()
@@ -209,41 +237,17 @@ const StaffDashboard = () => {
    */
   const requestStartTask = (task) => {
     const hasIntake = (photoCounts[task.id]?.before || 0) > 0;
-    openModal({
-      title: 'Start Service?',
-      message: hasIntake
-        ? `Start service for ${task.brand} ${task.model}?`
-        : `No intake photo has been captured for ${task.brand} ${task.model}. You can still start, but documenting the pre-service condition is strongly recommended for dispute protection.`,
-      confirmText: hasIntake ? 'Start Service' : 'Start Without Intake Photo',
-      cancelText: 'Cancel',
-      type: 'info',
-      onConfirm: () => handleUpdateStatus(task, 'IN_PROGRESS')
-    });
-  };
-
-  /**
-   * Batch 5 — Admin override path for completing without a required after photo.
-   * Collects a mandatory reason and forwards it to the backend, which records a
-   * PHOTO_PROOF_OVERRIDE audit entry. Non-admins never reach this.
-   */
-  const requestCompleteWithOverride = (task) => {
-    const reason = window.prompt(
-      `No completion photo exists for ${task.brand} ${task.model}.\n\nAdmin override requires a reason (recorded in the audit log).`,
-      ''
-    );
-    if (reason === null) return; // cancelled
-    const trimmed = reason.trim();
-    if (!trimmed) {
-      toast.error('An override reason is required.');
+    if (!hasIntake) {
+      toast.error('Upload at least one before-service photo before starting this vehicle.');
       return;
     }
     openModal({
-      title: 'Override & Finalize?',
-      message: `Complete ${task.brand} ${task.model} WITHOUT a completion photo?\n\nReason: "${trimmed}"`,
-      confirmText: 'Override & Finish',
+      title: 'Start Service?',
+      message: `Start service for ${task.brand} ${task.model}?`,
+      confirmText: 'Start Service',
       cancelText: 'Cancel',
-      type: 'danger',
-      onConfirm: () => handleUpdateStatus(task, 'COMPLETED', trimmed)
+      type: 'info',
+      onConfirm: () => handleUpdateStatus(task, 'IN_PROGRESS')
     });
   };
 
@@ -371,8 +375,9 @@ const StaffDashboard = () => {
                     </div>
                   </div>
 
-                  {task.status?.toUpperCase() !== 'PENDING' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                  {(
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile || task.status?.toUpperCase() === 'PENDING' ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '1.5rem' }}>
+                      {task.status?.toUpperCase() !== 'PENDING' && (
                       <div style={{ position: 'relative' }}>
                         <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Detailing Observations</div>
                         <textarea
@@ -386,11 +391,12 @@ const StaffDashboard = () => {
                           <Save size={16} />
                         </button>
                       </div>
+                      )}
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Service Evidence</div>
                         <p style={{ margin: '0 0 0.5rem', fontSize: '0.62rem', color: 'var(--admin-text-secondary)', fontWeight: '700', lineHeight: 1.5 }}>
-                          Intake photos are recommended (a warning is logged if skipped). At least one completion photo is required to finish.
+                          Upload at least one before photo before starting service and one after photo before finishing service.
                         </p>
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
                           <PhotoProofUploader
@@ -417,11 +423,11 @@ const StaffDashboard = () => {
                   <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                     {task.status?.toUpperCase() === 'PENDING' && (
                       <>
-                        {/* Soft intake warning: surfaced next to Start, never blocking. */}
+                        {/* Intake evidence is a hard precondition for starting. */}
                         {(photoCounts[task.id]?.before || 0) < 1 && (
-                          <IntakeWarningBadge tone="warning" compact>No intake photo — recommended</IntakeWarningBadge>
+                          <IntakeWarningBadge tone="danger" compact>Before photo required</IntakeWarningBadge>
                         )}
-                        <button onClick={() => requestStartTask(task)} disabled={!canStartTask(task)} style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canStartTask(task) ? 'var(--admin-brand)' : 'var(--admin-border)', color: canStartTask(task) ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', cursor: canStartTask(task) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        <button onClick={() => requestStartTask(task)} disabled={!canStartTask(task)} title={!profile?.is_clocked_in ? 'Clock in to start service.' : (photoCounts[task.id]?.before || 0) < 1 ? 'Upload at least one before photo first.' : undefined} style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canStartTask(task) ? 'var(--admin-brand)' : 'var(--admin-border)', color: canStartTask(task) ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', cursor: canStartTask(task) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
                           <Play size={18} /> START SERVICE
                         </button>
                       </>
@@ -430,28 +436,24 @@ const StaffDashboard = () => {
                       const afterCount = photoCounts[task.id]?.after || 0;
                       const missingAfter = afterCount < 1;
                       const canComplete = Boolean(profile?.is_clocked_in) && !missingAfter;
-                      // Admins may override the photo gate with a logged reason.
-                      const isAdmin = String(profile?.role || '').toUpperCase() === 'ADMIN';
                       return (
                         <>
                           {missingAfter && (
                             <IntakeWarningBadge tone="danger" compact>Completion photo required</IntakeWarningBadge>
                           )}
                           <button
-                            onClick={() => (missingAfter && isAdmin ? requestCompleteWithOverride(task) : requestUpdateStatus(task, 'COMPLETED'))}
-                            disabled={!profile?.is_clocked_in || (missingAfter && !isAdmin)}
+                            onClick={() => requestUpdateStatus(task, 'COMPLETED')}
+                            disabled={!profile?.is_clocked_in || missingAfter}
                             title={
                               !profile?.is_clocked_in
                                 ? 'Clock in to update the job.'
                                 : missingAfter
-                                  ? (isAdmin
-                                      ? 'No completion photo. As an admin you may override with a logged reason.'
-                                      : 'Add at least 1 completion (after) photo to finish.')
+                                      ? 'Add at least 1 completion (after) photo to finish.'
                                   : 'Mark this job as finished.'
                             }
-                            style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canComplete ? 'var(--status-success)' : (missingAfter && isAdmin ? 'var(--status-warning)' : 'var(--admin-border)'), color: canComplete || (missingAfter && isAdmin) ? 'white' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', cursor: !profile?.is_clocked_in || (missingAfter && !isAdmin) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}
+                                    style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canComplete ? 'var(--status-success)' : 'var(--admin-border)', color: canComplete ? 'white' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', cursor: !profile?.is_clocked_in || missingAfter ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}
                           >
-                            <CheckCircle2 size={18} /> {missingAfter && isAdmin ? 'OVERRIDE & FINISH' : 'MARK AS FINISHED'}
+                                    <CheckCircle2 size={18} /> MARK AS FINISHED
                           </button>
                         </>
                       );

@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { 
-  Car, Clock, CheckCircle2, ChevronLeft, 
+  Car, Clock, CheckCircle2, ChevronLeft, Image as ImageIcon,
   Calendar, MapPin, Wrench, ShieldCheck, Info
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from 'react-hot-toast';
+import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
 
 const StaffJobDetails = () => {
   const { id } = useParams();
@@ -16,6 +17,7 @@ const StaffJobDetails = () => {
   const isMobile = useMediaQuery('(max-width: 1024px)');
   const [unit, setUnit] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false);
 
   useEffect(() => {
     fetchJobDetails();
@@ -177,6 +179,13 @@ const StaffJobDetails = () => {
           {/* Evidence Preview */}
           <section style={cardStyle}>
             <div style={labelStyle}>Quality Assurance Proof</div>
+            <button
+              type="button"
+              onClick={() => setPhotoGalleryOpen(true)}
+              style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.6rem 0.85rem', background: 'transparent', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-brand)', fontSize: '0.68rem', fontWeight: 900, textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              <ImageIcon size={14} /> View Before/After Evidence
+            </button>
             {(() => {
               let photos = [];
               if (unit.photo_proof_url) {
@@ -219,6 +228,12 @@ const StaffJobDetails = () => {
         </div>
 
       </div>
+      <PhotoProofGallery
+        bookingId={unit.booking_id}
+        bookingVehicleId={unit.id}
+        open={photoGalleryOpen}
+        onClose={() => setPhotoGalleryOpen(false)}
+      />
     </div>
   );
 };
