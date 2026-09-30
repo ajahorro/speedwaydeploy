@@ -117,7 +117,8 @@ create table public.payments (
   transaction_date timestamptz, refund_method text, rejection_reason text, evidence_url text,
   detected_amount numeric, detected_ref text, payment_type payment_type_enum, payment_status text,
   transfer_fee numeric default 0, net_credit numeric, credit_applied numeric default 0,
-  excess_routed numeric default 0, ocr_metadata jsonb default '{}'
+  excess_routed numeric default 0, ocr_metadata jsonb default '{}',
+  ocr_evaluated_total numeric, ocr_evaluated_at timestamptz
 );
 
 create table public.audit_logs (
@@ -281,8 +282,9 @@ const count = async (db, table, where = '') =>
     asserts.push(['server scan supplies the detected amount and reference', Number(securePayment.detected_amount) === 2500 && securePayment.detected_ref === 'SERVER-REF-123']);
     asserts.push(['server scan canonicalizes payment amount from the booking total', Number(securePayment.amount) === 1000]);
     asserts.push(['server scan canonicalizes net credit from the OCR result', Number(securePayment.net_credit) === 2500]);
-    const persistedPayment = await q(db, `select ocr_metadata from public.payments where id = '${securePayment.id}'`);
+    const persistedPayment = await q(db, `select ocr_metadata, ocr_evaluated_total from public.payments where id = '${securePayment.id}'`);
     asserts.push(['server image hash persists on the payment row', persistedPayment[0]?.ocr_metadata?.image_hash === serverImageHash]);
+    asserts.push(['payment retains the booking total used for OCR verification', Number(persistedPayment[0]?.ocr_evaluated_total) === 1000]);
       asserts.push(['server receipt URL overrides a client-supplied URL', securePayment.receipt_url === 'https://trusted.example/receipt.png']);
     asserts.push(['server scan derives pending booking status', secureBooking.payment_status === 'pending']);
     const consumedSession = await q(db, `select active, booking_id, payment_id from public.ocr_scan_sessions where id = '${scanId}'`);

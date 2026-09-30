@@ -171,12 +171,13 @@ const AdminPayments = () => {
     try {
       const { data: { user: verifier } } = await supabase.auth.getUser();
       const bookingTotal = Number(payment.booking?.total_amount || 0);
+      const verificationTotal = Number(payment.ocr_evaluated_total || bookingTotal);
       const declaredAmount = Number(payment.amount || 0);
       const ocrAmount = Number(payment.detected_amount || 0);
       const ocrReference = payment.detected_ref || '';
       const paymentType = payment.notes?.match(/(?:TYPE|PAYMENT_TYPE):([^|]+)/i)?.[1]?.toLowerCase();
-      const isDownpayment = paymentType === 'downpayment' || (!paymentType && declaredAmount < bookingTotal);
-      const requiredDownpayment = calculateRequiredDownpayment(bookingTotal).amount;
+      const isDownpayment = paymentType === 'downpayment' || (!paymentType && declaredAmount < verificationTotal);
+      const requiredDownpayment = calculateRequiredDownpayment(verificationTotal).amount;
       const verifiedAmount = ocrAmount > 0 ? ocrAmount : declaredAmount;
       const wasOverpaidDownpayment = isDownpayment && verifiedAmount > requiredDownpayment;
       const isCashPayment = String(payment.method || '').trim().toUpperCase() === 'CASH';

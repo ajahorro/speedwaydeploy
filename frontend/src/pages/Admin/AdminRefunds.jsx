@@ -51,6 +51,18 @@ const AdminRefunds = () => {
 
       if (error) throw error;
 
+      const bookingIds = (data || []).map(booking => booking.id);
+      let queuedCredits = [];
+      if (bookingIds.length) {
+        const { data: creditRows, error: creditError } = await supabase
+          .from('customer_credit_ledger')
+          .select('booking_id, amount')
+          .in('booking_id', bookingIds)
+          .eq('entry_type', 'REFUND_QUEUED');
+        if (creditError) throw creditError;
+        queuedCredits = creditRows || [];
+      }
+
       const processed = (data || []).map(b => {
         // ── The ₱0 refundable-total bug ──────────────────────────────────────
         // The whitelist below previously compared p.status against MIXED CASE
@@ -62,7 +74,7 @@ const AdminRefunds = () => {
         // REFUND_PENDING still counts, because the money has not left yet).
         const statusOf = (p) => String(p?.status || '').trim().toUpperCase();
         const methodOfPayment = (p) => String(p?.method || '').trim().toUpperCase();
-        const SETTLED_CREDIT_STATUSES = ['PAID', 'FOR_VERIFICATION', 'REFUND_PENDING', 'REFUNDED'];
+        const SETTLED_CREDIT_STATUSES = ['PAID', 'REFUND_PENDING', 'REFUNDED'];
 
         const positivePayments = (b.payments || [])
           .filter(p => Number(p.amount) > 0
@@ -90,6 +102,16 @@ const AdminRefunds = () => {
         const refundReference = refundPayment?.reference_number || null;
         const refundReason = refundPayment?.refund_reason || null;
         const refundedAmount = processedRefunds;
+        const queuedOverpayment = queuedCredits
+          .filter(entry => entry.booking_id === b.id)
+          .reduce((sum, entry) => sum + Math.max(0, -Number(entry.amount || 0)), 0);
+        const processedOverpaymentRefunds = (b.payments || [])
+          .filter(p => Number(p.amount) < 0
+            && methodOfPayment(p) === 'SYSTEM_REFUND'
+            && String(p.notes || '').startsWith('OVERPAYMENT_CREDIT_REFUND:'))
+          .reduce((sum, p) => sum + Math.abs(Number(p.amount)), 0);
+        const overpaymentRefundRemaining = Math.max(0, queuedOverpayment - processedOverpaymentRefunds);
+        const refundLimit = overpaymentRefundRemaining > 0 ? overpaymentRefundRemaining : totalPaid;
 
         return {
           ...b,
@@ -97,13 +119,15 @@ const AdminRefunds = () => {
             ? { ...b.customer, full_name: b.customer.full_name || b.customer_name || 'Customer' }
             : { full_name: b.customer_name || 'Customer' },
           totalPaid,
+          refundLimit,
+          overpaymentRefundRemaining,
           refundedAmount,
           refundReference,
           refundReason,
           paymentMethod: isCashMethod ? 'Cash' : (isDigitalMethod ? 'Digital' : 'Unknown'),
           refundStatus: b.refund_status || 'QUEUED'
         };
-      }).filter(b => b.totalPaid > 0 || ['PROCESSED', 'EMAIL_PENDING'].includes(b.refundStatus));
+      }).filter(b => b.refundLimit > 0 || ['PROCESSED', 'EMAIL_PENDING'].includes(b.refundStatus));
 
       setState(prev => ({ ...prev, refundItems: processed, loading: false }));
       logger.admin('Refund directory synchronized.');
@@ -122,7 +146,7 @@ const AdminRefunds = () => {
   // The admin edits ONLY the deduction. The refund actually submitted is always
   // `totalPaid - deduction`, clamped into [0, totalPaid] so it can never go
   // negative or exceed what was collected.
-  const selectedRefundTotal = Number(state.selectedItem?.totalPaid || 0);
+  const selectedRefundTotal = Number(state.selectedItem?.refundLimit ?? state.selectedItem?.totalPaid ?? 0);
   const deductionValue = Math.max(0, Number(state.deduction) || 0);
   const derivedRefund = Math.max(0, Math.min(selectedRefundTotal - deductionValue, selectedRefundTotal));
   const deductionExceedsPaid = deductionValue > selectedRefundTotal;
@@ -136,7 +160,7 @@ const AdminRefunds = () => {
     // A fresh selection always starts with NO deduction, so the derived refund
     // equals the full refundable total rather than inheriting a stale figure.
     deduction: 0,
-    refundAmount: Number(item.totalPaid || 0),
+    refundAmount: Number(item.refundLimit ?? item.totalPaid ?? 0),
   }));
 
   // MEMOIZED FILTERING
@@ -170,7 +194,10 @@ const AdminRefunds = () => {
       if (!['PROCESSED', 'EMAIL_PENDING'].includes(item.refundStatus)) {
         refundRef = `RFD-${Date.now().toString().slice(-6)}-${item.id.substring(0, 4).toUpperCase()}`;
         const { data: { user } } = await supabase.auth.getUser();
-        const { data: rpcData, error: rpcError } = await supabase.rpc('process_booking_refund', {
+        const rpcName = item.overpaymentRefundRemaining > 0
+          ? 'process_overpayment_credit_refund'
+          : 'process_booking_refund';
+        const { data: rpcData, error: rpcError } = await supabase.rpc(rpcName, {
           p_booking_id: item.id,
           p_refund_amount: refundAmount,
           p_refund_reason: state.refundReason,
@@ -390,7 +417,7 @@ const AdminRefunds = () => {
                     {['PROCESSED', 'EMAIL_PENDING'].includes(b.refundStatus) ? 'REFUNDED' : 'REFUNDABLE'}
                   </div>
                   <div style={{ fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>
-                    ₱{(['PROCESSED', 'EMAIL_PENDING'].includes(b.refundStatus) ? (b.refundedAmount || b.totalPaid) : b.totalPaid).toLocaleString()}
+                    ₱{(['PROCESSED', 'EMAIL_PENDING'].includes(b.refundStatus) ? (b.refundedAmount || b.totalPaid) : (b.refundLimit || b.totalPaid)).toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -466,7 +493,7 @@ const AdminRefunds = () => {
                       id="refund-deduction"
                       type="number"
                       min={0}
-                      max={state.selectedItem.totalPaid}
+                      max={selectedRefundTotal}
                       value={state.deduction}
                       disabled={isRefundLocked}
                       onChange={(e) => setState(prev => ({ ...prev, deduction: Number(e.target.value) }))}
@@ -490,7 +517,7 @@ const AdminRefunds = () => {
                       style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px dashed var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-secondary)', fontSize: '1rem', fontWeight: '950', cursor: 'not-allowed' }}
                     />
                     <div style={{ marginTop: '0.4rem', fontSize: '0.6rem', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>
-                      Total Paid − Deduction = ₱{selectedRefundTotal.toLocaleString()} − ₱{Math.min(deductionValue, selectedRefundTotal).toLocaleString()}
+                      {state.selectedItem.overpaymentRefundRemaining > 0 ? 'Queued booking excess' : 'Total Paid'} − Deduction = ₱{selectedRefundTotal.toLocaleString()} − ₱{Math.min(deductionValue, selectedRefundTotal).toLocaleString()}
                     </div>
                   </div>
                 </>
@@ -527,7 +554,7 @@ const AdminRefunds = () => {
                     {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'Amount Reverted' : 'Refundable Total'}
                   </span>
                   <span style={{ fontWeight: '950', fontSize: '1.5rem' }}>
-                    ₱{(state.selectedItem.refundStatus === 'EMAIL_PENDING' ? (state.selectedItem.refundedAmount || 0) : state.selectedItem.totalPaid).toLocaleString()}
+                    ₱{(state.selectedItem.refundStatus === 'EMAIL_PENDING' ? (state.selectedItem.refundedAmount || 0) : selectedRefundTotal).toLocaleString()}
                   </span>
                 </div>
                 <button

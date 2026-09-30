@@ -14,8 +14,8 @@ import { SERVICES_DATA, resolveFrozenServicePrice } from '../../data/servicesCat
 import { calculateBayUsage, calculateOccupancy, filterActiveBookings } from '../../utils/schedulingUtils';
 import { SHOP_CONFIG } from '../../config/constants';
 import { getStatusColor, isStaffOccupied } from '../../utils/bookingHelpers';
-import { calculatePaymentSummary, calculateRequiredDownpayment, requiresDownpayment } from '../../utils/paymentUtils';
-import { applyServiceDownpayment, fetchExcessCredit } from '../../services/creditLedgerService';
+import { calculatePaymentSummary, calculateRequiredDownpayment, calculateAdditionalDownpayment, requiresDownpayment } from '../../utils/paymentUtils';
+import { fetchBookingExcessCredit } from '../../services/creditLedgerService';
 import toast from 'react-hot-toast';
 import BookingAuditTrail from '../../components/BookingAuditTrail';
 import BookingSummaryHeader from '../../components/BookingSummaryHeader';
@@ -929,120 +929,36 @@ const AdminBookingDetails = () => {
       return;
     }
 
-    // ───────────────────────────────────────────────────────────────────────
-    // OPTION 2 — FULL-COST ABSORPTION + DEFECT A1 (CART-TOTAL TIERING)
-    // ───────────────────────────────────────────────────────────────────────
-    //
-    // POLICY (Option 2): existing ledger credit is applied to the FULL PRICE of
-    // the newly added service — not merely to its downpayment — until the credit
-    // is exhausted at exactly ₱0. Only the remaining shortfall is then prompted.
-    //
-    // Worked example (Scenario A): ₱1000 booked, ₱2000 paid → ₱1000 credit.
-    //   +₱500 wax     : credit 1000 → 500 (full price absorbed)
-    //   +₱800 ceramic : credit  500 → 0   (500 absorbed), prompt 300
-    //   ⇒ total 2300, paid 2000, owed 300, parked credit 0. ✔
-    //
-    // TIER BASIS (Defect A1): the 30% vs 50% tier is decided by the booking's
-    // AGGREGATE CART TOTAL, never the isolated line price. A ₱500 service added
-    // to a ₱2,300 cart therefore uses the 50% tier, not 30%.
-    //
-    // The prompt amount is the amount still owed on the cart AFTER credit:
-    //   requiredNow = max(0, (cartTotal + price) − netPaid − remainingCredit)
-    // which keeps the customer's obligation and the parked credit perfectly
-    // reconciled (no phantom credit, no negative prompt).
     const cartTotalBefore = Number(booking?.total_amount || 0);
     const cartTotalAfter = Math.round((cartTotalBefore + price) * 100) / 100;
-
-    // Spendable credit comes from the CUSTOMER ledger (`customer_excess_credit`),
-    // which is decremented by the absorb RPC on every consumption.
-    // The booking-scoped summary.credit is the RAW overpayment and is NOT
-    // decremented — using it caused a double-count (negative shortfall prompt).
-    let existingCredit = 0;
-    const customerId = booking?.customer_id;
-    if (customerId) {
-      try {
-        existingCredit = Math.max(0, Number(await fetchExcessCredit(customerId) || 0));
-      } catch (creditLookupErr) {
-        logger.warn('Excess-credit lookup failed; falling back to the full prompt.', creditLookupErr);
-        existingCredit = 0;
-      }
-    }
-
-    // Tier is chosen from the CART TOTAL after this service lands on it.
-    const downpayment = calculateRequiredDownpayment(price, cartTotalAfter).amount;
-
-    // OPTION 2: apply available credit to the FULL COST of this service.
-    //
-    // NOTE: we compute netPaid locally from `booking` + `bookingPayments` rather
-    // than reading the render-scope `totalPaid` constant — this handler is
-    // defined ABOVE that declaration, so referencing it would hit the temporal
-    // dead zone and throw a ReferenceError at click time.
     const netPaid = Math.max(0, Number(
       calculatePaymentSummary({ ...booking, payments: bookingPayments })?.totalPaid || 0
     ));
-
-    // ── ORDERING IS DELIBERATE — compute the cap, absorb exactly it, prompt ──
-    //
-    // OPTION 2 (full-cost absorption) with a RECONCILIATION-GUARANTEED cap:
-    //
-    //     creditUsed = min(existingCredit, owedOnCartAfter)
-    //     requiredNow = owedOnCartAfter − creditUsed
-    //
-    // where owedOnCartAfter = max(0, cartTotalAfter − netPaid).
-    //
-    // WHY THE CAP IS THE OUTSTANDING DEBT, NOT THE RAW SERVICE PRICE:
-    // capping at `price` over-consumes credit whenever the cart is already partly
-    // covered by cash. In Scenario A the ceramic step has cartTotal 2300, cash
-    // 2000 ⇒ owed 300 but price 800; absorbing min(500, 800)=500 would apply
-    // ₱200 of credit to a ₱0 debt, making cash+credit = ₱2,500 against a ₱2,300
-    // cart. Capping at `owedOnCartAfter` keeps the ledger exact:
-    //
-    //     netPaid + creditUsed + requiredNow === cartTotalAfter   (must hold)
-    //
-    // Credit is still burnt down by the FULL SERVICE COST whenever the cart owes
-    // at least that much (Scenario A step 2: owed 1500, price 500 ⇒ absorb 500),
-    // which is exactly the behaviour Option 2 requires. Only the excess above the
-    // cart's true debt is left parked, and it remains spendable on future cart
-    // additions rather than being destroyed.
-    //
-    // Flagged: if the business instead wants credit destroyed whenever it exceeds
-    // the debt, set `burnExcessCredit` — but that silently consumes customer
-    // money with no offsetting charge, so it is NOT the default.
-    const owedOnCartAfter = Math.max(0, Math.round((cartTotalAfter - netPaid) * 100) / 100);
-    const creditCoveringThisCart = Math.min(existingCredit, owedOnCartAfter);
-    const requiredNow = Math.max(0, Math.round((owedOnCartAfter - creditCoveringThisCart) * 100) / 100);
-
-    if (customerId && creditCoveringThisCart > 0) {
+    const requiredAggregateDownpayment = calculateRequiredDownpayment(cartTotalAfter).amount;
+    const requiredNow = calculateAdditionalDownpayment(cartTotalAfter, netPaid, price);
+    let existingCredit = Math.max(0, netPaid - cartTotalBefore);
+    const customerId = booking?.customer_id;
+    if (customerId) {
       try {
-        await applyServiceDownpayment(customerId, id, creditCoveringThisCart);
-        const remainingCredit = Math.max(0, Math.round((existingCredit - creditCoveringThisCart) * 100) / 100);
-        toast.success(`₱${creditCoveringThisCart.toLocaleString()} of credit applied to this service — ₱${remainingCredit.toLocaleString()} credit remaining.`);
-      } catch (absorbErr) {
-        // Fail-closed: if the absorb RPC fails we must NOT under-charge, so the
-        // prompt reverts to the full outstanding amount.
-        logger.warn('Full-cost credit absorb failed; prompting the full outstanding amount.', absorbErr);
-        setPendingService({
-          vehicleId,
-          service,
-          price,
-          downpayment,
-          creditUsed: 0,
-          requiredNow: owedOnCartAfter,
-        });
-        setServicePaymentType('Downpayment');
-        setServicePaymentAmount(String(owedOnCartAfter));
-        setServicePaymentMethod('Cash');
-        setServiceReferenceNumber('');
-        return;
+        existingCredit = Math.max(0, Number(await fetchBookingExcessCredit(customerId, id) || 0));
+      } catch (creditLookupErr) {
+        logger.warn('Booking credit lookup failed; using settled payment totals.', creditLookupErr);
+        existingCredit = 0;
       }
+    }
+    const creditUsed = Math.min(existingCredit, price);
+
+    if (requiredNow === 0) {
+      handleAddService(vehicleId, service);
+      return;
     }
 
     setPendingService({
       vehicleId,
       service,
       price,
-      downpayment,
-      creditUsed: creditCoveringThisCart,
+      downpayment: requiredAggregateDownpayment,
+      creditUsed,
       requiredNow,
     });
     setServicePaymentType('Downpayment');
@@ -1054,13 +970,12 @@ const AdminBookingDetails = () => {
   const submitServicePayment = () => {
     if (!pendingService) return;
     const amount = Number(servicePaymentAmount);
-    const minimumDownpayment = calculateRequiredDownpayment(pendingService.price).amount;
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error('Enter a valid payment amount.');
       return;
     }
-    if (amount < minimumDownpayment) {
-      toast.error(`Payment cannot be below the required downpayment of ${formatCurrency(minimumDownpayment)}.`);
+    if (amount < pendingService.requiredNow) {
+      toast.error(`Payment cannot be below the amount currently due of ${formatCurrency(pendingService.requiredNow)}.`);
       return;
     }
     if (amount > pendingService.price) {
@@ -2137,13 +2052,13 @@ const AdminBookingDetails = () => {
               <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.75rem', marginBottom: '1.25rem' }}>Service price: {formatCurrency(pendingService.price)}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
                 {['Downpayment', 'Full'].map(type => (
-                  <button key={type} type="button" onClick={() => { setServicePaymentType(type); setServicePaymentAmount(String(type === 'Full' ? pendingService.price : calculateRequiredDownpayment(pendingService.price).amount)); }} style={{ padding: '0.7rem 0.4rem', borderRadius: '4px', border: `1px solid ${servicePaymentType === type ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: servicePaymentType === type ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-bg)', color: servicePaymentType === type ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontWeight: '900', cursor: 'pointer' }}>{type}</button>
+                  <button key={type} type="button" onClick={() => { setServicePaymentType(type); setServicePaymentAmount(String(type === 'Full' ? pendingService.price : pendingService.requiredNow)); }} style={{ padding: '0.7rem 0.4rem', borderRadius: '4px', border: `1px solid ${servicePaymentType === type ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: servicePaymentType === type ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-bg)', color: servicePaymentType === type ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontWeight: '900', cursor: 'pointer' }}>{type}</button>
                 ))}
               </div>
               <label style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Amount Received</label>
               <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
                 <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-brand)', fontWeight: '950' }}>₱</span>
-                <input type="number" min={calculateRequiredDownpayment(pendingService.price).amount} max={pendingService.price} step="0.01" value={servicePaymentAmount} onChange={event => setServicePaymentAmount(event.target.value)} style={{ width: '100%', padding: '0.8rem 0.75rem 0.8rem 1.75rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px', fontWeight: '900' }} />
+                <input type="number" min={pendingService.requiredNow} max={pendingService.price} step="0.01" value={servicePaymentAmount} onChange={event => setServicePaymentAmount(event.target.value)} style={{ width: '100%', padding: '0.8rem 0.75rem 0.8rem 1.75rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px', fontWeight: '900' }} />
               </div>
               <label style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Customer Mode Of Payment</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
@@ -2161,7 +2076,7 @@ const AdminBookingDetails = () => {
               {/* Task B: show when excess_credit auto-covered part of the downpayment. */}
               {pendingService.creditUsed > 0 && (
                 <div style={{ marginBottom: '1rem', padding: '0.7rem 0.9rem', background: 'rgba(var(--admin-success-rgb), 0.1)', border: '1px solid var(--status-success)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-success)', fontSize: '0.72rem', fontWeight: 800, lineHeight: 1.5 }}>
-                  ₱{Number(pendingService.creditUsed).toLocaleString()} of existing excess credit was applied. Paying only the net shortfall of ₱{Number(pendingService.requiredNow).toLocaleString()}.
+                  ₱{Number(pendingService.creditUsed).toLocaleString()} of this booking's existing excess will be absorbed when the service is confirmed. The minimum additional payment is ₱{Number(pendingService.requiredNow).toLocaleString()}.
                 </div>
               )}
               <button type="button" onClick={submitServicePayment} disabled={isUpdatingDuration} style={{ width: '100%', padding: '0.85rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '4px', fontWeight: '950', cursor: isUpdatingDuration ? 'wait' : 'pointer', opacity: isUpdatingDuration ? 0.6 : 1 }}>{isUpdatingDuration ? 'PROCESSING...' : 'CONFIRM PAYMENT & ADD SERVICE'}</button>

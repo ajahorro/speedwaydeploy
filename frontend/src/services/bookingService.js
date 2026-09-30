@@ -226,7 +226,6 @@ export const createBooking = async (customerId, bookingData) => {
 
   // Payment payload mirrors the previous post-creation insert logic exactly.
   let rpcPayment = null;
-  let rpcExcess = 0;
 
   // ── The OCR verdict that gates booking creation ───────────────────────────
   // Derived from the scan result the customer's upload produced. This is the
@@ -436,26 +435,9 @@ export const createBooking = async (customerId, bookingData) => {
     throw new Error(`Master Booking Error: ${rpcError.message}`);
   }
 
-  if (bookingData.payment?.method === 'GCash' && !isAdminWalkIn) {
-    const verifiedNetCredit = Number(rpcResult?.payment?.net_credit || 0);
-    const verifiedPaymentAmount = Number(rpcResult?.payment?.amount || 0);
-    rpcExcess = Math.max(0, verifiedNetCredit - verifiedPaymentAmount);
-  }
-
   const booking = rpcResult?.booking;
   if (!booking?.id) {
     throw new Error('Master Booking Error: atomic creation returned no booking record.');
-  }
-
-  // Task B: bank any surplus as excess_credit on the ledger (non-fatal). The
-  // payment row was already written transactionally above.
-  if (rpcExcess > 0 && bookingCustomerId) {
-    try {
-      const { recordExcessCredit } = await import('./creditLedgerService');
-      await recordExcessCredit(bookingCustomerId, booking.id, rpcExcess, 'Overpayment surplus on GCash receipt');
-    } catch (creditErr) {
-      console.warn('Excess credit recording failed (non-fatal):', creditErr);
-    }
   }
 
   // Populate the customer's garage (non-fatal, per vehicle).

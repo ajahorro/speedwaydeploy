@@ -149,6 +149,13 @@ export const getRequiredDownpaymentForCart = (amountToCover, cartTotal) =>
 
 export const getRequiredDownpayment = (totalAmount) => calculateRequiredDownpayment(totalAmount).amount;
 
+export const calculateAdditionalDownpayment = (newBookingTotal, verifiedPaid, addedServicePrice) => {
+  const requiredForBooking = getRequiredDownpayment(newBookingTotal);
+  const paid = Math.max(0, Number(verifiedPaid) || 0);
+  const servicePrice = Math.max(0, Number(addedServicePrice) || 0);
+  return Math.min(servicePrice, Math.max(0, requiredForBooking - paid));
+};
+
 export const getPaymentStatusUI = (status) => {
   switch (status) {
     case 'PAID':

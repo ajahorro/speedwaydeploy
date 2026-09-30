@@ -80,11 +80,19 @@ const PASSWORD_CIPHER_KEY = crypto.createHash('sha256')
 
 const calculateNetPaid = (payments = []) => {
   const positive = payments
-    .filter(payment => ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(String(payment.status || '').toUpperCase()) && Number(payment.amount) > 0)
-    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    .filter(payment => String(payment.method || '').toUpperCase() !== 'SYSTEM_REFUND'
+      && ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(String(payment.status || '').toUpperCase()))
+    .reduce((sum, payment) => {
+      const detected = Number(payment.detected_amount || 0);
+      const amount = detected > 0
+        ? detected + Math.max(0, Number(payment.transfer_fee || 0))
+        : Number(payment.amount || 0);
+      return sum + Math.max(0, amount);
+    }, 0);
   const refunds = payments
-    .filter(payment => (String(payment.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(payment.amount) < 0)
+    .filter(payment => (String(payment.method || '').toUpperCase() === 'SYSTEM_REFUND'
       || String(payment.status || '').toUpperCase() === 'REFUNDED')
+      && Number(payment.amount) < 0)
     .reduce((sum, payment) => sum + Math.abs(Number(payment.amount || 0)), 0);
   return Math.max(0, positive - refunds);
 };
@@ -4362,24 +4370,23 @@ app.post('/api/bookings/add-service', async (req, res) => {
     if (!vehicle) return res.status(404).json({ success: false, error: 'Vehicle does not belong to this booking.' });
     const { data: existing } = await supabaseAdmin.from('booking_vehicle_services').select('id').eq('booking_vehicle_id', vehicleId).ilike('service_name', serviceName).maybeSingle();
     if (existing) return res.status(409).json({ success: false, error: 'This service is already assigned to the vehicle.' });
-    const minimumDownpayment = getRequiredDownpayment(servicePrice);
+    const { data: bookingPayments, error: bookingPaymentsError } = await supabaseAdmin
+      .from('payments')
+      .select('amount, method, status, detected_amount, transfer_fee')
+      .eq('booking_id', bookingId);
+    if (bookingPaymentsError) throw bookingPaymentsError;
+    const verifiedPaid = calculateNetPaid(bookingPayments || []);
+    const newBookingTotal = Number(booking.total_amount || 0) + servicePrice;
+    const minimumDownpaymentNow = Math.min(
+      servicePrice,
+      Math.max(0, getRequiredDownpayment(newBookingTotal) - verifiedPaid)
+    );
     const hasPayment = paymentAmount !== null && paymentAmount !== undefined;
-    if (servicePrice >= 1000 && (!hasPayment || Number(paymentAmount) < minimumDownpayment || Number(paymentAmount) > servicePrice)) return res.status(409).json({ success: false, error: `Payment must be at least ${minimumDownpayment.toLocaleString()} and no more than the service price.` });
+    if (servicePrice >= 1000 && minimumDownpaymentNow > 0
+      && (!hasPayment || Number(paymentAmount) < minimumDownpaymentNow || Number(paymentAmount) > servicePrice)) {
+      return res.status(409).json({ success: false, error: `Payment must be at least ${minimumDownpaymentNow.toLocaleString()} and no more than the service price.` });
+    }
     if (hasPayment && (!Number.isFinite(Number(paymentAmount)) || Number(paymentAmount) <= 0 || Number(paymentAmount) > servicePrice)) return res.status(400).json({ success: false, error: 'Invalid service payment amount.' });
-
-    const snapshot = {
-      booking_vehicle_id: vehicleId,
-      service_name: serviceName,
-      price: servicePrice,
-      duration_minutes: Number(durationMinutes || 60),
-      vehicle_type: null,
-      service_snapshot: {
-        name: serviceName,
-        price: servicePrice,
-        duration_minutes: Number(durationMinutes || 60),
-        source: 'admin_add_service'
-      }
-    };
 
     // 🛡️ SCENARIOS 19 & 20 — ATOMIC, ROW-LOCKED MUTATION.
     //
@@ -4432,36 +4439,13 @@ app.post('/api/bookings/add-service', async (req, res) => {
         // Scenario 19/20 loser: the booking became terminal under us.
         return res.status(409).json({ success: false, error: 'This booking was just closed (completed or cancelled) and can no longer be modified.' });
       }
-      if (!rpcMissing) throw rpcError;
-
-      // Fallback for a DB without the migration: keep the legacy writes but
-      // RE-VERIFY the terminal guard immediately before each write so the race
-      // window is minimized.
-      console.warn('⚠️ [ADD SERVICE] mutate_booking_locked RPC missing — legacy locked fallback.');
-      const { data: guardBooking } = await supabaseAdmin
-        .from('bookings').select('status, total_amount, end_datetime').eq('id', bookingId).single();
-      if (['released', 'completed', 'cancelled'].includes(String(guardBooking?.status || '').toLowerCase())) {
-        return res.status(409).json({ success: false, error: 'This booking is closed and can no longer be modified.' });
-      }
-      try {
-        const { error: serviceError } = await supabaseAdmin.from('booking_vehicle_services').insert(snapshot);
-        if (serviceError) throw serviceError;
-      } catch (serviceError) {
-        const { error: fallbackError } = await supabaseAdmin.from('booking_vehicle_services').insert({
-          booking_vehicle_id: vehicleId,
-          service_name: serviceName,
-          price: servicePrice
+      if (rpcMissing) {
+        return res.status(503).json({
+          success: false,
+          error: 'Atomic service updates are unavailable until the booking-lock migration is applied. No changes were made.'
         });
-        if (fallbackError) throw fallbackError;
       }
-      const end = new Date(new Date(guardBooking.end_datetime).getTime() + Number(durationMinutes || 60) * 60000);
-      const { error: bookingUpdateError } = await supabaseAdmin.from('bookings').update({ end_datetime: end.toISOString(), total_amount: Number(guardBooking.total_amount || 0) + servicePrice }).eq('id', bookingId);
-      if (bookingUpdateError) throw bookingUpdateError;
-      if (hasPayment) {
-        const { error: paymentError } = await supabaseAdmin.from('payments').insert({ booking_id: bookingId, amount: Number(paymentAmount), method: paymentMethod, payment_type: paymentType, reference_number: paymentMethod === 'Digital' ? referenceNumber.trim() : null, status: 'PAID', verified_by: actor.user.id, verified_at: new Date().toISOString(), notes: `PAYMENT_${String(paymentMethod).toUpperCase()} | ADDED_SERVICE:${serviceName} | TYPE:${paymentType}` });
-        if (paymentError) throw paymentError;
-      }
-      await supabaseAdmin.from('audit_logs').insert({ booking_id: bookingId, action_type: 'SERVICE_ADDED', actor_name: actor.user.email || actor.profile.full_name || 'Admin', actor_role: String(actor.profile.role).toUpperCase(), details: `Added ${serviceName}; ${hasPayment ? `recorded payment of ${paymentAmount}` : 'downpayment not required'}.` });
+      throw rpcError;
     }
 
     return res.json({ success: true });

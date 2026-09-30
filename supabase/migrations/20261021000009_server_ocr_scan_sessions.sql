@@ -189,7 +189,9 @@ begin
     end if;
 
     update public.payments
-       set ocr_metadata = coalesce(ocr_metadata, '{}'::jsonb) || v_metadata
+      set ocr_metadata = coalesce(ocr_metadata, '{}'::jsonb) || v_metadata,
+          ocr_evaluated_total = coalesce(ocr_evaluated_total, nullif(v_payload #>> '{booking,total_amount}', '')::numeric),
+          ocr_evaluated_at = coalesce(ocr_evaluated_at, now())
      where id = v_payment_id
        and booking_id = v_booking_id;
 
