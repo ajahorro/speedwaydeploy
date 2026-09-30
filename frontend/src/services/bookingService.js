@@ -337,17 +337,10 @@ export const createBooking = async (customerId, bookingData) => {
       notes: `PAYMENT_CASH|TYPE:${bookingData.payment.type || 'Full'}|DECLARED_AMOUNT:${cashAmount}`
     };
   } else if (bookingData.payment?.method === 'GCash' && bookingData.payment.proofOfPayment) {
-    const file = bookingData.payment.proofOfPayment;
-    const fileExt = file.name.split('.').pop();
-    const filePath = `receipts/${Date.now()}-${file.name}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('payment-receipts')
-      .upload(filePath, file);
-
-    if (uploadError) throw uploadError;
-
-    const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(filePath);
+    const receiptPublicUrl = bookingData.payment?.ocrData?.receiptUrl;
+    if (!receiptPublicUrl || !bookingData.payment?.ocrData?.ocrScanId) {
+      throw new Error('The server-verified receipt session is missing. Scan the receipt again.');
+    }
 
     const paymentAmount = bookingData.payment.type === 'Full' ? totalAmount : getRequiredDownpayment(totalAmount);
     // 🛠️ HOTFIX (Gross vs Net): the OCR now returns `amount` as the NET the
@@ -374,7 +367,6 @@ export const createBooking = async (customerId, bookingData) => {
     const netReceived = detectedAmount > 0        ? detectedAmount
       : (detectedGross > 0 ? Math.max(0, detectedGross - transferFee) : paymentAmount);
     const netCredit = netReceived;
-    rpcExcess = Math.max(0, netCredit - paymentAmount);
 
     rpcPayment = {
       amount: paymentAmount,
@@ -382,7 +374,8 @@ export const createBooking = async (customerId, bookingData) => {
       payment_type: bookingData.payment.type || 'Full',
       status: 'FOR_VERIFICATION',
       verdict: ocrVerdict,
-      receipt_url: publicUrl,
+      ocr_scan_id: bookingData.payment?.ocrData?.ocrScanId || null,
+      receipt_url: receiptPublicUrl,
       detected_amount: detectedAmount > 0 ? detectedAmount : null,
       detected_ref: detectedReference,
       transfer_fee: transferFee,
@@ -396,7 +389,7 @@ export const createBooking = async (customerId, bookingData) => {
   //    the optional payment in a SINGLE transaction. Either every row lands or
   //    none do — a failure can never leave a phantom booking with missing
   //    children (the defect this RPC replaces).
-  const { data: rpcResult, error: rpcError } = await supabase.rpc('create_booking_atomic', {
+  const { data: rpcResult, error: rpcError } = await supabase.rpc('create_booking_atomic_secure', {
     p_payload: {
       booking: {
         customer_id: bookingCustomerId,
@@ -441,6 +434,12 @@ export const createBooking = async (customerId, bookingData) => {
       throw new Error('This payment transaction reference has already been used. Please check the receipt or enter the correct reference.');
     }
     throw new Error(`Master Booking Error: ${rpcError.message}`);
+  }
+
+  if (bookingData.payment?.method === 'GCash' && !isAdminWalkIn) {
+    const verifiedNetCredit = Number(rpcResult?.payment?.net_credit || 0);
+    const verifiedPaymentAmount = Number(rpcResult?.payment?.amount || 0);
+    rpcExcess = Math.max(0, verifiedNetCredit - verifiedPaymentAmount);
   }
 
   const booking = rpcResult?.booking;

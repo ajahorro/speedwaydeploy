@@ -130,6 +130,12 @@ const check = (label, fn) => {
     assert.strictEqual(server.parseAmountToken('1,250,000.00'), 1250000);
   });
 
+  check('currency strings normalize to a finite numeric amount', () => {
+    assert.strictEqual(server.normalizeAmountValue('₱1,500.00'), 1500);
+    assert.strictEqual(server.normalizeAmountValue('PHP 1500'), 1500);
+    assert.strictEqual(server.normalizeAmountValue('not an amount'), null);
+  });
+
   console.log('\n=== the label/value line split ===');
 
   check('a value on the NEXT line is found (GCash layout)', () => {

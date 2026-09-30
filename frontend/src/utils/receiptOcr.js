@@ -1,28 +1,10 @@
 /**
  * receiptOcr.js
  * ============================================================================
- * CLIENT-SIDE receipt text extraction with Tesseract.js.
+ * Receipt text parser mirror used by cross-runtime regression tests.
  *
- * WHY THIS REPLACED GEMINI
- * ------------------------
- * The Gemini path was accurate but slow: model discovery (up to 8 s) plus LLM
- * inference, with a 12 s per-model timeout cascading across every discovered
- * model. Customers sat on a spinner. Tesseract runs locally in the browser, so
- * extraction starts instantly and costs nothing per scan.
- *
- * THE TRUST BOUNDARY — READ THIS BEFORE CHANGING ANYTHING
- * ------------------------------------------------------
- * This module produces a HINT, not a verdict. Everything it returns is
- * attacker-controlled: a user can open DevTools and call it with hand-written
- * text, or simply edit the request. The server therefore treats this payload as
- * untrusted input and:
- *
- *   • still receives the RAW IMAGE (so SC-17's byte-hash duplicate gate works)
- *   • still re-parses the text itself and owns the final verdict
- *
- * If the image upload is ever removed, the duplicate-image control disappears
- * and this becomes a self-certification hole. See backend/server.js
- * /api/ocr/verify-receipt.
+ * Production image extraction runs on the backend. This matching parser is
+ * retained to detect client/server parsing drift in the regression suite.
  *
  * WHY THE PARSING IS SO DEFENSIVE
  * -------------------------------
@@ -610,100 +592,7 @@ export const parseReceiptText = (rawText) => {
   };
 };
 
-/**
- * How long the OCR engine may take before we give up and fall back to manual
- * review. Generous enough for a slow mobile connection to fetch the worker/WASM
- * (~10 MB on first use, then cached), but bounded so a blocked download cannot
- * spin forever.
- */
-const OCR_INIT_TIMEOUT_MS = 45000;
-const OCR_RECOGNIZE_TIMEOUT_MS = 45000;
-
-/**
- * Reject if `promise` does not settle within `ms`.
- *
- * WHY THIS EXISTS: Tesseract fetches its worker script and WASM core from a CDN
- * at runtime. On a strict ad-blocker, a corporate proxy, an offline device, or a
- * captive-portal network that request can hang WITHOUT rejecting — the fetch
- * simply never settles. Without a bound, `await createWorker(...)` never returns,
- * `isUploading` stays true forever, and the customer watches a spinner with no
- * way forward. A timeout converts that silent hang into a catchable error, which
- * the caller turns into the manual-review path.
- */
-const withTimeout = (promise, ms, label) => {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-};
-
-/**
- * Run Tesseract over a File/Blob and return structured receipt fields.
- *
- * RESILIENCE — every failure mode degrades rather than hangs:
- *   • the lazy `import()` rejects (chunk blocked/offline)      -> throws, caught by caller
- *   • the worker/WASM download stalls (ad-blocker, proxy)      -> OCR_INIT_TIMEOUT_MS
- *   • recognition stalls on a pathological image               -> OCR_RECOGNIZE_TIMEOUT_MS
- *   • the worker is created but a later step throws            -> terminated in `finally`
- *
- * The worker is created per call and terminated in `finally`. A long-lived worker
- * leaks memory across scans, and receipt uploads are infrequent enough that
- * re-initialisation cost is irrelevant next to correctness. Note the `finally`
- * covers `createWorker` itself: an earlier draft created the worker OUTSIDE the
- * try block, so a failure in `setParameters` leaked a live worker (and its
- * WASM heap) on every retry.
- *
- * `onProgress` receives a 0..1 fraction so the UI can show real progress
- * instead of an indeterminate spinner.
- *
- * @param {File|Blob} file
- * @param {(fraction:number, status:string) => void} [onProgress]
- */
-export const extractReceiptFromImage = async (file, onProgress) => {
-  // Imported lazily so tesseract.js (and its worker/wasm assets) is only fetched
-  // when a customer actually uploads a receipt, never on first paint. This import
-  // itself can fail (chunk blocked, offline) and is intentionally NOT wrapped —
-  // the caller catches it and routes to manual review.
-  const { createWorker } = await import('tesseract.js');
-
-  let worker = null;
-  try {
-    worker = await withTimeout(
-      createWorker('eng', 1, {
-        logger: (m) => {
-          if (typeof onProgress === 'function' && m && m.status) {
-            onProgress(Number(m.progress) || 0, m.status);
-          }
-        },
-      }),
-      OCR_INIT_TIMEOUT_MS,
-      'OCR engine initialisation'
-    );
-
-    // PSM 6 = "assume a single uniform block of text", which matches the
-    // narrow, dense column layout of a wallet receipt far better than the
-    // default page-segmentation mode.
-    await withTimeout(worker.setParameters({ tessedit_pageseg_mode: '6' }), OCR_INIT_TIMEOUT_MS, 'OCR configuration');
-
-    const { data } = await withTimeout(worker.recognize(file), OCR_RECOGNIZE_TIMEOUT_MS, 'OCR recognition');
-    return parseReceiptText(data?.text || '');
-  } finally {
-    // Best-effort teardown. `terminate()` itself can reject if the worker never
-    // finished booting, and an unhandled rejection here would surface as a
-    // console error even though the user already got a valid fallback.
-    if (worker) {
-      try {
-        await worker.terminate();
-      } catch (terminateErr) {
-        console.warn('[OCR] worker.terminate() failed (non-fatal):', terminateErr?.message || terminateErr);
-      }
-    }
-  }
-};
-
 export default {
-  extractReceiptFromImage,
   parseReceiptText,
   parseAmountToken,
   extractAmounts,

@@ -18,7 +18,8 @@ const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEm
 // EMAIL AUTH POLICY: single source of truth for LINK vs OTP per flow.
 // See docs/EMAIL_AUTH_POLICY.md. Guards below keep UI copy and delivery in sync.
 const { DELIVERY, assertDelivery } = require('./config/emailPolicy');
-const { parseReceiptText } = require('./services/receiptTextParser');
+const { parseReceiptText, normalizeAmountValue } = require('./services/receiptTextParser');
+const { recognizeReceipt } = require('./services/receiptOcr');
 const ocrGuard = require('./services/ocrGuard');
 // ONE resolver for the public frontend URL. Five call sites previously fell back
 // to localhost:5173 silently, so a missing FRONTEND_URL emailed customers a link
@@ -1425,10 +1426,42 @@ const recipientNameMatches = (receiptRecipient, expectedRecipient) => {
   return receiptText.includes(expectedText) || expectedText.includes(receiptText);
 };
 
+const registerOcrScanSession = async (imageHash, ocrMetadata) => {
+  if (!supabaseAdmin) throw new Error('OCR scan session storage is unavailable.');
+  const { data, error } = await supabaseAdmin.rpc('register_ocr_scan_session', {
+    p_image_hash: imageHash,
+    p_ocr_metadata: ocrMetadata,
+    p_payment_verdict: 'FOR_VERIFICATION',
+  });
+  if (error) throw error;
+  if (!data) throw new Error('OCR scan session was not created.');
+  return data;
+};
+const storeOcrReceiptImage = async (file, imageHash) => {
+  if (!supabaseAdmin) throw new Error('Receipt storage is unavailable.');
+  const extension = ({
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/heic': 'heic',
+    'image/heif': 'heif',
+  })[file.mimetype] || 'img';
+  const objectPath = `receipts/${imageHash}-${crypto.randomUUID()}.${extension}`;
+  const { error } = await supabaseAdmin.storage
+    .from('payment-receipts')
+    .upload(objectPath, file.buffer, {
+      contentType: file.mimetype || 'application/octet-stream',
+      upsert: false,
+    });
+  if (error) throw error;
+  const { data } = supabaseAdmin.storage.from('payment-receipts').getPublicUrl(objectPath);
+  if (!data?.publicUrl) throw new Error('Could not create a receipt URL.');
+  return data.publicUrl;
+};
+
 /**
  * 🤖 REQ-SYS-01: Receipt Verification
- * Extraction runs CLIENT-SIDE with Tesseract.js; this endpoint re-parses the
- * submitted text server-side and owns the verdict.
+ * Extraction and preprocessing run server-side against the uploaded image.
  *
  * Directive 1 & 2: FAIL-FAST, SHORT-CIRCUIT PIPELINE.
  *   1. Scan + match the recipient name first. If it does not match the shop's
@@ -1438,10 +1471,8 @@ const recipientNameMatches = (receiptRecipient, expectedRecipient) => {
  * The response always carries an explicit { valid, reason, status } contract so
  * the checkout UI can hard-block submission on anything but MATCH_SUCCESS.
  *
- * TRUST: `extractedText` / `clientOcr` arrive from the browser and are UNTRUSTED.
- * The server re-parses the text itself and, crucially, still receives the RAW
- * IMAGE so SC-17's byte-hash duplicate gate keeps working. See the inline notes
- * in the handler.
+ * TRUST: the uploaded image bytes are the only OCR input. Browser-supplied text
+ * is ignored; the resulting scan session is bound to the booking at submission.
  */
 app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) => {
   try {
@@ -1457,6 +1488,27 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
 
     if (ocrGuard.isAutomationLocked(identity)) {
       console.warn(`⛔ [OCR] ${identity} is LOCKED after repeated failures — routing to manual review.`);
+      const imageHash = ocrGuard.computeImageHash(req.file.buffer);
+      const receiptUrl = await storeOcrReceiptImage(req.file, imageHash);
+      const manualMetadata = {
+        amount: null,
+        grossAmount: null,
+        transferFee: 0,
+        referenceNumber: null,
+        referenceNo: null,
+        timestamp: null,
+        date: null,
+        recipient: null,
+        isValidReceipt: false,
+        isReceipt: false,
+        payment_verdict: 'FOR_VERIFICATION',
+        status: 'MANUAL_REVIEW',
+        image_hash: imageHash,
+          receipt_url: receiptUrl,
+        extraction_unavailable: true,
+        auditedAt: new Date().toISOString(),
+      };
+      const ocrScanId = await registerOcrScanSession(imageHash, manualMetadata);
       return res.json({
         valid: false,
         reason: 'VERIFICATION_LOCKED',
@@ -1468,6 +1520,9 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         isDuplicate: false,
         isManualReview: true,
         manualReviewAllowed: true,
+        ocrScanId,
+          receiptUrl,
+          receipt_url: await storeOcrReceiptImage(req.file, imageHash),
         data: {
           referenceNo: 'MANUAL_AUDIT_PENDING',
           amount: 0,
@@ -1493,45 +1548,22 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       });
     }
 
-    console.log(`🤖 [AI OCR] SCANNING RECEIPT: ${req.file.originalname} (${req.file.size} bytes)`);
+    console.log(`[OCR] Scanning receipt image: ${req.file.originalname} (${req.file.size} bytes)`);
 
-    // ── SC-17: perceptual image hash ───────────────────────────────────────
-    // Computed server-side from the uploaded bytes so the SAME image reused on
-    // another booking collides even when the reference number was manipulated.
-    //
-    // ⚠️ THIS IS WHY THE IMAGE IS STILL UPLOADED. Extraction now happens in the
-    // browser (Tesseract.js) for speed, and the client's text is untrusted. The
-    // raw bytes are the one input a user cannot forge without actually paying,
-    // so the duplicate gate is built on them. If this line were removed the
-    // whole SC-17 control would silently disappear.
+    // SC-17: byte-level SHA-256 catches exact-file reuse independently of any
+    // OCR-extracted reference. Re-encoded copies require perceptual hashing.
     const imageHash = ocrGuard.computeImageHash(req.file.buffer);
 
-    // ── AUTHORITATIVE SERVER-SIDE PARSE ─────────────────────────────────────
-    // The client sends `extractedText` (raw Tesseract output) and `clientOcr`
-    // (its own parse of that text). We deliberately IGNORE the client's parse as
-    // a source of truth and re-parse the raw text here. A user can edit either
-    // field in DevTools; they cannot make the server's own parser agree with a
-    // fabricated amount, and they cannot produce bytes that match a real receipt
-    // they never sent.
-    const rawExtractedText = String(req.body.extractedText || '');
-    const ocrResult = parseReceiptText(rawExtractedText);
-
-    // The client's parse is kept ONLY for observability: if the two disagree we
-    // log it, because a systematic divergence means one parser has a bug. It
-    // never influences the verdict.
-    let clientOcr = null;
+    // Legacy browser text fields are deliberately ignored. OCR runs against
+    // server-owned preprocessing variants of these exact uploaded bytes.
+    let ocrResult;
     try {
-      clientOcr = req.body.clientOcr ? JSON.parse(req.body.clientOcr) : null;
-    } catch {
-      clientOcr = null;
+      ocrResult = await recognizeReceipt(req.file.buffer);
+    } catch (ocrError) {
+      console.warn(`⚠️ [OCR] Server extraction failed; queueing for manual review: ${ocrError.message}`);
+      ocrResult = parseReceiptText('');
     }
-    if (clientOcr && Number(clientOcr.amount) !== Number(ocrResult.amount)) {
-      console.warn(`⚠️ [OCR] Client/server parse divergence: client ₱${clientOcr.amount} vs server ₱${ocrResult.amount}. Server wins.`);
-    }
-
-    if (!rawExtractedText.trim()) {
-      console.warn('⚠️ [OCR] No extracted text supplied (local extraction failed or was stripped). Routing to manual review.');
-    }
+    const rawExtractedText = String(ocrResult.rawText || '');
 
     const extractedData = {
       ...ocrResult,
@@ -1550,9 +1582,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     });
 
     // 🛡️ FINANCIAL INTEGRITY GUARD: Comparison Logic
-    // Clean amount string if AI included '₱' or commas
-    const rawAmountString = String(extractedData.amount || 0).replace(/[^0-9.]/g, '');
-    const extractedAmount = parseFloat(rawAmountString) || 0;
+    const extractedAmount = normalizeAmountValue(extractedData.amount) ?? 0;
     const requiredAmount = parseFloat(req.body.requiredAmount) || 0;
     const bookingId = req.body.bookingId;
     const paymentId = req.body.paymentId;
@@ -1560,7 +1590,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // The shop's registered payee name for THIS checkout (config.qr_account_name).
     // When the caller does not supply one the name gate cannot be evaluated, so
     // it is skipped (name check disabled) rather than failing every upload.
-    const expectedRecipientName = String(req.body.expectedRecipientName || req.body.expected_recipient_name || '').trim();
+    let liveQrAccountName = '';
     // 🛡️ SCENARIO 8 — GHOST QR CODE SWAP.
     // The checkout freezes the QR config onto the booking (active_qr_snapshot /
     // qr_snapshot_version). If the admin swaps the store QR image while a customer
@@ -1575,15 +1605,17 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       try {
         const { data: liveCfg } = await supabaseAdmin
           .from('business_config')
-          .select('qr_config_version')
+          .select('qr_account_name, qr_config_version')
           .order('id')
           .limit(1)
           .maybeSingle();
         liveQrVersion = Number(liveCfg?.qr_config_version || 0);
+        liveQrAccountName = String(liveCfg?.qr_account_name || '').trim();
       } catch (cfgErr) {
         console.warn('⚠️ [AI OCR] QR version lookup failed (non-fatal):', cfgErr.message);
       }
     }
+    const expectedRecipientName = liveQrAccountName;
     const qrVersionMismatch = Boolean(expectedQrVersion && liveQrVersion && expectedQrVersion !== liveQrVersion);
     if (qrVersionMismatch) {
       console.log(`⚠️ [OCR] QR_VERSION_MISMATCH: receipt paid against v${expectedQrVersion} but live config is v${liveQrVersion}. Flagging for admin review.`);
@@ -1594,7 +1626,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // stranger's reference number, date, or amount is wasted compute and an
     // error we would only catch later anyway.
     const isNameMatch = recipientNameMatches(extractedData.recipient, expectedRecipientName);
-    if (expectedRecipientName && !isNameMatch) {
+    if (expectedRecipientName && extractedData.recipient && !isNameMatch) {
       console.log(`⛔ [FAIL-FAST] NAME_MISMATCH: receipt '${extractedData.recipient || 'N/A'}' vs expected '${expectedRecipientName}'. Aborting before amount/date checks.`);
       return res.json({
         valid: false,
@@ -1641,17 +1673,19 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       console.log(`💰 [OCR] OVERPAYMENT accepted: ₱${extractedAmount} vs required ₱${requiredAmount} → ₱${overpaymentAmount} surplus banked as credit.`);
     }
 
-    // 🛡️ Section 2.1–2.3: DATE-MATCH ENFORCEMENT.
-    // The receipt's transaction date must be TODAY. A stale or future-dated
-    // receipt is not proof of this booking's payment, so it is flagged for review
-    // even when the amount matches. We compare calendar days in local time and
-    // tolerate the many text shapes an OCR pass can return (ISO, 'MM/DD/YYYY',
-    // 'DD/MM/YYYY', 'Month D, YYYY').
+    // Receipt dates are date-only values, so compare Philippine calendar days:
+    // today and yesterday pass; older, future, or unreadable dates do not.
     const parseReceiptDate = (value) => {
       if (!value) return null;
       const str = String(value).trim();
+      const atLocalNoon = (year, month, day) => {
+        const date = new Date(year, month - 1, day, 12);
+        return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+          ? date
+          : null;
+      };
       const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+      if (iso) return atLocalNoon(Number(iso[1]), Number(iso[2]), Number(iso[3]));
       const slash = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
       if (slash) {
         let [, a, b, y] = slash.map(Number);
@@ -1659,26 +1693,21 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         // Ambiguous MM/DD vs DD/MM: if the first value exceeds 12 it is the day.
         const month = a > 12 ? b : a;
         const day = a > 12 ? a : b;
-        const d = new Date(y, month - 1, day);
-        return Number.isNaN(d.getTime()) ? null : d;
+        return atLocalNoon(y, month, day);
       }
       const parsed = new Date(str);
-      return Number.isNaN(parsed.getTime()) ? null : parsed;
+      return Number.isNaN(parsed.getTime())
+        ? null
+        : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 12);
     };
     const receiptDate = parseReceiptDate(extractedData.date);
 
     // 🛡️ SC-8 FIX — MIDNIGHT-SPAN TOLERANCE (was: strict same-calendar-day).
     //
-    // Previously the receipt date had to equal TODAY's calendar day exactly, so a
-    // payment made at 11:58 PM and uploaded at 12:02 AM was REJECTED even though
-    // the money was real — a pure clock-rollover artefact. We now accept any
-    // receipt inside a symmetric time window (default ±24 h): the pre-midnight
-    // receipt passes, while a genuinely stale (days-old) or future-dated receipt
-    // is still flagged. A receipt with no readable date still cannot auto-verify.
-    // Date verification guard removed per user specification:
-    // Scans everything else (recipient, amount, reference, duplicates) except date/time.
-    const isDateMatch = true;
-    const isDateToday = true;
+    // Accept the current or previous date in Asia/Manila. This avoids rejecting
+    // valid receipts around midnight when the server runs in UTC.
+    const dateCheck = ocrGuard.receiptDateWithinPhilippineCalendarWindow(receiptDate);
+    const isDateMatch = dateCheck.ok;
 
     // A payment reference is single-use. Check this before accepting the
     // receipt so the same transfer cannot be attached to another booking.
@@ -1723,8 +1752,8 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         .filter('ocr_metadata->>image_hash', 'eq', imageHash)
         .limit(1);
 
-      if (hashError && !/schema cache|does not exist/i.test(hashError.message || '')) {
-        console.warn('⚠️ [OCR] Image-hash duplicate check failed (non-fatal):', hashError.message);
+      if (hashError) {
+        throw new Error(`IMAGE_DUPLICATE_CHECK_FAILED: ${hashError.message}`);
       } else if (Array.isArray(hashMatches) && hashMatches.length > 0) {
         const matched = hashMatches[0];
         // A rescan of the SAME payment is not a duplicate of itself.
@@ -1759,30 +1788,57 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     const PAYMENT_STATUS_FOR_VERIFICATION = 'FOR_VERIFICATION';
     const PAYMENT_STATUS_REJECTED = 'REJECTED';
 
-    const receiptIsTrustworthy = Boolean(extractedData.isReceipt) && isAmountMatch && isDateMatch && !qrVersionMismatch;
+    const receiptIsTrustworthy = Boolean(extractedData.isReceipt)
+      && Boolean(expectedRecipientName)
+      && isNameMatch
+      && isAmountMatch
+      && isDateMatch
+      && !qrVersionMismatch;
 
     // ── EXTRACTION-UNAVAILABLE PATH ────────────────────────────────────────
     //
-    // Extraction now runs in the CUSTOMER'S BROWSER. Tesseract can fail there for
-    // reasons the server never sees: the ~10 MB worker/wasm asset failed to
-    // download, the browser blocked it, the tab ran out of memory, or the image
-    // was too degraded to read a single line.
+    // The server-side OCR pipeline may fail to initialize, time out, or find no
+    // readable receipt text. These cases go to a human rather than being treated
+    // as either a successful payment or proof of fraud.
     //
     // Such a receipt must NOT be auto-REJECTED. A rejection is a hard block — the
     // customer cannot submit and has no recourse. But nothing has been proven
     // fraudulent either; the image was simply unreadable to the local engine.
     // The correct outcome is MANUAL REVIEW: the proof is stored, the admin sees
-    // it in the verification queue, and a transient client failure never strands
+    // it in the verification queue, and a transient OCR failure never strands
     // someone who actually paid.
     //
     // This mirrors the old Gemini-outage path, which existed for exactly the same
     // reason. Note it is deliberately keyed on "no text at all", NOT on "the
     // amount did not match" — a readable receipt with the wrong amount is still a
     // rejection, because that is a real signal.
-    const extractionUnavailable = !rawExtractedText.trim() || !extractedData.isReceipt;
+    const extractionUnavailable = !rawExtractedText.trim()
+      || !extractedData.isReceipt
+      || !extractedData.recipient
+      || !expectedRecipientName;
 
     if (extractionUnavailable && !isDuplicate) {
       console.warn('⚠️ [OCR] Extraction unavailable — routing receipt to MANUAL REVIEW (not rejecting).');
+
+      const manualMetadata = {
+        ...extractedData,
+        payment_verdict: PAYMENT_STATUS_FOR_VERIFICATION,
+        status: 'MANUAL_REVIEW',
+        isMatch: null,
+        isNameMatch: expectedRecipientName ? isNameMatch : null,
+        receipt_is_trustworthy: false,
+        extraction_unavailable: true,
+        requiredAmount,
+        isAmountMatch,
+        isDateMatch,
+        isDuplicate: false,
+        image_hash: imageHash,
+        qrConfigVersion: expectedQrVersion || null,
+        liveQrVersion: liveQrVersion || null,
+        qrVersionMismatch,
+        auditedAt: new Date().toISOString(),
+      };
+      const ocrScanId = await registerOcrScanSession(imageHash, manualMetadata);
 
       // Persist what little we have so the admin can adjudicate, then return a
       // verdict the client treats as "accepted, pending human review".
@@ -1794,27 +1850,14 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           p_detected_ref: referenceNo || null,
           p_payment_status: 'pending',
           p_ocr_metadata: {
-            ...extractedData,
-            payment_verdict: PAYMENT_STATUS_FOR_VERIFICATION,
+            ...manualMetadata,
+            status: 'MANUAL_REVIEW',
+            isMatch: null,
             // UI-CONTRACT KEYS. The admin UI reads these straight off the stored
             // record (AdminBookingDetails `ocr_metadata.isMatch`,
             // AdminRefunds `ocr_metadata.status`). A manually-reviewed booking
             // must present as an explicit "needs a human" state rather than
             // `undefined`, which would render as an unexplained blank.
-            status: 'MANUAL_REVIEW',
-            isMatch: null,
-            isNameMatch: null,
-            receipt_is_trustworthy: false,
-            extraction_unavailable: true,
-            requiredAmount,
-            isAmountMatch,
-            isDateMatch,
-            isDuplicate: false,
-            image_hash: imageHash,
-            qrConfigVersion: expectedQrVersion || null,
-            liveQrVersion: liveQrVersion || null,
-            qrVersionMismatch,
-            auditedAt: new Date().toISOString()
           }
         });
         if (reviewError) {
@@ -1836,6 +1879,8 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         // The ONLY case that leaves submit enabled. The customer is told the
         // receipt is queued for manual verification rather than blocked.
         manualReviewAllowed: true,
+        ocrScanId,
+        receiptUrl: manualMetadata.receipt_url,
         data: {
           ...extractedData,
           amount: extractedAmount,
@@ -2005,24 +2050,54 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // Reached only after the name gate passed. An amount that does not match
     // (or a stale/duplicate receipt) blocks auto-approval but the booking is
     // still allowed to submit for manual admin review.
-    const isValidReceipt = Boolean(isAmountMatch && isDateMatch && !isDuplicate && extractedData.isReceipt) && !qrVersionMismatch;
+    const isValidReceipt = Boolean(isNameMatch && isAmountMatch && isDateMatch && !isDuplicate && extractedData.isReceipt) && !qrVersionMismatch;
     const failureReason = isDuplicate
       ? 'FLAGGED_DETAILS_MISMATCH'
       : (qrVersionMismatch ? 'FLAGGED_QR_VERSION_MISMATCH'
-        : (!isAmountMatch ? 'FLAGGED_AMOUNT_MISMATCH' : null));
+        : (!isAmountMatch ? 'FLAGGED_AMOUNT_MISMATCH'
+          : (!isDateMatch ? `FLAGGED_DATE_${dateCheck.reason}` : null)));
+
+    const receiptUrl = isValidReceipt
+      ? await storeOcrReceiptImage(req.file, imageHash)
+      : null;
+    const ocrScanId = isValidReceipt
+      ? await registerOcrScanSession(imageHash, {
+        ...extractedData,
+        receipt_url: receiptUrl,
+        payment_verdict: PAYMENT_STATUS_FOR_VERIFICATION,
+        status: 'MATCH_SUCCESS',
+        isMatch: true,
+        isNameMatch,
+        receipt_is_trustworthy: receiptIsTrustworthy,
+        requiredAmount,
+        isAmountMatch,
+        overpaymentAmount,
+        isOverpayment: overpaymentAmount > 0,
+        isDateMatch,
+        isDuplicate,
+        image_hash: imageHash,
+        duplicate_reason: duplicateReason,
+        qrConfigVersion: expectedQrVersion || null,
+        liveQrVersion: liveQrVersion || null,
+        qrVersionMismatch,
+        auditedAt: new Date().toISOString(),
+      })
+      : null;
 
     return res.json({
       valid: isValidReceipt,
       reason: isValidReceipt ? null : (failureReason || 'FLAGGED_DETAILS_MISMATCH'),
       status: isValidReceipt ? 'MATCH_SUCCESS' : (isDuplicate ? 'REJECTED_DUPLICATE' : 'FLAGGED_DETAILS_MISMATCH'),
       success: true,
-      isNameMatch: true,
+      isNameMatch,
       isAmountMatch,
       isDateMatch,
       // Retain the old property until all existing frontend consumers have
       // migrated to isAmountMatch.
       isMatch: isAmountMatch,
       isDuplicate,
+      ocrScanId,
+      receiptUrl,
       persistedStatus: finalStatus,
       data: {
         ...extractedData,
@@ -5122,11 +5197,15 @@ app.get('/api/bookings/slots', async (req, res) => {
 // Allow cross-module use of the shared validator from booking creation paths.
 app.locals.validateBookingRequest = validateBookingRequest;
 
-app.listen(PORT, () => {
+const httpServer = app.listen(PORT, () => {
   console.log('\n' + '*'.repeat(50));
   console.log(`🚀 COMAR GARAGE BACKEND: http://localhost:${PORT}`);
   console.log('*'.repeat(50) + '\n');
-}).on('error', (err) => {
+});
+httpServer.requestTimeout = 160000;
+httpServer.timeout = 160000;
+httpServer.headersTimeout = 60000;
+httpServer.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     // A port clash is unrecoverable for THIS process, so we must exit — but we
     // exit explicitly and understandably, rather than letting the runtime die

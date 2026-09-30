@@ -110,6 +110,14 @@ const parseAmountToken = (raw) => {
   return Number.isFinite(n) ? n : null;
 };
 
+const normalizeAmountValue = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const raw = String(value);
+  if (!/\d/.test(raw) && !/[₱PpFf£¥$]|\bPHP\b/i.test(raw)) return null;
+  const parsed = parseAmountToken(value);
+  return parsed !== null && Number.isFinite(parsed) ? parsed : null;
+};
+
 /** Labels for the amount actually paid/received, most specific first. */
 const AMOUNT_LABELS = [
   { key: 'net', pattern: /(total\s*amount\s*(received|sent)|amount\s*received|net\s*amount|received\s*amount)/i },
@@ -473,6 +481,7 @@ const parseReceiptText = (rawText) => {
 module.exports = {
   parseReceiptText,
   parseAmountToken,
+  normalizeAmountValue,
   extractAmounts,
   extractReferenceNumber,
   extractDate,

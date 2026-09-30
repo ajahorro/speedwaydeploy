@@ -5,16 +5,11 @@
  *
  * WHY THIS FILE EXISTS
  * -------------------
- * Receipt extraction moved client-side (Tesseract.js) and the two halves are now
- * written in different languages on either side of an HTTP boundary. A rename on
- * one side — `extractedText` -> `rawText`, `clientOcr` -> `ocr`, dropping the
- * `receipt` file field — would not fail a type check or a unit test. It would
- * fail in PRODUCTION as "receipt could not be read", with the server silently
- * seeing an empty string and routing every payment to manual review.
+ * Receipt extraction runs on the server from the uploaded image. The contract
+ * pins the image and verification inputs and ensures browser-supplied OCR text is
+ * never consumed as authoritative data.
  *
- * So the field names are asserted against BOTH sides:
- *   • the frontend's FormData keys (parsed from Step4ReviewPayment.jsx)
- *   • the backend's req.body / req.file reads (parsed from server.js)
+ * The browser sends the image and expected values; the backend owns extraction.
  *
  * This is a source-level contract test on purpose. Importing the React component
  * would drag in the whole UI tree, and the thing being verified is the literal
@@ -44,7 +39,6 @@ const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
 
 const STEP4 = read('frontend/src/components/BookingWizard/Step4ReviewPayment.jsx');
 const SERVER = read('backend/server.js');
-const CLIENT_OCR = read('frontend/src/utils/receiptOcr.js');
 const SERVER_PARSER = read('backend/services/receiptTextParser.js');
 
 // ── The field names, extracted from the source ───────────────────────────────
@@ -53,7 +47,7 @@ const sentFields = [...STEP4.matchAll(/formData\.append\(\s*'([^']+)'/g)].map((m
 console.log('=== the fields the frontend actually appends ===');
 console.log('    ' + sentFields.join(', '));
 
-const EXPECTED_SENT = ['receipt', 'bookingId', 'requiredAmount', 'expectedRecipientName', 'extractedText', 'clientOcr', 'expectedQrVersion'];
+const EXPECTED_SENT = ['receipt', 'bookingId', 'requiredAmount', 'expectedQrVersion'];
 
 console.log('\n=== the payload contract ===');
 
@@ -70,44 +64,37 @@ check('the RAW IMAGE field is named `receipt` (SC-17 depends on it)', () => {
   assert.ok(/upload\.single\('receipt'\)/.test(SERVER), 'the server must read the image from the same field name');
 });
 
-check('the server reads `extractedText` (not rawText / ocrText)', () => {
-  assert.ok(/req\.body\.extractedText/.test(SERVER), 'server must read req.body.extractedText');
-  assert.ok(!/req\.body\.rawText/.test(SERVER), 'server must not expect a differently-named field');
+check('the server OCRs the uploaded image and ignores client text', () => {
+  assert.ok(/recognizeReceipt\(req\.file\.buffer\)/.test(SERVER));
+  assert.ok(!/req\.body\.extractedText/.test(SERVER));
+  assert.ok(!/req\.body\.clientOcr/.test(SERVER));
 });
 
-check('the server reads `clientOcr`', () => {
-  assert.ok(/req\.body\.clientOcr/.test(SERVER), 'server must read req.body.clientOcr');
+check('selecting a replacement image clears any older scan session', () => {
+  assert.ok(/proofOfPayment: file, ocrData: null/.test(STEP4));
 });
 
-check('the server reads `requiredAmount` and `expectedRecipientName`', () => {
+check('the server reads the amount threshold and obtains the recipient from config', () => {
   assert.ok(/req\.body\.requiredAmount/.test(SERVER));
-  assert.ok(/req\.body\.expectedRecipientName/.test(SERVER));
+  assert.ok(/qr_account_name, qr_config_version/.test(SERVER));
+  assert.ok(!/req\.body\.expectedRecipientName/.test(SERVER));
 });
 
 check('the server reads `expectedQrVersion` (Scenario 8)', () => {
   assert.ok(/req\.body\.expectedQrVersion/.test(SERVER));
 });
 
-check('the clientOcr JSON carries the keys the server logs', () => {
-  // The clientOcr blob is parsed for divergence logging only, but the keys are
-  // part of the contract and a rename would make every comparison read undefined.
-  for (const key of ['amount', 'grossAmount', 'transferFee', 'referenceNumber', 'timestamp', 'recipient', 'isValidReceipt']) {
-    assert.ok(
-      new RegExp(`\\b${key}\\s*:`).test(STEP4),
-      `clientOcr must include '${key}'`
-    );
-  }
+console.log('\n=== the server owns extraction ===');
+
+check('the backend imports its OCR service', () => {
+  assert.ok(/require\('\.\/services\/receiptOcr'\)/.test(SERVER));
 });
 
-console.log('\n=== both parsers expose the same surface ===');
-
-check('client and server parsers export the same function names', () => {
+check('the server parser exports the fields consumed by validation', () => {
   const exportsOf = (src) => [...src.matchAll(/^\s{2}([a-zA-Z]+),?\s*$/gm)].map((m) => m[1]);
-  const clientExports = exportsOf(CLIENT_OCR.slice(CLIENT_OCR.lastIndexOf('export default')));
   const serverExports = exportsOf(SERVER_PARSER.slice(SERVER_PARSER.lastIndexOf('module.exports')));
 
   for (const fn of ['parseReceiptText', 'parseAmountToken', 'extractAmounts', 'extractReferenceNumber', 'extractDate', 'extractRecipient', 'looksLikeReceipt']) {
-    assert.ok(clientExports.includes(fn), `frontend receiptOcr.js must export ${fn}`);
     assert.ok(serverExports.includes(fn), `backend receiptTextParser.js must export ${fn}`);
   }
 });
@@ -148,7 +135,6 @@ check('the frontend has no Gemini references in executable code', () => {
     .replace(/\/\/.*$/gm, '');
 
   assert.ok(!/gemini/i.test(stripComments(STEP4)), 'no executable Gemini reference in Step4ReviewPayment');
-  assert.ok(!/gemini/i.test(stripComments(CLIENT_OCR)), 'no executable Gemini reference in receiptOcr.js');
 });
 
 check('the deleted ocrService.js is gone from disk', () => {
@@ -162,8 +148,10 @@ check('package.json files carry no Google AI dependency', () => {
   }
 });
 
-check('frontend package.json declares tesseract.js', () => {
-  assert.ok(/tesseract\.js/.test(read('frontend/package.json')));
+check('backend package.json declares OCR and preprocessing dependencies', () => {
+  const backendPackage = read('backend/package.json');
+  assert.ok(/tesseract\.js/.test(backendPackage));
+  assert.ok(/sharp/.test(backendPackage));
 });
 
 console.log('\n=== upload limits ===');
@@ -183,21 +171,17 @@ check('the client surfaces the 413 to the user', () => {
 
 console.log('\n=== the OCR init cannot hang forever ===');
 
-check('the Tesseract worker call is bounded by a timeout', () => {
-  assert.ok(/OCR_INIT_TIMEOUT_MS/.test(CLIENT_OCR), 'a blocked worker download must not spin forever');
-  assert.ok(/withTimeout\(/.test(CLIENT_OCR));
+check('server OCR uses bounded preprocessed image variants', () => {
+  const serverOcr = read('backend/services/receiptOcr.js');
+  assert.ok(/MAX_IMAGE_PIXELS/.test(serverOcr));
+  assert.ok(/threshold\(155\)/.test(serverOcr));
+  assert.ok(/recognize\(variants\[index\]\)/.test(serverOcr));
 });
 
-check('the worker is terminated even when init fails', () => {
-  // `worker` is declared outside the try so the finally can see it, and the
-  // terminate call is itself guarded against rejection.
-  assert.ok(/let worker = null;/.test(CLIENT_OCR), 'worker must be declared before the try block');
-  assert.ok(/catch \(terminateErr\)/.test(CLIENT_OCR), 'terminate() must not throw unhandled');
-});
-
-check('a failed extraction falls back to manual review rather than blocking', () => {
-  assert.ok(/isValidReceipt: false, rawText: ''/.test(STEP4), 'the client must send an empty hint on failure');
-  assert.ok(/extractionUnavailable/.test(SERVER), 'the server must route an empty hint to manual review');
+check('the client cannot manufacture a manual-review scan session on server failure', () => {
+  assert.ok(/no scan session was issued/.test(STEP4));
+  assert.ok(/ocrScanId: result\.ocrScanId/.test(STEP4));
+  assert.ok(/extractionUnavailable/.test(SERVER));
 });
 
 console.log('\n=== race-condition guards ===');

@@ -141,6 +141,27 @@ const receiptDateWithinTolerance = (receiptDate, now = new Date(), toleranceHour
   return { ok: true, reason: 'WITHIN_TOLERANCE', ageHours };
 };
 
+const receiptDateWithinPhilippineCalendarWindow = (receiptDate, now = new Date(), maxAgeCalendarDays = 1) => {
+  if (!(receiptDate instanceof Date) || Number.isNaN(receiptDate.getTime())) {
+    return { ok: false, reason: 'NO_DATE', ageCalendarDays: null };
+  }
+
+  const manilaParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const current = Object.fromEntries(manilaParts.map((part) => [part.type, part.value]));
+  const currentDay = Date.UTC(Number(current.year), Number(current.month) - 1, Number(current.day));
+  const receiptDay = Date.UTC(receiptDate.getFullYear(), receiptDate.getMonth(), receiptDate.getDate());
+  const ageCalendarDays = Math.round((currentDay - receiptDay) / 86400000);
+
+  if (ageCalendarDays < 0) return { ok: false, reason: 'FUTURE_DATED', ageCalendarDays };
+  if (ageCalendarDays > maxAgeCalendarDays) return { ok: false, reason: 'STALE', ageCalendarDays };
+  return { ok: true, reason: 'WITHIN_TOLERANCE', ageCalendarDays };
+};
+
 module.exports = {
   computeImageHash,
   checkRateLimit,
@@ -148,6 +169,7 @@ module.exports = {
   recordSuccess,
   recordFailure,
   receiptDateWithinTolerance,
+  receiptDateWithinPhilippineCalendarWindow,
   RATE_WINDOW_MS,
   MAX_SCANS_PER_WINDOW,
   FAILURE_LOCK_THRESHOLD,

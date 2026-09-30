@@ -9,7 +9,6 @@ import { captureQrSnapshot } from '../../services/qrSecurityService';
 import { computeNetCredit } from '../../services/creditLedgerService';
 import { sanitizeCurrency } from '../../config/constants';
 import { logger } from '../../utils/logger';
-import { extractReceiptFromImage } from '../../utils/receiptOcr';
 import toastManager from '../../utils/toastManager';
 import { BACKEND_URL } from '../../config/api';
 
@@ -142,7 +141,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
       // Save the file reference
       setBookingData(prev => ({
         ...prev,
-        payment: { ...prev.payment, proofOfPayment: file }
+        payment: { ...prev.payment, proofOfPayment: file, ocrData: null }
       }));
 
       try {
@@ -154,57 +153,16 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         // parses amounts, so a wrong payee aborts the scan immediately.
         const expectedRecipientName = qrTarget?.QR_ACCOUNT_NAME || settings.qr_account_name || settings.QR_ACCOUNT_NAME || settings.PAYMENT_ACCOUNT_NAME || '';
 
-        // ── CLIENT-SIDE OCR (Tesseract.js) ─────────────────────────────────
-        // Extraction happens HERE, in the browser, so there is no upload/LLM
-        // round-trip to wait on. Tesseract reads the pixels locally and returns
-        // structured fields. Progress is real (a 0..1 fraction from the worker)
-        // rather than an indeterminate spinner.
-        //
-        // ⚠️ TRUST BOUNDARY: everything produced here is UNTRUSTED. The user can
-        // edit it in DevTools. It is sent to the server as a HINT only — the
-        // server re-parses it, re-checks the amount/date/name, and (critically)
-        // still receives the raw image below so SC-17's byte-hash duplicate gate
-        // keeps working. Never treat `ocrResult` as a verdict.
-        let ocrResult;
-        try {
-          ocrResult = await extractReceiptFromImage(file, (fraction, status) => {
-            const pct = Math.round(fraction * 100);
-            setScanStep(status === 'recognizing text' ? `READING RECEIPT... ${pct}%` : 'PREPARING SCANNER...');
-          });
-        } catch (ocrErr) {
-          // Tesseract failed to load or crashed. Send an empty hint and let the
-          // server fall back to manual review rather than blocking the customer.
-          console.warn('⚠️ [OCR] Local Tesseract extraction failed:', ocrErr.message);
-          ocrResult = { amount: null, grossAmount: null, transferFee: 0, referenceNumber: null, timestamp: null, recipient: null, isValidReceipt: false, rawText: '' };
-        }
+        setScanStep('SCANNING RECEIPT ON SERVER...');
 
-        setScanStep('VERIFYING WITH LEDGER...');
-
-        // A newer scan started while Tesseract was running. Abandon this one
-        // WITHOUT touching the UI: the newer scan already reset the state and
-        // owns the screen. Continuing would overwrite its spinner and, later,
-        // its result.
+        // A newer scan owns the UI and its eventual server-issued scan session.
         if (isStale()) return;
 
         const formData = new FormData();
-        // The RAW IMAGE still goes to the server. This is what preserves SC-17:
-        // the server hashes these exact bytes and rejects a reused screenshot.
-        // Removing this line would silently disable duplicate-image detection.
+        // The server performs OCR and hashes these exact uploaded bytes.
         formData.append('receipt', file);
         formData.append('bookingId', bookingData.id || 'PENDING');
         formData.append('requiredAmount', targetAmount);
-        formData.append('expectedRecipientName', expectedRecipientName);
-        // The client's extraction, as a hint the server re-validates.
-        formData.append('extractedText', ocrResult.rawText || '');
-        formData.append('clientOcr', JSON.stringify({
-          amount: ocrResult.amount,
-          grossAmount: ocrResult.grossAmount,
-          transferFee: ocrResult.transferFee,
-          referenceNumber: ocrResult.referenceNumber,
-          timestamp: ocrResult.timestamp,
-          recipient: ocrResult.recipient,
-          isValidReceipt: ocrResult.isValidReceipt,
-        }));
         // 🛡️ SCENARIO 8 — GHOST QR CODE SWAP.
         // The customer has been sitting on this checkout for minutes; the admin
         // just swapped the store QR image. The customer scanned the QR that was ON
@@ -219,8 +177,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         let result;
         try {
           const controller = new AbortController();
-          // The heavy local work is done; this is now a fast verification call.
-          const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+          const timeoutId = window.setTimeout(() => controller.abort(), 140000);
           let response;
           try {
             response = await fetch(`${BACKEND_URL}/api/ocr/verify-receipt`, {
@@ -282,29 +239,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           result = await response.json();
           console.log('🔍 [OCR AUDIT] Verification result received:', result);
         } catch (verifyErr) {
-          console.warn('⚠️ [OCR AUDIT] Verification service offline. Allowing MANUAL REVIEW path (submit stays enabled):', verifyErr.message);
-          result = {
-            success: true,
-            // The verifier could not run, so nothing can be auto-verified.
-            // This is the ONLY case that does NOT hard-block: the receipt is
-            // accepted for MANUAL admin review so a server outage never strands
-            // the customer. `manualReviewAllowed` is what lets it through.
-            valid: false,
-            reason: 'VERIFICATION_UNAVAILABLE',
-            status: 'Flagged for Review',
-            isMatch: false,
-            isManualReview: true,
-            verificationUnavailable: true,
-            manualReviewAllowed: true,
-            data: {
-              referenceNo: 'MANUAL_AUDIT_PENDING',
-              amount: 0,
-              date: new Date().toLocaleDateString(),
-              recipient: 'N/A',
-              isReceipt: true,
-              description: 'Verification service was unreachable. Payment proof saved for manual admin verification.'
-            }
-          };
+          console.warn('⚠️ [OCR AUDIT] Server verification failed; no scan session was issued:', verifyErr.message);
+          throw verifyErr;
         }
 
         if (!result.success) throw new Error(result.error);
@@ -353,6 +289,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           isManualReview: Boolean(result.isManualReview),
           verificationUnavailable: Boolean(result.verificationUnavailable),
           manualReviewAllowed,
+          ocrScanId: result.ocrScanId || null,
+          receiptUrl: result.receiptUrl || null,
           recipient: extractedData.recipient || 'N/A',
           expectedRecipientName,
           // Scenario 8: record the frozen QR version this receipt was checked
@@ -364,7 +302,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
             : (!isNameMatched
               ? 'The recipient name on this receipt does not match our registered payment account.'
               : (!isDateMatched
-                ? 'The payment date on this receipt is not today. Please upload a receipt dated today.'
+                ? 'The receipt date is outside the accepted window. Upload a receipt dated today or yesterday.'
                 : (extractedData.description || 'No additional receipt notes were extracted.')))
         };
 
@@ -815,10 +753,10 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                             </div>
                             <div>
                               <div style={{ color: isDuplicateReceipt ? 'var(--status-danger)' : (isNameMismatch || manualReviewAllowedReceipt ? 'var(--status-warning)' : 'var(--admin-success)'), fontWeight: '950', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                                {manualReviewAllowedReceipt ? 'Pending Manual Review' : (isDuplicateReceipt ? 'Duplicate Receipt Detected' : (receiptDetails.status === 'REJECTED' ? 'Verification Failed' : (isNameMismatch ? 'Recipient Name Mismatch' : (receiptDetails.status === 'MISMATCHED' ? 'Amount Discrepancy' : 'AI Audit Verified'))))}
+                                {manualReviewAllowedReceipt ? 'Pending Manual Review' : (isDuplicateReceipt ? 'Duplicate Receipt Detected' : (receiptDetails.status === 'REJECTED' ? 'Verification Failed' : (isNameMismatch ? 'Recipient Name Mismatch' : (receiptDetails.status === 'MISMATCHED' ? 'Amount Discrepancy' : 'Server OCR Verified'))))}
                               </div>
                               <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '800' }}>
-                                {manualReviewAllowedReceipt ? 'AI SERVICE OFFLINE: STAFF WILL VERIFY MANUALLY' : (isDuplicateReceipt ? 'SYSTEM ALERT: REFERENCE ALREADY USED' : (receiptDetails.status === 'REJECTED' ? 'SYSTEM ALERT: INVALID FORMAT' : (isNameMismatch ? 'WARNING: RECIPIENT DOES NOT MATCH SHOP' : (receiptDetails.status === 'MISMATCHED' ? 'WARNING: PRICE MISMATCH' : 'SECURITY SIGNATURE: LOCAL OCR + SERVER AUDIT'))))}
+                                {manualReviewAllowedReceipt ? 'OCR UNAVAILABLE: STAFF WILL VERIFY MANUALLY' : (isDuplicateReceipt ? 'SYSTEM ALERT: REFERENCE ALREADY USED' : (receiptDetails.status === 'REJECTED' ? 'SYSTEM ALERT: INVALID FORMAT' : (isNameMismatch ? 'WARNING: RECIPIENT DOES NOT MATCH SHOP' : (receiptDetails.status === 'MISMATCHED' ? 'WARNING: PRICE MISMATCH' : 'SERVER OCR RESULT'))))}
                               </div>
                             </div>
                           </div>
@@ -1030,12 +968,12 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                             <div style={{ color: receiptDetails.status === 'REJECTED' || isDuplicateReceipt ? 'var(--status-danger)' : ((receiptDetails.status === 'MISMATCHED' || isDatedWrong || isNameMismatch || manualReviewAllowedReceipt) ? 'var(--status-warning)' : 'var(--admin-success)'), fontWeight: '950', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
                               {manualReviewAllowedReceipt
                                 ? 'Pending Manual Review'
-                                : (isDuplicateReceipt ? 'Duplicate Receipt Detected' : (receiptDetails.status === 'REJECTED' ? 'Verification Failed' : (isNameMismatch ? 'Recipient Name Mismatch' : (isDatedWrong ? 'Receipt Date Mismatch' : (receiptDetails.status === 'MISMATCHED' ? 'Amount Discrepancy' : 'AI Audit Verified')))))}
+                                : (isDuplicateReceipt ? 'Duplicate Receipt Detected' : (receiptDetails.status === 'REJECTED' ? 'Verification Failed' : (isNameMismatch ? 'Recipient Name Mismatch' : (isDatedWrong ? 'Receipt Date Mismatch' : (receiptDetails.status === 'MISMATCHED' ? 'Amount Discrepancy' : 'Server OCR Verified')))))}
                             </div>
                             <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '800' }}>
                               {manualReviewAllowedReceipt
-                                ? 'AI SERVICE OFFLINE: STAFF WILL VERIFY MANUALLY'
-                                : (isDuplicateReceipt ? 'SYSTEM ALERT: REFERENCE ALREADY USED' : (receiptDetails.status === 'REJECTED' ? 'SYSTEM ALERT: INVALID FORMAT' : (isNameMismatch ? 'WARNING: RECIPIENT DOES NOT MATCH SHOP' : (isDatedWrong ? 'WARNING: RECEIPT NOT DATED TODAY' : (receiptDetails.status === 'MISMATCHED' ? 'WARNING: PRICE MISMATCH' : 'SECURITY SIGNATURE: LOCAL OCR + SERVER AUDIT')))))}
+                                ? 'OCR UNAVAILABLE: STAFF WILL VERIFY MANUALLY'
+                                : (isDuplicateReceipt ? 'SYSTEM ALERT: REFERENCE ALREADY USED' : (receiptDetails.status === 'REJECTED' ? 'SYSTEM ALERT: INVALID FORMAT' : (isNameMismatch ? 'WARNING: RECIPIENT DOES NOT MATCH SHOP' : (isDatedWrong ? 'WARNING: RECEIPT DATE OUTSIDE WINDOW' : (receiptDetails.status === 'MISMATCHED' ? 'WARNING: PRICE MISMATCH' : 'SECURITY SIGNATURE: SERVER OCR + SERVER AUDIT')))))}
                             </div>
                           </div>
                         </div>

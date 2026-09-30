@@ -139,6 +139,22 @@ const amountGatePasses = (extracted, required) => extracted >= (required - AMOUN
     assert.strictEqual(withinTolerance.ok, true, 'a receipt from ~10h ago must be within tolerance');
   });
 
+  check('Philippine calendar date accepts the previous local date across UTC midnight', () => {
+    const receiptDate = new Date(2025, 0, 15, 12);
+    const now = new Date('2025-01-16T12:00:00.000Z');
+    const result = ocrGuard.receiptDateWithinPhilippineCalendarWindow(receiptDate, now);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.ageCalendarDays, 1);
+  });
+
+  check('Philippine calendar date rejects dates older than the prior local day', () => {
+    const receiptDate = new Date(2025, 0, 15, 12);
+    const now = new Date('2025-01-17T17:00:00.000Z');
+    const result = ocrGuard.receiptDateWithinPhilippineCalendarWindow(receiptDate, now);
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.reason, 'STALE');
+  });
+
   check('a stale receipt is rejected by the same window', () => {
     const staleDate = new Date('2025-01-15T14:47:00');
     const result = ocrGuard.receiptDateWithinTolerance(staleDate, new Date('2025-01-20T14:47:00'));
@@ -196,13 +212,6 @@ const amountGatePasses = (extracted, required) => extracted >= (required - AMOUN
   });
 
   console.log('\n=== STAGE 2: FALLBACK / GRACEFUL DEGRADATION ===');
-
-  // The exact client fallback payload, mirrored from Step4ReviewPayment.jsx.
-  const CLIENT_OCR_FAILURE_PAYLOAD = {
-    amount: null, grossAmount: null, transferFee: 0,
-    referenceNumber: null, timestamp: null, recipient: null,
-    isValidReceipt: false, rawText: '',
-  };
 
   const degradedInputs = {
     'blank image (no text)': '',
@@ -283,16 +292,17 @@ const amountGatePasses = (extracted, required) => extracted >= (required - AMOUN
     assert.ok(/if \(extractionUnavailable && !isDuplicate\)/.test(SERVER));
   });
 
-  check('the client sends an empty hint (not a fabricated one) when Tesseract fails', () => {
-    // Mirrors Step4ReviewPayment.jsx's catch block. A fabricated amount here would
-    // be an unverified value flowing into the pipeline.
-    assert.strictEqual(CLIENT_OCR_FAILURE_PAYLOAD.amount, null);
-    assert.strictEqual(CLIENT_OCR_FAILURE_PAYLOAD.rawText, '');
-    assert.strictEqual(CLIENT_OCR_FAILURE_PAYLOAD.isValidReceipt, false);
-    assert.ok(
-      /isValidReceipt: false, rawText: ''/.test(read('frontend/src/components/BookingWizard/Step4ReviewPayment.jsx')),
-      'the client fallback payload must match this shape'
-    );
+  check('the browser sends only image bytes, never a client OCR verdict', () => {
+    const client = read('frontend/src/components/BookingWizard/Step4ReviewPayment.jsx');
+    assert.ok(/formData\.append\('receipt', file\)/.test(client));
+    assert.ok(!/formData\.append\('extractedText'/.test(client));
+    assert.ok(!/formData\.append\('clientOcr'/.test(client));
+    assert.ok(/ocrScanId: result\.ocrScanId/.test(client));
+  });
+
+  check('the active route uses normalized amounts and the Philippine date window', () => {
+    assert.ok(/normalizeAmountValue\(extractedData\.amount\)/.test(SERVER));
+    assert.ok(/receiptDateWithinPhilippineCalendarWindow\(receiptDate\)/.test(SERVER));
   });
 
   console.log('\n=== STAGE 3: DATABASE SCHEMA ALIGNMENT ===');
