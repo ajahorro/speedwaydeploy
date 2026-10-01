@@ -237,7 +237,7 @@ export const createBooking = async (customerId, bookingData) => {
   //
   //   valid        boolean  the backend's fail-fast verdict (result.valid)
   //   status       string   MATCHED | MISMATCHED | DUPLICATE_DETECTED |
-  //                         NAME_MISMATCH | DATE_MISMATCH | REJECTED |
+  //                         NAME_MISMATCH | REJECTED |
   //                         MANUAL_REVIEW
   //   isManualReview boolean the OCR engine was unreachable; receipt is kept for
   //                          manual admin review
@@ -268,7 +268,7 @@ export const createBooking = async (customerId, bookingData) => {
     if (ocrData.isManualReview || ocrData.status === 'MANUAL_REVIEW') return 'FOR_VERIFICATION';
 
     // Any explicit mismatch verdict is a rejection.
-    if (ocrData.status && ['MISMATCHED', 'DUPLICATE_DETECTED', 'NAME_MISMATCH', 'DATE_MISMATCH', 'REJECTED'].includes(ocrData.status)) {
+    if (ocrData.status && ['MISMATCHED', 'DUPLICATE_DETECTED', 'NAME_MISMATCH', 'REJECTED'].includes(ocrData.status)) {
       return 'REJECTED';
     }
 

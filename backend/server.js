@@ -1507,8 +1507,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         transferFee: 0,
         referenceNumber: null,
         referenceNo: null,
-        timestamp: null,
-        date: null,
         recipient: null,
         isValidReceipt: false,
         isReceipt: false,
@@ -1527,7 +1525,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         success: true,
         isNameMatch: null,
         isAmountMatch: null,
-        isDateMatch: null,
         isDuplicate: false,
         isManualReview: true,
         manualReviewAllowed: true,
@@ -1537,7 +1534,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         data: {
           referenceNo: 'MANUAL_AUDIT_PENDING',
           amount: 0,
-          date: new Date().toLocaleDateString(),
           recipient: 'N/A',
           isReceipt: true,
           description: 'Automated OCR is temporarily locked after repeated unreadable uploads. Your payment proof was saved for manual admin verification.',
@@ -1605,15 +1601,12 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     try {
       ocrResult = await recognizeReceipt(req.file.buffer, {
         validateCandidate: (parsed) => {
-          const receiptDate = parsed.timestamp ? new Date(`${parsed.timestamp}T12:00:00`) : null;
           const referenceNo = String(parsed.referenceNumber || '').trim();
           const isReferenceValid = /^[A-Z0-9]{6,40}$/i.test(referenceNo);
           return Boolean(
             parsed.isValidReceipt
             && parsed.amount !== null
             && parsed.amount >= effectiveRequiredAmount
-            && receiptDate
-            && ocrGuard.receiptDateWithinPhilippineCalendarWindow(receiptDate).ok
             && isReferenceValid
             && (!expectedRecipientName || recipientNameMatches(parsed.recipient, expectedRecipientName))
           );
@@ -1628,7 +1621,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     const extractedData = {
       ...ocrResult,
       referenceNo: ocrResult.referenceNumber,
-      date: ocrResult.timestamp,
       isReceipt: ocrResult.isValidReceipt
     };
 
@@ -1637,7 +1629,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       gross: extractedData.grossAmount,
       fee: extractedData.transferFee,
       ref: extractedData.referenceNo,
-      date: extractedData.date,
       isReceipt: extractedData.isReceipt,
       confidence: extractedData.confidence,
       pass: extractedData.ocrPass,
@@ -1655,41 +1646,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       console.log(`💰 [OCR] OVERPAYMENT accepted: ₱${extractedAmount} vs full booking amount ₱${fullAmount} → ₱${overpaymentAmount} surplus banked as credit.`);
     }
 
-    // Receipt dates are date-only values, so compare Philippine calendar days:
-    // today and yesterday pass; older, future, or unreadable dates do not.
-    const parseReceiptDate = (value) => {
-      if (!value) return null;
-      const str = String(value).trim();
-      const atLocalNoon = (year, month, day) => {
-        const date = new Date(year, month - 1, day, 12);
-        return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
-          ? date
-          : null;
-      };
-      const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (iso) return atLocalNoon(Number(iso[1]), Number(iso[2]), Number(iso[3]));
-      const slash = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
-      if (slash) {
-        let [, a, b, y] = slash.map(Number);
-        if (y < 100) y += 2000;
-        // Ambiguous MM/DD vs DD/MM: if the first value exceeds 12 it is the day.
-        const month = a > 12 ? b : a;
-        const day = a > 12 ? a : b;
-        return atLocalNoon(y, month, day);
-      }
-      const parsed = new Date(str);
-      return Number.isNaN(parsed.getTime())
-        ? null
-        : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 12);
-    };
-    const receiptDate = parseReceiptDate(extractedData.date);
-
-    // 🛡️ SC-8 FIX — MIDNIGHT-SPAN TOLERANCE (was: strict same-calendar-day).
-    //
-    // Accept the current or previous date in Asia/Manila. This avoids rejecting
-    // valid receipts around midnight when the server runs in UTC.
-    const dateCheck = ocrGuard.receiptDateWithinPhilippineCalendarWindow(receiptDate);
-    const isDateMatch = dateCheck.ok;
     const isReferenceValid = /^[A-Z0-9]{6,40}$/i.test(referenceNo);
 
     // A payment reference is single-use. Check this before accepting the
@@ -1806,9 +1762,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           : `The recipient could not be read; the registered shop account is "${expectedRecipientName || 'unavailable'}".`,
       });
     }
-    if (!isDateMatch) {
-      validationErrors.push({ code: 'DATE_OUTSIDE_WINDOW', label: 'Invalid transaction date', message: `We read date "${extractedData.date || 'not detected'}"; receipts must be dated today or yesterday (Philippine time).` });
-    }
     if (!isAmountMatch) {
       validationErrors.push({
         code: extractedData.amount === null ? 'AMOUNT_NOT_DETECTED' : (paymentType === 'downpayment' ? 'AMOUNT_BELOW_DOWNPAYMENT' : 'AMOUNT_BELOW_REQUIRED'),
@@ -1828,7 +1781,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       && Boolean(expectedRecipientName)
       && isNameMatch
       && isAmountMatch
-      && isDateMatch
       && isReferenceValid
       && isReferenceUnique
       && !isDuplicate
@@ -1869,7 +1821,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         requiredAmount,
         fullAmount,
         isAmountMatch,
-        isDateMatch,
         isReferenceValid,
         isReferenceUnique,
         validationErrors,
@@ -1914,7 +1865,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         status: 'MANUAL_REVIEW',
         isNameMatch: null,
         isAmountMatch: null,
-        isDateMatch: null,
         isDuplicate: false,
         isManualReview: true,
         verificationUnavailable: true,
@@ -1932,7 +1882,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           expectedAmount: { minimum: requiredAmount, full: fullAmount },
           isNameMatch,
           isAmountMatch,
-          isDateMatch,
           isReferenceValid,
           isReferenceUnique,
           validationErrors,
@@ -1969,7 +1918,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     }
 
     console.log(`🔍 [AUDIT] Comparison: Extracted ₱${extractedAmount} vs minimum ₱${requiredAmount} (full ₱${fullAmount})`);
-    console.log(`📊 [AUDIT] Result: amountMatch=${isAmountMatch}; dateMatch=${isDateMatch}; referenceValid=${isReferenceValid}; referenceUnique=${isReferenceUnique}; duplicate=${isDuplicate} -> Status: ${finalStatus}`);
+    console.log(`📊 [AUDIT] Result: amountMatch=${isAmountMatch}; referenceValid=${isReferenceValid}; referenceUnique=${isReferenceUnique}; duplicate=${isDuplicate} -> Status: ${finalStatus}`);
 
     // Persist booking and payment OCR data atomically after the booking exists.
     if (bookingId && bookingId !== 'PENDING' && typeof supabaseAdmin !== 'undefined') {
@@ -2030,7 +1979,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           // "₱X credit" rather than treating an overpayment as a mismatch.
           overpaymentAmount,
           isOverpayment: overpaymentAmount > 0,
-          isDateMatch,
           isReferenceValid,
           isReferenceUnique,
           validationErrors,
@@ -2080,7 +2028,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           action_type: 'AI_VERIFICATION_COMPLETE',
           actor_name: 'AI_AUDITOR',
           actor_role: 'SYSTEM',
-          details: `AI extraction complete. Reference: ${referenceNo || 'N/A'}. Amount: ₱${extractedAmount}. Amount match: ${isAmountMatch}. Date match: ${isDateMatch}. Duplicate: ${isDuplicate}. Persisted status: ${finalStatus}.`
+          details: `AI extraction complete. Reference: ${referenceNo || 'N/A'}. Amount: ₱${extractedAmount}. Amount match: ${isAmountMatch}. Duplicate: ${isDuplicate}. Persisted status: ${finalStatus}.`
         });
       } catch (logErr) {
         console.warn('⚠️ Audit logging failed, but the verdict was persisted.');
@@ -2101,7 +2049,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       console.log(`ℹ️ [AI OCR] Booking is ${bookingId || 'PENDING'} — returning the verdict to the caller for enforcement at submit time.`);
     }
 
-    // ── STEP 2: AMOUNT / DATE / REFERENCE ──────────────────────────────────
+    // ── STEP 2: AMOUNT / REFERENCE ─────────────────────────────────────────
     // Reached only after the name gate passed. An amount that does not match
     // (or a stale/duplicate receipt) blocks auto-approval but the booking is
     // still allowed to submit for manual admin review.
@@ -2125,7 +2073,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         isAmountMatch,
         overpaymentAmount,
         isOverpayment: overpaymentAmount > 0,
-        isDateMatch,
         isReferenceValid,
         isReferenceUnique,
         validationErrors,
@@ -2146,7 +2093,6 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       success: true,
       isNameMatch,
       isAmountMatch,
-      isDateMatch,
       isReferenceValid,
       isReferenceUnique,
       // Retain the old property until all existing frontend consumers have

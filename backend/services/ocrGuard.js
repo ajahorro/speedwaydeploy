@@ -1,33 +1,13 @@
 /**
  * ocrGuard.js
- * ============================================================================
- * Hardening for the OCR receipt pipeline, addressing three verified defects:
+ * ==========================================================================
+ * Hardening for the OCR receipt pipeline:
  *
- *   SC-17  IMAGE-HASH BYPASS (BOUNDED FIX). Dedupe was keyed ONLY on the
- *          OCR-extracted `reference_number`, a value an attacker controls, so the
- *          same image could fund two bookings. We now hash the uploaded BYTES.
- *
- *          ⚠️ SCOPE — this is a BYTE-LEVEL SHA-256, NOT a perceptual hash.
- *          It catches the realistic attack (re-uploading the EXACT same file,
- *          e.g. a saved screenshot) because identical bytes collide. It does
- *          NOT catch a re-encoded/re-photographed copy: SC-17B proves that a
- *          phone screenshot of the same receipt produces DIFFERENT bytes and
- *          therefore a DIFFERENT hash, so it slips past this gate. Catching
- *          that needs a true perceptual (pHash/dHash) pipeline, which requires
- *          an image decoder (sharp/jimp) — intentionally not added here to keep
- *          the deployment dependency-free. See SC-17B in the test suite.
- *
- *   SC-18  OCR RATE-LIMIT DRAIN. There was no server-side throttle, so a script
- *          could fire unlimited scans and drain 3rd-party OCR credits. We add a
- *          per-identity sliding-window limiter (default: 8 scans / 5 min) plus a
- *          consecutive-failure circuit breaker that locks automated OCR and
- *          forces the payment into manual review.
- *
- *   SC-8   MIDNIGHT DATE REJECTION. A receipt dated 11:58 PM uploaded at 12:02 AM
- *          failed the strict same-calendar-day check and valid money was rejected.
- *          We replace it with a symmetric time WINDOW (default: ±24 h), so a
- *          receipt from just before midnight still verifies after the rollover.
- * ============================================================================
+ * SC-17  Byte-level image hashing prevents identical uploaded receipt bytes
+ *        from funding two bookings.
+ * SC-18  Per-identity rate limiting and a failure circuit breaker constrain
+ *        automated OCR attempts.
+ * ==========================================================================
  */
 
 const crypto = require('crypto');
@@ -110,68 +90,13 @@ const recordFailure = (identity, now = Date.now()) => {
   return { locked: record.lockedUntil > now, failures: record.count };
 };
 
-// ── SC-8: tolerant receipt-date validation ──────────────────────────────────
-const DEFAULT_DATE_TOLERANCE_HOURS = 24;
-
-/**
- * @param {Date|null} receiptDate  parsed receipt timestamp
- * @param {Date}      [now]        current time
- * @param {number}    [toleranceHours]
- * @returns {{ ok: boolean, reason: string, ageHours: number|null }}
- */
-const receiptDateWithinTolerance = (receiptDate, now = new Date(), toleranceHours = DEFAULT_DATE_TOLERANCE_HOURS) => {
-  if (!receiptDate || Number.isNaN(receiptDate.getTime())) {
-    return { ok: false, reason: 'NO_DATE', ageHours: null };
-  }
-
-  const ageMs = now.getTime() - receiptDate.getTime();
-  const ageHours = ageMs / 3600000;
-
-  // A receipt dated meaningfully in the FUTURE is never valid proof.
-  if (ageHours < -toleranceHours) {
-    return { ok: false, reason: 'FUTURE_DATED', ageHours };
-  }
-
-  // A receipt from just before midnight (uploaded after the rollover) is now
-  // ACCEPTED as long as it falls inside the symmetric window.
-  if (ageHours > toleranceHours) {
-    return { ok: false, reason: 'STALE', ageHours };
-  }
-
-  return { ok: true, reason: 'WITHIN_TOLERANCE', ageHours };
-};
-
-const receiptDateWithinPhilippineCalendarWindow = (receiptDate, now = new Date(), maxAgeCalendarDays = 1) => {
-  if (!(receiptDate instanceof Date) || Number.isNaN(receiptDate.getTime())) {
-    return { ok: false, reason: 'NO_DATE', ageCalendarDays: null };
-  }
-
-  const manilaParts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(now);
-  const current = Object.fromEntries(manilaParts.map((part) => [part.type, part.value]));
-  const currentDay = Date.UTC(Number(current.year), Number(current.month) - 1, Number(current.day));
-  const receiptDay = Date.UTC(receiptDate.getFullYear(), receiptDate.getMonth(), receiptDate.getDate());
-  const ageCalendarDays = Math.round((currentDay - receiptDay) / 86400000);
-
-  if (ageCalendarDays < 0) return { ok: false, reason: 'FUTURE_DATED', ageCalendarDays };
-  if (ageCalendarDays > maxAgeCalendarDays) return { ok: false, reason: 'STALE', ageCalendarDays };
-  return { ok: true, reason: 'WITHIN_TOLERANCE', ageCalendarDays };
-};
-
 module.exports = {
   computeImageHash,
   checkRateLimit,
   isAutomationLocked,
   recordSuccess,
   recordFailure,
-  receiptDateWithinTolerance,
-  receiptDateWithinPhilippineCalendarWindow,
   RATE_WINDOW_MS,
   MAX_SCANS_PER_WINDOW,
   FAILURE_LOCK_THRESHOLD,
-  DEFAULT_DATE_TOLERANCE_HOURS,
 };

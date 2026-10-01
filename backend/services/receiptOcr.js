@@ -124,7 +124,6 @@ const scoreResult = (parsed, confidence) => (
   + (parsed.amount !== null ? 4 : 0)
   + (parsed.recipient ? 2 : 0)
   + (parsed.referenceNumber ? 1 : 0)
-  + (parsed.timestamp ? 1 : 0)
   + Math.max(0, Math.min(100, confidence)) / 100
 );
 
@@ -132,14 +131,12 @@ const hasCoreFields = (parsed) => (
   parsed.isValidReceipt
   && parsed.amount !== null
   && parsed.recipient !== null
-  && parsed.timestamp !== null
 );
 
 const hasStrongCandidate = (parsed, candidate) => (
   Number(candidate?.confidence ?? 0) >= 78
   && parsed.amount !== null
   && parsed.recipient !== null
-  && parsed.timestamp !== null
   && (parsed.referenceNumber || '').trim().length > 0
 );
 

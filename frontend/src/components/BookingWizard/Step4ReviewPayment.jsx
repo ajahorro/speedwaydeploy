@@ -263,14 +263,10 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         const isValidReceipt = result.valid === true;
         const isNameMatched = (result.isNameMatch ?? extractedData.isNameMatch) !== false;
         const isAmountMatched = result.isAmountMatch ?? result.isMatch ?? extractedData.isAmountMatch;
-        const isDateMatched = (result.isDateMatch ?? extractedData.isDateMatch) !== false;
         const isDuplicate = Boolean(result.isDuplicate);
 
-        // The 800 ms "FINALIZING AUDIT" beat is cosmetic. Re-check staleness
-        // afterwards: a newer scan may have started during it.
+        // A newer scan may have started while the server was verifying this one.
         setScanStep('FINALIZING AUDIT...');
-        await new Promise(resolve => setTimeout(resolve, 800));
-
         if (isStale()) return;
 
         // A rejected receipt (bad payee, wrong amount, stale date, or reuse) is
@@ -288,7 +284,6 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
             : Boolean(extractedData.amountDetected),
           requiredAmount: targetAmount,
           fullAmount: Number(extractedData.fullAmount || grandTotal),
-          date: extractedData.date,
           status: manualReviewAllowed
             ? 'MANUAL_REVIEW'
             : (isValidReceipt
@@ -297,11 +292,10 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                 ? 'DUPLICATE_DETECTED'
                 : (!isNameMatched
                   ? 'NAME_MISMATCH'
-                  : (!isDateMatched ? 'DATE_MISMATCH' : (!isAmountMatched ? 'MISMATCHED' : 'REJECTED'))))),
+                  : (!isAmountMatched ? 'MISMATCHED' : 'REJECTED')))),
           isNameMatch: isNameMatched,
           isAmountMatch: isAmountMatched,
           isDuplicate,
-          isDateMatch: isDateMatched,
           isReferenceValid: (result.isReferenceValid ?? extractedData.isReferenceValid) === true,
           isReferenceUnique: (result.isReferenceUnique ?? extractedData.isReferenceUnique) === true,
           validationErrors: Array.isArray(result.validationErrors)

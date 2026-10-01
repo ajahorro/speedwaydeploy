@@ -14,7 +14,7 @@ test('parses common GCash-style receipt text with Paid/Date/Ref labels', () => {
 
   assert.equal(parsed.amount, 10500);
   assert.equal(parsed.referenceNumber, '87A2K9L1');
-  assert.equal(parsed.timestamp, '2025-07-11');
+  assert.equal(parsed.timestamp, null);
   assert.equal(parsed.isValidReceipt, true);
 });
 

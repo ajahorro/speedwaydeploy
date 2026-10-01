@@ -273,140 +273,21 @@ const extractReferenceNumber = (text) => {
   return null;
 };
 
-const MONTHS = {
-  jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2, apr: 3, april: 3,
-  may: 4, jun: 5, june: 5, jul: 6, july: 6, aug: 7, august: 7, sep: 8, sept: 8,
-  september: 8, oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11,
-};
-
-/** Repair digit confusions inside a date fragment (never inside a month NAME). */
-const repairDateDigits = (fragment) => String(fragment)
-  .replace(/[OoQDlI|!SsBZzgqAT]/g, (ch) => DIGIT_CONFUSIONS[ch] ?? ch);
-
-/**
- * Is `day` a real day of `month` (1-12) in `year`?
- *
- * THE "Feb 30" DEFECT: the day was range-checked as 1..31 with no reference to
- * the month, so "Feb 30, 2026" produced the string "2026-02-30". JavaScript's
- * Date then silently ROLLS IT OVER to March 2 — and because the rolled date was
- * ~12h from `now`, the ±24h tolerance check PASSED. A receipt with a garbled
- * month could therefore clear the date gate with a date that does not exist.
- *
- * Month lengths are computed via Date rather than a table so leap years are
- * handled for free (Feb 29 is valid in 2028, invalid in 2026).
- */
-const isValidCalendarDate = (year, month, day) => {
-  const y = Number(year);
-  const m = Number(month);
-  const d = Number(day);
-  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return false;
-  if (m < 1 || m > 12 || d < 1) return false;
-  // Day 0 of the NEXT month is the last day of THIS month.
-  const daysInMonth = new Date(y, m, 0).getDate();
-  return d <= daysInMonth;
-};
-
-/**
- * Extract a date as an ISO `YYYY-MM-DD` string, or null.
- *
- * Handles "Jan 15, 2025", "15 Jan 2025", "01/15/2025", "2025-01-15".
- *
- * WHY EVERY CANDIDATE IS ITERATED (the "Ref 9988" defect): `String.match`
- * returns only the FIRST hit, and the day-first pattern happily matched the junk
- * "00\nRef 9988" — "00" from the amount "2500", a newline, then "Ref" as the
- * "month" and "9988" as the year. Because `MONTHS['ref']` is undefined the whole
- * extraction returned null, DISCARDING the genuine "15 Jan 2025" further down
- * and failing the date gate. So we scan all candidates and take the first whose
- * month name is real.
- */
-const extractDate = (text) => {
-  if (!text) return null;
-  const source = String(text);
-
-  const iso = repairDateDigits(source).match(/(20\d{2})-([0-9]{1,2})-([0-9]{1,2})/);
-  if (iso) {
-    // Validate before returning: an impossible ISO date must not be emitted.
-    if (isValidCalendarDate(iso[1], iso[2], iso[3])) {
-      return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
-    }
-  }
-
-  const monthFirst = /([A-Za-z]{3,9})\.?\s+([0-9OoQDlI|!SsBZzgqT]{1,2})(?:st|nd|rd|th)?,?\s+([0-9OoQDlI|!SsBZzgqT]{4})/g;
-  for (const m of source.matchAll(monthFirst)) {
-    const monthIndex = MONTHS[m[1].toLowerCase()];
-    if (monthIndex === undefined) continue;
-    const day = repairDateDigits(m[2]);
-    const year = repairDateDigits(m[3]);
-    if (isValidCalendarDate(year, monthIndex + 1, day)) {
-      return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
-  }
-
-  const dayFirst = /([0-9OoQDlI|!SsBZzgqT]{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\.?,?\s+([0-9OoQDlI|!SsBZzgqT]{4})/g;
-  for (const m of source.matchAll(dayFirst)) {
-    const monthIndex = MONTHS[m[2].toLowerCase()];
-    if (monthIndex === undefined) continue;
-    const day = repairDateDigits(m[1]);
-    const year = repairDateDigits(m[3]);
-    if (isValidCalendarDate(year, monthIndex + 1, day)) {
-      return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
-  }
-
-  const numeric = repairDateDigits(source).match(/(\d{1,2})[/-](\d{1,2})[/-](20\d{2})/);
-  if (numeric) {
-    const [, a, b, y] = numeric.map(Number);
-    // Philippine receipts are typically day-first (DD/MM/YYYY), but if one side
-    // exceeds 12 then we flip to a month/day interpretation because only one of
-    // the two fields can be a valid month in that case.
-    let month;
-    let day;
-    if (a <= 12 && b <= 12) {
-      day = a;
-      month = b;
-    } else {
-      month = a > 12 ? b : a;
-      day = a > 12 ? a : b;
-    }
-    if (isValidCalendarDate(y, month, day)) {
-      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
-  }
-
-  return null;
-};
-
 /**
  * Recipient labels that are unambiguous on their own.
  *
- * A bare "to" is deliberately NOT in this list — see BARE_TO_LABEL below for the
- * defect that caused.
+ * A bare "to" is deliberately NOT in this list — see BARE_TO_LABEL below.
  */
 const RECIPIENT_LABELS = /(sent\s*to|send\s*money\s*to|paid\s*to|receiver|recipient|transferred\s*to)\s*[:\-]?\s*(.*)/i;
 
 /**
  * A standalone "To" is a recipient label; the "to" inside "Total" is not.
- *
- * THE "tal Amount Sent" DEFECT: with `to` in the alternation above, the label
- * regex matched the `to` INSIDE the word "Total". The amount label line
- * ("Total Amount Sent") was therefore parsed as the payee and the capture came
- * out as "tal Amount Sent". The fail-fast name gate compares the payee against
- * the shop's registered name and aborts on mismatch, so this REJECTED a
- * completely valid payment with NAME_MISMATCH.
  */
 const BARE_TO_LABEL = /(?:^|\s)to\s*[:\-]?\s*(.+)/i;
 
 /**
- * Extract the payee name.
- *
- * GCash and Maya print the label and the payee on SEPARATE lines:
- *
- *     Sent to
- *     COMAR GARAGE
- *
- * so when the labelled line has nothing after it, the NEXT non-empty line is
- * read. Missing this split produced a garbage payee and, through the name gate,
- * a rejected receipt.
+ * Extract the payee name, allowing the label and name to appear on separate
+ * lines.
  */
 const extractRecipient = (text) => {
   if (!text) return null;
@@ -420,17 +301,10 @@ const extractRecipient = (text) => {
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
 
-    // NOTE THE GROUP INDEX. RECIPIENT_LABELS captures the LABEL first and the
-    // NAME second, so the name is group 2. BARE_TO_LABEL has no label group, so
-    // its name is group 1. Reading group 1 for both captured the literal string
-    // "Sent to" as the payee, which failed the name gate and rejected a valid
-    // payment.
     const labelled = line.match(RECIPIENT_LABELS);
     const bare = labelled ? null : line.match(BARE_TO_LABEL);
     if (!labelled && !bare) continue;
-
     const sameLineName = labelled ? labelled[2] : bare[1];
-
     let name = clean(sameLineName);
 
     if (name.length < 3) {
@@ -455,22 +329,20 @@ const extractRecipient = (text) => {
 
 /**
  * Does this text look like a payment receipt at all? Requires SOME money signal
- * AND SOME anchor word, so a random photo's text is not mistaken for a receipt.
+ * AND SOME non-date receipt anchor.
  */
 const looksLikeReceipt = (text) => {
   if (!text) return false;
   const hasMoney = /[₱Pp]\s*\d|\d+[.,]\d{2}|\btotal\b|\bamount\b/i.test(text);
-  const hasAnchor = /\b(reference|ref|trace|transaction|date|gcash|maya|instapay|pesonet)\b/i.test(text);
+  const hasAnchor = /\b(reference|ref|trace|transaction|gcash|maya|instapay|pesonet)\b/i.test(text);
   return hasMoney && hasAnchor;
 };
 
 /**
  * Parse raw OCR text into the structured shape the verification pipeline uses.
  *
- * MONEY MODEL (unchanged from the Gemini era — the business rule is the same):
- * e-wallet receipts print a GROSS the customer sent plus a separate fee line; the
- * shop receives the NET. Both are returned; the CALLER enforces net = gross − fee
- * rather than trusting any single figure.
+ * MONEY MODEL: e-wallet receipts print a GROSS the customer sent plus a separate
+ * fee line; the caller enforces net = gross - fee rather than trusting a figure.
  *
  * @param {string} rawText
  * @returns {{
@@ -492,7 +364,7 @@ const parseReceiptText = (rawText) => {
     grossAmount: gross,
     transferFee: fee,
     referenceNumber: extractReferenceNumber(text),
-    timestamp: extractDate(text),
+    timestamp: null,
     recipient: extractRecipient(text),
     isValidReceipt: looksLikeReceipt(text),
     rawText: text,
@@ -505,7 +377,6 @@ module.exports = {
   normalizeAmountValue,
   extractAmounts,
   extractReferenceNumber,
-  extractDate,
   extractRecipient,
   looksLikeReceipt,
 };
