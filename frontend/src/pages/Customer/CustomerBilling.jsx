@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CreditCard, Clock, Printer } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import OfficialReceipt from '../../components/OfficialReceipt';

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { buildNotificationActionUrl } from '../utils/notificationRouting';
 import { sendNotificationEmail } from './notificationService';
 
 /**
@@ -169,6 +170,19 @@ export const emitEvent = async (eventType, { userId, bookingId, meta = {} }) => 
   }
 
   const isChatMessage = eventType === EVENTS.MESSAGE_RECEIVED;
+  let recipientRole = 'CUSTOMER';
+  if (userId) {
+    const { data: profileRow, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (!error && profileRow?.role) {
+      recipientRole = profileRow.role;
+    }
+  }
+
   const notification = {
     id: crypto.randomUUID(),
     user_id: userId,
@@ -176,7 +190,7 @@ export const emitEvent = async (eventType, { userId, bookingId, meta = {} }) => 
     title: template.title,
     message,
     notification_type: template.type,
-    action_url: bookingId ? (isChatMessage ? `/bookings/${bookingId}?chat=open` : `/customer/bookings/${bookingId}`) : null,
+    action_url: buildNotificationActionUrl({ bookingId, role: recipientRole, isChatMessage }),
     is_read: false
   };
 

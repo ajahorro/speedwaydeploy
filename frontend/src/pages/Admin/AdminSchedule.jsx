@@ -8,6 +8,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from 'react-hot-toast';
 import { logger } from '../../utils/logger';
 import { getServiceCatalog, fetchActivePromos } from '../../data/servicesCatalog';
+import { buildLocalDateWindow, buildLocalMonthWindow } from '../../utils/dateTimeUtils';
 
 // Refactored Imports
 import { COLORS } from '../../config/constants';
@@ -70,16 +71,13 @@ const AdminSchedule = () => {
 
   const fetchMonthData = async () => {
     try {
-      const year = viewDate.getFullYear();
-      const month = viewDate.getMonth() + 1;
-      const firstDay = `${year}-${String(month).padStart(2, '0')}-01`;
-      const nextMonthStart = new Date(Date.UTC(year, month, 1)).toISOString();
+      const monthWindow = buildLocalMonthWindow(viewDate);
 
       const { data, error } = await supabase
         .from('bookings')
         .select('start_datetime')
-        .gte('start_datetime', `${firstDay}T00:00:00Z`)
-        .lt('start_datetime', nextMonthStart)
+        .gte('start_datetime', monthWindow.startIso)
+        .lt('start_datetime', monthWindow.endIso)
         .not('status', 'ilike', 'cancelled');
 
       if (error) throw error;
@@ -95,12 +93,17 @@ const AdminSchedule = () => {
       await flagOverdueBookings();
 
       // 🛡️ 3-DAY BUFFER: Fetch yesterday, today, and tomorrow to capture any timezone shifts
-      const d = new Date(selectedDate);
+      const d = new Date(`${selectedDate}T00:00:00`);
       const prev = new Date(d); prev.setDate(d.getDate() - 1);
       const next = new Date(d); next.setDate(d.getDate() + 1);
 
-      const fetchStart = `${prev.toLocaleDateString('en-CA')}T00:00:00Z`;
-      const fetchEnd = `${next.toLocaleDateString('en-CA')}T23:59:59Z`;
+      // Keep the day window anchored to local midnight boundaries. Using UTC
+      // "Z" values here shifts a booking by the browser offset and drags it
+      // into the wrong slot on the calendar.
+      const prevWindow = buildLocalDateWindow(prev);
+      const nextWindow = buildLocalDateWindow(next);
+      const fetchStart = prevWindow.startIso;
+      const fetchEnd = nextWindow.endIso;
 
       const { data: bookingsRaw, error: bookingsError } = await supabase
         .from('bookings')

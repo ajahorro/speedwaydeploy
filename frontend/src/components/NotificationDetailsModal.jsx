@@ -36,14 +36,15 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
       e.preventDefault();
     }
 
-    const bookingTarget = notification.booking_id || notification.message?.match(/#([A-Za-z0-9_-]{8})/)?.[1];
-    if (bookingTarget) {
-      let resolvedBookingId = bookingTarget;
-      if (!String(bookingTarget).includes('-') && String(bookingTarget).length < 20) {
+    const actionBookingId = notification.action_url?.match(/\/bookings\/([A-Za-z0-9-]+)/)?.[1];
+    const hashBookingId = notification.booking_id || notification.message?.match(/#([A-Za-z0-9_-]{8})/)?.[1] || actionBookingId;
+    if (hashBookingId) {
+      let resolvedBookingId = hashBookingId;
+      if (!String(hashBookingId).includes('-') && String(hashBookingId).length < 20) {
         const { data, error } = await supabase
           .from('bookings')
           .select('id')
-          .ilike('id', `${bookingTarget}%`)
+          .ilike('id', `${hashBookingId}%`)
           .maybeSingle();
         if (error || !data?.id) {
           toast.error('Associated booking record not found.');

@@ -116,31 +116,8 @@ const FloatingBubbleChat = () => {
         </div>
       )}
 
-      {/* Non-disruptive per-thread digest: tells the user WHICH conversation is
-          waiting without forcing the panel open. */}
-      {!isOpen && !activeCustomerId && unreadCustomerIds.length > 0 && (
-        <div style={{ width: 'clamp(240px, 80vw, 320px)', marginBottom: '0.75rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
-          <div style={{ padding: '0.6rem 0.85rem', borderBottom: '1px solid var(--admin-border)', fontSize: '0.65rem', fontWeight: '950', letterSpacing: '1px', color: 'var(--admin-brand)', textTransform: 'uppercase' }}>
-            Unread conversations
-          </div>
-          {unreadCustomerIds.slice(0, 4).map(customerThreadId => (
-            <button
-              key={customerThreadId}
-              type="button"
-              onClick={() => openChatForCustomer(customerThreadId)}
-              style={{ width: '100%', background: 'none', border: 0, borderBottom: '1px solid var(--admin-border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', padding: '0.6rem 0.85rem', textAlign: 'left' }}
-            >
-              <span style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--admin-text-primary)' }}>
-                Customer {customerThreadId.slice(0, 8).toUpperCase()}
-              </span>
-              <span style={{ minWidth: '20px', height: '20px', padding: '0 5px', borderRadius: '999px', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', fontSize: '0.62rem', fontWeight: '900', display: 'grid', placeItems: 'center' }}>
-                {threadUnread[customerThreadId] > 99 ? '99+' : threadUnread[customerThreadId]}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-
+      {/* Keep the chat bubble as the sole affordance; no small side popup is
+          shown while the thread remains closed. Users can see the unread badge on the bubble itself. */}
       {isOpen && !activeCustomerId && (
         <div style={{ width: 'clamp(280px, 85vw, 360px)', marginBottom: '0.75rem', padding: '1.25rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '700' }}>
           Open a booking to start a support conversation.

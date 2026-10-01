@@ -1742,15 +1742,9 @@ const AdminBookingDetails = () => {
                       {true && (
                         <div style={{ display: 'flex', gap: '1.5rem' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
-                            {v.photo_proof_url && (
-                              <div
-                                onClick={() => window.open(v.photo_proof_url, '_blank')}
-                                style={{ width: '80px', height: '80px', borderRadius: '4px', background: 'black', border: '1px solid var(--admin-border)', overflow: 'hidden', cursor: 'zoom-in' }}
-                              >
-                                <img src={v.photo_proof_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Service Evidence" />
-                              </div>
-                            )}
-                            {/* Batch 5: full before/after evidence gallery (signed URLs). */}
+                            {/* Canonical evidence is scoped by booking_vehicle_id in service_photos.
+                                The legacy photo_proof_url column is intentionally not rendered here
+                                because it can bleed the same evidence into unrelated units. */}
                             <button
                               type="button"
                               onClick={() => { setPhotoGalleryVehicleId(v.id); setPhotoGalleryOpen(true); }}

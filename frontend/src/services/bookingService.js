@@ -10,6 +10,7 @@ import { supabase, createUniqueChannel } from '../lib/supabase';
 import { SHOP_CONFIG } from '../config/constants';
 import { getEffectivePriceForService, calculateBookingDiscountSummary, buildBookingServiceSnapshot, validateServiceRequirements, describeServiceRequirementViolation } from '../data/servicesCatalog';
 import { getRequiredDownpayment } from '../utils/paymentUtils';
+import { buildLocalDateTime, formatLocalISODate } from '../utils/dateTimeUtils';
 import { sendStatusEmail } from './notificationService';
 import { calculateBayUsage } from '../utils/schedulingUtils';
 import { BACKEND_URL } from '../config/api';
@@ -641,24 +642,7 @@ export const subscribeToCustomerBookings = (customerId, callback) => {
 // --- Utility ---
 
 function combineDateAndTime(dateStr, timeStr) {
-  if (!dateStr) return new Date().toISOString();
-  if (!timeStr) return `${dateStr}T00:00:00Z`;
-
-  try {
-    const [time, meridian] = timeStr.split(' ');
-    let [hours, minutes = 0] = time.split(':').map(Number);
-    if (meridian === 'PM' && hours !== 12) hours += 12;
-    if (meridian === 'AM' && hours === 12) hours = 0;
-
-    // Construct Date in local timezone, then convert to UTC ISO string
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const d = new Date(year, month - 1, day, hours, minutes, 0);
-
-    if (isNaN(d.getTime())) throw new Error('Invalid Date');
-    return d.toISOString();
-  } catch (e) {
-    return `${dateStr}T12:00:00Z`; // Fallback
-  }
+  return buildLocalDateTime(dateStr, timeStr);
 }
 
 export function calculateEstimatedEnd(dateStr, timeStr, vehicles = []) {

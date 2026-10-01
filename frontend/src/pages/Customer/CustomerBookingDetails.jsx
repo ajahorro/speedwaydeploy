@@ -72,6 +72,7 @@ const CustomerBookingDetails = () => {
   const [rescheduleIssue, setRescheduleIssue] = useState(null);
   // Batch 5: photo evidence drawer (customer sees only their own booking's photos via RLS).
   const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false);
+  const [photoGalleryVehicleId, setPhotoGalleryVehicleId] = useState(null);
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val);
 
@@ -540,17 +541,12 @@ const CustomerBookingDetails = () => {
                 {true && (
                   <div style={{ display: 'flex', gap: '1.5rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
-                      {v.photo_proof_url && (
-                        <div
-                          onClick={() => window.open(v.photo_proof_url, '_blank')}
-                          style={{ width: '80px', height: '80px', borderRadius: '8px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', overflow: 'hidden', cursor: 'zoom-in' }}
-                        >
-                          <img src={v.photo_proof_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Service Evidence" />
-                        </div>
-                      )}
                       <button
                         type="button"
-                        onClick={() => setPhotoGalleryOpen(true)}
+                        onClick={() => {
+                          setPhotoGalleryVehicleId(v.id);
+                          setPhotoGalleryOpen(true);
+                        }}
                         style={{
                           display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
                           padding: '0.4rem 0.6rem', background: 'transparent', color: 'var(--admin-brand)',
@@ -888,8 +884,12 @@ const CustomerBookingDetails = () => {
       {/* Batch 5: customer photo evidence drawer (RLS scopes to their booking). */}
       <PhotoProofGallery
         bookingId={booking?.id || id}
+        bookingVehicleId={photoGalleryVehicleId}
         open={photoGalleryOpen}
-        onClose={() => setPhotoGalleryOpen(false)}
+        onClose={() => {
+          setPhotoGalleryOpen(false);
+          setPhotoGalleryVehicleId(null);
+        }}
       />
 
       <style>{`

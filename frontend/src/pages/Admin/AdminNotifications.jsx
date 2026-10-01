@@ -114,6 +114,9 @@ const AdminNotifications = () => {
       if (explicit.startsWith('/customer/bookings/')) {
         return explicit.replace(/^\/customer/, '/admin');
       }
+      if (explicit.startsWith('/staff/bookings/')) {
+        return explicit.replace(/^\/staff/, '/admin');
+      }
       if (explicit.startsWith('/bookings/')) {
         return explicit.replace(/^\/bookings/, '/admin/bookings');
       }
