@@ -41,8 +41,9 @@ begin
   end if;
   if exists (
     select 1
-      from public.payments
-     where ocr_metadata ->> 'image_hash' = p_image_hash
+      from public.ocr_scan_sessions
+     where active = true
+       and image_hash = p_image_hash
   ) then
     raise exception 'RECEIPT_IMAGE_ALREADY_USED'
       using errcode = '23505';

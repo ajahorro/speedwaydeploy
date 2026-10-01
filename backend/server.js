@@ -1725,25 +1725,28 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // fabricated) reference number. We compare against existing receipt hashes.
     let usedImageHash = false;
     if (imageHash && supabaseAdmin) {
-      // The hash is persisted into payments.ocr_metadata.image_hash (jsonb) so no
-      // schema change is required; we scan recent receipt rows for a collision.
-      const { data: hashMatches, error: hashError } = await supabaseAdmin
-        .from('payments')
-        .select('id, booking_id')
-        .not('receipt_url', 'is', null)
-        .filter('ocr_metadata->>image_hash', 'eq', imageHash)
-        .limit(1);
+      try {
+        // The image hash is stored on the server-side OCR session record, not on
+        // the payment row. Payments do not have an ocr_metadata column in the
+        // deployed schema, so a direct lookup there is a 500.
+        const { data: hashMatches, error: hashError } = await supabaseAdmin
+          .from('ocr_scan_sessions')
+          .select('id, booking_id, payment_id')
+          .eq('image_hash', imageHash)
+          .limit(1);
 
-      if (hashError) {
-        throw new Error(`IMAGE_DUPLICATE_CHECK_FAILED: ${hashError.message}`);
-      } else if (Array.isArray(hashMatches) && hashMatches.length > 0) {
-        const matched = hashMatches[0];
-        // A rescan of the SAME payment is not a duplicate of itself.
-        if (!paymentId || matched.id !== paymentId) {
-          usedImageHash = true;
-          isDuplicate = true;
-          duplicateReason = 'IMAGE_REUSED';
+        if (hashError) {
+          throw new Error(hashError.message);
+        } else if (Array.isArray(hashMatches) && hashMatches.length > 0) {
+          const matched = hashMatches[0];
+          if (!paymentId || matched.payment_id !== paymentId) {
+            usedImageHash = true;
+            isDuplicate = true;
+            duplicateReason = 'IMAGE_REUSED';
+          }
         }
+      } catch (hashCheckError) {
+        console.warn('[OCR] Image-hash duplicate check skipped because the scan-session table is unavailable:', hashCheckError.message);
       }
     }
 

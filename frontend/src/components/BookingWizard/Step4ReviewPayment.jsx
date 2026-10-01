@@ -240,7 +240,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           console.log('🔍 [OCR AUDIT] Verification result received:', result);
         } catch (verifyErr) {
           console.warn('⚠️ [OCR AUDIT] Server verification failed; no scan session was issued:', verifyErr.message);
-          throw verifyErr;
+          throw new Error(describeOcrFailure(verifyErr));
         }
 
         if (!result.success) throw new Error(result.error);
@@ -325,10 +325,11 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
       } catch (err) {
         // A superseded scan must not paint an error over the newer scan's UI.
         if (isStale()) return;
+        const friendlyMessage = describeOcrFailure(err);
         setReceiptDetails({
           status: 'REJECTED',
           error: 'RECEIPT VERIFICATION FAILED',
-          description: err.message || "We could not verify this document. Please ensure it is a clear photo of your receipt."
+          description: friendlyMessage
         });
       } finally {
         // Only the newest scan owns `isUploading`/`scanStep`. Without this guard a
@@ -413,6 +414,35 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
     );
   };
   const supportMailto = `mailto:${APP_METADATA.supportEmail}?subject=${encodeURIComponent('Receipt verification help')}&body=${encodeURIComponent(`Please help me review my receipt${bookingData.id ? ` for booking ${bookingData.id}` : ''}${receiptDetails?.referenceNo ? ` (reference ${receiptDetails.referenceNo})` : ''}.` )}`;
+  const supportPayload = `${bookingData.id ? ` for booking ${bookingData.id}` : ''}${receiptDetails?.referenceNo ? ` (reference ${receiptDetails.referenceNo})` : ''}`;
+  const supportHref = `mailto:${APP_METADATA.supportEmail}?subject=${encodeURIComponent('Receipt verification help')}&body=${encodeURIComponent(`Please help me review my receipt${supportPayload}.`)}`;
+
+  const describeOcrFailure = (error) => {
+    const raw = String(error?.message || error || '');
+    if (/column .*ocr_metadata.* does not exist|image hash|duplicate/i.test(raw)) {
+      return 'We could not verify this receipt because the verification service is temporarily unavailable. Please try again in a moment or contact support.';
+    }
+    if (/rate limit|too many receipt scans|wait \d+ second/i.test(raw)) {
+      return 'Too many receipt scans were sent in a short time. Please wait a moment and try again.';
+    }
+    if (/too large|file too large|413|image is too large/i.test(raw)) {
+      return 'That receipt image is too large. Please upload a smaller, clearer photo.';
+    }
+    if (/not recognized|invalid receipt|could not confirm this image is a payment receipt/i.test(raw)) {
+      return 'We could not confirm this is a valid payment receipt. Please upload a clearer image of the receipt.';
+    }
+    return 'We could not verify this receipt right now. Please try again or contact support.';
+  };
+
+  const handleSupportClick = (event) => {
+    if (!APP_METADATA.supportEmail) {
+      event.preventDefault();
+      toastManager.info('Support contact is not configured yet.');
+      return;
+    }
+    event.preventDefault();
+    window.location.href = supportHref;
+  };
 
   const adminRefNumberValid = adminDigitalMode === 'reference' ? Boolean(manualRefInput.trim().length >= 4) : true;
   const adminOcrProofValid = adminDigitalMode === 'ocr' ? Boolean(bookingData.payment?.proofOfPayment !== null && !isUploading) : true;
@@ -814,7 +844,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                         </div>
                         <div style={{ display: 'flex', gap: '.75rem', padding: '1rem', borderTop: '1px solid var(--admin-border)', flexWrap: 'wrap' }}>
                           <button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>Upload Corrected Receipt</button>
-                          <a href={supportMailto} style={{ flex: '1 1 190px', padding: '1rem', textAlign: 'center', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', textDecoration: 'none', textTransform: 'uppercase' }}>I Need Help / Report an Issue</a>
+                          <a href={supportHref} onClick={handleSupportClick} style={{ flex: '1 1 190px', padding: '1rem', textAlign: 'center', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', textDecoration: 'none', textTransform: 'uppercase' }}>I Need Help / Report an Issue</a>
                         </div>
                       </div>
                     )}
@@ -979,7 +1009,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                       </div>
                       <div style={{ display: 'flex', gap: '.75rem', padding: '1rem', borderTop: '1px solid var(--admin-border)', flexWrap: 'wrap' }}>
                         <button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>Upload Corrected Receipt</button>
-                        <a href={supportMailto} style={{ flex: '1 1 190px', padding: '1rem', textAlign: 'center', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', textDecoration: 'none', textTransform: 'uppercase' }}>I Need Help / Report an Issue</a>
+                        <a href={supportHref} onClick={handleSupportClick} style={{ flex: '1 1 190px', padding: '1rem', textAlign: 'center', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', textDecoration: 'none', textTransform: 'uppercase' }}>I Need Help / Report an Issue</a>
                       </div>
                     </div>
                   )}
