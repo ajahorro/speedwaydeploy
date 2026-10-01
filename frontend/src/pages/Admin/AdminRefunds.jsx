@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import {
   AlertTriangle, CreditCard, ArrowRight, Clock,
   CheckCircle, XCircle, Search, Filter, MessageCircle,
-  Car, Calendar, User, Eye, Download, Box, ExternalLink, ShieldCheck
+  Car, Calendar, User, Eye, Download, Box, ExternalLink, ShieldCheck, Info
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
@@ -27,6 +27,8 @@ const AdminRefunds = () => {
     selectedItem: null,
     confirmRefundItem: null,
     refundReason: '',
+    refundMethod: '',
+    showDeductionHelp: false,
     // Section 5: the admin types a DEDUCTION; the refund that gets submitted is
     // strictly derived as `selectedItem.totalPaid - deduction` (see derivedRefund).
     deduction: 0,
@@ -99,8 +101,11 @@ const AdminRefunds = () => {
         const isDigitalMethod = ['gcash', 'digital', 'bank transfer', 'paymaya', 'maya', 'card', 'online'].includes(normalizedMethod);
 
         const refundPayment = (b.payments || []).find(p => Number(p.amount) < 0 && methodOfPayment(p) === 'SYSTEM_REFUND');
+        const refundRecords = (b.payments || []).filter(p => Number(p.amount) < 0 && methodOfPayment(p) === 'SYSTEM_REFUND');
+        const refundDeduction = Math.max(0, ...refundRecords.map(p => Number(p.refund_deduction || 0)));
         const refundReference = refundPayment?.reference_number || null;
         const refundReason = refundPayment?.refund_reason || null;
+        const refundMethod = refundPayment?.refund_method || null;
         const refundedAmount = processedRefunds;
         const queuedOverpayment = queuedCredits
           .filter(entry => entry.booking_id === b.id)
@@ -122,8 +127,10 @@ const AdminRefunds = () => {
           refundLimit,
           overpaymentRefundRemaining,
           refundedAmount,
+          refundDeduction,
           refundReference,
           refundReason,
+          refundMethod,
           paymentMethod: isCashMethod ? 'Cash' : (isDigitalMethod ? 'Digital' : 'Unknown'),
           refundStatus: b.refund_status || 'QUEUED'
         };
@@ -159,8 +166,10 @@ const AdminRefunds = () => {
     selectedItem: item,
     // A fresh selection always starts with NO deduction, so the derived refund
     // equals the full refundable total rather than inheriting a stale figure.
-    deduction: 0,
+    deduction: Number(item.refundDeduction || 0),
     refundAmount: Number(item.refundLimit ?? item.totalPaid ?? 0),
+    refundReason: item.refundReason || '',
+    refundMethod: item.refundMethod || '',
   }));
 
   // MEMOIZED FILTERING
@@ -190,24 +199,37 @@ const AdminRefunds = () => {
       // Always use the DERIVED amount, never the raw input — the input is a
       // read-only display and must not be trusted as a source of truth.
       let refundAmount = derivedRefund;
+      let refundComplete = ['PROCESSED', 'EMAIL_PENDING'].includes(item.refundStatus);
+      let remainingRefundAmount = 0;
 
       if (!['PROCESSED', 'EMAIL_PENDING'].includes(item.refundStatus)) {
         refundRef = `RFD-${Date.now().toString().slice(-6)}-${item.id.substring(0, 4).toUpperCase()}`;
         const { data: { user } } = await supabase.auth.getUser();
         const rpcName = item.overpaymentRefundRemaining > 0
-          ? 'process_overpayment_credit_refund'
-          : 'process_booking_refund';
+          ? 'process_overpayment_credit_refund_v2'
+          : 'process_booking_refund_v2';
         const { data: rpcData, error: rpcError } = await supabase.rpc(rpcName, {
           p_booking_id: item.id,
           p_refund_amount: refundAmount,
           p_refund_reason: state.refundReason,
           p_refund_reference: refundRef,
+          ...(item.overpaymentRefundRemaining > 0 ? {} : { p_refund_deduction: deductionValue }),
+          p_refund_method: state.refundMethod,
           p_actor_id: user?.id || null
         });
         if (rpcError) throw new Error(`Refund transaction failed: ${rpcError.message}`);
         refundAmount = Number(rpcData?.refund_amount || refundAmount);
+        refundComplete = rpcData?.refund_status === 'PROCESSED';
+        remainingRefundAmount = Number(rpcData?.remaining_refund ?? Math.max(0, Number(item.refundLimit || 0) - refundAmount));
       } else {
         refundAmount = Math.abs(Number(item.payments?.find(payment => payment.method === 'SYSTEM_REFUND')?.amount || refundAmount));
+      }
+
+      if (!refundComplete) {
+        toast.success(`Partial refund recorded. ₱${remainingRefundAmount.toLocaleString()} remains to refund.`, { id: toastId });
+        await fetchRefundData();
+        setState(prev => ({ ...prev, selectedItem: null, confirmRefundItem: null, refundReason: '', refundAmount: 0 }));
+        return;
       }
 
       const refundEmail = item.customer?.email || item.customer_email;
@@ -225,7 +247,7 @@ const AdminRefunds = () => {
         const emailReason = emailError?.message || refundEmailData?.error || 'The email provider did not accept the message.';
         toast.error(`Refund saved, but email is pending: ${emailReason}`, { id: toastId });
         await fetchRefundData();
-        setState(prev => ({ ...prev, selectedItem: null, confirmRefundItem: null, refundReason: '', refundAmount: 0 }));
+        setState(prev => ({ ...prev, selectedItem: null, confirmRefundItem: null, refundReason: '', refundMethod: '', refundAmount: 0 }));
         return;
       }
 
@@ -275,7 +297,7 @@ const AdminRefunds = () => {
 
       toast.success('Financial record and refund email completed.', { id: toastId });
       await fetchRefundData();
-      setState(prev => ({ ...prev, selectedItem: null, confirmRefundItem: null, refundReason: '', refundAmount: 0 }));
+      setState(prev => ({ ...prev, selectedItem: null, confirmRefundItem: null, refundReason: '', refundMethod: '', refundAmount: 0 }));
     } catch (err) {
       logger.error('Refund Process Error', err);
       toast.error(err.message || 'Failed to synchronize refund records', { id: toastId });
@@ -458,6 +480,14 @@ const AdminRefunds = () => {
                       <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Amount Reverted:</span>
                       <span style={{ fontWeight: '950', color: 'var(--admin-brand)', fontSize: '1.05rem' }}>₱{Number(state.selectedItem.refundedAmount || 0).toLocaleString()}</span>
                     </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                      <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Cancellation Deduction:</span>
+                      <span style={{ fontWeight: '800' }}>₱{Number(state.selectedItem.refundDeduction || 0).toLocaleString()}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                      <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Refund Method:</span>
+                      <span style={{ fontWeight: '800' }}>{state.selectedItem.refundMethod || 'Not recorded'}</span>
+                    </div>
                     {state.selectedItem.refundReason && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
                         <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Reason:</span>
@@ -488,7 +518,11 @@ const AdminRefunds = () => {
 
                   {/* Section 5: the admin edits the DEDUCTION; the refund is derived. */}
                   <div>
-                    <label htmlFor="refund-deduction" style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Cancellation/Prep Fee Deduction (₱)</label>
+                    <label htmlFor="refund-deduction" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                      <span>Cancellation/Prep Fee Deduction (₱)</span>
+                      <button type="button" title="This is the amount your business keeps from the payment as a cancellation or preparation fee." aria-label="Explain cancellation deduction" onClick={() => setState(prev => ({ ...prev, showDeductionHelp: !prev.showDeductionHelp }))} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, background: 'transparent', border: 0, color: 'var(--admin-text-secondary)', cursor: 'help' }}><Info size={14} /></button>
+                    </label>
+                    {state.showDeductionHelp && <div role="note" style={{ marginBottom: '0.5rem', padding: '0.55rem 0.7rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-secondary)', fontSize: '0.68rem', lineHeight: 1.45 }}>This is the amount your business keeps from the customer’s payment as a cancellation or preparation fee.</div>}
                     <input
                       id="refund-deduction"
                       type="number"
@@ -504,6 +538,15 @@ const AdminRefunds = () => {
                         The deduction exceeds the total paid (₱{selectedRefundTotal.toLocaleString()}). Lower it to continue.
                       </div>
                     )}
+                  </div>
+
+                  <div>
+                      <label htmlFor="refund-method" style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Refund Paid Via</label>
+                      <select id="refund-method" value={state.refundMethod} onChange={(event) => setState(prev => ({ ...prev, refundMethod: event.target.value }))} style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '700' }}>
+                        <option value="" disabled>Select refund method</option>
+                        <option value="BANK TRANSFER">Bank Transfer</option>
+                        <option value="CASH">Cash</option>
+                      </select>
                   </div>
 
                   <div>
@@ -571,11 +614,11 @@ const AdminRefunds = () => {
                     </div>
                   ) : (
                     <button
-                      disabled={state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || derivedRefund <= 0 || deductionExceedsPaid)}
+                      disabled={state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || !state.refundMethod || derivedRefund <= 0 || deductionExceedsPaid)}
                       onClick={() => setState(prev => ({ ...prev, confirmRefundItem: state.selectedItem }))}
-                      style={{ width: '100%', padding: '0.85rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', opacity: state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || derivedRefund <= 0 || deductionExceedsPaid) ? 0.5 : 1 }}
+                      style={{ width: '100%', padding: '0.85rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', opacity: state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || !state.refundMethod || derivedRefund <= 0 || deductionExceedsPaid) ? 0.5 : 1 }}
                     >
-                      {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'RETRY REFUND EMAIL' : 'MARK AS REFUNDED'}
+                      {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'RETRY REFUND EMAIL' : state.selectedItem.refundStatus === 'PROCESSING' ? 'REFUND REMAINING' : 'PROCESS REFUND'}
                     </button>
                   )
                 )}
@@ -592,21 +635,32 @@ const AdminRefunds = () => {
 
       {state.confirmRefundItem && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)' }}>
-          <div style={{ background: 'var(--admin-card)', padding: '2.5rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', maxWidth: '400px', width: '90%', textAlign: 'center' }}>
+          <div style={{ background: 'var(--admin-card)', padding: 'clamp(1.25rem, 4vw, 2rem)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', maxWidth: '460px', width: 'min(100%, 460px)', maxHeight: '90vh', overflowY: 'auto' }}>
             <AlertTriangle size={48} color={state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? '#f59e0b' : 'var(--status-danger)'} style={{ marginBottom: '1.5rem' }} />
             <h2 style={{ fontWeight: '950', fontSize: '1.25rem' }}>
               {state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? 'Retry Email Receipt?' : 'Confirm Refund?'}
             </h2>
-            <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.9rem', marginBottom: '2rem' }}>
-              {state.confirmRefundItem.refundStatus === 'EMAIL_PENDING'
-                ? `Send the official refund receipt (₱${Number(state.confirmRefundItem.refundedAmount || 0).toLocaleString()}) to ${state.confirmRefundItem.customer?.email || state.confirmRefundItem.customer_email || 'the customer'}?`
-                : `Are you sure you want to revert ₱${derivedRefund.toLocaleString()} back to the customer?`}
-            </p>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button onClick={() => setState(prev => ({ ...prev, confirmRefundItem: null }))} style={{ flex: 1, padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '800' }}>CANCEL</button>
+            {state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? (
+              <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.82rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+                The refund is already recorded. Retry sending the receipt for ₱{Number(state.confirmRefundItem.refundedAmount || 0).toLocaleString()} to {state.confirmRefundItem.customer?.email || state.confirmRefundItem.customer_email || 'the customer'}?
+              </p>
+            ) : (
+              <div style={{ display: 'grid', gap: '0.65rem', margin: '1rem 0 1.5rem', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)' }}>
+                {[
+                  ['Refund returned', `₱${derivedRefund.toLocaleString()}`],
+                  ['Reason', state.refundReason || 'Not selected'],
+                  ['Cancellation deduction', `₱${deductionValue.toLocaleString()}`],
+                  ['Refund method', state.refundMethod],
+                  ['Remaining to refund after this', `₱${Math.max(0, selectedRefundTotal - deductionValue - derivedRefund).toLocaleString()}`],
+                ].map(([label, value]) => <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', textAlign: 'left', fontSize: '0.74rem' }}><span style={{ color: 'var(--admin-text-secondary)' }}>{label}</span><strong style={{ textAlign: 'right', overflowWrap: 'anywhere' }}>{value}</strong></div>)}
+                <p style={{ margin: '0.25rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '0.7rem', lineHeight: 1.45 }}>The request remains open if the recorded refund plus deduction does not account for the full amount paid.</p>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button onClick={() => setState(prev => ({ ...prev, confirmRefundItem: null }))} style={{ flex: 1, padding: '0.85rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '800' }}>CANCEL</button>
               <button
                 onClick={() => handleProcessRefund(state.confirmRefundItem)}
-                style={{ flex: 1, padding: '1rem', background: state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? 'var(--admin-brand)' : 'var(--status-danger)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900' }}
+                style={{ flex: 1, padding: '0.85rem', background: state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? 'var(--admin-brand)' : 'var(--status-danger)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900' }}
               >
                 {state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? 'SEND RECEIPT' : `YES, REVERT ₱${derivedRefund.toLocaleString()}`}
               </button>

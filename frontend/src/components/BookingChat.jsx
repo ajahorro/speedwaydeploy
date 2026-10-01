@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase, createUniqueChannel } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Send, Image as ImageIcon, Bot, Check, CheckCheck, Loader2, AlertCircle, X } from 'lucide-react';
@@ -35,7 +35,7 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
   const fileRef = useRef(null);
 
   // --- FETCH MESSAGES ---
-  const markMessagesAsRead = async (messageList) => {
+  const markMessagesAsRead = useCallback(async (messageList) => {
     const unreadIds = messageList
       .filter(message => message.sender_id !== user?.id && !message.is_read)
       .map(message => message.id);
@@ -50,12 +50,11 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
       .in('id', unreadIds);
     if (readError) console.error('Unable to mark chat messages as read:', readError);
     await refreshUnreadCount();
-  };
+  }, [user?.id, refreshUnreadCount]);
 
   // Section 2: load the whole CUSTOMER thread. Every message the customer has
   // ever sent, across every booking, in one continuous timeline.
-  const fetchMessages = async (resolvedCustomerId) => {
-    const threadCustomerId = resolvedCustomerId || customerId;
+  const fetchMessages = useCallback(async (threadCustomerId) => {
     if (!threadCustomerId) return;
 
     const { data, error } = await supabase
@@ -65,18 +64,33 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
       .order('created_at', { ascending: true });
 
     if (!error && data) {
-      const conversationMessages = data.filter(message => message.message_type !== 'system');
+      const missingSenderIds = [...new Set(data
+        .filter(message => !message.sender && message.sender_id !== user?.id)
+        .map(message => message.sender_id)
+        .filter(Boolean))];
+      let senderProfiles = {};
+      if (missingSenderIds.length) {
+        const { data: senderRows, error: senderError } = await supabase.rpc('get_chat_sender_profiles', {
+          p_customer_id: threadCustomerId,
+          p_sender_ids: missingSenderIds,
+        });
+        if (senderError) console.warn('Unable to resolve chat sender names:', senderError.message);
+        senderProfiles = Object.fromEntries((senderRows || []).map(sender => [sender.id, sender]));
+      }
+      const conversationMessages = data
+        .filter(message => message.message_type !== 'system')
+        .map(message => ({ ...message, sender: message.sender || senderProfiles[message.sender_id] || null }));
       setMessages(conversationMessages);
       // Publish this thread's own unread count so the launcher can badge the
       // exact customer conversation instead of only showing a global total.
       reportThreadUnread(threadCustomerId, conversationMessages.filter(message => message.sender_id !== user?.id && !message.is_read).length);
       await markMessagesAsRead(conversationMessages);
     }
-  };
+  }, [user?.id, reportThreadUnread, markMessagesAsRead]);
 
   // Section 2: the bookings a message can be tagged with — the customer's own
   // bookings, newest first. Powers the tag selector in the composer.
-  const fetchBookingOptions = async (threadCustomerId) => {
+  const fetchBookingOptions = useCallback(async (threadCustomerId) => {
     if (!threadCustomerId) return;
     const { data, error } = await supabase
       .from('bookings')
@@ -85,7 +99,7 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
       .order('created_at', { ascending: false })
       .limit(50);
     if (!error && data) setBookingOptions(data);
-  };
+  }, []);
 
   useEffect(() => {
     if (!bookingId && !customerIdProp) return undefined;
@@ -183,7 +197,7 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
       active = false;
       if (channel) supabase.removeChannel(channel);
     };
-  }, [bookingId, customerIdProp, user?.id, profile, refreshUnreadCount, reportThreadUnread]);
+  }, [bookingId, customerIdProp, user?.id, profile, refreshUnreadCount, reportThreadUnread, fetchMessages, fetchBookingOptions]);
 
   // Section 2: keep the tag selector pointed at the booking in view when the
   // parent changes it, but never silently drop a tag the user chose.
@@ -407,10 +421,13 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
           messages.map((msg) => {
             const isMe = msg.sender_id === user?.id;
             const isSystem = msg.message_type === 'system';
-            const senderName = msg.sender
-              ? msg.sender.full_name || `${msg.sender.first_name || ''} ${msg.sender.last_name || ''}`.trim() || 'Unknown'
-              : 'Unknown';
-            const senderRole = msg.sender?.role || 'SYSTEM';
+            const inferredRole = isMe
+              ? String(profile?.role || 'CUSTOMER').toUpperCase()
+              : String(profile?.role || '').toUpperCase() === 'CUSTOMER' ? 'ADMIN' : 'CUSTOMER';
+            const senderRole = String(msg.sender?.role || inferredRole).toUpperCase();
+            const senderName = msg.sender?.full_name
+              || `${msg.sender?.first_name || ''} ${msg.sender?.last_name || ''}`.trim()
+              || (senderRole === 'ADMIN' ? 'Admin' : 'Customer');
 
             if (isSystem) {
               return (

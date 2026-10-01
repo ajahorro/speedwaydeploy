@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { CreditCard, FileText, Clock, Printer } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { CreditCard, Clock, Printer } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
+import { calculatePaymentSummary } from '../../utils/paymentUtils';
 
 const CustomerBilling = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState([]);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
@@ -14,9 +17,9 @@ const CustomerBilling = () => {
 
   useEffect(() => {
     if (user?.id) fetchData();
-  }, [user?.id]);
+  }, [user?.id, fetchData]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!user?.id) return;
     try {
       const { data, error } = await supabase
@@ -40,7 +43,7 @@ const CustomerBilling = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val || 0);
   // FLAT, TAX-FREE pricing: the total IS the subtotal. There is no tax to
@@ -50,14 +53,11 @@ const CustomerBilling = () => {
     return { subtotal: total, total };
   };
 
-  const totalSpent = bookings.reduce((sum, b) => {
-    const totalPaid = (b.payments || []).filter(p => p.status === 'PAID').reduce((s, p) => s + Number(p.amount), 0);
-    return sum + totalPaid;
-  }, 0);
+  const totalSpent = bookings.reduce((sum, booking) => sum + calculatePaymentSummary(booking).totalPaid, 0);
 
   const outstandingBalance = bookings.reduce((sum, b) => {
     if (['confirmed', 'scheduled', 'in_progress'].includes(b.status?.toLowerCase())) {
-      const totalPaid = (b.payments || []).filter(p => p.status === 'PAID').reduce((s, p) => s + Number(p.amount), 0);
+      const totalPaid = calculatePaymentSummary(b).totalPaid;
       return sum + Math.max(0, (b.total_amount || 0) - totalPaid);
     }
     return sum;
@@ -291,20 +291,22 @@ const CustomerBilling = () => {
                   </tr>
                 ) : (
                   bookings.flatMap((booking) => {
-                    const accessible = canAccessReceipt(booking);
-                    const bookingPayments = (booking.payments || []).filter(p => p.status === 'PAID');
+                    const bookingPayments = (booking.payments || []).filter(p =>
+                      ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(String(p.status || '').toUpperCase())
+                      || (String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(p.amount) < 0)
+                    );
 
                     return bookingPayments.map((p, pIdx) => (
-                      <tr key={p.id} className="admin-card-hover" style={{ borderBottom: '1px solid var(--admin-border)', transition: 'all 0.2s ease' }}>
+                      <tr key={p.id} className="admin-card-hover" role="link" tabIndex={0} aria-label={`Open booking ${booking.id.slice(0, 8)}`} onClick={() => navigate(`/customer/bookings/${booking.id}`)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate(`/customer/bookings/${booking.id}`); } }} style={{ borderBottom: '1px solid var(--admin-border)', transition: 'all 0.2s ease', cursor: 'pointer' }}>
                         <td style={{ padding: '1.25rem 2rem', fontSize: '0.95rem', fontWeight: '900', color: 'var(--admin-text-primary)', fontFamily: 'monospace' }}>
-                          RCP-{p.id.substring(0, 8).toUpperCase()}
+                          {p.reference_number || `${String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' ? 'RFD' : 'RCP'}-${p.id.substring(0, 8).toUpperCase()}`}
                           <div style={{ fontSize: '0.6rem', color: 'var(--admin-brand)', fontWeight: '950', marginTop: '0.2rem' }}>LINKED TO INV-{booking.id.substring(0, 8).toUpperCase()}</div>
                         </td>
                         <td style={{ padding: '1.25rem 2rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>
                           {new Date(p.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                         </td>
                         <td style={{ padding: '1.25rem 2rem', fontSize: '1.1rem', fontWeight: '950', color: 'var(--admin-brand)' }}>
-                          {formatCurrency(p.amount)}
+                          <span style={{ color: Number(p.amount) < 0 ? 'var(--status-danger)' : 'var(--admin-brand)' }}>{formatCurrency(p.amount)}</span>
                         </td>
                         <td style={{ padding: '1.25rem 2rem' }}>
                           <span style={{
@@ -313,15 +315,15 @@ const CustomerBilling = () => {
                             color: 'var(--status-success)',
                             padding: '0.3rem 0.75rem', borderRadius: '4px', textTransform: 'uppercase', border: '1px solid currentColor'
                           }}>
-                            {pIdx === 0 ? 'DOWNPAYMENT' : 'SETTLEMENT'}
+                            {String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' ? 'REFUND' : String(p.status || '').toUpperCase() === 'REFUND_PENDING' ? 'REFUND PENDING' : pIdx === 0 ? 'DOWNPAYMENT' : 'SETTLEMENT'}
                           </span>
                         </td>
                         <td style={{ padding: '1.25rem 2rem', textAlign: 'center' }}>
                           <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                            {p.receipt_url && (
+                            {Number(p.amount) > 0 && p.receipt_url && (
                               <button
                                 type="button"
-                                onClick={() => window.open(p.receipt_url, '_blank', 'noopener,noreferrer')}
+                                onClick={(event) => { event.stopPropagation(); window.open(p.receipt_url, '_blank', 'noopener,noreferrer'); }}
                                 title="View proof of payment"
                                 style={{
                                   background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)',
@@ -333,8 +335,8 @@ const CustomerBilling = () => {
                                 View Proof
                               </button>
                             )}
-                            <button 
-                              onClick={() => { setSelectedReceipt(booking); setSelectedPayment(p); }}
+                            {Number(p.amount) > 0 && <button
+                              onClick={(event) => { event.stopPropagation(); setSelectedReceipt(booking); setSelectedPayment(p); }}
                               title="View Transaction Receipt"
                               style={{ 
                                 background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)',
@@ -343,18 +345,7 @@ const CustomerBilling = () => {
                               }}
                             >
                               <Printer size={18} />
-                            </button>
-                            <button 
-                              onClick={() => { setSelectedReceipt(booking); setSelectedPayment(null); }}
-                              title="View Consolidated Invoice"
-                              style={{ 
-                                background: 'rgba(var(--admin-brand-rgb), 0.1)', border: '1px solid var(--admin-brand)', 
-                                color: 'var(--admin-brand)', borderRadius: '8px', width: '40px', height: '40px', 
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
-                              }}
-                            >
-                              <FileText size={18} />
-                            </button>
+                            </button>}
                           </div>
                         </td>
                       </tr>

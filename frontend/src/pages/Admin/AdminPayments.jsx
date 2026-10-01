@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase, createUniqueChannel } from '../../lib/supabase';
 import {
   CheckCircle, AlertCircle, Search, RotateCw, Filter,
-  CreditCard, XCircle, ArrowRight, Car, Sparkles, Loader2,
+  CreditCard, XCircle, ArrowRight, Car,
   FileText, ShieldCheck, Printer, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -17,7 +17,6 @@ import { calculateRequiredDownpayment } from '../../utils/paymentUtils';
 import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import { useUI } from '../../context/UIContext';
-import { BACKEND_URL } from '../../config/api';
 
 const AdminPayments = () => {
   const navigate = useNavigate();
@@ -34,12 +33,13 @@ const AdminPayments = () => {
     filter: 'PENDING',
     methodFilter: 'ALL',
     selectedItem: null,
-    isScanning: false,
     overrideAI: false
   });
 
   const [receiptBooking, setReceiptBooking] = useState(null);
   const [receiptPayment, setReceiptPayment] = useState(null);
+  const [confirmPayment, setConfirmPayment] = useState(null);
+  const [showScannedDetails, setShowScannedDetails] = useState(false);
 
   // MEMOIZED FETCH: Optimized with deep relationship embedding
   const fetchPayments = useCallback(async () => {
@@ -159,11 +159,9 @@ const AdminPayments = () => {
     // rather than on the submission mail. Duplicate sends are refused by the
     // database (booking_email_deliveries), so retrying a verification cannot
     // mail the receipt twice.
-    try {
-      await sendBookingConfirmationEmail(bookingId);
-    } catch (emailError) {
+    sendBookingConfirmationEmail(bookingId).catch(emailError => {
       console.warn('[AdminPayments] Confirmation email dispatch failed:', emailError);
-    }
+    });
   };
 
   const handleVerifyPayment = async (payment) => {
@@ -252,10 +250,13 @@ const AdminPayments = () => {
       );
       fetchPayments();
       setState(prev => ({ ...prev, selectedItem: null, overrideAI: false }));
+      setConfirmPayment(null);
     } catch (err) {
       toast.error('Verification failed', { id: toastId });
     }
   };
+
+  const requestVerifyPayment = (payment) => setConfirmPayment(payment);
 
   const handleRejectPayment = async (payment) => {
     // Tier 3 / Task 15: collect the reason in the app's styled prompt modal
@@ -313,57 +314,6 @@ const AdminPayments = () => {
       setState(prev => ({ ...prev, selectedItem: null }));
     } catch (err) {
       toast.error('Rejection failed', { id: toastId });
-    }
-  };
-
-  const handleAIScan = async (receiptUrl, payment) => {
-    if (!receiptUrl) return;
-    setState(prev => ({ ...prev, isScanning: true }));
-    const toastId = toast.loading('AI is scanning receipt...');
-
-    try {
-      const receiptResponse = await fetch(receiptUrl);
-      if (!receiptResponse.ok) throw new Error('Receipt image could not be downloaded');
-      const receiptBlob = await receiptResponse.blob();
-      const formData = new FormData();
-      const paymentType = payment?.notes?.match(/(?:TYPE|PAYMENT_TYPE):([^|]+)/i)?.[1]?.toLowerCase();
-      const bookingTotal = Number(payment?.booking?.total_amount || 0);
-      const requiredAmount = paymentType === 'downpayment'
-        ? calculateRequiredDownpayment(bookingTotal).amount
-        : bookingTotal;
-      formData.append('receipt', receiptBlob, `receipt-${payment?.id || 'payment'}.jpg`);
-      formData.append('bookingId', payment?.booking_id || 'PENDING');
-      formData.append('paymentId', payment?.id || '');
-      formData.append('requiredAmount', String(requiredAmount));
-
-      const response = await fetch(`${BACKEND_URL}/api/ocr/verify-receipt`, {
-        method: 'POST',
-        body: formData
-      });
-
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || `OCR request failed (${response.status})`);
-      if (!result.success) throw new Error(result.error);
-
-      // Auto-update the payment with detected info (simulated for now)
-      const referenceNumber = result.data.referenceNo || result.data.referenceNumber || 'N/A';
-      toast.success(`AI Scan Complete: Ref ${referenceNumber}`, { id: toastId });
-
-      // We highlight the reference number field or update it if needed
-      // For this demo, we'll just show the "AI Verified" state in the UI
-      setState(prev => ({
-        ...prev,
-        isScanning: false,
-        selectedItem: {
-          ...prev.selectedItem,
-          ai_verified: true,
-          detected_ref: referenceNumber,
-          detected_amount: result.data.amount
-        }
-      }));
-    } catch (err) {
-      toast.error(err.message || 'AI Scan failed. Please verify manually.', { id: toastId });
-      setState(prev => ({ ...prev, isScanning: false }));
     }
   };
 
@@ -654,46 +604,54 @@ const AdminPayments = () => {
                       <img src={state.selectedItem.receipt_url} alt="Receipt" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
 
                       <button
-                        onClick={() => handleAIScan(state.selectedItem.receipt_url, state.selectedItem)}
-                        disabled={state.isScanning}
+                        type="button"
+                        aria-expanded={showScannedDetails}
+                        onClick={() => setShowScannedDetails(value => !value)}
                         style={{
                           position: 'absolute', bottom: '1rem', right: '1rem',
                           background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none',
-                          padding: '0.6rem 1rem', borderRadius: '8px', fontWeight: '950',
+                          padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950',
                           fontSize: '0.65rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem',
-                          boxShadow: '0 4px 15px rgba(0,0,0,0.5)', transition: 'all 0.2s',
-                          opacity: state.isScanning ? 0.7 : 1
+                          boxShadow: '0 4px 15px rgba(0,0,0,0.5)'
                         }}
                       >
-                        {state.isScanning ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                        {state.isScanning ? 'SCANNING...' : 'AI SCAN RECEIPT'}
+                        <FileText size={14} /> {showScannedDetails ? 'HIDE SCANNED DETAILS' : 'SHOW SCANNED DETAILS'}
                       </button>
                     </div>
 
-                    {state.selectedItem.ai_verified && (
+                    {showScannedDetails && (() => {
+                      const details = state.selectedItem.booking?.ocr_metadata || {};
+                      const rows = [
+                        ['Recipient', details.recipient],
+                        ['Amount read', Number(state.selectedItem.detected_amount ?? details.amount ?? 0) > 0 ? formatCurrency(state.selectedItem.detected_amount ?? details.amount) : 'Not detected'],
+                        ['Gross amount', Number(details.grossAmount || 0) > 0 ? formatCurrency(details.grossAmount) : 'Not detected'],
+                        ['Transfer fee', formatCurrency(details.transferFee || 0)],
+                        ['Reference', state.selectedItem.detected_ref || details.referenceNo || details.referenceNumber],
+                        ['Result', details.status || details.payment_verdict || 'Saved scan'],
+                      ];
+                      return (
                       <div style={{
-                        marginTop: '1rem', padding: '0.85rem', background: 'rgba(16, 185, 129, 0.1)',
-                        border: '1px solid #10b981', borderRadius: '12px', display: 'flex',
-                        alignItems: 'center', gap: '0.75rem'
+                        marginTop: '0.75rem', padding: '0.85rem', background: 'var(--admin-bg)',
+                        border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)',
+                        display: 'grid', gap: '0.55rem'
                       }}>
-                        <CheckCircle size={18} color="var(--status-success)" />
-                        <div>
-                          <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--status-success)', textTransform: 'uppercase' }}>AI Verification Success</div>
-                          <div style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--admin-text-primary)' }}>MATCHED REF: {state.selectedItem.detected_ref}</div>
-                        </div>
+                        <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.62rem', fontWeight: '950', textTransform: 'uppercase' }}>Scanned Receipt Details</div>
+                        {rows.map(([label, value]) => <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', fontSize: '0.72rem' }}><span style={{ color: 'var(--admin-text-secondary)' }}>{label}</span><strong style={{ textAlign: 'right', overflowWrap: 'anywhere' }}>{value || 'Not detected'}</strong></div>)}
+                        {details.rawText && <details><summary style={{ cursor: 'pointer', fontSize: '0.68rem', color: 'var(--admin-text-secondary)', marginTop: '0.25rem' }}>Raw OCR text</summary><pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: '160px', overflowY: 'auto', fontSize: '0.65rem', color: 'var(--admin-text-secondary)' }}>{details.rawText}</pre></details>}
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 )}
 
                 <div style={{ marginTop: 'auto', display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
                   {state.selectedItem.status === 'FOR_VERIFICATION' && !isPaymentLocked(state.selectedItem) && (
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
                       {!isCashPayment(state.selectedItem) && (
-                        <label style={{ position: 'absolute', marginTop: '-2rem', right: 0, fontSize: '0.62rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
                       )}
                       <button onClick={() => handleRejectPayment(state.selectedItem)} style={{ flex: 1, padding: '0.85rem', background: 'rgba(239,68,68,0.1)', color: 'var(--status-danger)', border: '1px solid #ef4444', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px' }}>REJECT</button>
-                      <button onClick={() => handleVerifyPayment(state.selectedItem)} style={{ flex: 2, padding: '0.85rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px' }}>VERIFY PAID</button>
+                      <button onClick={() => requestVerifyPayment(state.selectedItem)} style={{ flex: 2, padding: '0.85rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px' }}>VERIFY PAID</button>
                     </div>
                   )}
                   {isPaymentLocked(state.selectedItem) && (
@@ -746,17 +704,35 @@ const AdminPayments = () => {
                 <div style={{ width: '100%', height: '250px', background: 'var(--admin-bg)', borderRadius: '1rem', overflow: 'hidden', border: '1px solid var(--admin-border)' }}>
                   <img src={state.selectedItem.receipt_url} alt="Receipt" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 </div>
+                <button type="button" aria-expanded={showScannedDetails} onClick={() => setShowScannedDetails(value => !value)} style={{ width: '100%', marginTop: '0.65rem', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer' }}>
+                  {showScannedDetails ? 'HIDE SCANNED DETAILS' : 'SHOW SCANNED DETAILS'}
+                </button>
+                {showScannedDetails && (() => {
+                  const details = state.selectedItem.booking?.ocr_metadata || {};
+                  const amount = Number(state.selectedItem.detected_amount ?? details.amount ?? 0);
+                  return (
+                    <div style={{ display: 'grid', gap: '0.55rem', marginTop: '0.65rem', padding: '0.85rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)' }}>
+                      {[
+                        ['Recipient', details.recipient || 'Not detected'],
+                        ['Amount read', amount > 0 ? formatCurrency(amount) : 'Not detected'],
+                        ['Reference', state.selectedItem.detected_ref || details.referenceNo || details.referenceNumber || 'Not detected'],
+                        ['Result', details.status || details.payment_verdict || 'Saved scan'],
+                      ].map(([label, value]) => <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', fontSize: '0.72rem' }}><span style={{ color: 'var(--admin-text-secondary)' }}>{label}</span><strong style={{ textAlign: 'right', overflowWrap: 'anywhere' }}>{value}</strong></div>)}
+                      {details.rawText && <details><summary style={{ cursor: 'pointer', fontSize: '0.68rem', color: 'var(--admin-text-secondary)', marginTop: '0.25rem' }}>Raw OCR text</summary><pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: '140px', overflowY: 'auto', fontSize: '0.65rem', color: 'var(--admin-text-secondary)' }}>{details.rawText}</pre></details>}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
             <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
               {state.selectedItem.status === 'FOR_VERIFICATION' && !isPaymentLocked(state.selectedItem) && (
-                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   <button onClick={() => handleRejectPayment(state.selectedItem)} style={{ flex: 1, padding: '1rem', background: 'rgba(239,68,68,0.1)', color: 'var(--status-danger)', border: 'none', borderRadius: '0.75rem', fontWeight: '800', cursor: 'pointer' }}>REJECT</button>
                   {!isCashPayment(state.selectedItem) && (
-                    <label style={{ position: 'absolute', right: '1.5rem', marginTop: '-2.25rem', fontSize: '0.62rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
                   )}
-                  <button onClick={() => handleVerifyPayment(state.selectedItem)} style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '0.75rem', fontWeight: '900', cursor: 'pointer' }}>VERIFY PAID</button>
+                  <button onClick={() => requestVerifyPayment(state.selectedItem)} style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '0.75rem', fontWeight: '900', cursor: 'pointer' }}>VERIFY PAID</button>
                 </div>
               )}
               {isPaymentLocked(state.selectedItem) && (
@@ -770,6 +746,34 @@ const AdminPayments = () => {
               <button onClick={() => navigate(`/admin/bookings/${state.selectedItem.booking_id}`)} style={{ width: '100%', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '0.75rem', fontWeight: '800', cursor: 'pointer' }}>VIEW BOOKING</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {confirmPayment && (
+        <div role="presentation" style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,0.78)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(6px)' }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="payment-approval-title" style={{ width: 'min(100%, 460px)', maxHeight: '90vh', overflowY: 'auto', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: '1.5rem', color: 'var(--admin-text-primary)' }}>
+            <h2 id="payment-approval-title" style={{ margin: '0 0 0.5rem', fontSize: '1rem', fontWeight: 950 }}>Confirm Payment Approval</h2>
+            <p style={{ margin: '0 0 1rem', color: 'var(--admin-text-secondary)', fontSize: '0.78rem', lineHeight: 1.5 }}>Confirm that this payment was received. This will mark it paid and trigger the customer receipt email.</p>
+            <div style={{ display: 'grid', gap: '0.65rem', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)' }}>
+              {[
+                ['Customer', confirmPayment.customer_name || 'Customer'],
+                ['Amount to record', formatCurrency(Number(confirmPayment.detected_amount || confirmPayment.amount || 0))],
+                ['Method', confirmPayment.method || 'Digital'],
+                ['Reference', confirmPayment.detected_ref || confirmPayment.reference_number || 'Not detected'],
+                ['Receipt recipient', confirmPayment.booking?.ocr_metadata?.recipient || 'Not detected'],
+                ['Decision', state.overrideAI ? 'Manual AI override' : 'OCR-assisted verification'],
+              ].map(([label, value]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', fontSize: '0.75rem' }}>
+                  <span style={{ color: 'var(--admin-text-secondary)' }}>{label}</span>
+                  <strong style={{ textAlign: 'right', overflowWrap: 'anywhere' }}>{value}</strong>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
+              <button type="button" onClick={() => setConfirmPayment(null)} style={{ flex: 1, padding: '0.8rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: 900, cursor: 'pointer' }}>Cancel</button>
+              <button type="button" onClick={() => handleVerifyPayment(confirmPayment)} style={{ flex: 1, padding: '0.8rem', background: 'var(--admin-brand)', border: 'none', color: 'white', borderRadius: 'var(--admin-radius-sm)', fontWeight: 950, cursor: 'pointer' }}>Approve Payment</button>
+            </div>
+          </section>
         </div>
       )}
 

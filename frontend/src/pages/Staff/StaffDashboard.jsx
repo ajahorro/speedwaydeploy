@@ -135,6 +135,10 @@ const StaffDashboard = () => {
           start_datetime: b.start_datetime
         }))
       ).filter(v => v.status?.toUpperCase() !== 'COMPLETED');
+      allVehicleTasks.sort((a, b) => {
+        const priority = (task) => task.status?.toUpperCase() === 'IN_PROGRESS' ? 0 : task.status?.toUpperCase() === 'PENDING' ? 1 : 2;
+        return priority(a) - priority(b) || new Date(a.start_datetime) - new Date(b.start_datetime);
+      });
 
       const newPendingAssignment = hasLoadedTasksRef.current && allVehicleTasks.some((task) =>
         !knownTaskIdsRef.current.has(task.id)
@@ -201,6 +205,7 @@ const StaffDashboard = () => {
   const canStartTask = (task) => {
     if (!profile?.is_clocked_in || !task.start_datetime || (photoCounts[task.id]?.before || 0) < 1) return false;
     const scheduled = new Date(task.start_datetime);
+    if (scheduled.getTime() > Date.now()) return false;
     const today = new Date();
     return scheduled.getFullYear() === today.getFullYear()
       && scheduled.getMonth() === today.getMonth()
@@ -376,12 +381,16 @@ const StaffDashboard = () => {
                   </div>
 
                   {(
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobile || task.status?.toUpperCase() === 'PENDING' ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '1.5rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile || ['PENDING', 'SCHEDULED'].includes(task.status?.toUpperCase()) ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '1.5rem' }}>
                       {task.status?.toUpperCase() !== 'PENDING' && (
                       <div style={{ position: 'relative' }}>
                         <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Detailing Observations</div>
                         <textarea
                           placeholder="Document service steps or vehicle conditions..."
+                          autoCapitalize="off"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          data-no-auto-capitalize=""
                           value={localNotes[task.id] || ''}
                           onChange={(e) => setLocalNotes({ ...localNotes, [task.id]: e.target.value })}
                           disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'}
@@ -412,6 +421,7 @@ const StaffDashboard = () => {
                             bookingVehicleId={task.id}
                             phase="after"
                             compact
+                            disabled={(photoCounts[task.id]?.before || 0) < 1}
                             helperText="Required: at least one QA photo before marking finished."
                             onCountChange={setPhotoCount(task.id, 'after')}
                           />
@@ -421,7 +431,7 @@ const StaffDashboard = () => {
                   )}
 
                   <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    {task.status?.toUpperCase() === 'PENDING' && (
+                    {['PENDING', 'SCHEDULED'].includes(task.status?.toUpperCase()) && (
                       <>
                         {/* Intake evidence is a hard precondition for starting. */}
                         {(photoCounts[task.id]?.before || 0) < 1 && (

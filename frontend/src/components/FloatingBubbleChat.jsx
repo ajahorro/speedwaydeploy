@@ -90,6 +90,10 @@ const FloatingBubbleChat = () => {
         closeChat();
       } else if (activeBookingId) {
         openChatForBooking(activeBookingId);
+      } else if (activeCustomerId) {
+        openChatForCustomer(activeCustomerId);
+      } else if (String(profile?.role || '').toUpperCase() === 'CUSTOMER') {
+        openChatForCustomer(user.id);
       }
     }
 

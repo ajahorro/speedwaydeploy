@@ -13,6 +13,7 @@ import { useUI } from '../../context/UIContext';
 import { useAuth } from '../../hooks/useAuth';
 import { confirmLogout } from '../../utils/logoutConfirm';
 import CustomerSearch from '../../components/CustomerSearch';
+import FloatingBubbleChat from '../../components/FloatingBubbleChat';
 
 const CustomerLayout = () => {
   const { openModal, closeModal } = useUI(); const { resolvedTheme } = useTheme();
@@ -324,6 +325,7 @@ const CustomerLayout = () => {
         <main style={{ flex: 1, minHeight: 0, padding: isMobile ? '1.5rem 1rem' : '2.5rem', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', background: 'var(--admin-bg)' }}>
           <Outlet />
         </main>
+        <FloatingBubbleChat />
       </div>
     </div>
   );

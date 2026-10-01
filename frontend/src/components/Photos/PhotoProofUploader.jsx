@@ -30,7 +30,8 @@ const PhotoProofUploader = ({
   label,
   helperText,
   onCountChange,
-  compact = false
+  compact = false,
+  disabled = false
 }) => {
   const { user } = useAuth();
   const inputRef = useRef(null);
@@ -38,6 +39,7 @@ const PhotoProofUploader = ({
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [lightbox, setLightbox] = useState(null);
+  const onCountChangeRef = useRef(onCountChange);
 
   const heading = label || (phase === 'before' ? 'Intake Photos (Before)' : 'Completion Photos (After)');
 
@@ -58,9 +60,11 @@ const PhotoProofUploader = ({
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => { onCountChangeRef.current = onCountChange; }, [onCountChange]);
+
   useEffect(() => {
-    if (typeof onCountChange === 'function') onCountChange(photos.length);
-  }, [photos.length, onCountChange]);
+    if (typeof onCountChangeRef.current === 'function') onCountChangeRef.current(photos.length);
+  }, [photos.length]);
 
   const validate = (file) => {
     if (!file.type.startsWith('image/')) return `"${file.name}" is not an image.`;
@@ -69,6 +73,7 @@ const PhotoProofUploader = ({
   };
 
   const handleFiles = async (fileList) => {
+    if (disabled) return;
     const files = Array.from(fileList || []);
     if (!files.length) return;
 
@@ -101,6 +106,7 @@ const PhotoProofUploader = ({
 
   const handleDrop = (e) => {
     e.preventDefault();
+    if (disabled) return;
     handleFiles(e.dataTransfer.files);
   };
 
@@ -172,18 +178,20 @@ const PhotoProofUploader = ({
           accept={ACCEPTED}
           capture="environment"
           multiple
+          disabled={disabled || uploading}
           onChange={(e) => handleFiles(e.target.files)}
           style={{ display: 'none' }}
           id={`photo-input-${bookingVehicleId}-${phase}`}
         />
         <label
           htmlFor={`photo-input-${bookingVehicleId}-${phase}`}
+          aria-disabled={disabled || uploading}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '0.5rem',
-            cursor: uploading ? 'not-allowed' : 'pointer',
-            background: uploading ? 'var(--admin-border)' : 'var(--admin-brand)',
+            cursor: disabled || uploading ? 'not-allowed' : 'pointer',
+            background: disabled || uploading ? 'var(--admin-border)' : 'var(--admin-brand)',
             color: 'var(--admin-text-on-brand)',
             border: 'none',
             borderRadius: 'var(--admin-radius)',
@@ -192,8 +200,8 @@ const PhotoProofUploader = ({
             fontSize: '0.72rem',
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
-            opacity: uploading ? 0.6 : 1,
-            pointerEvents: uploading ? 'none' : 'auto'
+            opacity: disabled || uploading ? 0.6 : 1,
+            pointerEvents: disabled || uploading ? 'none' : 'auto'
           }}
         >
           {uploading ? <Loader2 size={14} className="spin" /> : <ImagePlus size={14} />}

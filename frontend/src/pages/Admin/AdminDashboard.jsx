@@ -239,11 +239,17 @@ const AdminDashboard = () => {
 
       const { data: activeQueue } = await supabase
         .from('bookings')
-        .select('id, customer_name, start_datetime, status, vehicles:booking_vehicles(id, vehicle_type, plate_number)')
-        .in('status', ['scheduled', 'confirmed', 'in_progress', 'SCHEDULED', 'CONFIRMED', 'IN_PROGRESS'])
-        .gte('start_datetime', `${today}T00:00:00`)
+        .select('id, customer_name, start_datetime, status, refund_status, vehicles:booking_vehicles(id, vehicle_type, plate_number)')
+        .in('status', ['pending', 'scheduled', 'confirmed', 'in_progress', 'ongoing', 'submitted', 'PENDING', 'SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'ONGOING', 'SUBMITTED'])
         .order('start_datetime', { ascending: true })
-        .limit(12);
+        .limit(100);
+      const visibleActiveQueue = (activeQueue || [])
+        .filter(booking => !['QUEUED', 'PROCESSING', 'PROCESSED', 'EMAIL_PENDING'].includes(String(booking.refund_status || '').toUpperCase()))
+        .sort((a, b) => {
+          const priority = (booking) => ['IN_PROGRESS', 'ONGOING'].includes(String(booking.status || '').toUpperCase()) ? 0 : ['SCHEDULED', 'CONFIRMED'].includes(String(booking.status || '').toUpperCase()) ? 1 : 2;
+          return priority(a) - priority(b) || new Date(a.start_datetime) - new Date(b.start_datetime);
+        })
+        .slice(0, 12);
 
       setState(prev => ({
         ...prev,
@@ -262,7 +268,7 @@ const AdminDashboard = () => {
           shopLoad: sLoad,
           lifecycle
         },
-        activeQueue: activeQueue || []
+        activeQueue: visibleActiveQueue
       }));
 
       logger.admin('Operational intelligence synchronized.');

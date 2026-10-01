@@ -920,7 +920,7 @@ app.post('/api/emails/payment-receipt', async (req, res) => {
     // ledger another. We surface the divergence for an admin instead of
     // pretending they agree; the recorded amount stays authoritative so the
     // system's own numbers remain self-consistent.
-    const reconciliation = reconcileOcrAmounts(amounts.declared, num(payment.detected_amount));
+    const reconciliation = reconcileOcrAmounts(amounts.declared, Number(payment.detected_amount || 0));
     if (!reconciliation.matches) {
       console.warn(
         `⚠️ [OCR RECONCILE] Booking ${bookingId} / payment ${paymentId}: ` +
@@ -4608,8 +4608,22 @@ app.post('/api/bookings/update-status', async (req, res) => {
       const scheduledDate = new Date(masterBooking.start_datetime);
       const nowDate = new Date();
       const isScheduledDate = scheduledDate.toDateString() === nowDate.toDateString();
-      if (!['confirmed', 'in_progress'].includes(currentMaster) || !masterBooking.staff_id || !isScheduledDate) {
-        return res.status(409).json({ success: false, error: 'Service can only start on the scheduled date after confirmation and staff assignment.' });
+      if (!['scheduled', 'confirmed', 'in_progress'].includes(currentMaster)
+        || !masterBooking.staff_id
+        || !isScheduledDate
+        || scheduledDate.getTime() > nowDate.getTime()) {
+        return res.status(409).json({ success: false, error: 'Service can only start after the scheduled time, on the scheduled date, with an assigned technician.' });
+      }
+
+      if (currentMaster === 'scheduled') {
+        const { data: startPayments, error: startPaymentsError } = await supabaseAdmin
+          .from('payments')
+          .select('amount, status, method, detected_amount')
+          .eq('booking_id', bookingId);
+        if (startPaymentsError) throw startPaymentsError;
+        if (calculateNetPaid(startPayments || []) < getRequiredDownpayment(masterBooking.total_amount)) {
+          return res.status(409).json({ success: false, error: 'The required downpayment must be verified before service can start.' });
+        }
       }
 
       const { count: beforePhotoCount, error: beforePhotoCountError } = await supabaseAdmin

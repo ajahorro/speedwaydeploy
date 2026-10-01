@@ -278,7 +278,7 @@ serve(async (req: Request): Promise<Response> => {
       .from('bookings')
       .select(`
         id, customer_id, customer_name, customer_email, contact_number,
-        total_amount, status, payment_status, payment_method, start_datetime, notes,
+        total_amount, status, payment_status, payment_method, start_datetime, notes, staff_id,
         ocr_metadata,
         profiles:profiles!bookings_customer_id_fkey ( full_name, email ),
         vehicles:booking_vehicles!booking_vehicles_booking_id_fkey (
@@ -298,6 +298,20 @@ serve(async (req: Request): Promise<Response> => {
 
     // The embedded select above returns exactly this shape.
     const row = booking as unknown as BookingRow
+
+    let technicianName: string | null = null
+    if (row.staff_id) {
+      const { data: staffProfile, error: staffError } = await supabase
+        .from('profiles')
+        .select('full_name, first_name, last_name')
+        .eq('id', row.staff_id)
+        .maybeSingle()
+      if (staffError) console.warn('Assigned technician lookup failed:', staffError.message)
+      technicianName = staffProfile?.full_name
+        || `${staffProfile?.first_name || ''} ${staffProfile?.last_name || ''}`.trim()
+        || null
+    }
+    const bookingForEmail = { ...row, technician_name: technicianName }
 
     const customer = row.profiles
     // Prioritize customer details entered directly on the booking (critical for walk-ins so admin details never leak)
@@ -359,19 +373,19 @@ serve(async (req: Request): Promise<Response> => {
         }]
       }
 
-      const built = buildBookingConfirmedEmail({ booking: row, payment, customerName, hasReceipt: Boolean(receiptPdf) })
+      const built = buildBookingConfirmedEmail({ booking: bookingForEmail, payment, customerName, hasReceipt: Boolean(receiptPdf) })
       subject = built.subject
       html = built.html
     } else if (canonical === 'booking_created') {
-      const built = buildBookingCreatedEmail({ booking: row, payment, customerName })
+      const built = buildBookingCreatedEmail({ booking: bookingForEmail, payment, customerName })
       subject = built.subject
       html = built.html
     } else if (canonical === 'booking_reminder') {
-      const built = buildReminderEmail({ booking: row, payment, customerName })
+      const built = buildReminderEmail({ booking: bookingForEmail, payment, customerName })
       subject = built.subject
       html = built.html
     } else {
-      const built = buildStatusEmail({ booking: row, payment, customerName, newStatus: requested, remarks })
+      const built = buildStatusEmail({ booking: bookingForEmail, payment, customerName, newStatus: requested, remarks })
       subject = built.subject
       html = built.html
     }

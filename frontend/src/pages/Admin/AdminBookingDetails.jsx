@@ -75,6 +75,7 @@ const AdminBookingDetails = () => {
   const [rescheduleIssue, setRescheduleIssue] = useState(null);
   // Batch 5: photo evidence drawer.
   const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false);
+  const [photoGalleryVehicleId, setPhotoGalleryVehicleId] = useState(null);
   const [undoNoShowModal, setUndoNoShowModal] = useState({
     open: false,
     validationMessage: '',
@@ -341,7 +342,7 @@ const AdminBookingDetails = () => {
       // notification up by id, so firing this after a failed insert produced a
       // 400 "Notification not found" for a notification that was never created.
       if (error) logger.error('[notifyUser] Error inserting notification:', error);
-      else await sendNotificationEmail(notificationId);
+      else void sendNotificationEmail(notificationId).catch(err => logger.error('[notifyUser] Email dispatch failed:', err));
     } catch (err) {
       logger.error('[notifyUser] Exception:', err);
     }
@@ -369,7 +370,7 @@ const AdminBookingDetails = () => {
 
     const { error: updateError } = await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', id);
     if (updateError) throw updateError;
-    await sendBookingConfirmationEmail(id);
+    void sendBookingConfirmationEmail(id).catch(err => logger.error('Booking confirmation email dispatch failed:', err));
     return true;
   };
 
@@ -416,6 +417,15 @@ const AdminBookingDetails = () => {
         'TASK_ASSIGNED',
         `/staff/tasks`
       );
+      if (booking.customer_id && !isPostService) {
+        await notifyUser(
+          booking.customer_id,
+          'Technician Assigned',
+          `Your assigned technician is ${staffName}. Open booking #${id.slice(0, 8).toUpperCase()} for details.`,
+          'STAFF_ASSIGNED',
+          `/customer/bookings/${id}`
+        );
+      }
 
       // 2. Dual Delivery — Dispatch direct 1-to-1 email alert to technician asynchronously
       if (staffMember?.email) {
@@ -458,19 +468,6 @@ const AdminBookingDetails = () => {
 
       await notifyUser(booking.customer_id, 'Payment Verified', `Your payment of ₱${p.amount.toLocaleString()} has been approved. Thank you!`, 'PAYMENT_APPROVED', `/customer/bookings/${id}`);
 
-      // 🚀 AUTOMATIC LIFECYCLE SYNC via Backend Propagator
-      await fetch(`${BACKEND_URL}/api/bookings/update-status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookingId: id,
-          unitId: vehicles[0]?.id, // Just trigger with the first unit to force a sync
-          newStatus: vehicles[0]?.status,
-          actorName: verifier?.email || 'Admin',
-          actorRole: 'ADMIN'
-        })
-      });
-
       await confirmBookingWhenReady();
 
       toast.success('Payment Approved & Ledger Synced', { id: toastId });
@@ -479,6 +476,18 @@ const AdminBookingDetails = () => {
       logger.error('Payment verification failed:', err);
       toast.error(err.message || 'Verification failed', { id: toastId });
     }
+  };
+
+  const requestVerifyPayment = (payment) => {
+    const amount = Number(payment.detected_amount || payment.amount || 0);
+    openModal({
+      title: 'Approve payment?',
+      message: `Approve ₱${amount.toLocaleString()} for this booking? The payment will be marked paid and the customer will be notified. Reference: ${payment.detected_ref || payment.reference_number || 'Not detected'}.`,
+      type: 'success',
+      confirmText: 'Approve Payment',
+      cancelText: 'Cancel',
+      onConfirm: () => handleVerifyPayment(payment)
+    });
   };
 
   const handleRejectPayment = async (p) => {
@@ -1329,7 +1338,7 @@ const AdminBookingDetails = () => {
             missed the slot and needs a new one — so the status is no longer
             excluded. Only TERMINAL states hide it: a completed, released or
             cancelled booking has nothing left to reschedule. */}
-        {!['completed', 'released', 'cancelled'].includes(derivedStatus) && (
+        {!['completed', 'released', 'cancelled', 'in_progress', 'ongoing'].includes(derivedStatus) && !anyUnitStarted && (
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <button
               onClick={handleOpenReschedule}
@@ -1744,7 +1753,7 @@ const AdminBookingDetails = () => {
                             {/* Batch 5: full before/after evidence gallery (signed URLs). */}
                             <button
                               type="button"
-                              onClick={() => setPhotoGalleryOpen(true)}
+                              onClick={() => { setPhotoGalleryVehicleId(v.id); setPhotoGalleryOpen(true); }}
                               style={{
                                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
                                 padding: '0.4rem 0.6rem', background: 'transparent', color: 'var(--admin-brand)',
@@ -1916,7 +1925,7 @@ const AdminBookingDetails = () => {
 
                     {p.status === 'FOR_VERIFICATION' ? (
                       <div style={{ display: 'flex', gap: '0.75rem' }}>
-                        <button onClick={() => handleVerifyPayment(p)} style={{ flex: 1, padding: '0.85rem', background: 'var(--status-success)', color: 'var(--admin-text-primary)', borderRadius: '6px', border: 'none', fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer' }}>APPROVE</button>
+                        <button onClick={() => requestVerifyPayment(p)} style={{ flex: 1, padding: '0.85rem', background: 'var(--status-success)', color: 'var(--admin-text-primary)', borderRadius: '6px', border: 'none', fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer' }}>APPROVE</button>
                         <button onClick={() => handleRejectPayment(p)} style={{ flex: 1, padding: '0.85rem', background: 'var(--status-danger)', color: 'var(--admin-text-primary)', borderRadius: '6px', border: 'none', fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer' }}>REJECT</button>
                       </div>
                     ) : (
@@ -2215,8 +2224,9 @@ const AdminBookingDetails = () => {
       {/* Batch 5: photo evidence drawer (before/after, signed URLs). */}
       <PhotoProofGallery
         bookingId={booking?.id || id}
+        bookingVehicleId={photoGalleryVehicleId}
         open={photoGalleryOpen}
-        onClose={() => setPhotoGalleryOpen(false)}
+        onClose={() => { setPhotoGalleryOpen(false); setPhotoGalleryVehicleId(null); }}
       />
 
       <style>{`

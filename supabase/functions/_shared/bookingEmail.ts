@@ -66,6 +66,8 @@ export interface BookingLike {
   payment_status?: string | null
   payment_method?: string | null
   start_datetime?: string | null
+  staff_id?: string | null
+  technician_name?: string | null
   /** Rich OCR result; persist_ocr_result() writes this onto the BOOKING. */
   ocr_metadata?: Record<string, unknown> | null
 }
@@ -95,7 +97,7 @@ export interface OcrDetails {
   gross: number
   transferFee: number
   reference: string | null
-  sender: string | null
+  recipientAccount: string | null
   transactionAt: string | null
   description: string | null
   amountMatched: boolean
@@ -190,7 +192,7 @@ export const resolveAmounts = (booking: BookingLike = {}, payment: PaymentLike |
  * (backend/services/receiptTextParser.js server-side, mirrored by
  * frontend/src/utils/receiptOcr.js in the browser) so the email finally shows
  * what was actually read off the receipt: the reference
- * number, the sender, the transaction timestamp and the detected amount.
+ * number, receiving account, transaction timestamp and detected amount.
  *
  * The metadata lives on the BOOKING (see persist_ocr_result); the payment row
  * carries only the detected amount, reference and fee. Both are accepted here so
@@ -226,7 +228,7 @@ export const extractOcrDetails = (booking?: BookingLike | null, payment?: Paymen
     gross: round2(gross),
     transferFee: Math.max(0, num(payment?.transfer_fee) || num(meta.transferFee)),
     reference: referenceValue,
-    sender: meta.recipient ? String(meta.recipient) : null,
+    recipientAccount: meta.recipient ? String(meta.recipient) : null,
     transactionAt,
     description: meta.description ? String(meta.description) : null,
     amountMatched: meta.isAmountMatch === true,
@@ -251,12 +253,13 @@ const shell = (title: string, inner: string): string => `
     </div>
   </div>`;
 
-const lifecycleSteps = ['SUBMITTED', 'CONFIRMED', 'IN PROGRESS', 'COMPLETED', 'RELEASED'];
+const lifecycleSteps = ['SCHEDULED', 'CONFIRMED', 'IN PROGRESS', 'COMPLETED', 'RELEASED'];
 
 const renderLifecycle = (statusKey: string): string => {
-  const normalized = statusKey === 'ONGOING' ? 'IN PROGRESS'
-    : statusKey === 'SCHEDULED' ? 'SUBMITTED'
-      : statusKey.replaceAll('_', ' ');
+  const rawStatus = String(statusKey || '').toUpperCase().replaceAll('_', ' ');
+  const normalized = rawStatus === 'ONGOING' ? 'IN PROGRESS'
+    : rawStatus === 'SUBMITTED' ? 'SCHEDULED'
+      : rawStatus;
   const activeIndex = lifecycleSteps.indexOf(normalized);
   const isException = ['CANCELLED', 'FLAGGED NOSHOW'].includes(normalized);
 
@@ -282,6 +285,7 @@ const bookingTable = (booking: BookingLike, appointmentDate: string, amounts: Re
     <tr><td style="padding:12px 14px;color:#6b7280;font-size:13px;">Booking ID</td><td style="padding:12px 14px;text-align:right;font-weight:700;font-size:13px;">${escapeHtml(String(booking.id || '').slice(0, 8).toUpperCase())}</td></tr>
     <tr><td style="padding:12px 14px;color:#6b7280;font-size:13px;">Booking Total</td><td style="padding:12px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.totalDue)}</td></tr>
     <tr><td style="padding:12px 14px;color:#6b7280;font-size:13px;">Scheduled Time</td><td style="padding:12px 14px;text-align:right;font-weight:700;font-size:13px;">${escapeHtml(appointmentDate)}</td></tr>
+    ${booking.technician_name ? `<tr><td style="padding:12px 14px;color:#6b7280;font-size:13px;">Assigned Technician</td><td style="padding:12px 14px;text-align:right;font-weight:700;font-size:13px;">${escapeHtml(booking.technician_name)}</td></tr>` : ''}
   </table>`;
 
 /**
@@ -319,7 +323,7 @@ const paymentBlock = (
   const ocrRows: string[] = [];
   if (includeOcr && ocr) {
     if (ocr.reference) ocrRows.push(`<tr><td style="padding:8px 14px;color:#6b7280;font-size:12px;">Reference No.</td><td style="padding:8px 14px;text-align:right;font-weight:600;font-size:12px;">${escapeHtml(ocr.reference)}</td></tr>`);
-    if (ocr.sender) ocrRows.push(`<tr><td style="padding:8px 14px;color:#6b7280;font-size:12px;">Sender</td><td style="padding:8px 14px;text-align:right;font-weight:600;font-size:12px;">${escapeHtml(ocr.sender)}</td></tr>`);
+    if (ocr.recipientAccount) ocrRows.push(`<tr><td style="padding:8px 14px;color:#6b7280;font-size:12px;">Recipient Account</td><td style="padding:8px 14px;text-align:right;font-weight:600;font-size:12px;">${escapeHtml(ocr.recipientAccount)}</td></tr>`);
     if (ocr.transactionAt) ocrRows.push(`<tr><td style="padding:8px 14px;color:#6b7280;font-size:12px;">Transaction Date</td><td style="padding:8px 14px;text-align:right;font-weight:600;font-size:12px;">${escapeHtml(ocr.transactionAt)}</td></tr>`);
     if (ocr.detectedNet > 0) ocrRows.push(`<tr><td style="padding:8px 14px;color:#6b7280;font-size:12px;">Amount Read From Receipt</td><td style="padding:8px 14px;text-align:right;font-weight:600;font-size:12px;">${formatPeso(ocr.detectedNet)}</td></tr>`);
   }
@@ -365,7 +369,7 @@ export const buildBookingCreatedEmail = ({ booking, payment, customerName }: {
   const body = `
     <p style="font-size:16px;">Hi ${escapeHtml(customerName)},</p>
     <p style="font-size:15px;line-height:1.6;">${escapeHtml(
-      `${SITE_INTRO} Your booking has been received and your slot is reserved.`
+      `${SITE_INTRO} Your appointment has been scheduled and your time slot is reserved.`
     )}</p>
     ${bookingTable(booking, appointmentDate, amounts)}
     ${paymentBlock(amounts, ocr)}
@@ -373,10 +377,10 @@ export const buildBookingCreatedEmail = ({ booking, payment, customerName }: {
     ${ctaButton('VIEW IN PORTAL')}`;
 
   const subject = amounts.hasPayment
-    ? `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} received — ${formatPeso(amounts.grossPaid)} awaiting verification`
-    : `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} received`;
+    ? `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} scheduled — ${formatPeso(amounts.grossPaid)} payment awaiting verification`
+    : `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} scheduled`;
 
-  return { subject, html: shell('Booking Received', body), amounts, ocr };
+  return { subject, html: shell('Booking Scheduled', body), amounts, ocr };
 };
 
 /**
@@ -480,10 +484,10 @@ export const notificationCopyFor = (
 ) => {
   const map: Record<string, { title: string; message: string; type: string }> = {
     SCHEDULED: {
-      title: 'Booking Received',
+      title: 'Booking Scheduled',
       message: amounts?.hasPayment
-        ? `Your booking #${bookingRef} was submitted with a payment of ${formatPeso(amounts.grossPaid)}. Awaiting verification.`
-        : `Your booking #${bookingRef} has been submitted and is awaiting confirmation.`,
+        ? `Your appointment #${bookingRef} is scheduled. Payment of ${formatPeso(amounts.grossPaid)} was submitted and is awaiting verification.`
+        : `Your appointment #${bookingRef} is scheduled and is awaiting confirmation.`,
       type: 'BOOKING_CREATED',
     },
     CONFIRMED: { title: 'Booking Confirmed', message: `Your appointment #${bookingRef} has been confirmed. Your receipt is in your portal.`, type: 'BOOKING_CONFIRMED' },

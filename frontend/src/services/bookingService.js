@@ -442,7 +442,7 @@ export const createBooking = async (customerId, bookingData) => {
 
   // Populate the customer's garage (non-fatal, per vehicle).
   if (bookingCustomerId) {
-    for (const vehicle of vehicles) {
+    void Promise.all(vehicles.map(async (vehicle) => {
       try {
         await fetch(`${BACKEND_URL}/api/garage/sync`, {
           method: 'POST',
@@ -452,7 +452,7 @@ export const createBooking = async (customerId, bookingData) => {
       } catch (garageEx) {
         console.warn('Silent Garage Sync Failure:', garageEx);
       }
-    }
+    }));
   }
 
   if (!bookingCustomerId && bookingData.customerEmail) {
@@ -492,10 +492,13 @@ export const createBooking = async (customerId, bookingData) => {
   //
   // The in-app notification is created by the same function, so the bell and
   // the inbox can never describe the same event differently.
-  const lifecycleEmailResult = await sendStatusEmail(booking.id, 'booking_created');
-  if (lifecycleEmailResult?.error) {
-    console.warn(`[Booking] Creation lifecycle email failed for ${booking.id}:`, lifecycleEmailResult.error);
-  }
+  void sendStatusEmail(booking.id, 'booking_created')
+    .then(lifecycleEmailResult => {
+      if (lifecycleEmailResult?.error) {
+        console.warn(`[Booking] Creation lifecycle email failed for ${booking.id}:`, lifecycleEmailResult.error);
+      }
+    })
+    .catch(error => console.warn(`[Booking] Creation lifecycle email failed for ${booking.id}:`, error));
 
   return booking;
 };

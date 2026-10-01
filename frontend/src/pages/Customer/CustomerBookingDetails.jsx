@@ -11,7 +11,6 @@ import { cancelBooking, rescheduleBooking } from '../../services/bookingService'
 import { getStatusColor } from '../../utils/bookingHelpers';
 import { useUnifiedData } from '../../context/UnifiedContext';
 import { useGlobalChat } from '../../context/ChatContext';
-import FloatingBubbleChat from '../../components/FloatingBubbleChat';
 import BookingSummaryHeader from '../../components/BookingSummaryHeader';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import QRMagnifier from '../../components/QRMagnifier';
@@ -207,9 +206,11 @@ const CustomerBookingDetails = () => {
       // 2. Staff profile
       let staff = null;
       if (bData.staff_id) {
-        const { data: s } = await supabase.from('profiles')
-          .select('first_name, last_name, email').eq('id', bData.staff_id).maybeSingle();
-        staff = s;
+          const { data: technicianName, error: technicianError } = await supabase.rpc('get_customer_booking_technician', {
+            p_booking_id: actualBookingId,
+          });
+          if (technicianError) throw technicianError;
+          staff = technicianName ? { full_name: technicianName } : null;
       }
 
       // 3. Fetch Vehicles (Manual Join)
@@ -367,6 +368,8 @@ const CustomerBookingDetails = () => {
   const timeStr = dt ? dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
   const paymentSummary = calculatePaymentSummary({ ...booking, payments });
   const totalPaid = paymentSummary.totalPaid || 0;
+  const appliedToBooking = Math.max(0, totalPaid - Number(paymentSummary.credit || 0));
+  const excessCredit = Number(paymentSummary.credit || 0);
   const balance = Math.max(0, (booking.total_amount || 0) - totalPaid);
   const selectedRescheduleSlot = rescheduleSlots.some(slot => slot.time === rescheduleTime);
 
@@ -389,7 +392,7 @@ const CustomerBookingDetails = () => {
     ...booking,
     status: derivedStatus,
     assigned_staff: booking.assigned_staff
-      ? { ...booking.assigned_staff, full_name: `${booking.assigned_staff.first_name || ''} ${booking.assigned_staff.last_name || ''}`.trim() }
+      ? { ...booking.assigned_staff, full_name: booking.assigned_staff.full_name || `${booking.assigned_staff.first_name || ''} ${booking.assigned_staff.last_name || ''}`.trim() }
       : null
   };
 
@@ -711,9 +714,23 @@ const CustomerBookingDetails = () => {
               ))}
             </div>
 
-            <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px dashed var(--admin-border)', display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px dashed var(--admin-border)', display: 'grid', gap: '0.65rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>Booking Total</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: '900' }}>{formatCurrency(booking.total_amount || 0)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>Applied to Booking</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: '900' }}>{formatCurrency(appliedToBooking)}</span>
+              </div>
+              {excessCredit > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>Excess Credit</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: '950', color: 'var(--admin-success)' }}>{formatCurrency(excessCredit)}</span>
+              </div>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', paddingTop: '0.65rem', borderTop: '1px dashed var(--admin-border)' }}>
               <span style={{ fontSize: '0.8rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>BALANCE REMAINING</span>
-              <span style={{ fontSize: '1rem', fontWeight: '950', color: 'var(--admin-warning)' }}>{formatCurrency(Math.max(0, (booking.total_amount || 0) - (booking.totalPaid || 0)))}</span>
+                <span style={{ fontSize: '1rem', fontWeight: '950', color: 'var(--admin-warning)' }}>{formatCurrency(balance)}</span>
+              </div>
             </div>
           </div>
           {balance > 0 && (
@@ -887,7 +904,6 @@ const CustomerBookingDetails = () => {
         }
       `}</style>
       </div>
-      {booking.customer_id && <FloatingBubbleChat />}
     </>
   );
 };
