@@ -114,7 +114,7 @@ export const parseAmountToken = (raw) => {
  */
 const AMOUNT_LABELS = [
   { key: 'net', pattern: /(total\s*amount\s*(received|sent)|amount\s*received|net\s*amount|received\s*amount)/i },
-  { key: 'gross', pattern: /(total\s*amount\s*paid|total\s*paid|amount\s*paid|total\s*sent|grand\s*total)/i },
+  { key: 'gross', pattern: /(total\s*amount\s*paid|total\s*paid|amount\s*paid|paid\s*amount|total\s*sent|grand\s*total|\bpaid\b|\bamount\b)/i },
   { key: 'fee', pattern: /(transfer\s*fee|convenience\s*fee|service\s*fee|instapay\s*fee|pesonet\s*fee|transaction\s*fee|fee)/i },
   { key: 'generic', pattern: /(^|\b)total(\b|:)/i },
 ];
@@ -260,7 +260,13 @@ export const extractAmounts = (text) => {
     for (const candidate of AMOUNT_LABELS) {
       if (candidate.pattern.test(labelSource)) { label = candidate.key; break; }
     }
-    if (!label || found[label] !== null) continue;
+    if (!label || found[label] !== null) {
+      if (!label && found.generic === null && /\b(?:paid|amount|total|grand)\b|[₱PpFf£¥$]|\bphp\b/i.test(line)) {
+        const fallbackValue = moneyOnLine(line);
+        if (fallbackValue !== null) found.generic = fallbackValue;
+      }
+      continue;
+    }
 
     // Same line first ("Total: ₱2,500.00") but ONLY when the figure is clearly
     // money-marked, then the next non-empty line ("Total Amount Sent" /
@@ -444,9 +450,18 @@ export const extractDate = (text) => {
   const numeric = repairDateDigits(source).match(/(\d{1,2})[/-](\d{1,2})[/-](20\d{2})/);
   if (numeric) {
     const [, a, b, y] = numeric.map(Number);
-    // If the first field cannot be a month, the pair is DD/MM.
-    const month = a > 12 ? b : a;
-    const day = a > 12 ? a : b;
+    // Philippine receipts are typically day-first (DD/MM/YYYY), but if one side
+    // exceeds 12 then we flip to a month/day interpretation because only one of
+    // the two fields can be a valid month in that case.
+    let month;
+    let day;
+    if (a <= 12 && b <= 12) {
+      day = a;
+      month = b;
+    } else {
+      month = a > 12 ? b : a;
+      day = a > 12 ? a : b;
+    }
     if (isValidCalendarDate(y, month, day)) {
       return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
