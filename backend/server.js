@@ -194,6 +194,28 @@ const getLifecycleActor = async (req) => {
   return { user, profile };
 };
 
+const getBookingVehicleServiceColumns = async () => {
+  if (!supabaseAdmin) return { hasDurationMinutes: false, hasVehicleType: false, hasServiceSnapshot: false };
+
+  const { data, error } = await supabaseAdmin
+    .from('information_schema.columns')
+    .select('column_name')
+    .eq('table_schema', 'public')
+    .eq('table_name', 'booking_vehicle_services');
+
+  if (error) {
+    console.warn('[booking_vehicle_services] Unable to inspect schema:', error.message);
+    return { hasDurationMinutes: false, hasVehicleType: false, hasServiceSnapshot: false };
+  }
+
+  const names = new Set((data || []).map((column) => String(column.column_name).toLowerCase()));
+  return {
+    hasDurationMinutes: names.has('duration_minutes'),
+    hasVehicleType: names.has('vehicle_type'),
+    hasServiceSnapshot: names.has('service_snapshot')
+  };
+};
+
 /**
  * 🛡️ SERVER-SIDE ADMIN GATE (Tier 3 / Task 13).
  * Resolves the caller from their JWT (never from the request body) and asserts
@@ -4400,17 +4422,20 @@ app.post('/api/bookings/add-service', async (req, res) => {
     // locks the booking row, re-checks the terminal guard UNDER the lock, and
     // applies the service line, the payment, and the total delta in ONE
     // transaction. The loser of a race fails with a clean check_violation.
+    const serviceSchema = await getBookingVehicleServiceColumns();
     const serviceRow = {
       booking_vehicle_id: vehicleId,
       service_name: serviceName,
       price: servicePrice,
-      duration_minutes: Number(durationMinutes || 60),
-      service_snapshot: {
-        name: serviceName,
-        price: servicePrice,
-        duration_minutes: Number(durationMinutes || 60),
-        source: 'admin_add_service'
-      }
+      ...(serviceSchema.hasDurationMinutes ? { duration_minutes: Number(durationMinutes || 60) } : {}),
+      ...(serviceSchema.hasServiceSnapshot ? {
+        service_snapshot: {
+          name: serviceName,
+          price: servicePrice,
+          duration_minutes: Number(durationMinutes || 60),
+          source: 'admin_add_service'
+        }
+      } : {})
     };
     const paymentRow = hasPayment ? {
       amount: Number(paymentAmount),
@@ -4455,17 +4480,20 @@ app.post('/api/bookings/add-service', async (req, res) => {
             return res.status(409).json({ success: false, error: 'This booking was just closed (completed or cancelled) and can no longer be modified.' });
           }
 
+          const serviceSchema = await getBookingVehicleServiceColumns();
           const fallbackService = {
             booking_vehicle_id: vehicleId,
             service_name: serviceName,
             price: servicePrice,
-            duration_minutes: Number(durationMinutes || 60),
-            service_snapshot: {
-              name: serviceName,
-              price: servicePrice,
-              duration_minutes: Number(durationMinutes || 60),
-              source: 'admin_add_service_fallback'
-            }
+            ...(serviceSchema.hasDurationMinutes ? { duration_minutes: Number(durationMinutes || 60) } : {}),
+            ...(serviceSchema.hasServiceSnapshot ? {
+              service_snapshot: {
+                name: serviceName,
+                price: servicePrice,
+                duration_minutes: Number(durationMinutes || 60),
+                source: 'admin_add_service_fallback'
+              }
+            } : {})
           };
 
           const paymentPayload = hasPayment ? {
