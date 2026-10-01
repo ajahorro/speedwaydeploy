@@ -4442,10 +4442,93 @@ app.post('/api/bookings/add-service', async (req, res) => {
         return res.status(409).json({ success: false, error: 'This booking was just closed (completed or cancelled) and can no longer be modified.' });
       }
       if (rpcMissing) {
-        return res.status(503).json({
-          success: false,
-          error: 'Atomic service updates are unavailable until the booking-lock migration is applied. No changes were made.'
-        });
+        try {
+          const { data: liveBooking, error: liveBookingError } = await supabaseAdmin
+            .from('bookings')
+            .select('id, status, total_amount, start_datetime, end_datetime')
+            .eq('id', bookingId)
+            .single();
+
+          if (liveBookingError) throw liveBookingError;
+
+          if (['released', 'completed', 'cancelled', 'flagged_noshow'].includes(String(liveBooking.status || '').toLowerCase())) {
+            return res.status(409).json({ success: false, error: 'This booking was just closed (completed or cancelled) and can no longer be modified.' });
+          }
+
+          const fallbackService = {
+            booking_vehicle_id: vehicleId,
+            service_name: serviceName,
+            price: servicePrice,
+            duration_minutes: Number(durationMinutes || 60),
+            service_snapshot: {
+              name: serviceName,
+              price: servicePrice,
+              duration_minutes: Number(durationMinutes || 60),
+              source: 'admin_add_service_fallback'
+            }
+          };
+
+          const paymentPayload = hasPayment ? {
+            booking_id: bookingId,
+            amount: Number(paymentAmount),
+            method: paymentMethod,
+            payment_type: paymentType,
+            status: 'PAID',
+            reference_number: paymentMethod === 'Digital' ? referenceNumber.trim() : null,
+            verified_by: actor.user.id,
+            verified_at: new Date().toISOString(),
+            notes: `PAYMENT_${String(paymentMethod).toUpperCase()} | ADDED_SERVICE:${serviceName} | TYPE:${paymentType}`
+          } : null;
+
+          const { error: serviceInsertError } = await supabaseAdmin
+            .from('booking_vehicle_services')
+            .insert(fallbackService);
+          if (serviceInsertError) throw serviceInsertError;
+
+          if (paymentPayload) {
+            const { error: paymentInsertError } = await supabaseAdmin
+              .from('payments')
+              .insert(paymentPayload);
+            if (paymentInsertError) throw paymentInsertError;
+          }
+
+          const nextTotal = Number(liveBooking.total_amount || 0) + servicePrice;
+          const baseEnd = liveBooking.end_datetime || liveBooking.start_datetime || new Date().toISOString();
+          const nextEnd = new Date(new Date(baseEnd).getTime() + Number(durationMinutes || 0) * 60000).toISOString();
+
+          const { error: bookingUpdateError } = await supabaseAdmin
+            .from('bookings')
+            .update({ total_amount: nextTotal, end_datetime: nextEnd, updated_at: new Date().toISOString() })
+            .eq('id', bookingId);
+
+          if (bookingUpdateError) throw bookingUpdateError;
+
+          await supabaseAdmin.from('audit_logs').insert({
+            booking_id: bookingId,
+            action_type: 'BOOKING_MUTATED_FALLBACK',
+            actor_name: actor.user.email || actor.profile.full_name || 'Admin',
+            actor_role: String(actor.profile.role).toUpperCase(),
+            actor_id: actor.user.id,
+            details: `Compatibility fallback added service ${serviceName} to booking ${bookingId}.`,
+            metadata: {
+              service_name: serviceName,
+              total_delta: servicePrice,
+              mode: 'compatibility_fallback'
+            }
+          });
+
+          return res.json({
+            success: true,
+            fallback: true,
+            message: 'Service was added using the compatibility fallback while the booking lock migration is syncing.'
+          });
+        } catch (fallbackError) {
+          console.error('Add service compatibility fallback failed:', fallbackError.message);
+          return res.status(500).json({
+            success: false,
+            error: fallbackError.message || 'Unable to add service right now.'
+          });
+        }
       }
       throw rpcError;
     }
