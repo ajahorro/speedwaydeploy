@@ -355,24 +355,6 @@ const extractDate = (text) => {
   return null;
 };
 
-const extractTime = (text) => {
-  if (!text) return null;
-  const source = String(text).replace(
-    /[0-9OoQDlI|!SsBZzgqAT]{1,2}[:.][0-9OoQDlI|!SsBZzgqAT]{2}(?:[:.][0-9OoQDlI|!SsBZzgqAT]{2})?/g,
-    (fragment) => repairDateDigits(fragment)
-  );
-  const meridiem = source.match(/\b(0?[1-9]|1[0-2])[:.]([0-5]\d)(?::[0-5]\d)?\s*([AP])\.?\s*M\.?\b/i);
-  if (meridiem) {
-    let hour = Number(meridiem[1]) % 12;
-    if (meridiem[3].toUpperCase() === 'P') hour += 12;
-    return `${String(hour).padStart(2, '0')}:${meridiem[2]}`;
-  }
-
-  const twentyFourHour = source.match(/\b([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?\b/);
-  if (!twentyFourHour) return null;
-  return `${String(Number(twentyFourHour[1])).padStart(2, '0')}:${twentyFourHour[2]}`;
-};
-
 /**
  * Recipient labels that are unambiguous on their own.
  *
@@ -490,7 +472,6 @@ const parseReceiptText = (rawText) => {
     transferFee: fee,
     referenceNumber: extractReferenceNumber(text),
     timestamp: extractDate(text),
-    time: extractTime(text),
     recipient: extractRecipient(text),
     isValidReceipt: looksLikeReceipt(text),
     rawText: text,
@@ -504,7 +485,6 @@ module.exports = {
   extractAmounts,
   extractReferenceNumber,
   extractDate,
-  extractTime,
   extractRecipient,
   looksLikeReceipt,
 };

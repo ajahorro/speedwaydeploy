@@ -59,12 +59,9 @@ const resolveTransactionAmounts = (booking = {}, payment = null) => {
   const creditApplied = Math.max(0, num(payment?.credit_applied));
   const netApplied = round2(netReceived + creditApplied);
 
-  // The TRANSFER FEE IS NOT A SHORTFALL. The customer paid it — the bank simply
-  // kept it in transit. Crediting the booking with the gross (not the net) is
-  // what keeps a cross-bank/GoTyme transfer from reading as short-paid and
-  // leaving a phantom balance the customer already covered. The shop absorbs
-  // the fee; the booking is settled in full.
-  const creditedToBooking = round2(netApplied + transferFee);
+  // The transfer fee was not received by the shop. Keep it in grossPaid for
+  // customer-facing detail, but only apply netReceived to the booking ledger.
+  const creditedToBooking = netApplied;
 
   const excessCredit = Math.max(0, round2(creditedToBooking - totalDue));
   const remainingBalance = Math.max(0, round2(totalDue - creditedToBooking));

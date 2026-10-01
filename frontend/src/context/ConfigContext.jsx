@@ -59,6 +59,8 @@ export const ConfigProvider = ({ children }) => {
       const { data, error } = await supabase
         .from('business_config')
         .select('*')
+        .order('id')
+        .limit(1)
         .maybeSingle();
 
       if (error) throw error;

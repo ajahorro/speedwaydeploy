@@ -543,6 +543,8 @@ export default function BusinessHub() {
       const { data, error } = await supabase
         .from('business_config')
         .select('*')
+        .order('id')
+        .limit(1)
         .maybeSingle();
 
       if (error) throw error;
@@ -575,7 +577,7 @@ export default function BusinessHub() {
           opening_hour: data.opening_hour || '',
           closing_hour: data.closing_hour || '',
           is_24_7: data.is_24_7 === true,
-          qr_account_name: data.qr_account_name || '',
+          qr_account_name: data.qr_account_name || data.payment_account_name || data.gcash_name || '',
           qr_account_number: data.qr_account_number || '',
           payment_qr_url: data.payment_qr_url || data.gcash_qr_url || data.qr_photo_url || '',
           qr_config_version: data.qr_config_version ?? 1,

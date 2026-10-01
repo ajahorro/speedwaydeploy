@@ -34,7 +34,7 @@ export const calculatePaymentSummary = (booking = {}) => {
   const isRefundRow = (payment) => String(payment.method || '').toUpperCase() === 'SYSTEM_REFUND';
   const settledCreditAmount = (payment) => {
     const detected = Number(payment.detected_amount || 0);
-    if (detected > 0) return detected + Math.max(0, Number(payment.transfer_fee || 0));
+    if (detected > 0) return detected;
     return Number(payment.amount || 0);
   };
 

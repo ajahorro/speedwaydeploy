@@ -278,7 +278,6 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           requiredAmount: targetAmount,
           fullAmount: Number(extractedData.fullAmount || grandTotal),
           date: extractedData.date,
-          time: extractedData.time,
           status: manualReviewAllowed
             ? 'MANUAL_REVIEW'
             : (isValidReceipt
@@ -292,7 +291,6 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           isAmountMatch: isAmountMatched,
           isDuplicate,
           isDateMatch: isDateMatched,
-          isTimeMatch: (result.isTimeMatch ?? extractedData.isTimeMatch) === true,
           isReferenceValid: (result.isReferenceValid ?? extractedData.isReferenceValid) === true,
           isReferenceUnique: (result.isReferenceUnique ?? extractedData.isReferenceUnique) === true,
           validationErrors: Array.isArray(result.validationErrors)
@@ -356,9 +354,17 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   // the submit button disabled. Admin-created bookings bypass this gate.
   const manualReviewAllowedReceipt = Boolean(receiptDetails?.manualReviewAllowed);
   const receiptVerified = Boolean(receiptDetails?.valid === true) || manualReviewAllowedReceipt;
-  const receiptValidationErrors = Array.isArray(receiptDetails?.validationErrors)
+  const serverValidationErrors = Array.isArray(receiptDetails?.validationErrors)
     ? receiptDetails.validationErrors
     : [];
+  const receiptValidationErrors = serverValidationErrors.length > 0
+    ? serverValidationErrors
+    : (receiptDetails && !receiptVerified
+      ? [{
+          code: 'VERIFICATION_FAILED',
+          message: receiptDetails.description || 'We could not read enough of this receipt. Try a clear, complete photo or contact support.',
+        }]
+      : []);
   const receiptStatusLabel = manualReviewAllowedReceipt
     ? 'Pending Manual Review'
     : receiptVerified
@@ -379,52 +385,33 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
     Number(receiptDetails.amount) < downpaymentAmount
   );
   const isWarningReceipt = Boolean(receiptDetails) && (!receiptVerified || receiptValidationErrors.length > 0);
-  const hasReceiptNotes = manualReviewAllowedReceipt && Boolean(receiptDetails?.description);
   const manualAmount = Number(bookingData.payment.manualAmount || 0);
-
-  const receiptComparisons = receiptDetails ? [
-    {
-      field: 'Reference No.',
-      extracted: receiptDetails.referenceNo || 'Not detected',
-      expected: 'Unique, 6-40 letters or numbers',
-      valid: receiptDetails.isReferenceValid === true && receiptDetails.isReferenceUnique === true,
-    },
-    {
-      field: 'Recipient',
-      extracted: receiptDetails.recipient || 'Not detected',
-      expected: receiptDetails.expectedRecipientName || 'Registered shop account unavailable',
-      expectedValid: Boolean(receiptDetails.expectedRecipientName),
-      valid: receiptDetails.isNameMatch === true,
-    },
-    {
-      field: 'Date & Time',
-      extracted: `${receiptDetails.date || 'Date not detected'}${receiptDetails.time ? `, ${receiptDetails.time}` : ''}`,
-      expected: 'Today or yesterday; within 24 hours (max 5 min future, Philippine time)',
-      valid: receiptDetails.isDateMatch === true && receiptDetails.isTimeMatch === true,
-    },
-    {
-      field: 'Amount',
-      extracted: receiptDetails.amountDetected ? `₱${Number(receiptDetails.amount).toLocaleString()}` : 'Not detected',
-      expected: `At least ₱${downpaymentAmount.toLocaleString()} downpayment; full ₱${grandTotal.toLocaleString()} (overpayment accepted)`,
-      valid: receiptDetails.isAmountMatch === true,
-    },
-  ] : [];
-  const renderReceiptComparisonGrid = () => (
-    <div role="table" aria-label="Receipt verification comparison" style={{ border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', overflow: 'hidden' }}>
-      <div role="row" style={{ display: 'grid', gridTemplateColumns: 'minmax(64px, .65fr) repeat(2, minmax(0, 1.25fr))', gap: '.65rem', padding: '.7rem .8rem', background: 'var(--admin-bg)' }}>
-        <strong role="columnheader" style={{ color: 'var(--admin-text-secondary)', fontSize: '.62rem', textTransform: 'uppercase' }}>Field</strong>
-        <strong role="columnheader" style={{ color: 'var(--admin-text-secondary)', fontSize: '.62rem', textTransform: 'uppercase' }}>Extracted on receipt</strong>
-        <strong role="columnheader" style={{ color: 'var(--admin-text-secondary)', fontSize: '.62rem', textTransform: 'uppercase' }}>Expected / registered</strong>
-      </div>
-      {receiptComparisons.map((row) => (
-        <div key={row.field} role="row" style={{ display: 'grid', gridTemplateColumns: 'minmax(64px, .65fr) repeat(2, minmax(0, 1.25fr))', gap: '.65rem', padding: '.75rem .8rem', borderTop: '1px solid var(--admin-border)', alignItems: 'start' }}>
-          <strong role="rowheader" style={{ color: 'var(--admin-text-secondary)', fontSize: '.68rem' }}>{row.field}</strong>
-          <span role="cell" style={{ color: row.valid ? 'var(--admin-success)' : 'var(--status-danger)', fontSize: '.75rem', fontWeight: '850', overflowWrap: 'anywhere' }}>{row.extracted}</span>
-          <span role="cell" style={{ color: row.expectedValid === false ? 'var(--status-warning)' : 'var(--admin-success)', fontSize: '.72rem', fontWeight: '750', overflowWrap: 'anywhere' }}>{row.expected}</span>
+  const renderReceiptFeedback = () => {
+    if (manualReviewAllowedReceipt) {
+      return (
+        <div role="status" style={{ padding: '1rem', borderRadius: 'var(--admin-radius-sm)', background: 'rgba(245, 158, 11, 0.08)', color: 'var(--status-warning)', fontSize: '.82rem', lineHeight: 1.5 }}>
+          We couldn’t read this receipt automatically. It’s saved for staff review, and you may continue with your booking.
         </div>
-      ))}
-    </div>
-  );
+      );
+    }
+    if (receiptVerified) {
+      return (
+        <div role="status" style={{ padding: '1rem', borderRadius: 'var(--admin-radius-sm)', background: 'rgba(var(--admin-success-rgb), 0.08)', color: 'var(--admin-success)', fontSize: '.82rem', fontWeight: '800', lineHeight: 1.5 }}>
+          Receipt verified: ₱{Number(receiptDetails.amount || 0).toLocaleString()} received on {receiptDetails.date}.
+        </div>
+      );
+    }
+    return (
+      <div role="alert" style={{ padding: '1rem', borderRadius: 'var(--admin-radius-sm)', background: 'rgba(239, 68, 68, 0.07)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+        <strong style={{ color: 'var(--status-danger)', fontSize: '.82rem' }}>
+          {receiptValidationErrors.length > 1 ? 'We found a few issues with this receipt' : 'We couldn’t verify this receipt'}
+        </strong>
+        <ul style={{ margin: '.45rem 0 0', paddingLeft: '1.2rem', color: 'var(--status-danger)', fontSize: '.76rem', lineHeight: 1.55 }}>
+          {receiptValidationErrors.map((error, index) => <li key={error.code || index}>{error.message}</li>)}
+        </ul>
+      </div>
+    );
+  };
   const supportMailto = `mailto:${APP_METADATA.supportEmail}?subject=${encodeURIComponent('Receipt verification help')}&body=${encodeURIComponent(`Please help me review my receipt${bookingData.id ? ` for booking ${bookingData.id}` : ''}${receiptDetails?.referenceNo ? ` (reference ${receiptDetails.referenceNo})` : ''}.` )}`;
 
   const adminRefNumberValid = adminDigitalMode === 'reference' ? Boolean(manualRefInput.trim().length >= 4) : true;
@@ -816,26 +803,14 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                                 {receiptStatusLabel}
                               </div>
                               <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '800' }}>
-                                {manualReviewAllowedReceipt ? 'STAFF WILL VERIFY THIS RECEIPT' : (receiptValidationErrors.length ? 'REVIEW THE FIELD DETAILS BELOW' : 'ALL RECEIPT CHECKS PASSED')}
+                                {manualReviewAllowedReceipt ? 'STAFF WILL REVIEW YOUR UPLOAD' : (receiptVerified ? 'READY TO CONTINUE' : 'PLEASE CHECK THE MESSAGE BELOW')}
                               </div>
                             </div>
                           </div>
                         </div>
 
                         <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                          {hasReceiptNotes && <div style={{ background: 'var(--admin-bg)', padding: '1rem', borderRadius: 'var(--admin-radius-sm)', border: `1px solid ${receiptDetails.status === 'REJECTED' ? 'rgba(239, 68, 68, 0.3)' : 'var(--admin-border)'}`, fontSize: '0.8rem', color: receiptDetails.status === 'REJECTED' ? 'var(--status-danger)' : 'var(--admin-text-secondary)', lineHeight: 1.5, fontStyle: 'italic', fontWeight: receiptDetails.status === 'REJECTED' ? '700' : 'normal' }}>{receiptDetails.description}</div>}
-
-                          {receiptValidationErrors.length > 0 && !manualReviewAllowedReceipt && (
-                            <div role="alert" style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.07)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: 'var(--admin-radius-sm)' }}>
-                              <strong style={{ color: 'var(--status-danger)', fontSize: '.8rem' }}>
-                                {receiptValidationErrors.length > 1 ? 'Multiple validation issues' : 'Receipt needs attention'}
-                              </strong>
-                              <ul style={{ margin: '.5rem 0 0', paddingLeft: '1.2rem', color: 'var(--status-danger)', fontSize: '.75rem', lineHeight: 1.6 }}>
-                                {receiptValidationErrors.map((error) => <li key={error.code}>{error.message}</li>)}
-                              </ul>
-                            </div>
-                          )}
-                          {renderReceiptComparisonGrid()}
+                          {renderReceiptFeedback()}
                         </div>
                         <div style={{ display: 'flex', gap: '.75rem', padding: '1rem', borderTop: '1px solid var(--admin-border)', flexWrap: 'wrap' }}>
                           <button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>Upload Corrected Receipt</button>
@@ -991,7 +966,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                               {receiptStatusLabel}
                             </div>
                             <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '800' }}>
-                              {manualReviewAllowedReceipt ? 'STAFF WILL VERIFY THIS RECEIPT' : (receiptValidationErrors.length ? 'REVIEW THE FIELD DETAILS BELOW' : 'ALL RECEIPT CHECKS PASSED')}
+                              {manualReviewAllowedReceipt ? 'STAFF WILL REVIEW YOUR UPLOAD' : (receiptVerified ? 'READY TO CONTINUE' : 'PLEASE CHECK THE MESSAGE BELOW')}
                             </div>
                           </div>
                         </div>
@@ -999,42 +974,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
                       <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
-                        {/* Optional OCR notes */}
-                        {hasReceiptNotes && <div style={{
-                          background: 'var(--admin-bg)',
-                          padding: '1rem',
-                          borderRadius: 'var(--admin-radius-sm)',
-                          border: `1px solid ${receiptDetails.status === 'REJECTED' ? 'rgba(239, 68, 68, 0.3)' : 'var(--admin-border)'}`,
-                          fontSize: '0.8rem',
-                          color: receiptDetails.status === 'REJECTED' ? 'var(--status-danger)' : 'var(--admin-text-secondary)',
-                          lineHeight: 1.5,
-                          fontStyle: 'italic',
-                          fontWeight: receiptDetails.status === 'REJECTED' ? '700' : 'normal'
-                        }}>{receiptDetails.description}</div>}
-
-                        {/* Directive 1: verdict banners. */}
-                        {!adminMode && isGcash && receiptVerified && !manualReviewAllowedReceipt && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '1rem', background: 'rgba(var(--admin-success-rgb), 0.1)', border: '1px solid var(--admin-success)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-success)', fontWeight: '900', fontSize: '.85rem' }}>
-                            <CheckCircle2 size={18} /> Receipt verified successfully!
-                          </div>
-                        )}
-                        {!adminMode && isGcash && manualReviewAllowedReceipt && (
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', padding: '1rem', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid var(--status-warning)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-warning)', fontWeight: '800', fontSize: '.85rem', lineHeight: 1.5 }}>
-                            <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
-                            <span>Our receipt-verification service is temporarily unavailable, so this receipt will be <strong>manually reviewed by our staff</strong>. You may submit your booking — no action needed from you.</span>
-                          </div>
-                        )}
-                        {receiptValidationErrors.length > 0 && !manualReviewAllowedReceipt && (
-                          <div role="alert" style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.07)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: 'var(--admin-radius-sm)' }}>
-                            <strong style={{ color: 'var(--status-danger)', fontSize: '.8rem' }}>
-                              {receiptValidationErrors.length > 1 ? 'Multiple validation issues' : 'Receipt needs attention'}
-                            </strong>
-                            <ul style={{ margin: '.5rem 0 0', paddingLeft: '1.2rem', color: 'var(--status-danger)', fontSize: '.75rem', lineHeight: 1.6 }}>
-                              {receiptValidationErrors.map((error) => <li key={error.code}>{error.message}</li>)}
-                            </ul>
-                          </div>
-                        )}
-                        {renderReceiptComparisonGrid()}
+                        {renderReceiptFeedback()}
 
                       </div>
                       <div style={{ display: 'flex', gap: '.75rem', padding: '1rem', borderTop: '1px solid var(--admin-border)', flexWrap: 'wrap' }}>
