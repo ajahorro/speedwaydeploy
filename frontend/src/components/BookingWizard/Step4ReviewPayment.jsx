@@ -22,6 +22,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showHelpTips, setShowHelpTips] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(() => typeof window !== 'undefined' ? window.innerWidth <= 700 : false);
+  const [expandedVehicleIds, setExpandedVehicleIds] = useState({});
   // Synchronous submit lock (defence in depth). The parent's `isSubmitting` prop
   // is async, so this ref guarantees `onSubmit` can fire at most once even if the
   // confirm button is double-clicked or double-tapped in the same tick.
@@ -87,6 +89,13 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
     // refreshed by a live settings change mid-checkout.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingData?.bookingId, bookingData?.id]);
+
+  useEffect(() => {
+    const onResize = () => setIsMobileView(window.innerWidth <= 700);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const labelStyle = {
     fontSize: '0.65rem',
@@ -540,6 +549,9 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           gap: 1rem;
           align-items: start;
         }
+        .vehicle-mobile-summary {
+          display: none;
+        }
         @media (min-width: 900px) {
           .review-payment-grid {
             grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
@@ -552,6 +564,57 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         @media (min-width: 700px) {
           .receipt-amount-summary {
             grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+        }
+        @media (max-width: 699px) {
+          .vehicle-mobile-summary {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+          }
+          .vehicle-mobile-panel {
+            border: 1px solid var(--admin-border);
+            border-radius: var(--admin-radius-sm);
+            background: rgba(255,255,255,0.02);
+            overflow: hidden;
+          }
+          .vehicle-mobile-header {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--admin-text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 0.8rem 0.9rem;
+            cursor: pointer;
+            font-weight: 900;
+            font-size: 0.8rem;
+            text-align: left;
+          }
+          .vehicle-mobile-body {
+            border-top: 1px solid var(--admin-border);
+            padding: 0.7rem 0.9rem 0.8rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+          }
+          .vehicle-mobile-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            font-size: 0.74rem;
+            line-height: 1.4;
+          }
+          .vehicle-mobile-row span:first-child {
+            color: var(--admin-text-primary);
+            font-weight: 700;
+          }
+          .vehicle-mobile-row span:last-child {
+            color: var(--admin-text-secondary);
+            font-weight: 800;
+            white-space: nowrap;
           }
         }
       `}</style>
@@ -578,48 +641,86 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
               </span>
             </div>
 
-            {vehicles.map((v, idx) => {
-              // A package is a whole-vehicle flat price. Match the vehicle to the
-              // package the pricing summary resolved for it (by type) so the
-              // breakdown shows "Includes …" instead of itemised prices that no
-              // longer reflect what is charged.
-              const vehiclePackage = (promoSummary.appliedPackages || []).find(
-                (entry) => String(entry.vehicleType || '').toLowerCase() === String(v.type || '').toLowerCase()
-              ) || null;
-              return (
-              <div key={v.id} style={{ borderBottom: idx === vehicles.length - 1 ? 'none' : '1px solid var(--admin-border)', paddingBottom: '1rem' }}>
-                {vehiclePackage && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.4rem', color: 'var(--admin-brand)', fontSize: '.68rem', fontWeight: '900', textTransform: 'uppercase' }}>
-                    <PackageIcon size={13} /> {vehiclePackage.name} · fixed package price
-                  </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '900', fontSize: '0.75rem', textTransform: 'uppercase' }}>Vehicle {idx + 1}</span>
-                  <span style={{ color: 'var(--admin-text-primary)', fontWeight: '900', fontSize: '0.85rem', textAlign: 'right' }}>
-                    {v.brand} {v.model} ({v.plateNumber})
-                  </span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  {(v.services || []).map(s => (
-                    <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                      <span style={{ color: 'var(--admin-text-primary)', fontWeight: '600' }}>• {s.name}{vehiclePackage ? ' (included)' : ''}</span>
-                      {vehiclePackage ? (
-                        <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700', textDecoration: 'line-through' }}>₱{Number(s.original_price || s.price || 0).toLocaleString()}</span>
-                      ) : (
-                        <span style={{ color: 'var(--admin-text-primary)', fontWeight: '800' }}>₱{Number(s.price_at_booking ?? s.price ?? 0).toLocaleString()}</span>
+            {isMobileView ? (
+              <div className="vehicle-mobile-summary">
+                {vehicles.map((v, idx) => {
+                  const vehiclePackage = (promoSummary.appliedPackages || []).find(
+                    (entry) => String(entry.vehicleType || '').toLowerCase() === String(v.type || '').toLowerCase()
+                  ) || null;
+                  const expanded = Boolean(expandedVehicleIds[v.id || idx]);
+                  const serviceCount = (v.services || []).length;
+                  return (
+                    <div key={v.id || `${v.plateNumber}-${idx}`} className="vehicle-mobile-panel">
+                      <button
+                        type="button"
+                        className="vehicle-mobile-header"
+                        onClick={() => setExpandedVehicleIds((current) => ({ ...current, [v.id || idx]: !expanded }))}
+                      >
+                        <span>{idx + 1}. {v.brand} {v.model}</span>
+                        <span style={{ color: 'var(--admin-text-secondary)', fontSize: '0.68rem', fontWeight: '800' }}>
+                          {serviceCount > 1 ? `View ${serviceCount}` : `${serviceCount} service`}
+                        </span>
+                      </button>
+                      {expanded && (
+                        <div className="vehicle-mobile-body">
+                          {(v.services || []).map((s) => (
+                            <div key={s.id || `${v.id}-${s.name}`} className="vehicle-mobile-row">
+                              <span>{s.name}</span>
+                              <span>₱{Number(s.price_at_booking ?? s.price ?? 0).toLocaleString()}</span>
+                            </div>
+                          ))}
+                          {vehiclePackage && (
+                            <div className="vehicle-mobile-row" style={{ borderTop: '1px dashed var(--admin-border)', paddingTop: '0.45rem', marginTop: '0.15rem' }}>
+                              <span>{vehiclePackage.name}</span>
+                              <span>₱{Number(vehiclePackage.packagePrice || 0).toLocaleString()}</span>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
-                  ))}
+                  );
+                })}
+              </div>
+            ) : (
+              vehicles.map((v, idx) => {
+                const vehiclePackage = (promoSummary.appliedPackages || []).find(
+                  (entry) => String(entry.vehicleType || '').toLowerCase() === String(v.type || '').toLowerCase()
+                ) || null;
+                return (
+                <div key={v.id} style={{ borderBottom: idx === vehicles.length - 1 ? 'none' : '1px solid var(--admin-border)', paddingBottom: '1rem' }}>
                   {vehiclePackage && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginTop: '.2rem', paddingTop: '.35rem', borderTop: '1px dashed var(--admin-border)' }}>
-                      <span style={{ color: 'var(--admin-brand)', fontWeight: '900', textTransform: 'uppercase', fontSize: '.7rem' }}>Package price</span>
-                      <span style={{ color: 'var(--admin-brand)', fontWeight: '900' }}>₱{Number(vehiclePackage.packagePrice || 0).toLocaleString()}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.4rem', color: 'var(--admin-brand)', fontSize: '.68rem', fontWeight: '900', textTransform: 'uppercase' }}>
+                      <PackageIcon size={13} /> {vehiclePackage.name} · fixed package price
                     </div>
                   )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '900', fontSize: '0.75rem', textTransform: 'uppercase' }}>Vehicle {idx + 1}</span>
+                    <span style={{ color: 'var(--admin-text-primary)', fontWeight: '900', fontSize: '0.85rem', textAlign: 'right' }}>
+                      {v.brand} {v.model} ({v.plateNumber})
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    {(v.services || []).map(s => (
+                      <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                        <span style={{ color: 'var(--admin-text-primary)', fontWeight: '600' }}>• {s.name}{vehiclePackage ? ' (included)' : ''}</span>
+                        {vehiclePackage ? (
+                          <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700', textDecoration: 'line-through' }}>₱{Number(s.original_price || s.price || 0).toLocaleString()}</span>
+                        ) : (
+                          <span style={{ color: 'var(--admin-text-primary)', fontWeight: '800' }}>₱{Number(s.price_at_booking ?? s.price ?? 0).toLocaleString()}</span>
+                        )}
+                      </div>
+                    ))}
+                    {vehiclePackage && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginTop: '.2rem', paddingTop: '.35rem', borderTop: '1px dashed var(--admin-border)' }}>
+                        <span style={{ color: 'var(--admin-brand)', fontWeight: '900', textTransform: 'uppercase', fontSize: '.7rem' }}>Package price</span>
+                        <span style={{ color: 'var(--admin-brand)', fontWeight: '900' }}>₱{Number(vehiclePackage.packagePrice || 0).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-              );
-            })}
+                );
+              })
+            )}
 
             {promoSummary.totalDiscount > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem', paddingTop: '.85rem', borderTop: '1px solid var(--admin-border)' }}>

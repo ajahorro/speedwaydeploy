@@ -6,10 +6,10 @@ const { createWorker } = require('tesseract.js');
 const { parseReceiptText } = require('./receiptTextParser');
 
 const MAX_IMAGE_PIXELS = 40_000_000;
-const MAX_IMAGE_WIDTH = 1200;
-const MAX_IMAGE_HEIGHT = 1200;
-const WORKER_INIT_TIMEOUT_MS = 45000;
-const RECOGNITION_TIMEOUT_MS = 25000;
+const MAX_IMAGE_WIDTH = 1000;
+const MAX_IMAGE_HEIGHT = 1000;
+const WORKER_INIT_TIMEOUT_MS = 20000;
+const RECOGNITION_TIMEOUT_MS = 7000;
 const TESSERACT_CACHE_PATH = path.join(os.tmpdir(), 'speedway-tesseract');
 fs.mkdirSync(TESSERACT_CACHE_PATH, { recursive: true });
 let workerPromise;
@@ -93,7 +93,6 @@ const buildImageVariant = async (buffer, index) => {
       return await base.clone()
         .grayscale()
         .normalize()
-        .sharpen()
         .png()
         .toBuffer();
     }
@@ -101,7 +100,7 @@ const buildImageVariant = async (buffer, index) => {
       return await base.clone()
         .grayscale()
         .normalize()
-        .linear(1.25, -12)
+        .linear(1.20, -10)
         .threshold(170)
         .png()
         .toBuffer();
@@ -136,6 +135,14 @@ const hasCoreFields = (parsed) => (
   && parsed.timestamp !== null
 );
 
+const hasStrongCandidate = (parsed, candidate) => (
+  Number(candidate?.confidence ?? 0) >= 78
+  && parsed.amount !== null
+  && parsed.recipient !== null
+  && parsed.timestamp !== null
+  && (parsed.referenceNumber || '').trim().length > 0
+);
+
 const createReceiptOcr = ({
   recognize = recognizeWithTesseract,
   buildVariant = buildImageVariant,
@@ -147,7 +154,7 @@ const createReceiptOcr = ({
   const finishTiming = startTiming('complete OCR scan');
   let best = null;
   try {
-    const maxPasses = 2;
+    const maxPasses = 1;
     for (let index = 0; index < maxPasses; index += 1) {
       const variant = await buildVariant(buffer, index);
       const { text, confidence } = await recognize(variant, index + 1);
@@ -165,9 +172,10 @@ const createReceiptOcr = ({
         break;
       }
 
-      // Fast path: if the first pass already produced a strong candidate we do not
-      // waste time on a second threshold pass unless the validation still fails.
-      if (index === 0 && candidate.confidence >= 85 && (candidate.amount !== null || candidate.recipient)) {
+      // Fast path: if the first pass already produced a strong candidate we stop
+      // instead of spending another recognition cycle on fallback work.
+      if (index === 0 && hasStrongCandidate(parsed, candidate)) {
+        best = candidate;
         break;
       }
     }
