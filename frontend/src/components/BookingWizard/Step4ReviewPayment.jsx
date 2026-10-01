@@ -11,7 +11,6 @@ import { sanitizeCurrency } from '../../config/constants';
 import { logger } from '../../utils/logger';
 import toastManager from '../../utils/toastManager';
 import { BACKEND_URL } from '../../config/api';
-import { APP_METADATA } from '../../config/legalContent';
 
 const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, onNext, onBack, onSubmit, isSubmitting, onCancel }) => {
   const { settings } = useConfig();
@@ -22,6 +21,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showHelpTips, setShowHelpTips] = useState(false);
   // Synchronous submit lock (defence in depth). The parent's `isSubmitting` prop
   // is async, so this ref guarantees `onSubmit` can fire at most once even if the
   // confirm button is double-clicked or double-tapped in the same tick.
@@ -413,9 +413,28 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
       </div>
     );
   };
-  const supportMailto = `mailto:${APP_METADATA.supportEmail}?subject=${encodeURIComponent('Receipt verification help')}&body=${encodeURIComponent(`Please help me review my receipt${bookingData.id ? ` for booking ${bookingData.id}` : ''}${receiptDetails?.referenceNo ? ` (reference ${receiptDetails.referenceNo})` : ''}.` )}`;
-  const supportPayload = `${bookingData.id ? ` for booking ${bookingData.id}` : ''}${receiptDetails?.referenceNo ? ` (reference ${receiptDetails.referenceNo})` : ''}`;
-  const supportHref = `mailto:${APP_METADATA.supportEmail}?subject=${encodeURIComponent('Receipt verification help')}&body=${encodeURIComponent(`Please help me review my receipt${supportPayload}.`)}`;
+  const helpTips = [
+    {
+      title: 'Use a clear photo',
+      text: 'Take a straight, well-lit shot of the full receipt. Blurry or angled images often miss the amount, reference, or recipient.'
+    },
+    {
+      title: 'Check the payment amount',
+      text: 'The receipt must show at least the required downpayment/full amount. Small mismatches can trigger a failed match.'
+    },
+    {
+      title: 'Confirm the recipient name',
+      text: 'The payee name must match the shop account shown in the QR section. A different recipient name will fail verification.'
+    },
+    {
+      title: 'Use the current date',
+      text: 'Receipts dated outside the accepted window (today or yesterday in Philippine time) are rejected.'
+    },
+    {
+      title: 'Retry with the correct payment reference',
+      text: 'Make sure the reference number is readable and matches the transfer you made. Cropped or hidden references often fail.'
+    }
+  ];
 
   const describeOcrFailure = (error) => {
     const raw = String(error?.message || error || '');
@@ -434,14 +453,12 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
     return 'We could not verify this receipt right now. Please try again or contact support.';
   };
 
-  const handleSupportClick = (event) => {
-    if (!APP_METADATA.supportEmail) {
-      event.preventDefault();
-      toastManager.info('Support contact is not configured yet.');
-      return;
+  const openReceiptInput = () => {
+    setShowHelpTips(false);
+    const input = document.getElementById('receipt-upload');
+    if (input) {
+      input.click();
     }
-    event.preventDefault();
-    window.location.href = supportHref;
   };
 
   const adminRefNumberValid = adminDigitalMode === 'reference' ? Boolean(manualRefInput.trim().length >= 4) : true;
@@ -844,7 +861,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                         </div>
                         <div style={{ display: 'flex', gap: '.75rem', padding: '1rem', borderTop: '1px solid var(--admin-border)', flexWrap: 'wrap' }}>
                           <button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>Upload Corrected Receipt</button>
-                          <a href={supportHref} onClick={handleSupportClick} style={{ flex: '1 1 190px', padding: '1rem', textAlign: 'center', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', textDecoration: 'none', textTransform: 'uppercase' }}>I Need Help / Report an Issue</a>
+                          <button type="button" onClick={() => setShowHelpTips(true)} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', cursor: 'pointer', textTransform: 'uppercase' }}>I Need Help / OCR Tips</button>
                         </div>
                       </div>
                     )}
@@ -1009,7 +1026,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                       </div>
                       <div style={{ display: 'flex', gap: '.75rem', padding: '1rem', borderTop: '1px solid var(--admin-border)', flexWrap: 'wrap' }}>
                         <button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>Upload Corrected Receipt</button>
-                        <a href={supportHref} onClick={handleSupportClick} style={{ flex: '1 1 190px', padding: '1rem', textAlign: 'center', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', textDecoration: 'none', textTransform: 'uppercase' }}>I Need Help / Report an Issue</a>
+                        <button type="button" onClick={() => setShowHelpTips(true)} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', cursor: 'pointer', textTransform: 'uppercase' }}>I Need Help / OCR Tips</button>
                       </div>
                     </div>
                   )}
@@ -1075,6 +1092,29 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                 </div>
                 <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid var(--admin-border)', display: 'flex', justifyContent: 'flex-end' }}>
                   <button type="button" onClick={() => setShowTermsModal(false)} style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-on-brand)', fontWeight: 900, cursor: 'pointer' }}>Close</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showHelpTips && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+              <div style={{ width: '100%', maxWidth: '620px', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', boxShadow: '0 20px 45px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: 'var(--admin-sidebar)', borderBottom: '1px solid var(--admin-border)' }}>
+                  <h3 style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '1rem', fontWeight: 950, textTransform: 'uppercase' }}>OCR troubleshooting</h3>
+                  <button type="button" onClick={() => setShowHelpTips(false)} style={{ border: 'none', background: 'transparent', color: 'var(--admin-text-secondary)', fontSize: '1.25rem', cursor: 'pointer' }}>×</button>
+                </div>
+                <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.9rem', maxHeight: '70vh', overflowY: 'auto' }}>
+                  {helpTips.map((tip) => (
+                    <div key={tip.title} style={{ padding: '0.9rem 1rem', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-md)', background: 'rgba(var(--admin-brand-rgb), 0.03)' }}>
+                      <div style={{ fontSize: '0.76rem', fontWeight: 900, color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.35rem' }}>{tip.title}</div>
+                      <div style={{ color: 'var(--admin-text-primary)', fontSize: '0.84rem', lineHeight: 1.5 }}>{tip.text}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid var(--admin-border)', display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => setShowHelpTips(false)} style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: 900, cursor: 'pointer' }}>Close</button>
+                  <button type="button" onClick={openReceiptInput} style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-on-brand)', fontWeight: 900, cursor: 'pointer' }}>Upload Corrected Receipt</button>
                 </div>
               </div>
             </div>

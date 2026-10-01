@@ -6,8 +6,8 @@ const { createWorker } = require('tesseract.js');
 const { parseReceiptText } = require('./receiptTextParser');
 
 const MAX_IMAGE_PIXELS = 40_000_000;
-const MAX_IMAGE_WIDTH = 1500;
-const MAX_IMAGE_HEIGHT = 1500;
+const MAX_IMAGE_WIDTH = 1200;
+const MAX_IMAGE_HEIGHT = 1200;
 const WORKER_INIT_TIMEOUT_MS = 45000;
 const RECOGNITION_TIMEOUT_MS = 25000;
 const TESSERACT_CACHE_PATH = path.join(os.tmpdir(), 'speedway-tesseract');
@@ -101,18 +101,8 @@ const buildImageVariant = async (buffer, index) => {
       return await base.clone()
         .grayscale()
         .normalize()
-        .linear(1.35, -18)
-        .threshold(155)
-        .png()
-        .toBuffer();
-    }
-    if (index === 2) {
-      return await base.clone()
-        .grayscale()
-        .normalize()
-        .linear(1.35, -18)
-        .threshold(155)
-        .negate()
+        .linear(1.25, -12)
+        .threshold(170)
         .png()
         .toBuffer();
     }
@@ -124,7 +114,7 @@ const buildImageVariant = async (buffer, index) => {
 
 const buildImageVariants = async (buffer) => {
   const variants = [];
-  for (let index = 0; index < 3; index += 1) {
+  for (let index = 0; index < 2; index += 1) {
     variants.push(await buildImageVariant(buffer, index));
   }
   return variants;
@@ -157,7 +147,8 @@ const createReceiptOcr = ({
   const finishTiming = startTiming('complete OCR scan');
   let best = null;
   try {
-    for (let index = 0; index < 3; index += 1) {
+    const maxPasses = 2;
+    for (let index = 0; index < maxPasses; index += 1) {
       const variant = await buildVariant(buffer, index);
       const { text, confidence } = await recognize(variant, index + 1);
       const parsed = parseReceiptText(text);
@@ -171,6 +162,12 @@ const createReceiptOcr = ({
       if (!best || candidate.score > best.score) best = candidate;
       if (validateCandidate(parsed, candidate)) {
         best = candidate;
+        break;
+      }
+
+      // Fast path: if the first pass already produced a strong candidate we do not
+      // waste time on a second threshold pass unless the validation still fails.
+      if (index === 0 && candidate.confidence >= 85 && (candidate.amount !== null || candidate.recipient)) {
         break;
       }
     }
