@@ -338,6 +338,12 @@ const looksLikeReceipt = (text) => {
   return hasMoney && hasAnchor;
 };
 
+const isValidReferenceNumber = (value) => {
+  const reference = String(value || '').trim();
+  if (!/^[A-Z0-9](?:[A-Z0-9]|[ -](?=[A-Z0-9]))*[A-Z0-9]$/i.test(reference)) return false;
+  return /^[A-Z0-9]{6,40}$/i.test(reference.replace(/[ -]/g, ''));
+};
+
 /**
  * Parse raw OCR text into the structured shape the verification pipeline uses.
  *
@@ -373,6 +379,7 @@ const parseReceiptText = (rawText) => {
 
 module.exports = {
   parseReceiptText,
+  isValidReferenceNumber,
   parseAmountToken,
   normalizeAmountValue,
   extractAmounts,

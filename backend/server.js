@@ -18,7 +18,7 @@ const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEm
 // EMAIL AUTH POLICY: single source of truth for LINK vs OTP per flow.
 // See docs/EMAIL_AUTH_POLICY.md. Guards below keep UI copy and delivery in sync.
 const { DELIVERY, assertDelivery } = require('./config/emailPolicy');
-const { parseReceiptText, normalizeAmountValue } = require('./services/receiptTextParser');
+const { parseReceiptText, normalizeAmountValue, isValidReferenceNumber } = require('./services/receiptTextParser');
 const { recognizeReceipt, warmReceiptOcr } = require('./services/receiptOcr');
 const ocrGuard = require('./services/ocrGuard');
 // ONE resolver for the public frontend URL. Five call sites previously fell back
@@ -1602,7 +1602,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       ocrResult = await recognizeReceipt(req.file.buffer, {
         validateCandidate: (parsed) => {
           const referenceNo = String(parsed.referenceNumber || '').trim();
-          const isReferenceValid = /^[A-Z0-9]{6,40}$/i.test(referenceNo);
+          const isReferenceValid = isValidReferenceNumber(referenceNo);
           return Boolean(
             parsed.isValidReceipt
             && parsed.amount !== null
@@ -1646,7 +1646,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       console.log(`💰 [OCR] OVERPAYMENT accepted: ₱${extractedAmount} vs full booking amount ₱${fullAmount} → ₱${overpaymentAmount} surplus banked as credit.`);
     }
 
-    const isReferenceValid = /^[A-Z0-9]{6,40}$/i.test(referenceNo);
+    const isReferenceValid = isValidReferenceNumber(referenceNo);
 
     // A payment reference is single-use. Check this before accepting the
     // receipt so the same transfer cannot be attached to another booking.
@@ -1739,7 +1739,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       validationErrors.push({
         code: referenceNo ? 'REFERENCE_INVALID_FORMAT' : 'REFERENCE_NOT_DETECTED',
         label: 'Reference number issue',
-        message: `We read reference "${referenceNo || 'nothing'}"; it must be 6-40 letters or numbers.`,
+        message: `We read reference "${referenceNo || 'nothing'}"; it must contain 6-40 letters or numbers. Spaces and hyphens are allowed.`,
       });
     } else if (!isReferenceUnique) {
       validationErrors.push({ code: 'REFERENCE_UNVERIFIED', label: 'Reference not verified', message: `We could not verify that reference "${referenceNo}" is unique.` });

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseReceiptText } = require('../backend/services/receiptTextParser');
+const { parseReceiptText, isValidReferenceNumber } = require('../backend/services/receiptTextParser');
 
 test('parses common GCash-style receipt text with Paid/Date/Ref labels', () => {
   const raw = [
@@ -37,4 +37,12 @@ test('parses InstaPay amount and split reference number without treating amount 
   assert.equal(parsed.grossAmount, 10500);
   assert.equal(parsed.transferFee, 0);
   assert.equal(parsed.referenceNumber, 'BN-20260713-08060164');
+  assert.equal(isValidReferenceNumber(parsed.referenceNumber), true);
+});
+
+test('accepts internal reference separators but rejects unsupported punctuation and short values', () => {
+  assert.equal(isValidReferenceNumber('BN-20260713-08060164'), true);
+  assert.equal(isValidReferenceNumber('ABCD 123456'), true);
+  assert.equal(isValidReferenceNumber('ABC/123456'), false);
+  assert.equal(isValidReferenceNumber('ABC-12'), false);
 });
