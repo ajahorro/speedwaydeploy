@@ -181,7 +181,7 @@ const extractAmounts = (text) => {
     const matches = [...String(line).matchAll(NUMBER_LITERAL)]
       .map((m) => m[0].trim())
       .filter(looksLikeMoneyToken)
-      .filter((token) => (!strict ? true : /[₱PpFf£¥$]/.test(token) || /[.,]/.test(token)));
+      .filter((token) => (!strict ? true : (/[₱PpFf£¥$]/.test(token) && /\d/.test(token)) || /[.,]/.test(token)));
     if (!matches.length) return null;
     const value = parseAmountToken(matches[matches.length - 1]);
     return value !== null && value > 0 ? value : null;
@@ -208,6 +208,8 @@ const extractAmounts = (text) => {
     if (value === null) {
       for (let j = i + 1; j < Math.min(i + 3, lines.length); j += 1) {
         if (!lines[j].trim()) continue;
+        const nextLabelSource = repairLabelText(lines[j]);
+        if (AMOUNT_LABELS.some((candidate) => candidate.pattern.test(nextLabelSource))) break;
         value = moneyOnLine(lines[j]);
         break;
       }
@@ -245,7 +247,11 @@ const extractReferenceNumber = (text) => {
     if (!labelMatch) continue;
 
     const after = line.slice(labelMatch.index + labelMatch[0].length);
-    const tokenMatch = after.match(/([A-Za-z0-9][A-Za-z0-9\s-]{4,})/);
+    let tokenMatch = after.match(/([A-Za-z0-9][A-Za-z0-9\s-]{4,})/);
+    if (!tokenMatch) {
+      const nextLine = lines.slice(lines.indexOf(line) + 1).find((candidate) => candidate.trim());
+      if (nextLine) tokenMatch = nextLine.match(/([A-Za-z0-9][A-Za-z0-9\s-]{4,})/);
+    }
     if (!tokenMatch) continue;
 
     const cleaned = tokenMatch[1]
