@@ -6,13 +6,22 @@ const { createWorker } = require('tesseract.js');
 const { parseReceiptText } = require('./receiptTextParser');
 
 const MAX_IMAGE_PIXELS = 40_000_000;
-const MAX_IMAGE_WIDTH = 2400;
-const MAX_IMAGE_HEIGHT = 3200;
+const MAX_IMAGE_WIDTH = 1500;
+const MAX_IMAGE_HEIGHT = 1500;
 const WORKER_INIT_TIMEOUT_MS = 45000;
 const RECOGNITION_TIMEOUT_MS = 25000;
 const TESSERACT_CACHE_PATH = path.join(os.tmpdir(), 'speedway-tesseract');
 fs.mkdirSync(TESSERACT_CACHE_PATH, { recursive: true });
 let workerPromise;
+
+const startTiming = (label) => {
+  const startedAt = process.hrtime.bigint();
+  console.info(`[OCR TIMING] ${label} start`);
+  return () => {
+    const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    console.info(`[OCR TIMING] ${label} end (${elapsedMs.toFixed(1)}ms)`);
+  };
+};
 
 const withTimeout = (promise, timeoutMs, label) => {
   let timer;
@@ -26,20 +35,30 @@ const withTimeout = (promise, timeoutMs, label) => {
 
 const getWorker = () => {
   if (!workerPromise) {
+    const finishTiming = startTiming('worker initialization');
     const initialization = createWorker('eng', 1, { cachePath: TESSERACT_CACHE_PATH });
     let pending;
-    pending = withTimeout(initialization, WORKER_INIT_TIMEOUT_MS, 'OCR worker initialization').catch((error) => {
-      void initialization.then((worker) => worker.terminate()).catch(() => {});
-      if (workerPromise === pending) workerPromise = null;
-      throw error;
-    });
+    pending = withTimeout(initialization, WORKER_INIT_TIMEOUT_MS, 'OCR worker initialization')
+      .then((worker) => {
+        finishTiming();
+        return worker;
+      })
+      .catch((error) => {
+        finishTiming();
+        void initialization.then((worker) => worker.terminate()).catch(() => {});
+        if (workerPromise === pending) workerPromise = null;
+        throw error;
+      });
     workerPromise = pending;
   }
   return workerPromise;
 };
 
-const recognizeWithTesseract = async (image) => {
+const warmReceiptOcr = () => getWorker();
+
+const recognizeWithTesseract = async (image, passNumber) => {
   const worker = await getWorker();
+  const finishTiming = startTiming(`recognition pass ${passNumber}`);
   try {
     const { data } = await withTimeout(worker.recognize(image), RECOGNITION_TIMEOUT_MS, 'OCR recognition');
     return { text: data?.text || '', confidence: Number(data?.confidence) || 0 };
@@ -51,6 +70,8 @@ const recognizeWithTesseract = async (image) => {
       }
     }
     throw error;
+  } finally {
+    finishTiming();
   }
 };
 
@@ -61,34 +82,52 @@ const createBaseImage = (buffer) => sharp(buffer, {
   width: MAX_IMAGE_WIDTH,
   height: MAX_IMAGE_HEIGHT,
   fit: 'inside',
-  withoutEnlargement: false,
+  withoutEnlargement: true,
 });
 
-const buildImageVariants = async (buffer) => {
+const buildImageVariant = async (buffer, index) => {
+  const finishTiming = startTiming(`preprocessing pass ${index + 1}`);
   const base = createBaseImage(buffer);
-  const normalized = await base.clone()
-    .grayscale()
-    .normalize()
-    .sharpen()
-    .png()
-    .toBuffer();
-  const thresholded = await base.clone()
-    .grayscale()
-    .normalize()
-    .linear(1.35, -18)
-    .threshold(155)
-    .png()
-    .toBuffer();
-  const inverted = await base.clone()
-    .grayscale()
-    .normalize()
-    .linear(1.35, -18)
-    .threshold(155)
-    .negate()
-    .png()
-    .toBuffer();
+  try {
+    if (index === 0) {
+      return await base.clone()
+        .grayscale()
+        .normalize()
+        .sharpen()
+        .png()
+        .toBuffer();
+    }
+    if (index === 1) {
+      return await base.clone()
+        .grayscale()
+        .normalize()
+        .linear(1.35, -18)
+        .threshold(155)
+        .png()
+        .toBuffer();
+    }
+    if (index === 2) {
+      return await base.clone()
+        .grayscale()
+        .normalize()
+        .linear(1.35, -18)
+        .threshold(155)
+        .negate()
+        .png()
+        .toBuffer();
+    }
+    throw new RangeError(`Unknown receipt preprocessing pass: ${index + 1}`);
+  } finally {
+    finishTiming();
+  }
+};
 
-  return [normalized, thresholded, inverted];
+const buildImageVariants = async (buffer) => {
+  const variants = [];
+  for (let index = 0; index < 3; index += 1) {
+    variants.push(await buildImageVariant(buffer, index));
+  }
+  return variants;
 };
 
 const scoreResult = (parsed, confidence) => (
@@ -107,30 +146,40 @@ const hasCoreFields = (parsed) => (
   && parsed.timestamp !== null
 );
 
-const createReceiptOcr = ({ recognize = recognizeWithTesseract } = {}) => async (buffer) => {
+const createReceiptOcr = ({
+  recognize = recognizeWithTesseract,
+  buildVariant = buildImageVariant,
+} = {}) => async (buffer, { validateCandidate = hasCoreFields } = {}) => {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
     throw new Error('A non-empty receipt image is required.');
   }
 
-  const variants = await buildImageVariants(buffer);
+  const finishTiming = startTiming('complete OCR scan');
   let best = null;
+  try {
+    for (let index = 0; index < 3; index += 1) {
+      const variant = await buildVariant(buffer, index);
+      const { text, confidence } = await recognize(variant, index + 1);
+      const parsed = parseReceiptText(text);
+      const candidate = {
+        ...parsed,
+        confidence,
+        ocrPass: index + 1,
+        score: scoreResult(parsed, confidence),
+      };
 
-  for (let index = 0; index < variants.length; index += 1) {
-    const { text, confidence } = await recognize(variants[index]);
-    const parsed = parseReceiptText(text);
-    const candidate = {
-      ...parsed,
-      confidence,
-      ocrPass: index + 1,
-      score: scoreResult(parsed, confidence),
-    };
+      if (!best || candidate.score > best.score) best = candidate;
+      if (validateCandidate(parsed, candidate)) {
+        best = candidate;
+        break;
+      }
+    }
 
-    if (!best || candidate.score > best.score) best = candidate;
-    if (hasCoreFields(parsed)) break;
+    const { score, ...result } = best;
+    return result;
+  } finally {
+    finishTiming();
   }
-
-  const { score, ...result } = best;
-  return result;
 };
 
 const recognizeReceipt = createReceiptOcr();
@@ -144,8 +193,10 @@ const stopReceiptOcr = async () => {
 
 module.exports = {
   recognizeReceipt,
+  warmReceiptOcr,
   stopReceiptOcr,
   createReceiptOcr,
+  buildImageVariant,
   buildImageVariants,
   scoreResult,
 };

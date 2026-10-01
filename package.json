@@ -1,6 +1,5 @@
 {
   "scripts": {
-    "test": "node tests/booking_atomic.test.js && node tests/booking_credit_lifecycle.test.js && node tests/booking_credit_calculation.test.js && node tests/promo_package_semantics.test.js && node tests/promo_id_uuid_boundary.test.js && node tests/transaction_amounts.test.js && node tests/vat_split.test.js && node tests/email_idempotency.test.js && node tests/ocr_ledger_invariants.test.js && node tests/package_standalone_sum.test.js && node tests/package_cart_matching.test.js && node tests/startup_guard.test.js && node tests/service_catalog_visibility.test.js && node tests/toast_manager.test.js && node tests/receipt_text_parser.test.js && node tests/ocr_payload_contract.test.js && node tests/ocr_lifecycle_integration.test.js && node tests/ocr_and_financial_edge_cases.test.js && node tests/concurrency_timezone_rbac.test.js && node tests/rbac_route_lockdown.test.js && node tests/catalog_actions.test.js && node tests/no_show_lifecycle.test.js && node tests/cancelled_unpaid_financial.test.js && node tests/payment_status_badge.test.js",
     "test:source": "node scripts/verify-email-source.mjs",
     "test:live": "node scripts/verify-booking-prereqs.mjs",
     "test:emails": "node scripts/verify-email-lifecycle.mjs",

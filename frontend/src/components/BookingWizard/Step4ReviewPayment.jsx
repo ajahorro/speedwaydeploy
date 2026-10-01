@@ -272,6 +272,9 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           reason: result.reason || null,
           referenceNo: extractedData.referenceNo,
           amount: extractedData.amount,
+          amountDetected: extractedData.amountDetected === undefined
+            ? extractedData.amount !== null && extractedData.amount !== undefined
+            : Boolean(extractedData.amountDetected),
           requiredAmount: targetAmount,
           date: extractedData.date,
           status: manualReviewAllowed
@@ -349,10 +352,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   // the submit button disabled. Admin-created bookings bypass this gate.
   const manualReviewAllowedReceipt = Boolean(receiptDetails?.manualReviewAllowed);
   const receiptVerified = Boolean(receiptDetails?.valid === true) || manualReviewAllowedReceipt;
-  // A completed scan that did NOT verify AND is not a manual-review pass drives
-  // the red inline alert + Re-upload action. A verifier outage is NOT shown as a
-  // failure — it is a neutral "pending manual review" state.
-  const receiptVerificationFailed = Boolean(receiptDetails) && !receiptVerified;
+  // A verifier outage is shown as pending manual review, not as a customer error.
   const isReceiptBlocked = !adminMode && receiptDetails && !receiptVerified;
   const downpaymentAmount = getRequiredDownpayment(grandTotal);
   const isUnderpaidReceipt = Boolean(
@@ -360,6 +360,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
     bookingData.payment.method === 'GCash' &&
     receiptDetails &&
     !receiptDetails.isManualReview &&
+    receiptDetails.amountDetected === true &&
     Number.isFinite(Number(receiptDetails.amount)) &&
     Number(receiptDetails.amount) < downpaymentAmount
   );
@@ -1006,18 +1007,6 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                             <span>Our receipt-verification service is temporarily unavailable, so this receipt will be <strong>manually reviewed by our staff</strong>. You may submit your booking — no action needed from you.</span>
                           </div>
                         )}
-                        {!adminMode && isGcash && receiptVerificationFailed && (
-                          <div style={{ padding: '1.25rem', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid var(--status-danger)', borderRadius: 'var(--admin-radius-sm)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <div style={{ display: 'flex', gap: '.75rem', alignItems: 'flex-start' }}>
-                              <ShieldAlert size={22} style={{ flexShrink: 0, color: 'var(--status-danger)' }} />
-                              <div style={{ fontSize: '.85rem', fontWeight: '800', color: 'var(--status-danger)', lineHeight: 1.5 }}>
-                                Validation Failed: The recipient name or amount on this receipt does not match our shop payment details. Please check your upload and try again.
-                              </div>
-                            </div>
-                            <button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} style={{ alignSelf: 'flex-start', padding: '.75rem 1.25rem', background: 'var(--status-danger)', border: 'none', color: '#fff', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}>Re-upload Receipt</button>
-                          </div>
-                        )}
-
                         {receiptDetails.status !== 'REJECTED' ? (
                           <>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
@@ -1044,7 +1033,9 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                             <div className="receipt-amount-summary" style={{ marginTop: '0.5rem', padding: '1.25rem', background: 'rgba(var(--admin-brand-rgb), 0.03)', borderRadius: 'var(--admin-radius-md)', border: '1px solid var(--admin-border)' }}>
                               <div>
                                 <div style={{ fontSize: '0.65rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Amount Extracted</div>
-                                <div style={{ color: 'var(--admin-text-primary)', fontSize: '1.5rem', fontWeight: '950' }}>₱{receiptDetails.amount.toLocaleString()}</div>
+                                <div style={{ color: 'var(--admin-text-primary)', fontSize: '1.5rem', fontWeight: '950' }}>
+                                  {receiptDetails.amountDetected ? `₱${Number(receiptDetails.amount).toLocaleString()}` : 'Not detected'}
+                                </div>
                               </div>
                               <div>
                                 <div style={{ fontSize: '0.65rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Expected Amount</div>
@@ -1076,7 +1067,13 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                             </p>
                           </div>
                         )}
-                        {isUnderpaidReceipt ? (
+                        {!receiptDetails.amountDetected && !manualReviewAllowedReceipt ? (
+                          <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed var(--status-danger)', textAlign: 'center' }}>
+                            <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '800', color: 'var(--status-danger)' }}>
+                              The payment amount could not be read from this receipt. Upload a clear receipt showing the amount paid.
+                            </p>
+                          </div>
+                        ) : isUnderpaidReceipt ? (
                           <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed var(--status-danger)', textAlign: 'center' }}>
                             <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '800', color: 'var(--status-danger)' }}>
                               This receipt cannot be submitted. The detected amount of ₱{Number(receiptDetails.amount || 0).toLocaleString()} is below the required downpayment of ₱{downpaymentAmount.toLocaleString()}.

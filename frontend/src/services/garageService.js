@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { BACKEND_URL } from '../config/api';
+import { uniqueGarageVehicles } from '../utils/fleetVehicleUtils';
 
 /**
  * garageService.js
@@ -39,7 +40,7 @@ export const fetchFleetGroups = async (ownerId) => {
   if (error) throw error;
   return (data || []).map(group => ({
     ...group,
-    vehicles: (group.memberships || []).map(membership => membership.vehicle).filter(Boolean)
+    vehicles: uniqueGarageVehicles((group.memberships || []).map(membership => membership.vehicle))
   }));
 };
 

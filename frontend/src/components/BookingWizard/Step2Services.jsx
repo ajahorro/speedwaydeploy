@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 import { sanitizeVehiclePlate, sanitizeVehicleText, VEHICLE_TYPE_OPTIONS, SHOP_CONFIG } from '../../config/constants';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
+import { appendNewGarageVehicles, uniqueGarageVehicles } from '../../utils/fleetVehicleUtils';
 
 const newId = () => crypto.randomUUID ? crypto.randomUUID() : `v_${Math.random().toString(36).slice(2)}`;
 const emptyVehicle = (manual = false) => ({ id: newId(), type: '', brand: '', model: '', plateNumber: '', services: [], locked: false, manual });
@@ -40,6 +41,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
   const [garageVehicles, setGarageVehicles] = useState([]);
   const [fleetGroups, setFleetGroups] = useState([]);
   const [fleetToAddId, setFleetToAddId] = useState('');
+  const fleetMutationRef = React.useRef(false);
   // 🛠️ HOTFIX Fix 1 (UX Separation) — TABBED ADDITION MODE.
   // The user asked for a CLEAN separation between choosing a FLEET and choosing
   // INDIVIDUAL vehicles. Previously fleets, garage cars and the "Add New Vehicle"
@@ -200,19 +202,26 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
    * so nothing cleared and the red outline stuck permanently.
    */
   const handleFleetToggle = async (fleetId) => {
-    if (vehicleAdditionLocked) return;
+    if (vehicleAdditionLocked || fleetMutationRef.current) return;
     if (isFleetSelected(fleetId)) {
       removeFleet(fleetId);
       return;
     }
+    fleetMutationRef.current = true;
     setFleetToAddId(fleetId);
-    await addFleet(fleetId);
+    try {
+      await addFleet(fleetId);
+    } finally {
+      fleetMutationRef.current = false;
+      setFleetToAddId('');
+    }
   };
 
   const addFleet = async (fleetId = fleetToAddId) => {
     const selectedFleet = fleetGroups.find((group) => group.id === fleetId);
     const fleetVehicles = selectedFleet?.vehicles || [];
     if (!fleetId || !fleetVehicles.length) return;
+    const uniqueFleetVehicles = uniqueGarageVehicles(fleetVehicles);
     const { data: capacityConfig, error } = await supabase.from('business_config').select('slots_per_hour').maybeSingle();
     const maxBays = Number(capacityConfig?.slots_per_hour);
     if (error || !Number.isFinite(maxBays) || maxBays <= 0) {
@@ -220,19 +229,22 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
       return;
     }
     const committedVehicles = vehicles.filter((vehicle) => !isUntouchedUnit(vehicle));
-    const requiredBays = calculateBayUsage([...committedVehicles, ...fleetVehicles]);
+    const requiredBays = calculateBayUsage([...committedVehicles, ...uniqueFleetVehicles]);
     if (requiredBays > maxBays) {
       toast.error(`This fleet needs ${requiredBays} bays, but the business is currently configured for ${maxBays}.`);
       return;
     }
     const existingGarageIds = new Set(vehicles.map((vehicle) => vehicle.garageVehicleId).filter(Boolean));
-    const newFleetVehicles = fleetVehicles.filter((vehicle) => !existingGarageIds.has(vehicle.id));
+    const newFleetVehicles = uniqueFleetVehicles.filter((vehicle) => !existingGarageIds.has(vehicle.id));
     if (!newFleetVehicles.length) {
       // Static toast id: repeated clicks overwrite one popup instead of stacking.
       return toast.error('Every vehicle in this fleet is already included.', { id: 'fleet-dup-error' });
     }
     const groupedVehicles = newFleetVehicles.map((vehicle) => garageVehicleToBookingVehicle(vehicle, `fleet:${fleetId}:type:${vehicle.type}`));
-    updateVehicles((current) => current.length === 1 && isUntouchedUnit(current[0]) ? groupedVehicles : [...current, ...groupedVehicles]);
+    updateVehicles((current) => {
+      const base = current.length === 1 && isUntouchedUnit(current[0]) ? [] : current;
+      return appendNewGarageVehicles(base, groupedVehicles);
+    });
     setBookingData((current) => ({ ...current, fleetGroupId: fleetId }));
     toast.success(`${newFleetVehicles.length} fleet vehicle${newFleetVehicles.length === 1 ? '' : 's'} added in ${new Set(newFleetVehicles.map((vehicle) => vehicle.type)).size} service unit${new Set(newFleetVehicles.map((vehicle) => vehicle.type)).size === 1 ? '' : 's'}.`, { id: 'fleet-toggle' });
   };

@@ -19,7 +19,7 @@ const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEm
 // See docs/EMAIL_AUTH_POLICY.md. Guards below keep UI copy and delivery in sync.
 const { DELIVERY, assertDelivery } = require('./config/emailPolicy');
 const { parseReceiptText, normalizeAmountValue } = require('./services/receiptTextParser');
-const { recognizeReceipt } = require('./services/receiptOcr');
+const { recognizeReceipt, warmReceiptOcr } = require('./services/receiptOcr');
 const ocrGuard = require('./services/ocrGuard');
 // ONE resolver for the public frontend URL. Five call sites previously fell back
 // to localhost:5173 silently, so a missing FRONTEND_URL emailed customers a link
@@ -50,6 +50,11 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   console.error('[SERVER CRASH PREVENTED] unhandledRejection:', reason && reason.stack ? reason.stack : reason);
 });
+
+void warmReceiptOcr()
+  .then(() => console.info('[OCR] Tesseract worker warmed at backend startup.'))
+  .catch((error) => console.warn(`[OCR] Worker warm-up failed; scans will retry on demand: ${error.message}`));
+
 const PASSWORD_CONFIRMATION_TTL_MS = 15 * 60 * 1000;
 
 // PASSWORD_CIPHER_KEY derives from the service-role key.
@@ -1562,11 +1567,50 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // OCR-extracted reference. Re-encoded copies require perceptual hashing.
     const imageHash = ocrGuard.computeImageHash(req.file.buffer);
 
+    const requiredAmount = parseFloat(req.body.requiredAmount) || 0;
+    const bookingId = req.body.bookingId;
+    const paymentId = req.body.paymentId;
+    const expectedQrVersion = Number(req.body.expectedQrVersion || req.body.expected_qr_version || 0);
+    let liveQrAccountName = '';
+    let liveQrVersion = 0;
+    if (supabaseAdmin) {
+      try {
+        const { data: liveCfg } = await supabaseAdmin
+          .from('business_config')
+          .select('qr_account_name, qr_config_version')
+          .order('id')
+          .limit(1)
+          .maybeSingle();
+        liveQrVersion = Number(liveCfg?.qr_config_version || 0);
+        liveQrAccountName = String(liveCfg?.qr_account_name || '').trim();
+      } catch (cfgErr) {
+        console.warn('⚠️ [AI OCR] QR version lookup failed (non-fatal):', cfgErr.message);
+      }
+    }
+    const expectedRecipientName = liveQrAccountName;
+    const qrVersionMismatch = Boolean(expectedQrVersion && liveQrVersion && expectedQrVersion !== liveQrVersion);
+    if (qrVersionMismatch) {
+      console.log(`⚠️ [OCR] QR_VERSION_MISMATCH: receipt paid against v${expectedQrVersion} but live config is v${liveQrVersion}. Flagging for admin review.`);
+    }
+
     // Legacy browser text fields are deliberately ignored. OCR runs against
     // server-owned preprocessing variants of these exact uploaded bytes.
     let ocrResult;
     try {
-      ocrResult = await recognizeReceipt(req.file.buffer);
+      ocrResult = await recognizeReceipt(req.file.buffer, {
+        validateCandidate: (parsed) => {
+          const receiptDate = parsed.timestamp ? new Date(`${parsed.timestamp}T12:00:00`) : null;
+          return Boolean(
+            parsed.isValidReceipt
+            && parsed.amount !== null
+            && parsed.amount >= requiredAmount - 1
+            && receiptDate
+            && ocrGuard.receiptDateWithinPhilippineCalendarWindow(receiptDate).ok
+            && expectedRecipientName
+            && recipientNameMatches(parsed.recipient, expectedRecipientName)
+          );
+        },
+      });
     } catch (ocrError) {
       console.warn(`⚠️ [OCR] Server extraction failed; queueing for manual review: ${ocrError.message}`);
       ocrResult = parseReceiptText('');
@@ -1591,43 +1635,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
 
     // 🛡️ FINANCIAL INTEGRITY GUARD: Comparison Logic
     const extractedAmount = normalizeAmountValue(extractedData.amount) ?? 0;
-    const requiredAmount = parseFloat(req.body.requiredAmount) || 0;
-    const bookingId = req.body.bookingId;
-    const paymentId = req.body.paymentId;
     const referenceNo = String(extractedData.referenceNo || '').trim();
-    // The shop's registered payee name for THIS checkout (config.qr_account_name).
-    // When the caller does not supply one the name gate cannot be evaluated, so
-    // it is skipped (name check disabled) rather than failing every upload.
-    let liveQrAccountName = '';
-    // 🛡️ SCENARIO 8 — GHOST QR CODE SWAP.
-    // The checkout freezes the QR config onto the booking (active_qr_snapshot /
-    // qr_snapshot_version). If the admin swaps the store QR image while a customer
-    // sits on the checkout, the receipt that customer uploads was made against the
-    // SUPERSEDED image. We accept the version the client paid against and compare
-    // it to the LIVE config version. A mismatch does NOT auto-reject (the money may
-    // genuinely be ours), but it is flagged for the admin and stamped onto the
-    // payment so the discrepancy is visible instead of silently buried.
-    const expectedQrVersion = Number(req.body.expectedQrVersion || req.body.expected_qr_version || 0);
-    let liveQrVersion = 0;
-    if (supabaseAdmin) {
-      try {
-        const { data: liveCfg } = await supabaseAdmin
-          .from('business_config')
-          .select('qr_account_name, qr_config_version')
-          .order('id')
-          .limit(1)
-          .maybeSingle();
-        liveQrVersion = Number(liveCfg?.qr_config_version || 0);
-        liveQrAccountName = String(liveCfg?.qr_account_name || '').trim();
-      } catch (cfgErr) {
-        console.warn('⚠️ [AI OCR] QR version lookup failed (non-fatal):', cfgErr.message);
-      }
-    }
-    const expectedRecipientName = liveQrAccountName;
-    const qrVersionMismatch = Boolean(expectedQrVersion && liveQrVersion && expectedQrVersion !== liveQrVersion);
-    if (qrVersionMismatch) {
-      console.log(`⚠️ [OCR] QR_VERSION_MISMATCH: receipt paid against v${expectedQrVersion} but live config is v${liveQrVersion}. Flagging for admin review.`);
-    }
 
     // ── STEP 1 (FAIL FAST): RECIPIENT NAME ──────────────────────────────────
     // If the payee on the receipt is not our shop, stop here. Parsing a
@@ -1648,6 +1656,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         data: {
           ...extractedData,
           amount: extractedAmount,
+          amountDetected: extractedData.amount !== null && extractedData.amount !== undefined,
           recipient: extractedData.recipient || 'N/A',
           expectedRecipientName,
           description: 'The recipient name on this receipt does not match our registered payment account.'
@@ -1892,6 +1901,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         data: {
           ...extractedData,
           amount: extractedAmount,
+          amountDetected: extractedData.amount !== null && extractedData.amount !== undefined,
           referenceNo: referenceNo || 'MANUAL_AUDIT_PENDING',
           description: 'The receipt could not be read automatically on this device. It has been saved for manual admin verification.'
         }
@@ -2110,6 +2120,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       data: {
         ...extractedData,
         amount: extractedAmount,
+        amountDetected: extractedData.amount !== null && extractedData.amount !== undefined,
         recipient: extractedData.recipient || 'N/A',
         expectedRecipientName
       }
