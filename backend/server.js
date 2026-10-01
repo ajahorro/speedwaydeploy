@@ -1565,8 +1565,10 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // OCR-extracted reference. Re-encoded copies require perceptual hashing.
     const imageHash = ocrGuard.computeImageHash(req.file.buffer);
 
+    const paymentType = String(req.body.paymentType || req.body.payment_type || 'Full').toLowerCase();
     const requiredAmount = parseFloat(req.body.requiredAmount) || 0;
     const fullAmount = parseFloat(req.body.fullAmount) || requiredAmount;
+    const effectiveRequiredAmount = paymentType === 'downpayment' ? Math.min(requiredAmount, fullAmount) : fullAmount;
     const bookingId = req.body.bookingId;
     const paymentId = req.body.paymentId;
     const expectedQrVersion = Number(req.body.expectedQrVersion || req.body.expected_qr_version || 0);
@@ -1609,7 +1611,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           return Boolean(
             parsed.isValidReceipt
             && parsed.amount !== null
-            && parsed.amount >= requiredAmount
+            && parsed.amount >= effectiveRequiredAmount
             && receiptDate
             && ocrGuard.receiptDateWithinPhilippineCalendarWindow(receiptDate).ok
             && isReferenceValid
@@ -1647,7 +1649,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     const referenceNo = String(extractedData.referenceNo || '').trim();
     const isNameMatch = recipientNameMatches(extractedData.recipient, expectedRecipientName);
 
-    const isAmountMatch = extractedData.amount !== null && extractedAmount >= requiredAmount;
+    const isAmountMatch = extractedData.amount !== null && extractedAmount >= effectiveRequiredAmount;
     const overpaymentAmount = Math.max(0, Math.round((extractedAmount - fullAmount) * 100) / 100);
     if (overpaymentAmount > 0) {
       console.log(`💰 [OCR] OVERPAYMENT accepted: ₱${extractedAmount} vs full booking amount ₱${fullAmount} → ₱${overpaymentAmount} surplus banked as credit.`);
@@ -1809,11 +1811,13 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     }
     if (!isAmountMatch) {
       validationErrors.push({
-        code: extractedData.amount === null ? 'AMOUNT_NOT_DETECTED' : 'AMOUNT_BELOW_DOWNPAYMENT',
-        label: 'Amount below minimum',
+        code: extractedData.amount === null ? 'AMOUNT_NOT_DETECTED' : (paymentType === 'downpayment' ? 'AMOUNT_BELOW_DOWNPAYMENT' : 'AMOUNT_BELOW_REQUIRED'),
+        label: paymentType === 'downpayment' ? 'Amount below minimum' : 'Amount below required payment',
         message: extractedData.amount === null
           ? 'The payment amount could not be read from the receipt.'
-          : `We read ₱${extractedAmount.toLocaleString()}, but the minimum downpayment is ₱${requiredAmount.toLocaleString()}.`,
+          : paymentType === 'downpayment'
+            ? `We read ₱${extractedAmount.toLocaleString()}, but the minimum downpayment is ₱${effectiveRequiredAmount.toLocaleString()}.`
+            : `We read ₱${extractedAmount.toLocaleString()}, but the required full payment is ₱${effectiveRequiredAmount.toLocaleString()}.`,
       });
     }
     if (qrVersionMismatch) {

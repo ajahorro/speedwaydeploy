@@ -146,7 +146,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
       }));
 
       try {
-        const targetAmount = getRequiredDownpayment(grandTotal);
+        const paymentType = bookingData.payment?.type || 'Full';
+        const targetAmount = paymentType === 'Downpayment' ? getRequiredDownpayment(grandTotal) : grandTotal;
         // The shop's registered payee for THIS checkout (config.qr_account_name).
         // The backend compares the receipt's recipient against this BEFORE it
         // parses amounts, so a wrong payee aborts the scan immediately.
@@ -163,6 +164,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         formData.append('bookingId', bookingData.id || 'PENDING');
         formData.append('requiredAmount', targetAmount);
         formData.append('fullAmount', grandTotal);
+        formData.append('paymentType', paymentType);
         // 🛡️ SCENARIO 8 — GHOST QR CODE SWAP.
         // The customer has been sitting on this checkout for minutes; the admin
         // just swapped the store QR image. The customer scanned the QR that was ON
@@ -861,7 +863,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                         </div>
                         <div style={{ display: 'flex', gap: '.75rem', padding: '1rem', borderTop: '1px solid var(--admin-border)', flexWrap: 'wrap' }}>
                           <button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>Upload Corrected Receipt</button>
-                          <button type="button" onClick={() => setShowHelpTips(true)} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', cursor: 'pointer', textTransform: 'uppercase' }}>I Need Help / OCR Tips</button>
+                          <button type="button" onClick={() => setShowHelpTips(true)} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', cursor: 'pointer', textTransform: 'uppercase' }}>OCR Tips</button>
                         </div>
                       </div>
                     )}
@@ -916,7 +918,10 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                 <div style={{ height: '1px', background: 'var(--admin-border)', margin: '0.5rem 0' }} />
 
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Scan to Pay</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Scan to Pay</div>
+                    <button type="button" onClick={() => setShowHelpTips(true)} style={{ padding: '0.45rem 0.8rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.62rem', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}>OCR Tips</button>
+                  </div>
                   {settings.loaded ? (
                     <>
                       {qrTarget?.PAYMENT_QR_URL ? (
@@ -1026,7 +1031,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                       </div>
                       <div style={{ display: 'flex', gap: '.75rem', padding: '1rem', borderTop: '1px solid var(--admin-border)', flexWrap: 'wrap' }}>
                         <button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>Upload Corrected Receipt</button>
-                        <button type="button" onClick={() => setShowHelpTips(true)} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', cursor: 'pointer', textTransform: 'uppercase' }}>I Need Help / OCR Tips</button>
+                        <button type="button" onClick={() => setShowHelpTips(true)} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', cursor: 'pointer', textTransform: 'uppercase' }}>OCR Tips</button>
                       </div>
                     </div>
                   )}
