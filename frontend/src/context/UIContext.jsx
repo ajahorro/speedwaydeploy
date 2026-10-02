@@ -330,8 +330,11 @@ export const UIProvider = ({ children }) => {
                     toast.error('Please enter a reason before continuing.');
                     return;
                   }
-                  if (modal.onConfirm) modal.onConfirm(modal.prompt ? promptValue.trim() : undefined);
-                  closeModal();
+                  const onConfirm = modal.onConfirm;
+                  const value = modal.prompt ? promptValue.trim() : undefined;
+                  setModal(null);
+                  setPromptValue('');
+                  if (onConfirm) onConfirm(value);
                 }}
                 style={{
                   padding: '0.6rem 1.25rem',

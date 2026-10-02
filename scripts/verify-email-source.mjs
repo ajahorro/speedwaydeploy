@@ -15,6 +15,7 @@ const notificationService = fs.readFileSync('frontend/src/services/notificationS
 const adminAuditLogs = fs.readFileSync('frontend/src/pages/Admin/AdminAuditLogs.jsx', 'utf8');
 const adminBookingsPage = fs.readFileSync('frontend/src/pages/Admin/AdminBookings.jsx', 'utf8');
 const adminDashboard = fs.readFileSync('frontend/src/pages/Admin/AdminDashboard.jsx', 'utf8');
+const uiContext = fs.readFileSync('frontend/src/context/UIContext.jsx', 'utf8');
 const customerBilling = fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8');
 const bookingSummaryHeader = fs.readFileSync('frontend/src/components/BookingSummaryHeader.jsx', 'utf8');
 const notificationRouting = fs.readFileSync('frontend/src/utils/notificationRouting.js', 'utf8');
@@ -159,6 +160,7 @@ checks.push(
     && (adminDashboard.match(/\.not\('status', 'ilike', 'NO_SHOW'\)/g) || []).length >= 2
     && /create trigger trg_preserve_no_show_booking_marker/.test(noShowUnassignedMigration)
     && /was_flagged_no_show := true/.test(noShowUnassignedMigration)],
+  ['modal: confirmation callback can open a replacement modal without being closed afterward', /const onConfirm = modal\.onConfirm;[\s\S]*?setModal\(null\);[\s\S]*?if \(onConfirm\) onConfirm\(value\)/.test(uiContext)],
   ['cancellation: both admin endpoints use the atomic cancellation RPC', /rpc\('admin_cancel_booking'/.test(backend) && /cancelBookingAndQueueRefund\(\{[\s\S]*?bookingId,[\s\S]*?reason/.test(backend)],
   ['booking directory: exposes cancellation on mobile and desktop', (adminBookings.match(/requestCancelBooking\(booking\)/g) || []).length >= 2],
   ['booking directory: hides cancellation after service starts', /const canCancel = \(booking\) => \{[\s\S]*?'in_progress', 'ongoing'[\s\S]*?vehicleStatuses\.some/.test(adminBookings)],
