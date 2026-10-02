@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, createUniqueChannel } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -86,33 +86,7 @@ const StaffDashboard = () => {
     return () => clearInterval(interval);
   }, [profile?.is_clocked_in, profile?.clock_in_timestamp, profile?.updated_at]);
 
-  useEffect(() => {
-    fetchAssignedTasks();
-
-    // 📡 REQ-SYS-05: Real-time synchronization
-    const channel = createUniqueChannel(`staff-tasks-${profile?.id}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'bookings',
-        filter: `staff_id=eq.${profile?.id}`
-      }, () => {
-        fetchAssignedTasks();
-      })
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${profile?.id}`
-      }, () => {
-        fetchAssignedTasks();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [profile?.id]);
-
-  const fetchAssignedTasks = async () => {
+  const fetchAssignedTasks = useCallback(async () => {
     if (!profile?.id) return;
     setLoading(true);
     try {
@@ -176,7 +150,29 @@ const StaffDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [profile?.id]);
+
+  useEffect(() => {
+    fetchAssignedTasks();
+
+    // REQ-SYS-05: Real-time synchronization
+    const channel = createUniqueChannel(`staff-tasks-${profile?.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'bookings',
+        filter: `staff_id=eq.${profile?.id}`
+      }, fetchAssignedTasks)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${profile?.id}`
+      }, fetchAssignedTasks)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchAssignedTasks, profile?.id]);
 
   const handleUpdateStatus = async (task, newStatus) => {
     if (task.booking_status?.toLowerCase() === 'completed' || task.booking_status?.toLowerCase() === 'cancelled') {
