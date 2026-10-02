@@ -17,6 +17,7 @@ import { BACKEND_URL } from '../../config/api';
 import { loadPreferences } from '../../utils/preferenceStore';
 import { playJobAssignmentChime } from '../../utils/jobAssignmentChime';
 import { dateKey } from '../../domain/schedule/rules';
+import { SHOW_START_SERVICE_ACTIONS } from '../../config/workflowFeatures';
 const StaffDashboard = () => {
   const { profile, toggleShift } = useAuth();
   const { openModal } = useUI();
@@ -440,9 +441,9 @@ const StaffDashboard = () => {
                         {(photoCounts[task.id]?.before || 0) < 1 && (
                           <IntakeWarningBadge tone="danger" compact>Before photo required</IntakeWarningBadge>
                         )}
-                        <button onClick={() => requestStartTask(task)} disabled={!canStartTask(task)} title={!profile?.is_clocked_in ? 'Clock in to start service.' : (photoCounts[task.id]?.before || 0) < 1 ? 'Upload at least one before photo first.' : undefined} style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canStartTask(task) ? 'var(--admin-brand)' : 'var(--admin-border)', color: canStartTask(task) ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', cursor: canStartTask(task) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        {SHOW_START_SERVICE_ACTIONS && <button onClick={() => requestStartTask(task)} disabled={!canStartTask(task)} title={!profile?.is_clocked_in ? 'Clock in to start service.' : (photoCounts[task.id]?.before || 0) < 1 ? 'Upload at least one before photo first.' : undefined} style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canStartTask(task) ? 'var(--admin-brand)' : 'var(--admin-border)', color: canStartTask(task) ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', cursor: canStartTask(task) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
                           <Play size={18} /> START SERVICE
-                        </button>
+                        </button>}
                       </>
                     )}
                     {task.status?.toUpperCase() === 'IN_PROGRESS' && (() => {

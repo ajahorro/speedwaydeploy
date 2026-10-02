@@ -28,6 +28,7 @@ import FloatingBubbleChat from '../../components/FloatingBubbleChat';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
 import { logger } from '../../utils/logger';
+import { SHOW_START_SERVICE_ACTIONS } from '../../config/workflowFeatures';
 import TimeSlotPicker from '../../components/TimeSlotPicker';
 
 import { sendStatusEmail, sendBookingConfirmationEmail, sendPaymentReceiptEmail, sendNotificationEmail } from '../../services/notificationService';
@@ -1252,13 +1253,6 @@ const AdminBookingDetails = () => {
 
   const isLocked = ['completed', 'released', 'cancelled', 'flagged_noshow'].includes(derivedStatus);
   const isNoShowBooking = ['FLAGGED_NOSHOW', 'NO_SHOW'].includes(String(booking?.status || '').toUpperCase());
-  const scheduledDate = booking.start_datetime ? new Date(booking.start_datetime) : null;
-  const todayDate = new Date();
-  const isScheduledToday = scheduledDate
-    && scheduledDate.getFullYear() === todayDate.getFullYear()
-    && scheduledDate.getMonth() === todayDate.getMonth()
-    && scheduledDate.getDate() === todayDate.getDate();
-  const canStartService = derivedStatus === 'confirmed' && isScheduledToday && Boolean(booking.staff_id) && !isLocked;
   const canCompleteService = derivedStatus === 'in_progress' && isFullySettled && !isLocked;
 
   const requestReleaseBooking = () => {
@@ -1650,7 +1644,9 @@ const AdminBookingDetails = () => {
                             >
                               <Plus size={12} /> ADD
                             </button>
-                            <button
+                            {(v.status?.toUpperCase() === 'IN_PROGRESS'
+                              || v.status?.toUpperCase() === 'COMPLETED'
+                              || SHOW_START_SERVICE_ACTIONS) && <button
                               onClick={() => {
                                 const currentStatus = v.status?.toUpperCase();
                                 if (currentStatus === 'SCHEDULED' || !currentStatus) {
@@ -1659,18 +1655,18 @@ const AdminBookingDetails = () => {
                                   requestVehicleStatus(v, 'COMPLETED');
                                 }
                               }}
-                              disabled={isLocked || v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' ? !canCompleteService : !canStartService)}
+                              disabled={isLocked || v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' ? !canCompleteService : !SHOW_START_SERVICE_ACTIONS)}
                               style={{
-                                background: v.status?.toUpperCase() === 'COMPLETED' ? 'rgba(255, 255, 255, 0.05)' : (v.status?.toUpperCase() === 'IN_PROGRESS' ? (canCompleteService ? '#10b981' : 'var(--admin-border)') : (canStartService ? 'var(--admin-brand)' : 'var(--admin-border)')),
+                                background: v.status?.toUpperCase() === 'COMPLETED' ? 'rgba(255, 255, 255, 0.05)' : (v.status?.toUpperCase() === 'IN_PROGRESS' ? (canCompleteService ? '#10b981' : 'var(--admin-border)') : 'var(--admin-border)'),
                                 border: v.status?.toUpperCase() === 'COMPLETED' ? '1px solid var(--admin-border)' : 'none',
-                                padding: '0.45rem 1rem', borderRadius: '4px', color: (v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' ? !canCompleteService : !canStartService)) ? 'var(--admin-text-secondary)' : 'white', flex: isMobile ? '1 1 150px' : '0 0 auto', minWidth: 0,
-                                cursor: (isLocked || v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' ? !canCompleteService : !canStartService)) ? 'not-allowed' : 'pointer', fontSize: '0.65rem', fontWeight: '950', display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                padding: '0.45rem 1rem', borderRadius: '4px', color: (v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' && !canCompleteService)) ? 'var(--admin-text-secondary)' : 'white', flex: isMobile ? '1 1 150px' : '0 0 auto', minWidth: 0,
+                                cursor: (isLocked || v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' && !canCompleteService)) ? 'not-allowed' : 'pointer', fontSize: '0.65rem', fontWeight: '950', display: 'flex', alignItems: 'center', gap: '0.4rem',
                                 boxShadow: v.status?.toUpperCase() === 'COMPLETED' ? 'none' : '0 4px 10px rgba(0,0,0,0.3)', transition: 'all 0.2s ease',
                                 opacity: isLocked ? 0.5 : 1
                               }}
                             >
                               {v.status?.toUpperCase() === 'COMPLETED' ? <><CheckCircle2 size={12} /> SERVICE FINISHED</> : <>{v.status?.toUpperCase() === 'IN_PROGRESS' ? <><CheckCircle2 size={12} /> FINISH SERVICE</> : <><Play size={12} /> START SERVICE</>}</>}
-                            </button>
+                            </button>}
                           </div>
                         </div>
                       </div>
