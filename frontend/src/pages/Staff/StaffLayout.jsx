@@ -11,6 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../context/ThemeContext';
 import HeaderProfileDropdown from '../../components/common/HeaderProfileDropdown';
 import { confirmLogout } from '../../utils/logoutConfirm';
+import { isNotificationActionable } from '../../utils/notificationRouting';
 
 const StaffLayout = () => {
   const { openModal, closeModal } = useUI(); const { user, profile, signOut, fetchProfile, setProfile, toggleShift } = useAuth();
@@ -28,12 +29,13 @@ const StaffLayout = () => {
     try {
       const { data, error } = await supabase
         .from('notifications')
-        .select('notification_type, title')
+        .select('notification_type, title, booking_id')
         .eq('user_id', userId)
         .eq('is_read', false);
       if (error) throw error;
       setUnreadCount((data || []).filter((notification) =>
-        notification.notification_type !== 'MESSAGE_RECEIVED'
+        isNotificationActionable(notification)
+        && notification.notification_type !== 'MESSAGE_RECEIVED'
         && !notification.title?.toLowerCase().includes('new message')
       ).length);
     } catch {

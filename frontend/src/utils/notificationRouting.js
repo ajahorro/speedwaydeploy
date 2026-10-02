@@ -21,3 +21,15 @@ export const buildNotificationActionUrl = ({ bookingId, role, isChatMessage = fa
   const url = `${prefix}/bookings/${bookingId}`;
   return isChatMessage ? `${url}?chat=open` : url;
 };
+
+const BOOKING_CONTEXT_NOTIFICATION_TYPES = new Set([
+  'CHAT_MESSAGE',
+  'MESSAGE_RECEIVED',
+  'STATUS_UPDATE',
+]);
+
+export const isNotificationActionable = (notification) => {
+  if (!notification) return false;
+  const type = String(notification.notification_type || '').toUpperCase();
+  return !BOOKING_CONTEXT_NOTIFICATION_TYPES.has(type) || Boolean(notification.booking_id);
+};

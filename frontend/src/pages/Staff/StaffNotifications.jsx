@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { logger } from '../../utils/logger';
 import { useAuth } from '../../hooks/useAuth';
 import NotificationDetailsModal from '../../components/NotificationDetailsModal';
+import { isNotificationActionable } from '../../utils/notificationRouting';
 
 const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
   <div style={{
@@ -74,7 +75,8 @@ const StaffNotifications = () => {
 
       if (error) throw error;
       setNotifications((data || []).filter((notification) =>
-        notification.notification_type !== 'MESSAGE_RECEIVED'
+        isNotificationActionable(notification)
+        && notification.notification_type !== 'MESSAGE_RECEIVED'
         && !notification.title?.toLowerCase().includes('new message')
       ));
     } catch (err) {

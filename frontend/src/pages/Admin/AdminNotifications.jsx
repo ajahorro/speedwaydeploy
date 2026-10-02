@@ -9,6 +9,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { BACKEND_URL } from '../../config/api';
 import { useNavigate } from 'react-router-dom';
 import NotificationDetailsModal from '../../components/NotificationDetailsModal';
+import { isNotificationActionable } from '../../utils/notificationRouting';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DELETE CONFIRMATION MODAL (REQ #5)
@@ -173,6 +174,7 @@ const AdminNotifications = () => {
       // not one copy per user profile that was sent to.
       const seen = new Set();
       const deduplicated = (data || []).filter(n => {
+        if (!isNotificationActionable(n)) return false;
         if (n.notification_type === 'ANNOUNCEMENT') {
           const key = n.message?.trim();
           if (seen.has(key)) return false;

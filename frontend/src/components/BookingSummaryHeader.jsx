@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, User, Wrench, CreditCard, CheckCircle } from 'lucide-react';
+import { AlertTriangle, Calendar, User, Wrench, CreditCard, CheckCircle } from 'lucide-react';
 import { formatBookingDate, formatBookingTime } from '../utils/bookingHelpers';
 import { derivePaymentStatusBadge } from '../utils/paymentUtils';
 
@@ -32,6 +32,7 @@ const customerEmail = (booking) => {
 const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, showTechnician = true, paymentStatus }) => {
   const rawStatus = booking?.status?.toUpperCase() || 'PENDING';
   const normalizedStatus = rawStatus === 'PENDING' ? 'SCHEDULED' : rawStatus;
+  const isNoShow = normalizedStatus === 'FLAGGED_NOSHOW' || normalizedStatus === 'NO_SHOW';
   const currentStepIndex = Math.max(0, LIFECYCLE_STEPS.indexOf(normalizedStatus));
 
   return (
@@ -95,29 +96,50 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
         })() : null}
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', overflowX: 'auto', paddingTop: '0.5rem' }}>
-        <div style={{ position: 'absolute', top: '22px', left: '8%', right: '8%', height: '2px', backgroundColor: 'var(--admin-border)', zIndex: 0 }} />
-        {LIFECYCLE_STEPS.map((step, index) => {
-          const isCompleted = index <= currentStepIndex;
-          const isCurrent = index === currentStepIndex;
-          return (
-            <div key={step} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', zIndex: 1, minWidth: '80px', flex: '1 0 80px' }}>
-              <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: isCompleted ? 'var(--admin-brand)' : 'var(--admin-bg)', border: `2px solid ${isCompleted ? 'var(--admin-brand)' : 'var(--admin-border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-text-on-brand)' }}>
-                {isCompleted && <CheckCircle size={14} />}
+      {isNoShow && (
+        <div
+          role="status"
+          style={{
+            display: 'flex', alignItems: 'center', gap: '0.75rem',
+            padding: '1rem', borderRadius: 'var(--admin-radius-sm)',
+            color: 'var(--status-danger)', background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.3)'
+          }}
+        >
+          <AlertTriangle size={20} aria-hidden="true" />
+          <div>
+            <strong style={{ display: 'block', fontSize: '0.85rem', textTransform: 'uppercase' }}>Flagged no-show</strong>
+            <span style={{ display: 'block', marginTop: '0.2rem', fontSize: '0.78rem', color: 'var(--admin-text-secondary)' }}>
+              This appointment was marked as a no-show. Contact the shop if you need help.
+            </span>
+          </div>
+        </div>
+      )}
+      {!isNoShow && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', overflowX: 'auto', paddingTop: '0.5rem' }}>
+          <div style={{ position: 'absolute', top: '22px', left: '8%', right: '8%', height: '2px', backgroundColor: 'var(--admin-border)', zIndex: 0 }} />
+          {LIFECYCLE_STEPS.map((step, index) => {
+            const isCompleted = index <= currentStepIndex;
+            const isCurrent = index === currentStepIndex;
+            return (
+              <div key={step} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', zIndex: 1, minWidth: '80px', flex: '1 0 80px' }}>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: isCompleted ? 'var(--admin-brand)' : 'var(--admin-bg)', border: `2px solid ${isCompleted ? 'var(--admin-brand)' : 'var(--admin-border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-text-on-brand)' }}>
+                  {isCompleted && <CheckCircle size={14} />}
+                </div>
+                <span style={{ fontSize: '0.7rem', fontWeight: isCurrent ? '700' : '400', color: isCurrent ? 'var(--admin-text-primary)' : 'var(--admin-text-secondary)', textAlign: 'center' }}>{step.replace('_', ' ')}</span>
+                {step === 'COMPLETED' && rawStatus === 'COMPLETED' && onUnitCollected && (
+                  <button
+                    onClick={onUnitCollected}
+                    style={{ marginTop: '0.15rem', padding: '0.35rem 0.55rem', background: 'rgba(16, 185, 129, 0.1)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.45)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.55rem', fontWeight: '900', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    UNIT COLLECTED
+                  </button>
+                )}
               </div>
-              <span style={{ fontSize: '0.7rem', fontWeight: isCurrent ? '700' : '400', color: isCurrent ? 'var(--admin-text-primary)' : 'var(--admin-text-secondary)', textAlign: 'center' }}>{step.replace('_', ' ')}</span>
-              {step === 'COMPLETED' && rawStatus === 'COMPLETED' && onUnitCollected && (
-                <button
-                  onClick={onUnitCollected}
-                  style={{ marginTop: '0.15rem', padding: '0.35rem 0.55rem', background: 'rgba(16, 185, 129, 0.1)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.45)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.55rem', fontWeight: '900', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                >
-                  UNIT COLLECTED
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

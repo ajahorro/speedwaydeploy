@@ -16,10 +16,6 @@ const CustomerBilling = () => {
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [selectedPayment, setSelectedPayment] = useState(null);
 
-  useEffect(() => {
-    if (user?.id) fetchData();
-  }, [user?.id, fetchData]);
-
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
     try {
@@ -45,6 +41,10 @@ const CustomerBilling = () => {
       setLoading(false);
     }
   }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) fetchData();
+  }, [user?.id, fetchData]);
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val || 0);
   // FLAT, TAX-FREE pricing: the total IS the subtotal. There is no tax to

@@ -1,4 +1,5 @@
 import { supabase, createUniqueChannel } from '../lib/supabase';
+import { isNotificationActionable } from '../utils/notificationRouting';
 
 /**
  * notificationService.js
@@ -13,7 +14,7 @@ export const fetchNotifications = async (userId) => {
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return (data || []).filter(isNotificationActionable);
 };
 
 export const markNotificationAsRead = async (notificationId) => {

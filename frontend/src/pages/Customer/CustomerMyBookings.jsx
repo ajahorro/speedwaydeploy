@@ -195,7 +195,7 @@ const CustomerMyBookings = () => {
                   <div style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Booking ID</div>
                   <div style={{ fontSize: '1.1rem', fontWeight: '950', color: 'var(--admin-text-primary)', fontFamily: 'monospace' }}>#{b.id.substring(0, 8).toUpperCase()}</div>
                   <div style={{ display: 'inline-block', marginTop: '0.5rem', fontSize: '0.7rem', fontWeight: '950', color: getStatusColor(b.status), background: `rgba(var(--admin-brand-rgb), 0.05)`, padding: '0.2rem 0.5rem', borderRadius: '4px', textTransform: 'uppercase' }}>
-                    {b.status}
+                    {b.status?.toLowerCase() === 'flagged_noshow' ? 'FLAGGED NO-SHOW' : b.status?.replace(/_/g, ' ')}
                   </div>
                 </div>
 

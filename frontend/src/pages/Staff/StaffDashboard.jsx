@@ -16,6 +16,7 @@ import IntakeWarningBadge from '../../components/Photos/IntakeWarningBadge';
 import { BACKEND_URL } from '../../config/api';
 import { loadPreferences } from '../../utils/preferenceStore';
 import { playJobAssignmentChime } from '../../utils/jobAssignmentChime';
+import { isNotificationActionable } from '../../utils/notificationRouting';
 import { dateKey } from '../../domain/schedule/rules';
 import { SHOW_START_SERVICE_ACTIONS } from '../../config/workflowFeatures';
 const StaffDashboard = () => {
@@ -165,7 +166,8 @@ const StaffDashboard = () => {
         .limit(5);
 
       setBroadcasts((notifData || []).filter((notification) =>
-        notification.notification_type !== 'MESSAGE_RECEIVED'
+        isNotificationActionable(notification)
+        && notification.notification_type !== 'MESSAGE_RECEIVED'
         && !notification.title?.toLowerCase().includes('new message')
       ));
     } catch (err) {

@@ -151,6 +151,11 @@ export const emitEvent = async (eventType, { userId, bookingId, meta = {} }) => 
   }
 
   const isChatMessage = eventType === EVENTS.MESSAGE_RECEIVED;
+  if (isChatMessage && !bookingId) {
+    console.info('[EventEngine] Suppressed chat notification because it has no booking link.');
+    return;
+  }
+
   let recipientRole = 'CUSTOMER';
   if (userId) {
     const { data: profileRow, error } = await supabase
