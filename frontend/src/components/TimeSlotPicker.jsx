@@ -11,17 +11,17 @@ import React, { useState } from 'react';
  */
 
 const TIME_PERIODS = [
+  { key: 'earlyMorning', label: 'Early morning', minHour: 0,  maxHour: 5  },
   { key: 'morning',   label: 'Morning',   minHour: 6,  maxHour: 11 },
   { key: 'afternoon', label: 'Afternoon', minHour: 12, maxHour: 17 },
   { key: 'evening',   label: 'Evening',   minHour: 18, maxHour: 23 },
-  { key: 'overnight', label: 'Overnight', minHour: 0,  maxHour: 5  },
 ];
 
 function getPeriodKey(hour) {
   if (hour >= 6  && hour <= 11) return 'morning';
   if (hour >= 12 && hour <= 17) return 'afternoon';
   if (hour >= 18 && hour <= 23) return 'evening';
-  return 'overnight';
+  return 'earlyMorning';
 }
 
 function getCapacityColor(bays) {

@@ -136,6 +136,7 @@ checks.push(
   ['customer billing: fetch callback is initialized before the effect uses it', customerBilling.indexOf('const fetchData = useCallback') >= 0 && customerBilling.indexOf('const fetchData = useCallback') < customerBilling.indexOf('useEffect(() =>')],
   ['customer booking: flagged no-show has its own visible lifecycle state', /normalizedStatus === 'FLAGGED_NOSHOW'[\s\S]*?Flagged no-show/.test(bookingSummaryHeader)],
   ['appointment time-slot groups have no emoji decorations', !/emoji\s*:|group\.emoji/.test(timeSlotPicker)],
+  ['appointment slots are grouped chronologically from early morning', /key: 'earlyMorning', label: 'Early morning'[\s\S]*?key: 'morning'[\s\S]*?key: 'afternoon'[\s\S]*?key: 'evening'/.test(timeSlotPicker) && /return 'earlyMorning'/.test(timeSlotPicker)],
   ['payment receipt: portal uses the shared transaction calculation model', /resolveTransactionReceiptAmounts\(selectedPayment\)/.test(officialReceipt) && /resolveTransactionReceiptAmounts/.test(receiptModel)],
   ['payment receipt: gross, fee, and net agree with receipt model', (() => {
     const amounts = resolveTransactionReceiptAmounts(samplePayment);
