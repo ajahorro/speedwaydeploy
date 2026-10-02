@@ -27,8 +27,10 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
   const allVehiclesComplete = (bookingData.vehicles || []).length > 0 && (bookingData.vehicles || []).every((item) =>
     item.type && item.brand && item.model && item.plateNumber && item.services?.length
   );
-  const isValid = bookingData.date && bookingData.time && (bookingData.contactNumber || '').length >= 10 &&
-    (bookingData.customerName || '').trim().length > 0 && allVehiclesComplete;
+  const customerDetailsComplete = hasSelectedExistingCustomer || (
+    (bookingData.contactNumber || '').length >= 10 && (bookingData.customerName || '').trim().length > 0
+  );
+  const isValid = Boolean(bookingData.date && bookingData.time && customerDetailsComplete && allVehiclesComplete);
 
   // Fetch available slots when date changes (real bay capacity check)
   const fetchSlots = useCallback(async (silent = false) => {

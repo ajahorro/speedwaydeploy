@@ -151,7 +151,7 @@ const AdminWalkInWizard = () => {
     if (rawCustomerId) {
       const { data: freshProfile, error: freshProfileError } = await supabase
         .from('profiles')
-        .select('id, full_name, email, phone_number, contact_number, first_name, last_name')
+        .select('id, full_name, email, phone_number, first_name, last_name')
         .eq('id', rawCustomerId)
         .maybeSingle();
 
