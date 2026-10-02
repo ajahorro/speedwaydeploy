@@ -20,6 +20,7 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
     longest,
     (vehicle.services || []).reduce((sum, service) => sum + Number(service.durationMinutes || 60), 0)
   ), 0) || 60) + 60;
+  const showEditableCustomerDetails = !adminMode || !bookingData.customerId;
 
   // Basic validation
   const allVehiclesComplete = (bookingData.vehicles || []).length > 0 && (bookingData.vehicles || []).every((item) =>
@@ -144,42 +145,47 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
 
       {/* Contact Details */}
       <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', padding: 'clamp(1rem, 3vw, 1.5rem)', boxShadow: 'var(--admin-card-shadow)', display: 'grid', gap: '1.25rem', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-        {/* Full Name */}
-        <div>
-          <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
-            Full Name
-          </label>
-          <input
-            type="text"
-            value={bookingData.customerName || ''}
-            disabled={customerDetailsLocked}
-            onChange={(e) => setBookingData({ ...bookingData, customerName: sanitizeVehicleText(e.target.value) })}
-            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--admin-brand)'; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--admin-input-border)'; }}
-            style={inputStyle}
-            placeholder="e.g. John Doe"
-          />
-        </div>
+        {showEditableCustomerDetails && (
+          <>
+            {/* Full Name */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={bookingData.customerName || ''}
+                disabled={customerDetailsLocked}
+                onChange={(e) => setBookingData({ ...bookingData, customerName: sanitizeVehicleText(e.target.value) })}
+                onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--admin-brand)'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--admin-input-border)'; }}
+                style={inputStyle}
+                placeholder="e.g. John Doe"
+              />
+            </div>
 
-        {/* Contact Number */}
-        <div>
-          <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
-            Active Contact Number
-          </label>
-          <div style={{ position: 'relative' }}>
-            <Phone size={18} color="var(--admin-brand)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
-            <input
-              type="tel"
-              value={bookingData.contactNumber}
-              disabled={customerDetailsLocked}
-              onChange={(e) => setBookingData({ ...bookingData, contactNumber: e.target.value.replace(/\D/g, '').slice(0, 15) })}
-              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--admin-brand)'; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--admin-input-border)'; }}
-              style={{ ...inputStyle, paddingLeft: '3rem' }}
-              placeholder="e.g. 09123456789"
-            />
-          </div>
-        </div>
+            {/* Contact Number */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Active Contact Number
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Phone size={18} color="var(--admin-brand)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="tel"
+                  aria-label="Active contact number"
+                  value={bookingData.contactNumber || ''}
+                  disabled={customerDetailsLocked}
+                  onChange={(e) => setBookingData({ ...bookingData, contactNumber: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--admin-brand)'; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--admin-input-border)'; }}
+                  style={{ ...inputStyle, paddingLeft: '3rem' }}
+                  placeholder="e.g. 09123456789"
+                />
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Notes — full width */}
         <div style={{ gridColumn: '1 / -1' }}>
