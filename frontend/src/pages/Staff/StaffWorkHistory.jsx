@@ -24,7 +24,8 @@ const StaffWorkHistory = () => {
     if (!profile?.id) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const [{ data: assignedUnits, error: assignedError }, { data: evidenceRows, error: evidenceError }] = await Promise.all([
+        supabase
         .from('booking_vehicles')
         .select(`
           *,
@@ -33,8 +34,37 @@ const StaffWorkHistory = () => {
         `)
         .eq('booking.staff_id', profile.id)
         .in('status', ['COMPLETED', 'CANCELLED'])
-        .order('id', { ascending: false });
+        .order('id', { ascending: false }),
+        supabase
+          .from('service_photos')
+          .select('booking_vehicle_id')
+          .eq('uploaded_by', profile.id)
+          .is('archived_at', null)
+          .not('booking_vehicle_id', 'is', null)
+      ]);
 
+      if (assignedError) throw assignedError;
+      if (evidenceError) throw evidenceError;
+
+      const unitIds = new Set([
+        ...(assignedUnits || []).map((unit) => unit.id),
+        ...(evidenceRows || []).map((photo) => photo.booking_vehicle_id).filter(Boolean)
+      ]);
+      if (unitIds.size === 0) {
+        setHistory([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('booking_vehicles')
+        .select(`
+          *,
+          booking:bookings!booking_vehicles_booking_id_fkey!inner(staff_id, status, updated_at, total_amount),
+          services:booking_vehicle_services(*)
+        `)
+        .in('id', [...unitIds])
+        .in('status', ['COMPLETED', 'CANCELLED'])
+        .order('id', { ascending: false });
       if (error) throw error;
 
       const historyUnits = (data || []).map(v => ({

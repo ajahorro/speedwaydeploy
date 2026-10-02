@@ -621,16 +621,20 @@ const AdminBookingDetails = () => {
       onConfirm: async () => {
         const toastId = toast.loading('Recording No-Show cancellation...');
         try {
+          const { data: { session } } = await supabase.auth.getSession();
           const response = await fetch(`${BACKEND_URL}/api/bookings/admin-cancel`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session?.access_token || ''}`
+            },
             body: JSON.stringify({ bookingId: id, reason: 'No-Show' })
           });
 
           const result = await response.json();
           if (!result.success) throw new Error(result.error);
 
-          await sendStatusEmail(id, 'FLAGGED_NOSHOW', 'No-show: service was not started within one hour of the scheduled time.');
+          await sendStatusEmail(id, 'CANCELLED', 'The booking was cancelled after it was flagged as a no-show.');
 
           toast.success('Cancelled as No-Show', { id: toastId });
           fetchBookingDetails();
@@ -686,12 +690,15 @@ const AdminBookingDetails = () => {
     setUndoNoShowModal(prev => ({ ...prev, isSubmitting: true, validationMessage: '' }));
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(`${BACKEND_URL}/api/bookings/undo-no-show`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({
           bookingId: id,
-          actorName: 'ADMIN',
           pendingRefund: hasPendingRefund
         })
       });
@@ -712,7 +719,11 @@ const AdminBookingDetails = () => {
       await sendStatusEmail(id, 'scheduled', 'Your booking was reinstated after the no-show flag was reversed. Please confirm the updated schedule and staff assignment.');
 
       setUndoNoShowModal({ open: false, validationMessage: '', isSubmitting: false });
-      toast.success('Booking restored to active status.');
+      toast.success(result.needsStaffReassignment
+        ? 'No-show reversed. Assign a technician before staff can start service.'
+        : result.needsStaffReassignment === null
+          ? 'Booking restored. Verify the technician assignment before service starts.'
+          : 'Booking restored with its original technician assignment.');
       fetchBookingDetails();
       fetchAuditLogs();
     } catch (err) {

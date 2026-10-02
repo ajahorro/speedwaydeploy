@@ -10,6 +10,7 @@ import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from 'react-hot-toast';
 import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
+import { fetchVehiclePhotos, resolvePhotoUrls } from '../../services/photoService';
 
 const StaffJobDetails = () => {
   const { id } = useParams();
@@ -18,9 +19,24 @@ const StaffJobDetails = () => {
   const [unit, setUnit] = useState(null);
   const [loading, setLoading] = useState(true);
   const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false);
+  const [evidencePhotos, setEvidencePhotos] = useState([]);
 
   useEffect(() => {
     fetchJobDetails();
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadEvidence = async () => {
+      const rows = await fetchVehiclePhotos(id);
+      const photos = await resolvePhotoUrls(rows);
+      if (!cancelled) setEvidencePhotos(photos.filter((photo) => photo.url));
+    };
+    loadEvidence().catch((error) => {
+      console.error('Job Evidence Error:', error);
+      toast.error('Failed to load service evidence');
+    });
+    return () => { cancelled = true; };
   }, [id]);
 
   const fetchJobDetails = async () => {
@@ -186,10 +202,26 @@ const StaffJobDetails = () => {
             >
               <ImageIcon size={14} /> View Before/After Evidence
             </button>
-            <div style={{ height: '150px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: 'var(--admin-bg)', borderRadius: '4px', border: '1px dashed rgba(255,255,255,0.1)' }}>
-              <Info size={24} color="#333" />
-              <div style={{ fontSize: '0.65rem', color: '#444', fontWeight: '950' }}>EVIDENCE IS SCOPED TO THIS UNIT</div>
-            </div>
+            {evidencePhotos.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))', gap: '0.5rem' }}>
+                {evidencePhotos.slice(0, 6).map((photo) => (
+                  <button
+                    key={photo.id}
+                    type="button"
+                    onClick={() => setPhotoGalleryOpen(true)}
+                    aria-label={`View ${photo.phase} service photo`}
+                    style={{ padding: 0, aspectRatio: '1 / 1', overflow: 'hidden', border: '1px solid var(--admin-border)', borderRadius: '4px', background: 'var(--admin-bg)', cursor: 'pointer' }}
+                  >
+                    <img src={photo.url} alt={photo.caption || `${photo.phase} service evidence`} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div style={{ height: '150px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: 'var(--admin-bg)', borderRadius: '4px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                <Info size={24} color="#333" />
+                <div style={{ fontSize: '0.65rem', color: '#444', fontWeight: '950' }}>NO EVIDENCE PHOTOS AVAILABLE</div>
+              </div>
+            )}
           </section>
         </div>
 

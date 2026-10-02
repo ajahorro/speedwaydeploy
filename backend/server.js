@@ -4282,6 +4282,7 @@ app.post('/api/bookings/admin-cancel', async (req, res) => {
       action_type: 'ADMIN_CANCEL_NOSHOW',
       actor_name: admin.profile?.full_name || admin.profile?.email || 'ADMIN',
       actor_role: 'ADMIN',
+      actor_id: admin.profile?.id || null,
       details: `Manual cancellation performed by ${admin.profile?.email || 'an admin'}. Reason: ${reason}`
     });
 
@@ -4292,7 +4293,12 @@ app.post('/api/bookings/admin-cancel', async (req, res) => {
 });
 
 app.post('/api/bookings/undo-no-show', async (req, res) => {
-  const { bookingId, actorName, adminId, pendingRefund } = req.body || {};
+  const admin = await requireAdmin(req);
+  if (!admin) {
+    return res.status(403).json({ success: false, error: 'Forbidden: an active admin session is required.' });
+  }
+
+  const { bookingId, pendingRefund } = req.body || {};
 
   if (!bookingId) {
     return res.status(400).json({ success: false, error: 'Booking ID is required.' });
@@ -4318,7 +4324,7 @@ app.post('/api/bookings/undo-no-show', async (req, res) => {
     // through the RPC removes that write entirely.
     const { data, error } = await supabaseAdmin.rpc('undo_no_show', {
       p_booking_id: bookingId,
-      p_actor_name: actorName || 'ADMIN',
+      p_actor_name: admin.profile?.full_name || admin.profile?.email || 'ADMIN',
       p_pending_refund: Boolean(pendingRefund),
     });
 
@@ -4354,12 +4360,21 @@ app.post('/api/bookings/undo-no-show', async (req, res) => {
       console.warn('Non-fatal vehicle-state restore warning:', vehicleError.message);
     }
 
+    const { data: restoredBooking, error: restoredBookingError } = await supabaseAdmin
+      .from('bookings')
+      .select('staff_id')
+      .eq('id', bookingId)
+      .maybeSingle();
+    if (restoredBookingError) {
+      console.warn('Could not verify technician assignment after no-show undo:', restoredBookingError.message);
+    }
+
     await supabaseAdmin.from('audit_logs').insert({
       booking_id: bookingId,
       action_type: 'UNDO_NO_SHOW',
-      actor_name: actorName || 'ADMIN',
+      actor_name: admin.profile?.full_name || admin.profile?.email || 'ADMIN',
       actor_role: 'ADMIN',
-      actor_id: adminId || null,
+      actor_id: admin.profile?.id || null,
       details: result.undone_by
         ? `Admin ${result.undone_by} reverted no-show for booking ${bookingId} within the 24-hour window.${pendingRefund ? ' Pending refund request intercepted and cancelled.' : ''}`
         : `Admin reverted no-show for booking ${bookingId} within the 24-hour window.`,
@@ -4369,6 +4384,7 @@ app.post('/api/bookings/undo-no-show', async (req, res) => {
       success: true,
       message: 'No-show was reverted successfully and pending refund requests were intercepted.',
       bookingStatus: 'scheduled',
+      needsStaffReassignment: restoredBookingError ? null : !restoredBooking?.staff_id,
       undoDeadline: result.undo_deadline || null,
     });
   } catch (err) {
