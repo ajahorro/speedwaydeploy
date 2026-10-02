@@ -9,6 +9,7 @@ import LoadingState from '../../components/LoadingState';
 import PhotoProofUploader from '../../components/Photos/PhotoProofUploader';
 import toast from 'react-hot-toast';
 import { BACKEND_URL } from '../../config/api';
+import { dateKey } from '../../domain/schedule/rules';
 
 const StaffActiveJobs = () => {
   const { profile } = useAuth();
@@ -92,11 +93,10 @@ const StaffActiveJobs = () => {
   const canStartTask = (task) => {
     if (!profile?.is_clocked_in || !task.start_datetime || (photoCounts[task.id]?.before || 0) < 1) return false;
     const scheduled = new Date(task.start_datetime);
-    if (scheduled.getTime() > Date.now()) return false;
-    const today = new Date();
-    return scheduled.getFullYear() === today.getFullYear()
-      && scheduled.getMonth() === today.getMonth()
-      && scheduled.getDate() === today.getDate();
+    const now = new Date();
+    return Number.isFinite(scheduled.getTime())
+      && scheduled.getTime() <= now.getTime()
+      && dateKey(scheduled) === dateKey(now);
   };
 
   const requestUpdateStatus = (task, newStatus) => {
@@ -204,14 +204,14 @@ const StaffActiveJobs = () => {
               </div>
 
               <div style={{ display: 'flex', gap: '1rem' }}>
-                {['PENDING', 'SCHEDULED'].includes(task.status?.toUpperCase()) && (
+                {['PENDING', 'SCHEDULED', 'CONFIRMED'].includes(task.status?.toUpperCase()) && (
                   <button onClick={() => requestUpdateStatus(task, 'IN_PROGRESS')} disabled={!canStartTask(task)} title={!profile?.is_clocked_in ? 'Clock in before starting.' : (photoCounts[task.id]?.before || 0) < 1 ? 'Upload an intake photo first.' : new Date(task.start_datetime).getTime() > Date.now() ? 'Available at the scheduled start time.' : undefined} style={{ flex: 1, padding: '0.85rem', background: canStartTask(task) ? '#E61E2A' : 'var(--admin-border)', color: canStartTask(task) ? 'white' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: canStartTask(task) ? 'pointer' : 'not-allowed', textTransform: 'uppercase' }}>
                     <Play size={16} /> Start Service
                   </button>
                 )}
                 {task.status?.toUpperCase() === 'IN_PROGRESS' && (
                   <button onClick={() => requestUpdateStatus(task, 'COMPLETED')} disabled={!profile?.is_clocked_in || (photoCounts[task.id]?.after || 0) < 1} style={{ flex: 1, padding: '0.85rem', background: profile?.is_clocked_in && (photoCounts[task.id]?.after || 0) > 0 ? 'var(--status-success)' : 'var(--admin-border)', color: profile?.is_clocked_in && (photoCounts[task.id]?.after || 0) > 0 ? 'var(--admin-text-primary)' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: profile?.is_clocked_in && (photoCounts[task.id]?.after || 0) > 0 ? 'pointer' : 'not-allowed', textTransform: 'uppercase' }}>
-                    <CheckCircle2 size={16} /> Mark Finished
+                    <CheckCircle2 size={16} /> Complete Service
                   </button>
                 )}
               </div>

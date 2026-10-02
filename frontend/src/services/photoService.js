@@ -47,33 +47,35 @@ const fileExtension = (file) => {
  * @param {string}  [opts.uploadedBy]  auth uid of the uploader
  * @returns {Promise<object>} the inserted service_photos row
  */
-export const uploadServicePhoto = async ({
+export const uploadServicePhotos = async ({
   bookingId,
   bookingVehicleId,
   phase,
-  file,
+  files,
   caption = '',
   uploadedBy = null
 }) => {
-  if (!file) throw new Error('No file provided.');
+  const photoFiles = Array.from(files || []);
+  if (!photoFiles.length) throw new Error('At least one photo is required.');
   if (phase !== 'before' && phase !== 'after') throw new Error(`Invalid phase: ${phase}`);
 
-  const ext = fileExtension(file);
-  const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const objectName = `${unique}.${ext}`;
-  const storagePath = buildObjectPath(bookingId, bookingVehicleId, phase, objectName);
+  const storagePaths = [];
+  try {
+    for (const file of photoFiles) {
+      const ext = fileExtension(file);
+      const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const objectName = `${unique}.${ext}`;
+      const storagePath = buildObjectPath(bookingId, bookingVehicleId, phase, objectName);
+      const { error: uploadError } = await supabase.storage
+        .from(PHOTO_BUCKET)
+        .upload(storagePath, file, { cacheControl: '3600', upsert: false, contentType: file.type });
+      if (uploadError) throw uploadError;
+      storagePaths.push(storagePath);
+    }
 
-  const { error: uploadError } = await supabase.storage
-    .from(PHOTO_BUCKET)
-    .upload(storagePath, file, { cacheControl: '3600', upsert: false, contentType: file.type });
-  if (uploadError) {
-    logger.error('Service photo upload failed', uploadError);
-    throw uploadError;
-  }
-
-  const { data, error: insertError } = await supabase
-    .from('service_photos')
-    .insert({
+    const { data, error: insertError } = await supabase
+      .from('service_photos')
+      .insert(storagePaths.map((storagePath) => ({
       booking_id: bookingId,
       booking_vehicle_id: bookingVehicleId,
       phase,
@@ -81,18 +83,24 @@ export const uploadServicePhoto = async ({
       caption: caption || null,
       uploaded_by: uploadedBy,
       source: 'upload'
-    })
-    .select()
-    .single();
+      })))
+      .select();
 
-  if (insertError) {
-    // Roll back the orphaned object so a failed DB write does not leave junk.
-    await supabase.storage.from(PHOTO_BUCKET).remove([storagePath]).catch(() => { });
-    logger.error('Service photo row insert failed', insertError);
-    throw insertError;
+    if (insertError) throw insertError;
+    return data || [];
+  } catch (error) {
+    if (storagePaths.length) {
+      const { error: cleanupError } = await supabase.storage.from(PHOTO_BUCKET).remove(storagePaths);
+      if (cleanupError) logger.error('Failed to clean up service photos after upload failure', cleanupError);
+    }
+    logger.error('Service photo submission failed', error);
+    throw error;
   }
+};
 
-  return data;
+export const uploadServicePhoto = async ({ file, ...options }) => {
+  const [photo] = await uploadServicePhotos({ ...options, files: [file] });
+  return photo;
 };
 
 /** Fetch all photos for a single vehicle unit, oldest first. */

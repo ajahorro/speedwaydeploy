@@ -3,7 +3,7 @@ import { Camera, ImagePlus, Loader2, Trash2, X, AlertTriangle } from 'lucide-rea
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
 import {
-  uploadServicePhoto,
+  uploadServicePhotos,
   fetchVehiclePhotos,
   resolvePhotoUrls,
   deleteServicePhoto,
@@ -42,6 +42,8 @@ const PhotoProofUploader = ({
   const onCountChangeRef = useRef(onCountChange);
 
   const heading = label || (phase === 'before' ? 'Intake Photos (Before)' : 'Completion Photos (After)');
+  const evidenceLocked = photos.length > 0;
+  const interactionDisabled = disabled || evidenceLocked || loading;
 
   const load = useCallback(async () => {
     if (!bookingVehicleId) return;
@@ -73,7 +75,7 @@ const PhotoProofUploader = ({
   };
 
   const handleFiles = async (fileList) => {
-    if (disabled) return;
+    if (interactionDisabled || uploading) return;
     const files = Array.from(fileList || []);
     if (!files.length) return;
 
@@ -85,15 +87,13 @@ const PhotoProofUploader = ({
     setUploading(true);
     const toastId = toast.loading(`Uploading ${files.length} photo${files.length > 1 ? 's' : ''}...`);
     try {
-      for (const f of files) {
-        await uploadServicePhoto({
-          bookingId,
-          bookingVehicleId,
-          phase,
-          file: f,
-          uploadedBy: user?.id || null
-        });
-      }
+      await uploadServicePhotos({
+        bookingId,
+        bookingVehicleId,
+        phase,
+        files,
+        uploadedBy: user?.id || null
+      });
       toast.success('Evidence uploaded.', { id: toastId });
       await load();
     } catch (err) {
@@ -106,11 +106,12 @@ const PhotoProofUploader = ({
 
   const handleDrop = (e) => {
     e.preventDefault();
-    if (disabled) return;
+    if (interactionDisabled || uploading) return;
     handleFiles(e.dataTransfer.files);
   };
 
   const handleRemove = async (photo) => {
+    if (evidenceLocked) return;
     const toastId = toast.loading('Removing photo...');
     try {
       await deleteServicePhoto(photo);
@@ -161,7 +162,11 @@ const PhotoProofUploader = ({
       )}
 
       {/* Uploader dropzone / button */}
-      <div
+      {evidenceLocked ? (
+        <p role="status" style={{ margin: 0, fontSize: '0.7rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+          Evidence saved. Photos in this submission are locked and can no longer be added or removed.
+        </p>
+      ) : <div
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
         style={{
@@ -178,20 +183,20 @@ const PhotoProofUploader = ({
           accept={ACCEPTED}
           capture="environment"
           multiple
-          disabled={disabled || uploading}
+          disabled={interactionDisabled || uploading}
           onChange={(e) => handleFiles(e.target.files)}
           style={{ display: 'none' }}
           id={`photo-input-${bookingVehicleId}-${phase}`}
         />
         <label
           htmlFor={`photo-input-${bookingVehicleId}-${phase}`}
-          aria-disabled={disabled || uploading}
+          aria-disabled={interactionDisabled || uploading}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '0.5rem',
-            cursor: disabled || uploading ? 'not-allowed' : 'pointer',
-            background: disabled || uploading ? 'var(--admin-border)' : 'var(--admin-brand)',
+            cursor: interactionDisabled || uploading ? 'not-allowed' : 'pointer',
+            background: interactionDisabled || uploading ? 'var(--admin-border)' : 'var(--admin-brand)',
             color: 'var(--admin-text-on-brand)',
             border: 'none',
             borderRadius: 'var(--admin-radius)',
@@ -200,8 +205,8 @@ const PhotoProofUploader = ({
             fontSize: '0.72rem',
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
-            opacity: disabled || uploading ? 0.6 : 1,
-            pointerEvents: disabled || uploading ? 'none' : 'auto'
+            opacity: interactionDisabled || uploading ? 0.6 : 1,
+            pointerEvents: interactionDisabled || uploading ? 'none' : 'auto'
           }}
         >
           {uploading ? <Loader2 size={14} className="spin" /> : <ImagePlus size={14} />}
@@ -210,7 +215,7 @@ const PhotoProofUploader = ({
         <div style={{ marginTop: '0.4rem', fontSize: '0.62rem', color: 'var(--admin-text-secondary)' }}>
           JPEG / PNG / WebP / HEIC · up to 10 MB each
         </div>
-      </div>
+      </div>}
 
       {/* Gallery */}
       {loading ? (
@@ -271,7 +276,7 @@ const PhotoProofUploader = ({
                   LEGACY
                 </span>
               )}
-              <button
+              {!evidenceLocked && <button
                 type="button"
                 onClick={() => handleRemove(p)}
                 aria-label="Remove photo"
@@ -283,7 +288,7 @@ const PhotoProofUploader = ({
                 }}
               >
                 <Trash2 size={12} />
-              </button>
+              </button>}
             </figure>
           ))}
         </div>

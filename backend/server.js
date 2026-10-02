@@ -4691,6 +4691,19 @@ app.post('/api/bookings/release', async (req, res) => {
 
 // ─── MASTER STATUS PROPAGATOR & NOTIFICATION CONTROLLER ──────────────────
 // REQ-SYS-02: Transactional Integrity for Booking Lifecycle
+const singaporeDateKey = (value) => {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Singapore',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const part = (type) => parts.find((entry) => entry.type === type)?.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+};
+
 app.post('/api/bookings/update-status', async (req, res) => {
   const { bookingId, unitId, newStatus, notes, actorName, actorRole } = req.body;
 
@@ -4717,7 +4730,7 @@ app.post('/api/bookings/update-status', async (req, res) => {
     if (newStatus.toUpperCase() === 'IN_PROGRESS') {
       const scheduledDate = new Date(masterBooking.start_datetime);
       const nowDate = new Date();
-      const isScheduledDate = scheduledDate.toDateString() === nowDate.toDateString();
+      const isScheduledDate = singaporeDateKey(scheduledDate) === singaporeDateKey(nowDate);
       if (!['scheduled', 'confirmed', 'in_progress'].includes(currentMaster)
         || !masterBooking.staff_id
         || !isScheduledDate

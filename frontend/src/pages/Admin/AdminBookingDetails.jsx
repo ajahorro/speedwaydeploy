@@ -31,7 +31,6 @@ import { logger } from '../../utils/logger';
 import TimeSlotPicker from '../../components/TimeSlotPicker';
 
 import { sendStatusEmail, sendBookingConfirmationEmail, sendPaymentReceiptEmail, sendNotificationEmail } from '../../services/notificationService';
-import { sendStaffAssignmentNotification } from '../../services/EmailService';
 import { getAvailableSlots } from '../../services/scheduleService';
 import { rescheduleBooking } from '../../services/bookingService';
 import ValidationModal from '../../components/ValidationModal';
@@ -406,14 +405,14 @@ const AdminBookingDetails = () => {
 
       if (error) throw error;
 
-      const staffMember = staffList.find(s => s.id === staffId);
-      const staffName = staffMember?.full_name || 'Staff';
+      const staffMember = staffList.find((staff) => staff.id === staffId);
 
-      // 1. Notify Staff in-app
+      // Staff need one concise in-app alert; email and technician-assignment
+      // alerts duplicated the same assignment.
       await notifyUser(
         staffId,
         'New Fleet Assigned',
-        `You have been assigned to lead the detailing session for ${customerName}.`,
+        'A new vehicle or fleet has been assigned to you.',
         'TASK_ASSIGNED',
         `/staff/tasks`
       );
@@ -421,21 +420,10 @@ const AdminBookingDetails = () => {
         await notifyUser(
           booking.customer_id,
           'Technician Assigned',
-          `Your assigned technician is ${staffName}. Open booking #${id.slice(0, 8).toUpperCase()} for details.`,
+          `Your assigned technician is ${staffMember?.full_name || 'Staff'}. Open booking #${id.slice(0, 8).toUpperCase()} for details.`,
           'STAFF_ASSIGNED',
           `/customer/bookings/${id}`
         );
-      }
-
-      // 2. Dual Delivery — Dispatch direct 1-to-1 email alert to technician asynchronously
-      if (staffMember?.email) {
-        sendStaffAssignmentNotification(staffMember.email, {
-          date: booking.start_datetime ? new Date(booking.start_datetime).toLocaleDateString() : 'Scheduled Date',
-          time: booking.start_datetime ? new Date(booking.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Scheduled Time',
-          vehicle: vehicles?.[0]?.make_model || vehicles?.[0]?.model || 'Assigned Vehicle',
-          plate: vehicles?.[0]?.plate_number || 'N/A',
-          services: vehicles?.[0]?.services?.map(s => s.service_name || s.name).join(', ') || 'Detailing Services'
-        }).catch(err => logger.error('Staff assignment email failed:', err));
       }
 
       // LOG AUDIT — differentiate post-service vs normal assignment

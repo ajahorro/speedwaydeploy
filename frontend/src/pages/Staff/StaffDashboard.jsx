@@ -16,6 +16,7 @@ import IntakeWarningBadge from '../../components/Photos/IntakeWarningBadge';
 import { BACKEND_URL } from '../../config/api';
 import { loadPreferences } from '../../utils/preferenceStore';
 import { playJobAssignmentChime } from '../../utils/jobAssignmentChime';
+import { dateKey } from '../../domain/schedule/rules';
 const StaffDashboard = () => {
   const { profile, toggleShift } = useAuth();
   const { openModal } = useUI();
@@ -205,11 +206,10 @@ const StaffDashboard = () => {
   const canStartTask = (task) => {
     if (!profile?.is_clocked_in || !task.start_datetime || (photoCounts[task.id]?.before || 0) < 1) return false;
     const scheduled = new Date(task.start_datetime);
-    if (scheduled.getTime() > Date.now()) return false;
-    const today = new Date();
-    return scheduled.getFullYear() === today.getFullYear()
-      && scheduled.getMonth() === today.getMonth()
-      && scheduled.getDate() === today.getDate();
+    const now = new Date();
+    return Number.isFinite(scheduled.getTime())
+      && scheduled.getTime() <= now.getTime()
+      && dateKey(scheduled) === dateKey(now);
   };
 
   const handleClockIn = async () => {
@@ -431,7 +431,7 @@ const StaffDashboard = () => {
                   )}
 
                   <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    {['PENDING', 'SCHEDULED'].includes(task.status?.toUpperCase()) && (
+                    {['PENDING', 'SCHEDULED', 'CONFIRMED'].includes(task.status?.toUpperCase()) && (
                       <>
                         {/* Intake evidence is a hard precondition for starting. */}
                         {(photoCounts[task.id]?.before || 0) < 1 && (
