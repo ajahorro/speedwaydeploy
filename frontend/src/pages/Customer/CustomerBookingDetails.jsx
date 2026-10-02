@@ -129,7 +129,9 @@ const CustomerBookingDetails = () => {
       if (!active) return;
       setRescheduleSlots(slots);
       setBusinessHours(hours);
-      if (rescheduleTime && !slots.some(slot => slot.time === rescheduleTime)) setRescheduleTime('');
+      setRescheduleTime(currentTime => (
+        currentTime && !slots.some(slot => slot.time === currentTime) ? '' : currentTime
+      ));
     }).catch(() => {
       if (active) setRescheduleSlots([]);
     }).finally(() => {

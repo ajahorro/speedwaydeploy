@@ -13,7 +13,23 @@ const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_R
   auth: { persistSession: false },
 });
 
-const { data } = await db.rpc('debug_function_source', { p_name: 'create_booking_atomic' });
-console.log('OCR_VERDICT_GATE present :', data.includes('OCR_VERDICT_GATE'));
-console.log("reads client payload    :", data.includes("v_payment -> 'ocr_metadata'"));
-console.log('reads from payments     :', data.includes('from public.payments pay'));
+const { data, error } = await db.rpc('debug_function_source', { p_name: 'create_booking_atomic' });
+if (error) throw new Error(`Could not read create_booking_atomic(): ${error.message}`);
+if (typeof data !== 'string' || !data) throw new Error('create_booking_atomic() source was empty.');
+
+const source = data.toLowerCase();
+const checks = [
+  ['current OCR gate is installed', source.includes('ocr_verdict_gate_v3')],
+  ['payment verdict is allow-listed', /v_verdict\s+not\s+in\s*\(\s*'for_verification'\s*,\s*'rejected'/.test(source)],
+  ['rejected receipts cannot create bookings', /if\s+v_verdict\s*=\s*'rejected'/.test(source)],
+  ['customers cannot self-settle bookings', /v_verdict\s+in\s*\(\s*'paid'\s*,\s*'refund_pending'\s*,\s*'refunded'\)\s+and\s+not\s+public\.is_admin\(\)/.test(source)],
+  ['booking payment status is derived from the verdict', /v_payment_status\s*:=\s*v_derived::booking_payment_status/.test(source)],
+];
+
+let failed = 0;
+for (const [label, ok] of checks) {
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}`);
+  if (!ok) failed += 1;
+}
+
+if (failed > 0) process.exitCode = 1;

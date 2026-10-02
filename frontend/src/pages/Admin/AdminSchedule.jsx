@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, createUniqueChannel } from '../../lib/supabase';
 import { Calendar as CalendarIcon, ShieldAlert, Lock, Zap, CheckCircle2, RotateCw, ChevronDown, ChevronUp, ChevronRight, X, Check, Sliders } from 'lucide-react';
@@ -36,6 +36,8 @@ const AdminSchedule = () => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   });
   const [viewDate, setViewDate] = useState(new Date());
+  const viewDateRef = useRef(viewDate);
+  viewDateRef.current = viewDate;
 
   // State: Data
   const [bookings, setBookings] = useState([]);
@@ -71,7 +73,7 @@ const AdminSchedule = () => {
 
   const fetchMonthData = async () => {
     try {
-      const monthWindow = buildLocalMonthWindow(viewDate);
+      const monthWindow = buildLocalMonthWindow(viewDateRef.current);
 
       const { data, error } = await supabase
         .from('bookings')

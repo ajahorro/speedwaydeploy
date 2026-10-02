@@ -1111,9 +1111,9 @@ const AdminBookingDetails = () => {
       .then((slots) => {
         if (!active) return;
         setRescheduleSlots(slots || []);
-        if (rescheduleTime && !slots.some(slot => slot.time === rescheduleTime)) {
-          setRescheduleTime('');
-        }
+        setRescheduleTime(currentTime => (
+          currentTime && !slots.some(slot => slot.time === currentTime) ? '' : currentTime
+        ));
       })
       .catch(() => {
         if (active) setRescheduleSlots([]);
