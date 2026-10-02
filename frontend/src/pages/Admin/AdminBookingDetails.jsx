@@ -933,11 +933,6 @@ const AdminBookingDetails = () => {
     );
     if (alreadyAssigned) return;
 
-    if (!requiresDownpayment(price)) {
-      handleAddService(vehicleId, service);
-      return;
-    }
-
     const cartTotalBefore = Number(booking?.total_amount || 0);
     const cartTotalAfter = Math.round((cartTotalBefore + price) * 100) / 100;
     const netPaid = Math.max(0, Number(
@@ -957,10 +952,8 @@ const AdminBookingDetails = () => {
     }
     const creditUsed = Math.min(existingCredit, price);
 
-    if (requiredNow === 0) {
-      handleAddService(vehicleId, service);
-      return;
-    }
+    const shouldRequirePayment = Number(requiredNow) > 0 || requiresDownpayment(price);
+    const defaultType = shouldRequirePayment ? 'Downpayment' : 'Full';
 
     setPendingService({
       vehicleId,
@@ -969,33 +962,45 @@ const AdminBookingDetails = () => {
       downpayment: requiredAggregateDownpayment,
       creditUsed,
       requiredNow,
+      needsPayment: shouldRequirePayment,
+      vehicleLabel: `${vehicle.brand || ''} ${vehicle.model || ''}`.trim() || vehicle.plate_number || 'Selected vehicle',
     });
-    setServicePaymentType('Downpayment');
-    setServicePaymentAmount(String(requiredNow));
+    setServicePaymentType(defaultType);
+    setServicePaymentAmount(String(shouldRequirePayment ? requiredNow : price));
     setServicePaymentMethod('Cash');
     setServiceReferenceNumber('');
   };
 
   const submitServicePayment = () => {
     if (!pendingService) return;
-    const amount = Number(servicePaymentAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error('Enter a valid payment amount.');
+    const amount = Number(servicePaymentAmount || 0);
+    const minimumDue = Number(pendingService.requiredNow || 0);
+
+    if (minimumDue > 0) {
+      if (!Number.isFinite(amount) || amount <= 0) {
+        toast.error('Enter a valid payment amount.');
+        return;
+      }
+      if (amount < minimumDue) {
+        toast.error(`Payment cannot be below the amount currently due of ${formatCurrency(minimumDue)}.`);
+        return;
+      }
+      if (amount > pendingService.price) {
+        toast.error(`Payment cannot exceed this service's ${formatCurrency(pendingService.price)} price.`);
+        return;
+      }
+    } else if (!Number.isFinite(amount) || amount < 0) {
+      toast.error('Payment amount is invalid.');
       return;
     }
-    if (amount < pendingService.requiredNow) {
-      toast.error(`Payment cannot be below the amount currently due of ${formatCurrency(pendingService.requiredNow)}.`);
-      return;
-    }
-    if (amount > pendingService.price) {
-      toast.error(`Payment cannot exceed this service's ${formatCurrency(pendingService.price)} price.`);
-      return;
-    }
-    if (servicePaymentMethod === 'Digital' && !serviceReferenceNumber.trim()) {
+
+    if (servicePaymentMethod === 'Digital' && minimumDue > 0 && !serviceReferenceNumber.trim()) {
       toast.error('Enter the digital transaction reference number.');
       return;
     }
-    handleAddService(pendingService.vehicleId, pendingService.service, amount, servicePaymentType, servicePaymentMethod, serviceReferenceNumber);
+
+    const finalAmount = minimumDue > 0 ? amount : null;
+    handleAddService(pendingService.vehicleId, pendingService.service, finalAmount, servicePaymentType, servicePaymentMethod, serviceReferenceNumber);
   };
 
   const updateVehicleStatus = async (vehicleId, status) => {
@@ -2048,43 +2053,93 @@ const AdminBookingDetails = () => {
               ))}
             </div>
           </div>
-          {pendingService && (
-            <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-brand)', borderRadius: '8px', width: isMobile ? '100%' : '320px', minWidth: isMobile ? 0 : '280px', padding: isMobile ? '1rem' : '1.25rem', overflowY: 'auto' }}>
-              <div style={{ fontSize: '0.65rem', color: 'var(--admin-brand)', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Payment Required</div>
-              <h3 style={{ margin: '0 0 0.35rem', fontSize: '1rem', fontWeight: '950' }}>{pendingService.service.name}</h3>
-              <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.75rem', marginBottom: '1.25rem' }}>Service price: {formatCurrency(pendingService.price)}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
-                {['Downpayment', 'Full'].map(type => (
-                  <button key={type} type="button" onClick={() => { setServicePaymentType(type); setServicePaymentAmount(String(type === 'Full' ? pendingService.price : pendingService.requiredNow)); }} style={{ padding: '0.7rem 0.4rem', borderRadius: '4px', border: `1px solid ${servicePaymentType === type ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: servicePaymentType === type ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-bg)', color: servicePaymentType === type ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontWeight: '900', cursor: 'pointer' }}>{type}</button>
-                ))}
-              </div>
-              <label style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Amount Received</label>
-              <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
-                <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-brand)', fontWeight: '950' }}>₱</span>
-                <input type="number" min={pendingService.requiredNow} max={pendingService.price} step="0.01" value={servicePaymentAmount} onChange={event => setServicePaymentAmount(event.target.value)} style={{ width: '100%', padding: '0.8rem 0.75rem 0.8rem 1.75rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px', fontWeight: '900' }} />
-              </div>
-              <label style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Customer Mode Of Payment</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                {['Cash', 'Digital'].map(method => (
-                  <button key={method} type="button" onClick={() => { setServicePaymentMethod(method); if (method === 'Cash') setServiceReferenceNumber(''); }} style={{ padding: '0.7rem 0.4rem', borderRadius: '4px', border: `1px solid ${servicePaymentMethod === method ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: servicePaymentMethod === method ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-bg)', color: servicePaymentMethod === method ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontWeight: '900', cursor: 'pointer' }}>{method}</button>
-                ))}
-              </div>
-              {servicePaymentMethod === 'Digital' && (
-                <div style={{ marginBottom: '0.75rem' }}>
-                  <label style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Digital Transaction Reference</label>
-                  <input type="text" value={serviceReferenceNumber} onChange={event => setServiceReferenceNumber(event.target.value)} placeholder="Enter reference number" style={{ width: '100%', padding: '0.8rem 0.75rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px', fontWeight: '900' }} />
+          {pendingService && ReactDOM.createPortal(
+            (
+              <div style={{ position: 'fixed', inset: 0, background: 'var(--modal-overlay)', backdropFilter: 'blur(10px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '0.75rem' : '2rem' }}>
+                <div style={{ width: 'min(560px, 100%)', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '1rem', overflow: 'hidden', boxShadow: 'var(--modal-shadow)' }}>
+                  <div style={{ padding: isMobile ? '1rem' : '1.25rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                    <div>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--admin-brand)', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1px' }}>Service Confirmation</div>
+                      <h3 style={{ margin: '0.25rem 0 0', fontSize: isMobile ? '1.1rem' : '1.3rem', fontWeight: '950' }}>{pendingService.service.name}</h3>
+                    </div>
+                    <button type="button" onClick={() => { setPendingService(null); setServicePaymentAmount(''); setServicePaymentMethod('Cash'); setServiceReferenceNumber(''); }} style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div style={{ padding: isMobile ? '1rem' : '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.75rem' }}>Vehicle: {pendingService.vehicleLabel}</div>
+
+                    <div style={{ background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.72rem', color: 'var(--admin-text-secondary)' }}>
+                        <span>Service price</span>
+                        <strong style={{ color: 'var(--admin-text-primary)' }}>{formatCurrency(pendingService.price)}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.72rem', color: 'var(--admin-text-secondary)' }}>
+                        <span>Minimum due now</span>
+                        <strong style={{ color: pendingService.requiredNow > 0 ? 'var(--admin-brand)' : 'var(--status-success)' }}>{pendingService.requiredNow > 0 ? formatCurrency(pendingService.requiredNow) : 'No charge'}</strong>
+                      </div>
+                      {pendingService.creditUsed > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.72rem', color: 'var(--status-success)' }}>
+                          <span>Existing credit applied</span>
+                          <strong>−{formatCurrency(pendingService.creditUsed)}</strong>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      {['Downpayment', 'Full'].map(type => (
+                        <button key={type} type="button" onClick={() => { setServicePaymentType(type); setServicePaymentAmount(String(type === 'Full' ? pendingService.price : pendingService.requiredNow)); }} style={{ padding: '0.7rem 0.4rem', borderRadius: '6px', border: `1px solid ${servicePaymentType === type ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: servicePaymentType === type ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-bg)', color: servicePaymentType === type ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontWeight: '900', cursor: 'pointer' }}>{type}</button>
+                      ))}
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.4rem' }}>{pendingService.requiredNow > 0 ? 'Amount Received' : 'Payment Method'}</label>
+                      <div style={{ position: 'relative' }}>
+                        {pendingService.requiredNow > 0 && <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-brand)', fontWeight: '950' }}>₱</span>}
+                        <input
+                          type="number"
+                          min={pendingService.requiredNow > 0 ? pendingService.requiredNow : 0}
+                          max={pendingService.price}
+                          step="0.01"
+                          value={servicePaymentAmount}
+                          onChange={event => setServicePaymentAmount(event.target.value)}
+                          disabled={pendingService.requiredNow === 0}
+                          style={{ width: '100%', padding: pendingService.requiredNow > 0 ? '0.8rem 0.75rem 0.8rem 1.75rem' : '0.8rem 0.75rem', background: pendingService.requiredNow === 0 ? 'rgba(255,255,255,0.03)' : 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '6px', fontWeight: '900', opacity: pendingService.requiredNow === 0 ? 0.8 : 1 }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Customer Mode Of Payment</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        {['Cash', 'Digital'].map(method => (
+                          <button key={method} type="button" onClick={() => { setServicePaymentMethod(method); if (method === 'Cash') setServiceReferenceNumber(''); }} style={{ padding: '0.7rem 0.4rem', borderRadius: '6px', border: `1px solid ${servicePaymentMethod === method ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: servicePaymentMethod === method ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-bg)', color: servicePaymentMethod === method ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontWeight: '900', cursor: 'pointer' }}>{method}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {servicePaymentMethod === 'Digital' && (
+                      <div>
+                        <label style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Digital Transaction Reference</label>
+                        <input type="text" value={serviceReferenceNumber} onChange={event => setServiceReferenceNumber(event.target.value)} placeholder="Enter reference number" style={{ width: '100%', padding: '0.8rem 0.75rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '6px', fontWeight: '900' }} />
+                      </div>
+                    )}
+
+                    <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.65rem', lineHeight: 1.4 }}>
+                      {pendingService.requiredNow > 0
+                        ? 'The amount may exceed the calculated downpayment, but cannot exceed the service price.'
+                        : 'This service is fully covered by the current booking state, so no additional payment is required.'}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.75rem', padding: isMobile ? '0.75rem 1rem 1rem' : '0.75rem 1.25rem 1.25rem', borderTop: '1px solid var(--admin-border)', background: 'var(--admin-sidebar)' }}>
+                    <button type="button" onClick={() => { setPendingService(null); setServicePaymentAmount(''); setServicePaymentMethod('Cash'); setServiceReferenceNumber(''); }} disabled={isUpdatingDuration} style={{ flex: 1, padding: '0.8rem', background: 'transparent', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border)', borderRadius: '8px', fontWeight: '900', cursor: 'pointer' }}>Cancel</button>
+                    <button type="button" onClick={submitServicePayment} disabled={isUpdatingDuration} style={{ flex: 1.2, padding: '0.8rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '8px', fontWeight: '950', cursor: isUpdatingDuration ? 'wait' : 'pointer', opacity: isUpdatingDuration ? 0.6 : 1 }}>{isUpdatingDuration ? 'Processing...' : pendingService.requiredNow > 0 ? 'Confirm payment & add service' : 'Confirm & add service'}</button>
+                  </div>
                 </div>
-              )}
-              <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.65rem', lineHeight: 1.4, marginBottom: '1rem' }}>The amount may exceed the calculated downpayment, but cannot exceed the service price.</div>
-              {/* Task B: show when excess_credit auto-covered part of the downpayment. */}
-              {pendingService.creditUsed > 0 && (
-                <div style={{ marginBottom: '1rem', padding: '0.7rem 0.9rem', background: 'rgba(var(--admin-success-rgb), 0.1)', border: '1px solid var(--status-success)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-success)', fontSize: '0.72rem', fontWeight: 800, lineHeight: 1.5 }}>
-                  ₱{Number(pendingService.creditUsed).toLocaleString()} of this booking's existing excess will be absorbed when the service is confirmed. The minimum additional payment is ₱{Number(pendingService.requiredNow).toLocaleString()}.
-                </div>
-              )}
-              <button type="button" onClick={submitServicePayment} disabled={isUpdatingDuration} style={{ width: '100%', padding: '0.85rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '4px', fontWeight: '950', cursor: isUpdatingDuration ? 'wait' : 'pointer', opacity: isUpdatingDuration ? 0.6 : 1 }}>{isUpdatingDuration ? 'PROCESSING...' : 'CONFIRM PAYMENT & ADD SERVICE'}</button>
-              <button type="button" onClick={() => { setPendingService(null); setServicePaymentAmount(''); setServicePaymentMethod('Cash'); setServiceReferenceNumber(''); }} disabled={isUpdatingDuration} style={{ width: '100%', marginTop: '0.5rem', padding: '0.7rem', background: 'transparent', color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border)', borderRadius: '4px', fontWeight: '900', cursor: 'pointer' }}>CANCEL</button>
-            </div>
+              </div>
+            ), document.body
           )}
           </div>
         </div>
