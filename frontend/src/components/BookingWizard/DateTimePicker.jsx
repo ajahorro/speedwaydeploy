@@ -55,7 +55,7 @@ function InlineCalendar({ selectedDate, onDateSelect, config = null, blocks = nu
         const [configRes, blockRes] = await Promise.all([
           supabase
             .from('business_config')
-            .select('opening_hour, closing_hour, is_24_7, booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity, slots_per_hour, max_vehicles_per_staff')
+            .select('opening_hour, closing_hour, is_24_7, booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity, slots_per_hour')
             .maybeSingle(),
           supabase.from('blocked_slots').select('block_date, start_time, end_time'),
         ]);

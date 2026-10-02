@@ -8,7 +8,6 @@ const ConfigContext = createContext();
 export const ConfigProvider = ({ children }) => {
   const [settings, setSettings] = useState({
     MAX_BAYS: SHOP_CONFIG.MAX_BAYS,
-    MAX_VEHICLES_PER_STAFF: 4,
     OPENING_HOUR: SHOP_CONFIG.OPENING_HOUR,
     CLOSING_HOUR: SHOP_CONFIG.CLOSING_HOUR,
     IS_24_7: false,
@@ -84,7 +83,6 @@ export const ConfigProvider = ({ children }) => {
         }
         setSettings({
           MAX_BAYS: data.slots_per_hour || SHOP_CONFIG.MAX_BAYS,
-          MAX_VEHICLES_PER_STAFF: Number(data.max_vehicles_per_staff) || 4,
           // When the shop is open 24 hours the whole day is bookable. Report the
           // window as 0..24 so the existing timeline/grid math (which derives its
           // hour axis from CLOSING_HOUR - OPENING_HOUR) spans the full day with no

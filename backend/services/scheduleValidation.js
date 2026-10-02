@@ -79,7 +79,7 @@ async function loadScheduleContext(supabaseAdmin, dateStr, opts = {}) {
   const { data: config, error: configError } = await supabaseAdmin
     .from('business_config')
     .select(
-      'opening_hour, closing_hour, is_24_7, slots_per_hour, max_vehicles_per_staff, ' +
+      'opening_hour, closing_hour, is_24_7, slots_per_hour, ' +
       'booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity'
     )
     .order('id', { ascending: true })
@@ -131,27 +131,6 @@ async function loadScheduleContext(supabaseAdmin, dateStr, opts = {}) {
     blocks: blocks || [],
     bookings: activeBookings,
   };
-}
-
-/**
- * Counts how many staff are clocked in / on duty, used for the per-staff
- * capacity ceiling (`max_vehicles_per_staff × staffOnDuty`). Best-effort: if the
- * staff table shape is unavailable we fall back to 1 so the bay ceiling still
- * applies and validation never fails open OR falsely blocks.
- */
-async function countStaffOnDuty(supabaseAdmin) {
-  try {
-    const { count, error } = await supabaseAdmin
-      .from('profiles')
-      .select('id', { count: 'exact', head: true })
-      .eq('role', 'STAFF')
-      .eq('is_active', true)
-      .eq('is_clocked_in', true);
-    if (error) throw error;
-    return Math.max(1, count || 0);
-  } catch {
-    return 1;
-  }
 }
 
 const pad2 = (n) => String(n).padStart(2, '0');
@@ -236,12 +215,10 @@ async function validateBookingRequest(supabaseAdmin, body = {}) {
   }
 
   // 2. Slot-level gate (lead time, blocks, capacity).
-  const staffOnDuty = await countStaffOnDuty(supabaseAdmin);
   const slotDecision = isSlotBookable(dateStr, slot, config, bookings, {
     blocks,
     durationMinutes,
     requestedBays,
-    staffOnDuty,
     skipLeadTime,
   });
 
@@ -279,7 +256,6 @@ function buildResult(decision, details) {
 module.exports = {
   validateBookingRequest,
   loadScheduleContext,
-  countStaffOnDuty,
   parseTimeOfDay,
   normalizeRequest,
   DECISION_HTTP_STATUS,

@@ -26,7 +26,6 @@ import { getBookableSlots } from '../domain/schedule/rules';
  * @param {string|null} [excludedBookingId] - ignore this booking (reschedules)
  * @param {object} [options]
  * @param {number} [options.requestedBays] - bays this booking needs (default 1)
- * @param {number} [options.staffOnDuty] - staff available (per-staff ceiling)
  * @param {boolean} [options.skipLeadTime] - admin/desk path: ignore the
  *   customer-facing minimum advance notice (customer is already on site).
  */
@@ -46,20 +45,10 @@ export const getAvailableSlots = async (dateStr, requestedDuration = 60, request
       dayKeys.push(d.toISOString().split('T')[0]);
     }
 
-    // SP-1: the per-staff ceiling (business_config.max_vehicles_per_staff x staff
-    // on duty) was silently multiplying by a hard-coded 1, because NO caller ever
-    // passed `staffOnDuty`. We resolve it here, once, so every consumer of this
-    // service — the booking wizard, the customer reschedule modal and the admin
-    // reschedule modal — gets the real headcount without each having to remember.
-    //
-    // The definition MUST match backend/services/scheduleValidation.js
-    // countStaffOnDuty(): active STAFF profiles that are clocked in, floored at 1.
-    // Divergence here would reintroduce exactly the client/server disagreement
-    // this pass exists to remove.
-    const [configRes, blocksRes, staffRes] = await Promise.all([
+    const [configRes, blocksRes] = await Promise.all([
       supabase
         .from('business_config')
-        .select('opening_hour, closing_hour, is_24_7, slots_per_hour, max_vehicles_per_staff, booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity')
+        .select('opening_hour, closing_hour, is_24_7, slots_per_hour, booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity')
         .order('id')
         .limit(1)
         .maybeSingle(),
@@ -67,21 +56,9 @@ export const getAvailableSlots = async (dateStr, requestedDuration = 60, request
         .from('blocked_slots')
         .select('block_date, start_time, end_time')
         .in('block_date', dayKeys),
-      supabase
-        .from('profiles')
-        .select('id', { count: 'exact', head: true })
-        .eq('role', 'STAFF')
-        .eq('is_active', true)
-        .eq('is_clocked_in', true),
     ]);
     const config = configRes.data || {};
     const blocks = blocksRes.data || [];
-    // Best-effort: a missing/denied staff read must never block the calendar, so
-    // fall back to the caller's value, then to 1 (the previous behaviour).
-    const staffCount = Number(staffRes?.count);
-    const staffOnDuty = Number.isFinite(staffCount) && staffCount > 0
-      ? staffCount
-      : (Number(options.staffOnDuty) > 0 ? Number(options.staffOnDuty) : 1);
 
     // 2. Load existing bookings overlapping the requested window. Multi-day
     //    services can spill past midnight, so we widen the range by day count.
@@ -106,8 +83,6 @@ export const getAvailableSlots = async (dateStr, requestedDuration = 60, request
       blocks,
       durationMinutes,
       requestedBays,
-      // SP-1: pass the real headcount so max_vehicles_per_staff is honoured.
-      staffOnDuty,
       skipLeadTime: options.skipLeadTime,
     });
 

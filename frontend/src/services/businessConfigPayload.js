@@ -30,7 +30,6 @@ export const buildBusinessConfigUpdatePayload = (form, {
     qr_photo_url: form.payment_qr_url || '',
     qr_config_complete: qrConfigComplete,
     slots_per_hour: Number(form.slots_per_hour),
-    max_vehicles_per_staff: Number(form.max_vehicles_per_staff),
     booking_lead_time_minutes: Number(form.booking_lead_time_minutes),
     max_advance_days: Number(form.max_advance_days),
     closed_weekdays: form.closed_weekdays || [],

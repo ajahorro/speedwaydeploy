@@ -63,7 +63,7 @@ const SECTION_FIELDS = {
     'faqs'
   ],
   schedule: [
-    'opening_hour', 'closing_hour', 'is_24_7', 'slots_per_hour', 'max_vehicles_per_staff',
+    'opening_hour', 'closing_hour', 'is_24_7', 'slots_per_hour',
     'booking_lead_time_minutes', 'max_advance_days', 'closed_weekdays', 'enforce_capacity'
   ],
   services: ['custom_services', 'vehicle_types', 'archived_service_ids', 'deleted_service_ids'],
@@ -482,7 +482,6 @@ export default function BusinessHub() {
     qr_config_version: 1,
     qr_config_complete: false,
     slots_per_hour: 2,
-    max_vehicles_per_staff: 1,
     booking_lead_time_minutes: 5,
     max_advance_days: 30,
     closed_weekdays: [],
@@ -583,7 +582,6 @@ export default function BusinessHub() {
           qr_config_version: data.qr_config_version ?? 1,
           qr_config_complete: data.qr_config_complete === true,
           slots_per_hour: data.slots_per_hour ?? 2,
-          max_vehicles_per_staff: data.max_vehicles_per_staff ?? 1,
           booking_lead_time_minutes: data.booking_lead_time_minutes ?? 5,
           max_advance_days: data.max_advance_days ?? 30,
           closed_weekdays: Array.isArray(data.closed_weekdays) ? data.closed_weekdays : [],
@@ -712,7 +710,6 @@ export default function BusinessHub() {
       const lead = Number(businessForm.booking_lead_time_minutes);
       const advance = Number(businessForm.max_advance_days);
       const slots = Number(businessForm.slots_per_hour);
-      const maxUnits = Number(businessForm.max_vehicles_per_staff);
       const weekdaysValid = (businessForm.closed_weekdays || []).every(
         (d) => Number.isInteger(d) && d >= 0 && d <= 6
       );
@@ -724,7 +721,6 @@ export default function BusinessHub() {
         Number.isFinite(lead) && lead >= 0 && lead <= 43200 &&
         Number.isFinite(advance) && advance >= 1 && advance <= 365 &&
         Number.isFinite(slots) && slots >= 1 &&
-        Number.isFinite(maxUnits) && maxUnits >= 1 &&
         hoursValid &&
         weekdaysValid
       );
@@ -2477,22 +2473,6 @@ export default function BusinessHub() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                  <Field label="Max Vehicles Assigned Per Staff" required htmlFor="business-max-vehicles-per-staff">
-                    <input
-                      id="business-max-vehicles-per-staff"
-                      name="max_vehicles_per_staff"
-                      type="number"
-                      min="1"
-                      max="12"
-                      value={businessForm.max_vehicles_per_staff}
-                      onChange={(e) => handleInputChange('max_vehicles_per_staff', e.target.value)}
-                      style={inputStyle}
-                    />
-                    <small style={{ display: 'block', margin: '0.45rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '.72rem', lineHeight: 1.4 }}>
-                      Maximum vehicles one staff member can handle at the same time.
-                    </small>
-                  </Field>
-
                   <Field label="Total Bays Available" required htmlFor="business-slots-per-hour">
                     <input
                       id="business-slots-per-hour"

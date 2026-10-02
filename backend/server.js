@@ -5283,7 +5283,7 @@ app.get('/api/bookings/slots', async (req, res) => {
   }
 
   try {
-    const { loadScheduleContext, countStaffOnDuty } = require('./services/scheduleValidation');
+    const { loadScheduleContext } = require('./services/scheduleValidation');
     const { getBookableSlots } = require('../frontend/src/domain/schedule/rules.js');
     const durationMinutes = Math.max(1, Number(req.query.durationMinutes) || 60);
     const requestedBays = Math.max(1, Number(req.query.requestedBays) || 1);
@@ -5291,12 +5291,11 @@ app.get('/api/bookings/slots', async (req, res) => {
       excludeBookingId: req.query.excludeBookingId,
       durationMinutes,
     });
-    const staffOnDuty = await countStaffOnDuty(supabaseAdmin);
     // skipLeadTime=1 -> admin/desk view: show imminent slots the customer-facing
     // "minimum advance notice" would otherwise hide.
     const skipLeadTime = String(req.query.skipLeadTime || '') === '1' || req.query.skipLeadTime === 'true';
     const slots = getBookableSlots(date, config, bookings, {
-      blocks, durationMinutes, requestedBays, staffOnDuty, skipLeadTime,
+      blocks, durationMinutes, requestedBays, skipLeadTime,
     });
     return res.json({ success: true, date, slots });
   } catch (err) {

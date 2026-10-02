@@ -48,7 +48,7 @@ const CustomCalendar = ({ selectedDate, onDateSelect, config = null, blocks = nu
             // Full schedule + hours columns: isDateBookable() derives its decision
             // from the same config the slot generator uses, so the calendar must
             // load is_24_7/opening_hour/closing_hour as well as the date gates.
-            .select('opening_hour, closing_hour, is_24_7, booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity, slots_per_hour, max_vehicles_per_staff')
+            .select('opening_hour, closing_hour, is_24_7, booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity, slots_per_hour')
             .maybeSingle(),
           supabase
             .from('blocked_slots')

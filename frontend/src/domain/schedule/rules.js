@@ -51,7 +51,6 @@ export const SCHEDULE_DEFAULTS = Object.freeze({
   closed_weekdays: [],
   enforce_capacity: true,
   slots_per_hour: 1,
-  max_vehicles_per_staff: 4,
   opening_hour: 7,
   closing_hour: 21,
   is_24_7: false,
@@ -126,7 +125,6 @@ export const normalizeConfig = (config) => {
     closed_weekdays: weekdays,
     enforce_capacity: cfg.enforce_capacity !== false, // default ON unless explicitly false
     slots_per_hour: Math.max(1, int(cfg.slots_per_hour, SCHEDULE_DEFAULTS.slots_per_hour)),
-    max_vehicles_per_staff: Math.max(1, int(cfg.max_vehicles_per_staff, SCHEDULE_DEFAULTS.max_vehicles_per_staff)),
     opening_hour: openingHour,
     // closing_hour may legitimately be 24 for a 24/7 shop (end of day).
     closing_hour: closingHour,
@@ -297,9 +295,8 @@ export const isDateBookable = (date, config, options = {}) => {
  * so the caller must pass the blocks and bookings for the whole span.
  *
  * Capacity model:
- *   - `slots_per_hour`  = total bookable bays/slots per hourly bucket.
- *   - `max_vehicles_per_staff` = per-staff ceiling; combined with staff on duty
- *     it caps how many vehicles may run concurrently (see `staffOnDuty` option).
+ *   - `slots_per_hour` is the sole bookable bay limit in the requested window.
+ *   - Staff accounts and clock-in state do not affect bay availability.
  *   - A partial blocked_slots row removes capacity for its time window.
  *
  * @param {string|Date} date
@@ -309,7 +306,6 @@ export const isDateBookable = (date, config, options = {}) => {
  * @param {object} [options]
  * @param {Array}  [options.blocks] - blocked_slots rows for every day in the span.
  * @param {number} [options.durationMinutes=60] - requested service duration.
- * @param {number} [options.staffOnDuty=1] - staff available (for per-staff cap).
  * @param {number} [options.requestedBays=1] - bays this new booking needs.
  * @param {boolean} [options.skipLeadTime=false] - admin/desk path: the customer is
  *   physically present, so the customer-facing "minimum advance notice" does not
@@ -411,11 +407,7 @@ export const isSlotBookable = (date, slot, config, existingBookings = [], option
   // Bay ceiling for this window.
   const bayCeiling = cfg.slots_per_hour;
 
-  // Per-staff ceiling, expressed as concurrent vehicles across the window.
-  const staffOnDuty = Math.max(1, Number(options.staffOnDuty) || 1);
-  const staffCeiling = cfg.max_vehicles_per_staff * staffOnDuty;
-
-  const ceiling = Math.min(bayCeiling, staffCeiling);
+  const ceiling = bayCeiling;
   const remaining = ceiling - usedBays;
 
   if (remaining < requestedBays) {

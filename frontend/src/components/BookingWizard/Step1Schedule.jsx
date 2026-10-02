@@ -50,7 +50,7 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
           // rules engine read is_24_7/opening_hour/closing_hour, so omitting
           // them here would let the wizard's date gate disagree with the slot
           // generator and the server validator.
-          .select('opening_hour, closing_hour, is_24_7, booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity, slots_per_hour, max_vehicles_per_staff')
+          .select('opening_hour, closing_hour, is_24_7, booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity, slots_per_hour')
           .maybeSingle(),
         supabase
           .from('blocked_slots')
