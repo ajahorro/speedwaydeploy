@@ -28,10 +28,9 @@ import FloatingBubbleChat from '../../components/FloatingBubbleChat';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
 import { logger } from '../../utils/logger';
-import { SHOW_START_SERVICE_ACTIONS } from '../../config/workflowFeatures';
 import TimeSlotPicker from '../../components/TimeSlotPicker';
 
-import { sendStatusEmail, sendBookingConfirmationEmail, sendPaymentReceiptEmail, sendNotificationEmail } from '../../services/notificationService';
+import { sendStatusEmail } from '../../services/notificationService';
 import { getAvailableSlots } from '../../services/scheduleService';
 import { rescheduleBooking } from '../../services/bookingService';
 import ValidationModal from '../../components/ValidationModal';
@@ -47,6 +46,7 @@ const AdminBookingDetails = () => {
   const [booking, setBooking] = useState(null);
   const [vehicles, setVehicles] = useState([]);
   const [staffList, setStaffList] = useState([]);
+  const [hasAssignedStaffBeforeEvidence, setHasAssignedStaffBeforeEvidence] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
   const [bookingPayments, setBookingPayments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -163,6 +163,20 @@ const AdminBookingDetails = () => {
         assigned_staff = sData;
       }
 
+      if (bData.staff_id) {
+        const { count, error: evidenceError } = await supabase
+          .from('service_photos')
+          .select('id', { count: 'exact', head: true })
+          .eq('booking_id', id)
+          .eq('phase', 'before')
+          .eq('uploaded_by', bData.staff_id)
+          .is('archived_at', null);
+        if (evidenceError) throw evidenceError;
+        setHasAssignedStaffBeforeEvidence((count || 0) > 0);
+      } else {
+        setHasAssignedStaffBeforeEvidence(false);
+      }
+
       // 3. Fetch Vehicles (Manual Join)
       const { data: vData, error: vError } = await supabase
         .from('booking_vehicles')
@@ -224,8 +238,8 @@ const AdminBookingDetails = () => {
 
       setAuditLogs(logs);
 
-      if (bData.staff_id && ['scheduled', 'pending'].includes(String(bData.status || '').toLowerCase())) {
-        await confirmBookingWhenReady();
+      if (bData.staff_id && ['scheduled', 'pending', 'in_progress'].includes(String(bData.status || '').toLowerCase())) {
+        await reconcileBookingPaymentState();
       }
     } catch (error) {
       logger.error('Admin Sync Error', error);
@@ -338,46 +352,56 @@ const AdminBookingDetails = () => {
         booking_id: bookingId,
         is_read: false
       });
-      // Only ask the edge function to email once the row exists. It looks the
-      // notification up by id, so firing this after a failed insert produced a
-      // 400 "Notification not found" for a notification that was never created.
+      // Operational notifications stay in the portal; lifecycle email is
+      // dispatched separately when the booking reaches an allowed status.
       if (error) logger.error('[notifyUser] Error inserting notification:', error);
-      else void sendNotificationEmail(notificationId).catch(err => logger.error('[notifyUser] Email dispatch failed:', err));
     } catch (err) {
       logger.error('[notifyUser] Exception:', err);
     }
   };
 
-  const confirmBookingWhenReady = async () => {
-    const { data: currentBooking, error: bookingError } = await supabase
-      .from('bookings')
-      .select('status, staff_id, customer_id, total_amount, start_datetime')
-      .eq('id', id)
-      .single();
-    if (bookingError) throw bookingError;
-    if (!['scheduled', 'pending'].includes(String(currentBooking.status).toLowerCase()) || !currentBooking.staff_id) return false;
-
-    const { data: paidPayments, error: paymentError } = await supabase
-      .from('payments')
-      .select('amount')
-      .eq('booking_id', id)
-      .eq('status', 'PAID');
-    if (paymentError) throw paymentError;
-
-    const paidAmount = (paidPayments || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-    const requiredAmount = calculateRequiredDownpayment(Number(currentBooking.total_amount || 0)).amount;
-    if (paidAmount < requiredAmount) return false;
-
-    const { error: updateError } = await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', id);
-    if (updateError) throw updateError;
-    void sendBookingConfirmationEmail(id).catch(err => logger.error('Booking confirmation email dispatch failed:', err));
-    return true;
+  const reconcileBookingPaymentState = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${BACKEND_URL}/api/bookings/reconcile-payment-state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({ bookingId: id })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) throw new Error(result.error || 'Booking workflow update failed.');
+      (result.warnings || []).forEach((warning) => toast.error(warning));
+      return result;
+    } catch (error) {
+      logger.error('Booking payment workflow reconciliation failed:', error);
+      toast.error('Booking saved, but its payment and service status could not be synchronized.');
+      return null;
+    }
   };
 
   const handleAssignStaff = async (staffId) => {
     const toastId = toast.loading('Assigning technician...');
     try {
       const { data: { user: admin } } = await supabase.auth.getUser();
+
+      if (booking?.staff_id && booking.staff_id !== staffId) {
+        const { count, error: evidenceError } = await supabase
+          .from('service_photos')
+          .select('id', { count: 'exact', head: true })
+          .eq('booking_id', id)
+          .eq('phase', 'before')
+          .eq('uploaded_by', booking.staff_id)
+          .is('archived_at', null);
+        if (evidenceError) throw evidenceError;
+        if ((count || 0) > 0) {
+          setHasAssignedStaffBeforeEvidence(true);
+          toast.error('The assigned technician cannot be changed after they submit a before photo.', { id: toastId });
+          return;
+        }
+      }
 
       if (!staffId) {
         const { error: clearError } = await supabase
@@ -408,15 +432,7 @@ const AdminBookingDetails = () => {
 
       const staffMember = staffList.find((staff) => staff.id === staffId);
 
-      // Staff need one concise in-app alert; email and technician-assignment
-      // alerts duplicated the same assignment.
-      await notifyUser(
-        staffId,
-        'New Fleet Assigned',
-        'A new vehicle or fleet has been assigned to you.',
-        'TASK_ASSIGNED',
-        `/staff/tasks`
-      );
+      // Staff task alerts are created only by the payment-gated reconciler.
       if (booking.customer_id && !isPostService) {
         await notifyUser(
           booking.customer_id,
@@ -434,16 +450,19 @@ const AdminBookingDetails = () => {
         actor_name: admin?.email || 'Admin',
         actor_role: 'ADMIN',
         details: isPostService
-          ? `Post-service assignment: Linked technician ${staffName} to completed session for reporting.`
-          : `Assigned technician ${staffName} to lead this session.`
+          ? `Post-service assignment: Linked technician ${staffMember?.full_name || 'Staff'} to completed session for reporting.`
+          : `Assigned technician ${staffMember?.full_name || 'Staff'} to lead this session.`
       });
 
       toast.success(isPostService ? 'Post-Service Assignment Recorded' : 'Technician Assigned Successfully', { id: toastId });
-      await confirmBookingWhenReady();
+      await reconcileBookingPaymentState();
       fetchBookingDetails(); fetchAuditLogs();
     } catch (error) {
       logger.error('CRITICAL ASSIGNMENT FAILURE:', error);
-      toast.error('Assignment failed', { id: toastId });
+      const message = String(error?.message || '').includes('STAFF_REASSIGNMENT_LOCKED_AFTER_BEFORE_EVIDENCE')
+        ? 'The assigned technician cannot be changed after they submit a before photo.'
+        : error?.message || 'Assignment failed';
+      toast.error(message, { id: toastId });
     }
   };
 
@@ -457,7 +476,7 @@ const AdminBookingDetails = () => {
 
       await notifyUser(booking.customer_id, 'Payment Verified', `Your payment of ₱${p.amount.toLocaleString()} has been approved. Thank you!`, 'PAYMENT_APPROVED', `/customer/bookings/${id}`);
 
-      await confirmBookingWhenReady();
+      await reconcileBookingPaymentState();
 
       toast.success('Payment Approved & Ledger Synced', { id: toastId });
       fetchPayments(); fetchAuditLogs(); fetchBookingDetails();
@@ -532,8 +551,7 @@ const AdminBookingDetails = () => {
     });
 
     toast.success('Manual Override Successful: Payment Confirmed');
-    sendPaymentReceiptEmail(id, payment.id).catch(console.error);
-    await confirmBookingWhenReady();
+    await reconcileBookingPaymentState();
     fetchBookingDetails();
   };
 
@@ -569,8 +587,9 @@ const AdminBookingDetails = () => {
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.success) throw new Error(result.error || 'Lifecycle validation failed.');
       toast.success(`Booking ${status.toUpperCase()}`, { id: toastId });
+      (result.warnings || []).forEach((warning) => toast.error(warning));
       fetchBookingDetails();
-    } catch (err) { toast.error('Update failed', { id: toastId }); }
+    } catch (err) { toast.error(err.message || 'Update failed', { id: toastId }); }
   };
 
   const requestBookingStatusUpdate = (status) => {
@@ -633,11 +652,10 @@ const AdminBookingDetails = () => {
           });
 
           const result = await response.json();
-          if (!result.success) throw new Error(result.error);
-
-          await sendStatusEmail(id, 'CANCELLED', 'The booking was cancelled after it was flagged as a no-show.');
+          if (!response.ok || !result.success) throw new Error(result.error || 'Cancellation failed.');
 
           toast.success('Cancelled as No-Show', { id: toastId });
+          (result.warnings || []).forEach((warning) => toast.error(warning));
           fetchBookingDetails();
           fetchAuditLogs();
         } catch (err) {
@@ -717,7 +735,10 @@ const AdminBookingDetails = () => {
         details: `Admin reverted no-show for booking ${id}. ${hasPendingRefund ? 'Pending refund request intercepted and cancelled.' : 'No refund request was pending.'}`
       });
 
-      await sendStatusEmail(id, 'scheduled', 'Your booking was reinstated after the no-show flag was reversed. Please confirm the updated schedule and staff assignment.');
+      await sendStatusEmail(id, 'scheduled', {
+        remarks: 'Your booking was reinstated after the no-show flag was reversed. Please confirm the updated schedule and staff assignment.',
+        eventKey: result.statusUpdatedAt ? `booking_reinstated:${result.statusUpdatedAt}` : undefined,
+      });
 
       setUndoNoShowModal({ open: false, validationMessage: '', isSubmitting: false });
       toast.success(result.needsStaffReassignment
@@ -774,7 +795,7 @@ const AdminBookingDetails = () => {
         details: `Manually recorded Cash payment of ₱${Number(paymentAmount).toLocaleString()}.`
       });
 
-      await confirmBookingWhenReady();
+      await reconcileBookingPaymentState();
       toast.success('Payment Recorded & Audit Verified', { id: toastId });
       setPaymentModal(false);
       setPaymentAmount('');
@@ -1229,7 +1250,18 @@ const AdminBookingDetails = () => {
   const vehicleStatuses = (vehicles || []).map(v => v.status?.toUpperCase());
   const anyUnitStarted = vehicleStatuses.includes('IN_PROGRESS');
   const allUnitsFinished = vehicleStatuses.length > 0 && vehicleStatuses.every(s => s === 'COMPLETED' || s === 'CANCELLED');
-  const isFullySettled = (booking?.total_amount || 0) > 0 && totalPaid >= (booking?.total_amount || 0);
+  const verifiedPaid = bookingPayments
+    .filter(payment => String(payment.status || '').toUpperCase() === 'PAID'
+      && String(payment.method || '').toUpperCase() !== 'SYSTEM_REFUND'
+      && Number(payment.amount) > 0)
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
+    - bookingPayments
+      .filter(payment => Number(payment.amount) < 0
+        && (String(payment.method || '').toUpperCase() === 'SYSTEM_REFUND'
+          || String(payment.status || '').toUpperCase() === 'REFUNDED'))
+      .reduce((sum, payment) => sum + Math.abs(Number(payment.amount || 0)), 0);
+  const isFullySettled = Number(booking?.total_amount || 0) <= 0
+    || Math.max(0, verifiedPaid) >= Number(booking?.total_amount || 0);
 
   // Package plan frozen onto the booking at creation (see bookingService notes:
   // "PACKAGES:[...]"). Parsed defensively so a malformed/absent marker never
@@ -1253,7 +1285,7 @@ const AdminBookingDetails = () => {
 
   const isLocked = ['completed', 'released', 'cancelled', 'flagged_noshow'].includes(derivedStatus);
   const isNoShowBooking = ['FLAGGED_NOSHOW', 'NO_SHOW'].includes(String(booking?.status || '').toUpperCase());
-  const canCompleteService = derivedStatus === 'in_progress' && isFullySettled && !isLocked;
+  const canCompleteService = derivedStatus === 'in_progress' && !isLocked;
 
   const requestReleaseBooking = () => {
     openModal({
@@ -1645,8 +1677,7 @@ const AdminBookingDetails = () => {
                               <Plus size={12} /> ADD
                             </button>
                             {(v.status?.toUpperCase() === 'IN_PROGRESS'
-                              || v.status?.toUpperCase() === 'COMPLETED'
-                              || SHOW_START_SERVICE_ACTIONS) && <button
+                              || v.status?.toUpperCase() === 'COMPLETED') && <button
                               onClick={() => {
                                 const currentStatus = v.status?.toUpperCase();
                                 if (currentStatus === 'SCHEDULED' || !currentStatus) {
@@ -1655,7 +1686,7 @@ const AdminBookingDetails = () => {
                                   requestVehicleStatus(v, 'COMPLETED');
                                 }
                               }}
-                              disabled={isLocked || v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' ? !canCompleteService : !SHOW_START_SERVICE_ACTIONS)}
+                              disabled={isLocked || v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' && !canCompleteService)}
                               style={{
                                 background: v.status?.toUpperCase() === 'COMPLETED' ? 'rgba(255, 255, 255, 0.05)' : (v.status?.toUpperCase() === 'IN_PROGRESS' ? (canCompleteService ? '#10b981' : 'var(--admin-border)') : 'var(--admin-border)'),
                                 border: v.status?.toUpperCase() === 'COMPLETED' ? '1px solid var(--admin-border)' : 'none',
@@ -1714,7 +1745,8 @@ const AdminBookingDetails = () => {
                           <select
                             value={booking.staff_id || ''}
                             onChange={event => handleAssignStaff(event.target.value)}
-                            disabled={isLocked || booking.status === 'in_progress'}
+                            disabled={isLocked || booking.status === 'in_progress' || hasAssignedStaffBeforeEvidence}
+                            title={hasAssignedStaffBeforeEvidence ? 'The assigned technician cannot be changed after submitting a before photo.' : undefined}
                             style={{ width: '100%', padding: '0.4rem', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '800' }}
                           >
                             <option value="">Unassigned</option>

@@ -12,11 +12,11 @@ import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { getAuditCompliantTransactions } from '../../utils/bookingHelpers';
-import { sendPaymentReceiptEmail, sendBookingConfirmationEmail } from '../../services/notificationService';
 import { calculateRequiredDownpayment } from '../../utils/paymentUtils';
 import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import { useUI } from '../../context/UIContext';
+import { BACKEND_URL } from '../../config/api';
 
 const AdminPayments = () => {
   const navigate = useNavigate();
@@ -129,39 +129,26 @@ const AdminPayments = () => {
     });
   }, [state.payments, state.searchTerm, state.filter, state.methodFilter]);
 
-  const confirmBookingWhenReady = async (bookingId) => {
-    const { data: booking, error: bookingError } = await supabase
-      .from('bookings')
-      .select('status, staff_id, total_amount')
-      .eq('id', bookingId)
-      .single();
-    if (bookingError) throw bookingError;
-    if (!['scheduled', 'pending'].includes(String(booking.status).toLowerCase()) || !booking.staff_id) return;
-
-    const { data: paidPayments, error: paymentError } = await supabase
-      .from('payments')
-      .select('amount')
-      .eq('booking_id', bookingId)
-      .eq('status', 'PAID');
-    if (paymentError) throw paymentError;
-    const paidAmount = (paidPayments || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    if (paidAmount < calculateRequiredDownpayment(Number(booking.total_amount || 0)).amount) return;
-
-    const { error: updateError } = await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', bookingId);
-    if (updateError) throw updateError;
-
-    // Auto-confirm previously changed status silently, so the customer never
-    // received a CONFIRMED email. Dispatch it here to match the manual confirm
-    // path in AdminBookingDetails. Failure must not roll back the status write.
-    //
-    // 'booking_confirmed' is the event that carries the OFFICIAL RECEIPT (PDF).
-    // A receipt may only be issued against VERIFIED money, so it belongs here
-    // rather than on the submission mail. Duplicate sends are refused by the
-    // database (booking_email_deliveries), so retrying a verification cannot
-    // mail the receipt twice.
-    sendBookingConfirmationEmail(bookingId).catch(emailError => {
-      console.warn('[AdminPayments] Confirmation email dispatch failed:', emailError);
-    });
+  const reconcileBookingPaymentState = async (bookingId) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${BACKEND_URL}/api/bookings/reconcile-payment-state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({ bookingId })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) throw new Error(result.error || 'Booking workflow update failed.');
+      (result.warnings || []).forEach((warning) => toast.error(warning));
+      return result;
+    } catch (error) {
+      logger.error('Booking payment workflow reconciliation failed:', error);
+      toast.error('Payment verified, but the booking status could not be synchronized.');
+      return null;
+    }
   };
 
   const handleVerifyPayment = async (payment) => {
@@ -230,13 +217,10 @@ const AdminPayments = () => {
         if (fallbackError) throw fallbackError;
       }
 
-      // 📧 DISPATCH RECEIPT EMAIL (REQ-FIN-01)
-      if (!isCashPayment) {
-        sendPaymentReceiptEmail(payment.booking_id, payment.id).catch(err => {
-          console.warn('Payment receipt email failed:', err.message);
-        });
-      }
-      await confirmBookingWhenReady(payment.booking_id);
+      // The lifecycle confirmation is the single customer email after payment
+      // verification. It attaches the official receipt only when the balance is
+      // fully settled.
+      await reconcileBookingPaymentState(payment.booking_id);
 
       const previousPaid = (payment.booking?.payments || [])
         .filter(existing => existing.id !== payment.id && existing.status === 'PAID')

@@ -11,6 +11,10 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { getPaymentStatusUI } from '../../utils/paymentUtils';
 import { formatBookingDate, formatBookingTime, getStatusColor } from '../../utils/bookingHelpers';
 import { useAdminBookings } from '../../hooks/useAdminBookings';
+import { supabase } from '../../lib/supabase';
+import { useUI } from '../../context/UIContext';
+import toast from 'react-hot-toast';
+import { BACKEND_URL } from '../../config/api';
 
 import AdminSchedulingGrid from './AdminSchedulingGrid';
 
@@ -18,6 +22,7 @@ const AdminBookings = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useMediaQuery('(max-width: 1024px)');
+  const { openModal } = useUI();
 
   // REQ-NFR-05: Decoupled data layer via custom hook (realtime multi-table sync)
   const { bookings, loading, refresh } = useAdminBookings();
@@ -75,6 +80,67 @@ const AdminBookings = () => {
 
   const getPaymentStatus = (booking) => {
     return getPaymentStatusUI(booking.calculatedPaymentStatus);
+  };
+
+  const submitCancellation = async (booking, reason) => {
+    const toastId = toast.loading('Cancelling booking and queuing refunds...');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${BACKEND_URL}/api/bookings/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({ bookingId: booking.id, reason })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) throw new Error(result.error || 'Cancellation failed.');
+      toast.success('Booking cancelled; eligible payments are in the Refund Hub.', { id: toastId });
+      (result.warnings || []).forEach((warning) => toast.error(warning));
+      refresh();
+    } catch (error) {
+      toast.error(error.message || 'Cancellation failed.', { id: toastId });
+    }
+  };
+
+  const requestCancelBooking = (booking) => {
+    openModal({
+      title: 'Cancel this booking?',
+      message: 'This will stop the booking, queue eligible payments for refund review, and email the customer.',
+      confirmText: 'Continue',
+      cancelText: 'Keep Booking',
+      type: 'danger',
+      onConfirm: () => openModal({
+        title: 'Cancellation reason',
+        message: 'Enter the reason. It will be saved to the booking audit trail.',
+        type: 'danger',
+        prompt: true,
+        inputLabel: 'Reason',
+        inputPlaceholder: 'Customer request, operational issue, etc.',
+        confirmText: 'Cancel Booking',
+        cancelText: 'Keep Booking',
+        onConfirm: (reason) => {
+          if (!String(reason || '').trim()) {
+            toast.error('A cancellation reason is required.');
+            return;
+          }
+          void submitCancellation(booking, String(reason).trim());
+        }
+      })
+    });
+  };
+
+  const canCancel = (booking) => {
+    const status = String(booking.status || '').toLowerCase();
+    const vehicleStatuses = (booking.vehicles || []).map((vehicle) =>
+      String(vehicle.status || '').toUpperCase()
+    );
+
+    return !['in_progress', 'ongoing', 'completed', 'released', 'cancelled'].includes(status)
+      && !vehicleStatuses.some((vehicleStatus) =>
+        ['IN_PROGRESS', 'ONGOING', 'COMPLETED', 'RELEASED'].includes(vehicleStatus)
+      );
   };
 
   const containerStyle = {
@@ -184,6 +250,18 @@ const AdminBookings = () => {
                    </div>
                    <ArrowRight size={16} style={{ color: 'var(--admin-text-secondary)', opacity: 0.3 }} />
                 </div>
+                {canCancel(booking) && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      requestCancelBooking(booking);
+                    }}
+                    style={{ width: '100%', marginTop: '0.85rem', padding: '0.75rem', background: 'transparent', border: '1px solid var(--status-danger, #dc2626)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-danger, #dc2626)', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', textTransform: 'uppercase' }}
+                  >
+                    Cancel Booking
+                  </button>
+                )}
               </div>
             );
           })}
@@ -230,16 +308,28 @@ const AdminBookings = () => {
                       <div style={{ fontSize: '0.55rem', fontWeight: '950', color: pStatus.color }}>{pStatus.label}</div>
                     </td>
                     <td style={{ padding: '1.25rem 1.5rem', textAlign: 'right' }}>
-                      <button 
-                        onClick={() => navigate(`/admin/bookings/${booking.id}`)}
-                        style={{ 
-                          background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', 
-                          color: 'var(--admin-text-primary)', padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)', 
-                          fontSize: '0.65rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase'
-                        }}
-                      >
-                        VIEW RECORD
-                      </button>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/admin/bookings/${booking.id}`)}
+                          style={{
+                            background: 'var(--admin-bg)', border: '1px solid var(--admin-border)',
+                            color: 'var(--admin-text-primary)', padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)',
+                            fontSize: '0.65rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase'
+                          }}
+                        >
+                          VIEW RECORD
+                        </button>
+                        {canCancel(booking) && (
+                          <button
+                            type="button"
+                            onClick={() => requestCancelBooking(booking)}
+                            style={{ background: 'transparent', border: '1px solid var(--status-danger, #dc2626)', color: 'var(--status-danger, #dc2626)', padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.65rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}
+                          >
+                            CANCEL
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

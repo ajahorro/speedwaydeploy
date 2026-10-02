@@ -22,6 +22,7 @@ import {
  */
 const ACCEPTED = 'image/jpeg,image/png,image/webp,image/heic';
 const MAX_BYTES = 10 * 1024 * 1024; // mirrors the bucket's 10 MB limit
+const MAX_PHOTOS_PER_PHASE = 10;
 
 const PhotoProofUploader = ({
   bookingId,
@@ -78,10 +79,19 @@ const PhotoProofUploader = ({
     if (interactionDisabled || uploading) return;
     const files = Array.from(fileList || []);
     if (!files.length) return;
+    if (photos.length + files.length > MAX_PHOTOS_PER_PHASE) {
+      toast.error(`Upload no more than ${MAX_PHOTOS_PER_PHASE} photos for this phase.`);
+      if (inputRef.current) inputRef.current.value = '';
+      return;
+    }
 
     for (const f of files) {
       const problem = validate(f);
-      if (problem) { toast.error(problem); return; }
+      if (problem) {
+        toast.error(problem);
+        if (inputRef.current) inputRef.current.value = '';
+        return;
+      }
     }
 
     setUploading(true);
@@ -213,7 +223,7 @@ const PhotoProofUploader = ({
           {uploading ? 'Uploading…' : 'Add Photos'}
         </label>
         <div style={{ marginTop: '0.4rem', fontSize: '0.62rem', color: 'var(--admin-text-secondary)' }}>
-          JPEG / PNG / WebP / HEIC · up to 10 MB each
+          JPEG / PNG / WebP / HEIC · up to 10 MB each · max {MAX_PHOTOS_PER_PHASE}
         </div>
       </div>}
 

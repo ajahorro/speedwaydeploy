@@ -26,6 +26,7 @@ const StaffJobDetails = () => {
   }, [id]);
 
   useEffect(() => {
+    if (!unit?.id) return;
     let cancelled = false;
     const loadEvidence = async () => {
       const rows = await fetchVehiclePhotos(id);
@@ -37,11 +38,30 @@ const StaffJobDetails = () => {
       toast.error('Failed to load service evidence');
     });
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, unit?.id]);
 
   const fetchJobDetails = async () => {
     setLoading(true);
     try {
+      const { data: bookingRef, error: bookingRefError } = await supabase
+        .from('booking_vehicles')
+        .select('booking_id')
+        .eq('id', id)
+        .maybeSingle();
+      if (bookingRefError) throw bookingRefError;
+      if (!bookingRef) throw new Error('Assigned work was not found.');
+
+      const { data: paymentEligible, error: eligibilityError } = await supabase.rpc(
+        'staff_booking_has_verified_downpayment',
+        { p_booking_id: bookingRef.booking_id }
+      );
+      if (eligibilityError) throw eligibilityError;
+      if (!paymentEligible) {
+        toast.error('This booking is not available until its required payment is verified.');
+        navigate('/staff/tasks', { replace: true });
+        return;
+      }
+
       const { data, error } = await supabase
         .from('booking_vehicles')
         .select(`

@@ -29,21 +29,17 @@ const StaffActiveJobs = () => {
     if (!profile?.id) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select(`
-          *,
-          vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services(*))
-        `)
-        .eq('staff_id', profile.id)
-        .neq('status', 'cancelled')
-        .neq('status', 'completed')
-        .order('start_datetime', { ascending: true });
-
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${BACKEND_URL}/api/staff/tasks`, {
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${session?.access_token || ''}` }
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) throw new Error(result.error || 'Could not load assigned work.');
+      const data = result.bookings || [];
 
       const activeUnits = (data || []).flatMap(b =>
-        b.vehicles.map(v => ({
+        (b.vehicles || []).map(v => ({
           ...v,
           booking_id: b.id,
           booking_status: b.status,
@@ -175,6 +171,7 @@ const StaffActiveJobs = () => {
                   bookingId={task.booking_id}
                   bookingVehicleId={task.id}
                   phase="before"
+                  disabled={['IN_PROGRESS', 'COMPLETED'].includes(task.status?.toUpperCase())}
                   compact
                   onCountChange={(count) => setPhotoCounts(prev => ({ ...prev, [task.id]: { ...(prev[task.id] || {}), before: count } }))}
                 />
@@ -183,7 +180,7 @@ const StaffActiveJobs = () => {
                   bookingVehicleId={task.id}
                   phase="after"
                   compact
-                  disabled={(photoCounts[task.id]?.before || 0) < 1}
+                  disabled={task.status?.toUpperCase() !== 'IN_PROGRESS' || (photoCounts[task.id]?.before || 0) < 1}
                   onCountChange={(count) => setPhotoCounts(prev => ({ ...prev, [task.id]: { ...(prev[task.id] || {}), after: count } }))}
                 />
               </div>

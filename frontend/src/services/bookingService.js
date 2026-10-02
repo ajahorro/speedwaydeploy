@@ -657,76 +657,22 @@ export function calculateEstimatedEnd(dateStr, timeStr, vehicles = []) {
  * Request a cancellation/refund for a booking.
  */
 export const cancelBooking = async (bookingId, reason) => {
-  try {
-    // 1. Fetch the booking using maybeSingle() to prevent hard 404 crashes
-    const { data: booking, error: fetchError } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('id', bookingId)
-      .maybeSingle();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error('Please sign in again before cancelling this booking.');
 
-    if (fetchError) throw fetchError;
-
-    // 🛡️ Defensive Check: If the booking doesn't exist or RLS blocks it
-    if (!booking) {
-      throw new Error(`Booking ID ${bookingId} not found. It may have been deleted, or you do not have permission to access it.`);
-    }
-
-    // 2. Update booking status to 'cancelled' and append reason to notes
-    const updatedNotes = booking.notes
-      ? `${booking.notes}\nCancellation Reason: ${reason}`
-      : `Cancellation Reason: ${reason}`;
-
-    const { error: updateError } = await supabase
-      .from('bookings')
-      .update({
-        status: 'cancelled',
-        refund_status: 'QUEUED',
-        staff_id: null,
-        cancellation_reason: reason,
-        notes: updatedNotes
-      })
-      .eq('id', bookingId);
-
-    if (updateError) throw updateError;
-
-    // 3. Mark all related vehicles as cancelled to free up the queue
-    const { error: vehicleError } = await supabase
-      .from('booking_vehicles')
-      .update({ status: 'cancelled' })
-      .eq('booking_id', bookingId);
-
-    if (vehicleError) console.warn('Non-fatal error updating vehicles:', vehicleError);
-
-    // 4. Mark associated active payments as REFUND_PENDING
-    const { data: payments } = await supabase
-      .from('payments')
-      .select('id, status')
-      .eq('booking_id', bookingId);
-
-    if (payments && payments.length > 0) {
-      for (const p of payments) {
-        if (p.status === 'PAID' || p.status === 'FOR_VERIFICATION') {
-          await supabase
-            .from('payments')
-            .update({ status: 'REFUND_PENDING' })
-            .eq('id', p.id);
-        }
-      }
-    }
-
-    // The lifecycle email is the single cancellation dispatcher. It creates the
-    // in-app notification only after the email is delivered successfully.
-    const cancellationEmail = await sendStatusEmail(bookingId, 'cancelled', reason);
-    if (cancellationEmail?.error) {
-      console.warn(`[Booking] Cancellation email failed for ${bookingId}:`, cancellationEmail.error);
-    }
-
-    return { success: true };
-  } catch (err) {
-    console.error('Error cancelling booking:', err.message || err);
-    throw err;
+  const response = await fetch(`${BACKEND_URL}/api/bookings/cancel`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({ bookingId, reason })
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) {
+    throw new Error(result.error || 'Failed to cancel booking.');
   }
+  return result;
 };
 
 export const rescheduleBooking = async (bookingId, startDatetime, endDatetime, reason = null) => {

@@ -93,8 +93,15 @@ const CustomerBookingDetails = () => {
       const result = await cancelBooking(id, cancelReason);
 
       if (result.success) {
-        toast.success('Booking Cancelled & Refund Queued', { id: toastId });
+        toast.success(
+          Number(result.refund_amount || 0) > 0
+            ? 'Booking cancelled; payment moved to the Refund Hub.'
+            : 'Booking cancelled; no payment was eligible for refund.',
+          { id: toastId }
+        );
+        (result.warnings || []).forEach((warning) => toast.error(warning));
         setShowCancelModal(false);
+        setCancelReason('');
 
         await refreshData(); // Triggers the global context refresh instantly!
 
@@ -388,6 +395,11 @@ const CustomerBookingDetails = () => {
 
   // Hard completion: All units done AND payment settled
   if (allUnitsFinished && isFullySettled && derivedStatus !== 'cancelled') derivedStatus = 'completed';
+
+  const canCancelBooking = ['scheduled', 'confirmed'].includes(derivedStatus)
+    && !vehicleStatuses.some(status =>
+      ['IN_PROGRESS', 'ONGOING', 'COMPLETED', 'RELEASED'].includes(status)
+    );
 
   const summaryBooking = {
     ...booking,
@@ -741,29 +753,25 @@ const CustomerBookingDetails = () => {
           </div>
 
           {/* ===== ACTIONS ===== */}
-          {(['scheduled', 'confirmed'].includes(derivedStatus)) && (
+          {canCancelBooking && (
             <div style={{ ...cardStyle, border: '1px solid rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.02)' }}>
               <div style={{ ...labelStyle, color: 'var(--status-danger)' }}>Danger Zone</div>
               <p style={{ margin: '0.5rem 0 1rem 0', fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
-                {derivedStatus === 'scheduled'
-                  ? "Need to cancel? You can cancel your appointment now."
-                  : "This appointment is currently locked for service. Cancellations are no longer permitted."}
-                {booking.totalPaid > 0 && derivedStatus === 'scheduled' && " Since a payment was detected, a refund request will be automatically filed."}
+                You may cancel before service starts. Any eligible payment will be queued in the Refund Hub for review.
               </p>
               <button
-                disabled={derivedStatus !== 'scheduled'}
                 onClick={() => setShowCancelModal(true)}
                 style={{
                   width: '100%', padding: '0.85rem',
-                  background: derivedStatus === 'scheduled' ? 'transparent' : 'var(--admin-input-bg)',
-                  border: `1px solid ${derivedStatus === 'scheduled' ? '#ef4444' : 'var(--admin-border)'}`,
-                  color: derivedStatus === 'scheduled' ? '#ef4444' : 'var(--admin-text-secondary)',
+                  background: 'transparent',
+                  border: '1px solid #ef4444',
+                  color: '#ef4444',
                   borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', fontSize: '0.75rem',
-                  cursor: derivedStatus === 'scheduled' ? 'pointer' : 'not-allowed',
+                  cursor: 'pointer',
                   textTransform: 'uppercase'
                 }}
               >
-                {derivedStatus === 'scheduled' ? 'Cancel Appointment' : 'Service Ongoing / Locked'}
+                Cancel Appointment
               </button>
               <button
                 onClick={openRescheduleModal}

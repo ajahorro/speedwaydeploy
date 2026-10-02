@@ -1,5 +1,4 @@
 import { supabase, createUniqueChannel } from '../lib/supabase';
-import { BACKEND_URL } from '../config/api';
 
 /**
  * notificationService.js
@@ -85,6 +84,8 @@ export const subscribeToNotifications = (userId, callback) => {
  * @param {string} bookingId
  * @param {string} event  lifecycle keyword or raw status
  * @param {object} [opts] { remarks, reminder, eventKey }
+ * `eventKey` is reserved for a deliberate lifecycle reset/re-notification and
+ * must be stable across retries of that same action.
  */
 /**
  * Pull the body out of a FunctionsHttpError so the console shows WHY the edge
@@ -148,24 +149,6 @@ export const sendPaymentVerifiedEmail = async (bookingId) => {
   return sendStatusEmail(bookingId, 'booking_confirmed');
 };
 
-export const sendPaymentReceiptEmail = async (bookingId, paymentId) => {
-  try {
-    console.info(`[Email] Sending payment receipt for ${bookingId}/${paymentId}`);
-    const response = await fetch(`${BACKEND_URL}/api/emails/payment-receipt`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingId, paymentId })
-    });
-    const result = await response.json();
-    if (!response.ok || result.error) throw new Error(result.error || `Email request failed (${response.status})`);
-    console.info(`[Email] Payment receipt accepted for ${bookingId}/${paymentId}`);
-    return result;
-  } catch (error) {
-    console.error('[NotificationService] Payment Email Error:', error);
-    return { error: error.message };
-  }
-};
-
 /**
  * REQ-SYS-02: Automated Status Notification Trigger
  *
@@ -213,4 +196,3 @@ export const sendNotificationEmail = async (notificationId) => {
     return { error: detail };
   }
 };
-

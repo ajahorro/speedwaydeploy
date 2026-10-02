@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { buildNotificationActionUrl } from '../utils/notificationRouting';
-import { sendNotificationEmail } from './notificationService';
+
 
 /**
  * eventEngine.js — Standardized Event-Driven Notification System
@@ -46,25 +46,6 @@ export const EVENTS = {
  */
 const MESSAGE_PREVIEW_CHARS = 90;
 
-/**
- * Events whose customer email is ALREADY delivered by the lifecycle email
- * (send-status-email). Emitting an email for these from here as well is what
- * flooded the inbox with two mails for one booking.
- *
- * They still create their in-app notification row — the bell and the portal
- * need that — but the EMAIL is left to the single lifecycle dispatch.
- */
-const EMAIL_OWNED_EVENTS = new Set([
-  EVENTS.BOOKING_CREATED,
-  EVENTS.BOOKING_CONFIRMED,
-  EVENTS.BOOKING_CANCELLED,
-  EVENTS.PAYMENT_SUBMITTED,
-  EVENTS.PAYMENT_VERIFIED,
-  EVENTS.SERVICE_STARTED,
-  EVENTS.SERVICE_COMPLETED,
-  EVENTS.VEHICLE_COMPLETED,
-  EVENTS.STATUS_UPDATE,
-]);
 const buildChatNotificationMessage = (meta = {}) => {
   const sender = String(meta.senderName || 'Someone').replace(/\s+/g, ' ').trim() || 'Someone';
   const body = String(meta.messageText || '').replace(/\s+/g, ' ').trim();
@@ -208,26 +189,6 @@ export const emitEvent = async (eventType, { userId, bookingId, meta = {} }) => 
 
   if (error) {
     console.error(`[EventEngine] Failed to emit ${eventType}:`, error);
-  } else if (!EMAIL_OWNED_EVENTS.has(eventType)) {
-    // EMAIL DEDUPLICATION.
-    //
-    // Payment/booking lifecycle events are ALSO delivered by the lifecycle email
-    // (send-status-email), which now carries the payment block. Emailing from
-    // here as well meant one booking produced TWO near-identical emails — a
-    // "Payment Submitted" mail plus a "Booking is now SCHEDULED" mail, both
-    // quoting a different amount. The lifecycle email is the single dispatch
-    // point; this path now creates ONLY the in-app notification row.
-    //
-    // Events NOT in this set (chat messages, technician assignment, refunds)
-    // have no lifecycle email, so they still dispatch their own.
-    //
-    // DEFECT: this call used to run unconditionally after the insert. The edge
-    // function looks the row up by id, so if the insert failed (RLS, a schema
-    // mismatch, a network blip) the client still asked it to email a row that
-    // does not exist — and the function answered 400 "Notification not found",
-    // filling the console with errors for a mail that was never owed. The insert
-    // result is now the gate: no row, no send.
-    await sendNotificationEmail(notification.id);
   }
 
   // ===== TASK 3: AUDIT PERSISTENCE =====

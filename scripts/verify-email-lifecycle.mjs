@@ -151,7 +151,8 @@ const invoke = async (body) => {
   const third = await invoke({ bookingId, event: 'scheduled' });
   check('a differently-spelled duplicate maps to the same event and is refused', third.body.skipped === true, third.body.reason);
 
-  // Concurrent duplicates: the DB must allow exactly one winner.
+  // Concurrent duplicate start-status dispatches (as can happen during
+  // sequential multi-vehicle updates) must produce exactly one email.
   const race = await Promise.all([
     invoke({ bookingId, event: 'booking_in_progress' }),
     invoke({ bookingId, event: 'booking_in_progress' }),
@@ -159,7 +160,7 @@ const invoke = async (body) => {
   ]);
   const sentCount = race.filter((r) => r.body.ok && !r.body.skipped).length;
   const skippedCount = race.filter((r) => r.body.skipped).length;
-  check('3 concurrent sends => exactly 1 delivered, 2 refused', sentCount === 1 && skippedCount === 2, `sent=${sentCount} skipped=${skippedCount}`);
+  check('3 concurrent start events => exactly 1 delivered, 2 refused', sentCount === 1 && skippedCount === 2, `sent=${sentCount} skipped=${skippedCount}`);
 
   // ── 3. The confirmation email carries the receipt ────────────────────────
   console.log('\n── Event 2: booking_confirmed (carries the receipt) ──');
@@ -179,7 +180,7 @@ const invoke = async (body) => {
     .eq('booking_id', bookingId)
     .order('sent_at');
 
-  check('one ledger row per distinct event', (deliveries?.length || 0) === 3, `${deliveries?.length || 0} rows: ${(deliveries || []).map((d) => d.event).join(', ')}`);
+  check('one ledger row per emailable event', (deliveries?.length || 0) === 3, `${deliveries?.length || 0} rows: ${(deliveries || []).map((d) => d.event).join(', ')}`);
   check('ledger records the recipient', deliveries?.every((d) => d.recipient === TEST_EMAIL) === true);
 
   // ── 5. The OCR data reaches the rendered HTML ────────────────────────────
@@ -199,10 +200,10 @@ const invoke = async (body) => {
     const ocr = extractOcrDetails(fullBooking, pay);
 
     check('OCR reference is extracted', ocr.reference === OCR_REF, ocr.reference || '(none)');
-    check('OCR sender is extracted', ocr.sender === 'COMAR GARAGE Detail Studio', ocr.sender || '(none)');
+    check('OCR recipient account is extracted', ocr.recipientAccount === 'COMAR GARAGE Detail Studio', ocr.recipientAccount || '(none)');
     check('OCR transaction date is extracted', Boolean(ocr.transactionAt), ocr.transactionAt || '(none)');
     check('OCR reference renders in the HTML', built.html.includes(OCR_REF));
-    check('OCR sender renders in the HTML', built.html.includes('COMAR GARAGE Detail Studio'));
+    check('OCR recipient account renders in the HTML', built.html.includes('COMAR GARAGE Detail Studio'));
     check('email does NOT quote ₱280 (VAT-on-top bug)', !built.html.includes('280.00'));
   } else {
     check('shared email module importable by the verifier', false, 'Deno-style .ts import not resolvable from Node');

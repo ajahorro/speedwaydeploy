@@ -115,21 +115,17 @@ const StaffDashboard = () => {
     if (!profile?.id) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select(`
-          *,
-          customer:profiles!bookings_customer_id_fkey(full_name, email, phone_number),
-          vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services(*))
-        `)
-        .eq('staff_id', profile.id)
-        .neq('status', 'cancelled')
-        .order('start_datetime', { ascending: true });
-
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${BACKEND_URL}/api/staff/tasks`, {
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${session?.access_token || ''}` }
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) throw new Error(result.error || 'Could not load assigned work.');
+      const data = result.bookings || [];
 
       const allVehicleTasks = (data || []).flatMap(b => 
-        b.vehicles.map(v => ({
+        (b.vehicles || []).map(v => ({
           ...v,
           customer: b.customer,
           booking_id: b.id,
@@ -416,6 +412,7 @@ const StaffDashboard = () => {
                             bookingId={task.booking_id}
                             bookingVehicleId={task.id}
                             phase="before"
+                            disabled={['IN_PROGRESS', 'COMPLETED'].includes(task.status?.toUpperCase())}
                             compact
                             helperText="Capture the vehicle condition before work begins."
                             onCountChange={setPhotoCount(task.id, 'before')}
@@ -425,7 +422,7 @@ const StaffDashboard = () => {
                             bookingVehicleId={task.id}
                             phase="after"
                             compact
-                            disabled={(photoCounts[task.id]?.before || 0) < 1}
+                            disabled={task.status?.toUpperCase() !== 'IN_PROGRESS' || (photoCounts[task.id]?.before || 0) < 1}
                             helperText="Required: at least one QA photo before marking finished."
                             onCountChange={setPhotoCount(task.id, 'after')}
                           />

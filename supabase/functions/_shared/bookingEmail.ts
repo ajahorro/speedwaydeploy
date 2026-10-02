@@ -25,8 +25,9 @@
  *      issued against VERIFIED money; attaching it to the submission mail would
  *      issue an official document for a payment that might still be rejected.
  *
- * Every other status change (in progress, completed, released, cancelled) is a
- * plain status mail — one per status change, never with a receipt.
+ * Major status changes (completed, cancelled, and no-show) are plain status
+ * emails — intermediate changes such as in-progress and release are kept out of
+ * the inbox. Confirmation is its own event, and reminders are sent separately.
  *
  * Duplicate suppression is enforced by a DB ledger (booking_email_deliveries),
  * not by client bookkeeping, so a retry or a double-submit cannot double-send.
@@ -65,6 +66,8 @@ export interface BookingLike {
   customer_email?: string | null
   contact_number?: string | null
   total_amount?: number | string | null
+  discount_amount_snapshot?: number | string | null
+  promo_name_snapshot?: string | null
   status?: string | null
   payment_status?: string | null
   payment_method?: string | null
@@ -148,43 +151,64 @@ const formatDateTime = (value: unknown): string => {
  * which understated the tax. Both are removed — the receipt no longer prints a
  * tax line, so there is nothing to compute.)
  */
-export const resolveAmounts = (booking: BookingLike = {}, payment: PaymentLike | null = null) => {
+export const resolveAmounts = (
+  booking: BookingLike = {},
+  payment: PaymentLike | null = null,
+  allPayments: PaymentLike[] = payment ? [payment] : []
+) => {
   const bookingTotal = num(booking?.total_amount);
-  const declared = num(payment?.amount);
-  const detectedNet = num(payment?.detected_amount);
-  const recordedNet = num(payment?.net_credit);
-  const transferFee = Math.max(0, num(payment?.transfer_fee));
+  const activePayments = allPayments.filter((item) => {
+    const status = String(item.status || '').toUpperCase();
+    return !status || status === 'PAID' || status === 'FOR_VERIFICATION';
+  });
+  const totalsFor = (rows: PaymentLike[]) => rows.reduce((totals, item) => {
+    const declared = num(item.amount);
+    const detectedNet = num(item.detected_amount);
+    const recordedNet = num(item.net_credit);
+    const transferFee = Math.max(0, num(item.transfer_fee));
+    const netReceived = detectedNet > 0 ? detectedNet : (recordedNet > 0 ? recordedNet : declared);
+    const grossPaid = detectedNet > 0
+      ? round2(detectedNet + transferFee)
+      : (declared > 0 ? declared : netReceived);
+    return {
+      grossPaid: totals.grossPaid + grossPaid,
+      netReceived: totals.netReceived + netReceived,
+      transferFee: totals.transferFee + transferFee,
+      creditApplied: totals.creditApplied + Math.max(0, num(item.credit_applied)),
+    };
+  }, { grossPaid: 0, netReceived: 0, transferFee: 0, creditApplied: 0 });
 
-  // Prefer what was actually READ (OCR) over what the client DECLARED.
-  const netReceived = detectedNet > 0 ? detectedNet : (recordedNet > 0 ? recordedNet : declared);
-  // OCR is authoritative once it has produced a value. The submitted amount
-  // may still be the downpayment figure even when the receipt shows a larger
-  // payment, so never let it replace a valid OCR result.
-  const grossPaid = detectedNet > 0
-    ? round2(detectedNet + transferFee)
-    : (declared > 0 ? declared : netReceived)
-
-  const creditApplied = Math.max(0, num(payment?.credit_applied));
-  const netApplied = round2(netReceived + creditApplied);
-  const creditedToBooking = round2(netApplied + transferFee);
+  const submitted = totalsFor(activePayments);
+  const verified = totalsFor(activePayments.filter((item) => String(item.status || '').toUpperCase() === 'PAID'));
+  const netApplied = round2(submitted.netReceived + submitted.creditApplied);
+  const creditedToBooking = round2(netApplied + submitted.transferFee);
+  const verifiedCreditedToBooking = round2(verified.netReceived + verified.creditApplied + verified.transferFee);
 
   return {
     bookingTotal,
     totalDue: bookingTotal,
-    grossPaid: round2(grossPaid),
-    netReceived: round2(netReceived),
-    transferFee,
-    creditApplied,
+    grossPaid: round2(submitted.grossPaid),
+    netReceived: round2(submitted.netReceived),
+    transferFee: round2(submitted.transferFee),
+    creditApplied: round2(submitted.creditApplied),
     netApplied,
     creditedToBooking,
     remainingBalance: Math.max(0, round2(bookingTotal - creditedToBooking)),
     excessCredit: Math.max(0, round2(creditedToBooking - bookingTotal)),
+    verifiedGrossPaid: round2(verified.grossPaid),
+    verifiedNetReceived: round2(verified.netReceived),
+    verifiedTransferFee: round2(verified.transferFee),
+    verifiedCreditApplied: round2(verified.creditApplied),
+    verifiedRemainingBalance: Math.max(0, round2(bookingTotal - verifiedCreditedToBooking)),
+    verifiedExcessCredit: Math.max(0, round2(verifiedCreditedToBooking - bookingTotal)),
     // No vatIncluded / vatExclusiveSales. Pricing is flat and tax-free, so the
     // booking total IS the amount due. Any template still reading those keys gets
     // `undefined`, which surfaces immediately rather than printing a silent zero.
-    paymentStatus: String(payment?.status || '').toUpperCase(),
+    paymentStatus: activePayments.some((item) => String(item.status || '').toUpperCase() === 'FOR_VERIFICATION')
+      ? 'FOR_VERIFICATION'
+      : String(payment?.status || activePayments.at(-1)?.status || '').toUpperCase(),
     paymentMethod: payment?.method || booking?.payment_method || '—',
-    hasPayment: Boolean(payment),
+    hasPayment: activePayments.length > 0,
   };
 };
 
@@ -384,12 +408,13 @@ const ctaButton = (booking: BookingLike, label: string): string => {
  * The SUBMISSION email: booking + payment as submitted (OCR detail included),
  * explicitly NOT yet verified.
  */
-export const buildBookingCreatedEmail = ({ booking, payment, customerName }: {
+export const buildBookingCreatedEmail = ({ booking, payment, payments, customerName }: {
   booking: BookingLike
   payment?: PaymentLike | null
+  payments?: PaymentLike[]
   customerName?: string | null
 }) => {
-  const amounts = resolveAmounts(booking, payment);
+  const amounts = resolveAmounts(booking, payment, payments);
   const ocr = extractOcrDetails(booking, payment);
   const appointmentDate = formatDateTime(booking?.start_datetime);
 
@@ -416,13 +441,14 @@ export const buildBookingCreatedEmail = ({ booking, payment, customerName }: {
  * receipt may only be issued against VERIFIED money, so it must not ride on the
  * submission mail where the payment could still be rejected.
  */
-export const buildBookingConfirmedEmail = ({ booking, payment, customerName, hasReceipt }: {
+export const buildBookingConfirmedEmail = ({ booking, payment, payments, customerName, hasReceipt }: {
   booking: BookingLike
   payment?: PaymentLike | null
+  payments?: PaymentLike[]
   customerName?: string | null
   hasReceipt?: boolean
 }) => {
-  const amounts = resolveAmounts(booking, payment);
+  const amounts = resolveAmounts(booking, payment, payments);
   const appointmentDate = formatDateTime(booking?.start_datetime);
 
   const body = `
@@ -451,22 +477,24 @@ const STATUS_COPY: Record<string, string> = {
   FLAGGED_NOSHOW: 'We missed you! Your slot has expired. Visit the Refund Hub for details.',
 };
 
-/** A plain status-change email: one per status change, never with a receipt. */
-export const buildStatusEmail = ({ booking, payment, customerName, newStatus, remarks }: {
+/** A plain major status-change email; the lifecycle dispatcher may attach a settled receipt. */
+export const buildStatusEmail = ({ booking, payment, payments, customerName, newStatus, remarks }: {
   booking: BookingLike
   payment?: PaymentLike | null
+  payments?: PaymentLike[]
   customerName?: string | null
   newStatus?: string | null
   remarks?: string | null
 }): { subject: string; html: string; amounts: ReturnType<typeof resolveAmounts> } => {
   const statusKey = String(newStatus || '').toUpperCase();
-  const amounts = resolveAmounts(booking, payment);
+  const amounts = resolveAmounts(booking, payment, payments);
   const appointmentDate = formatDateTime(booking?.start_datetime);
 
   const body: string = `
     <p style="font-size:16px;">Hi ${escapeHtml(customerName)},</p>
     <p style="font-size:15px;line-height:1.6;">${escapeHtml(STATUS_COPY[statusKey] || `Your booking status has been updated to ${newStatus}.`)}</p>
     ${bookingTable(booking, appointmentDate, amounts)}
+    ${paymentBlock(amounts, extractOcrDetails(booking, payment))}
     ${renderLifecycle(statusKey)}
     ${remarks ? `<p style="margin-top:15px;padding:10px;background:#f8fafc;border-left:4px solid #a91b18;"><strong>Note:</strong> ${escapeHtml(remarks)}</p>` : ''}
     ${ctaButton(booking, 'VIEW IN PORTAL')}`;
@@ -479,12 +507,13 @@ export const buildStatusEmail = ({ booking, payment, customerName, newStatus, re
 };
 
 /** The reminder mail (scheduled) — unchanged content, shared chrome. */
-export const buildReminderEmail = ({ booking, payment, customerName }: {
+export const buildReminderEmail = ({ booking, payment, payments, customerName }: {
   booking: BookingLike
   payment?: PaymentLike | null
+  payments?: PaymentLike[]
   customerName?: string | null
 }) => {
-  const amounts = resolveAmounts(booking, payment);
+  const amounts = resolveAmounts(booking, payment, payments);
   const appointmentDate = formatDateTime(booking?.start_datetime);
 
   const body = `

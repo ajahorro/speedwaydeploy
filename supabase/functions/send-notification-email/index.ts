@@ -11,6 +11,7 @@ const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
 const resendFrom = Deno.env.get('RESEND_FROM') || 'Comar Garage <notifications@comargarage.com>'
 const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
 const escapeHtml = (value: unknown) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;')
+const EMAILABLE_NOTIFICATION_TYPES = new Set<string>()
 
 // `notifications.id` is a uuid column, so a malformed id makes PostgREST reject
 // the filter with 22P02 (`invalid input syntax for type uuid`) — a 500 for what
@@ -40,7 +41,7 @@ serve(async (req) => {
     // caller's own RLS can legitimately return nothing for a row that exists.
     const { data: notification, error: notificationError } = await supabase
       .from('notifications')
-      .select('id, user_id, booking_id, title, message, action_url')
+      .select('id, user_id, booking_id, title, message, action_url, notification_type')
       .eq('id', notificationId)
       .maybeSingle()
 
@@ -56,6 +57,14 @@ serve(async (req) => {
         ok: true,
         skipped: 'NOTIFICATION_NOT_FOUND',
         message: 'No notification exists for this id; nothing to email.',
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    if (!EMAILABLE_NOTIFICATION_TYPES.has(String(notification.notification_type || '').toUpperCase())) {
+      return new Response(JSON.stringify({
+        ok: true,
+        skipped: 'NOTIFICATION_TYPE_NOT_EMAILABLE',
+        notificationType: notification.notification_type || null,
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 

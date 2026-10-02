@@ -1,1 +1,1 @@
-export const SHOW_START_SERVICE_ACTIONS = false;
+export const SHOW_START_SERVICE_ACTIONS = true;

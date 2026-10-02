@@ -14,33 +14,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend'
+import { buildOfficialReceiptPdf } from '../_shared/officialReceiptPdf.ts'
 import {
   resolveAmounts,
-  extractOcrDetails,
   buildBookingCreatedEmail,
   buildBookingConfirmedEmail,
   buildStatusEmail,
   buildReminderEmail,
   notificationCopyFor,
-  formatPeso,
   type BookingLike,
   type PaymentLike,
-  type OcrDetails,
 } from '../_shared/bookingEmail.ts'
 
 /** A Resend attachment: base64 `content` plus a filename. */
 interface EmailAttachment {
   content: string
   filename: string
-}
-
-/** A line item on the receipt PDF. */
-interface ReceiptItem {
-  vehicle?: string
-  service?: string
-  qty?: number
-  unitPrice?: number
-  lineTotal?: number
 }
 
 /** The shape returned by the embedded selects in this function. */
@@ -76,7 +65,9 @@ interface BookingRow extends BookingLike {
  *                                 This is the only event that carries a receipt,
  *                                 because a receipt must only be issued against
  *                                 VERIFIED money.
- *   event: <status>            -> a plain status mail, one per status change.
+ *   event: <status>            -> a plain status mail only for approved major
+ *                                 milestones (including start and release);
+ *                                 intermediate status changes are skipped.
  *
  * EXACTLY-ONCE
  * ------------
@@ -89,7 +80,8 @@ interface BookingRow extends BookingLike {
  * ----
  *   { bookingId, event, remarks?, reminder?, eventKey? }
  * `event` accepts a lifecycle keyword ('booking_created', 'booking_confirmed')
- * or a raw status ('scheduled', 'confirmed', 'in_progress', ...).
+ * or a raw status. Booking creation, confirmation, start, completion, release,
+ * cancellation, no-show, and reminders are emailed.
  * ============================================================================
  */
 
@@ -105,100 +97,6 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 )
 
-// ── Receipt PDF ─────────────────────────────────────────────────────────────
-// A minimal, dependency-free PDF builder (the same technique the Node backend
-// uses). Kept inline so the edge function has no build step and cannot fail on
-// a missing native module.
-const escapePdfText = (v: unknown): string => String(v ?? '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')
-
-const buildReceiptPdf = ({
-  receiptNumber,
-  customerName,
-  bookingReference,
-  issuedAt,
-  paymentMethod,
-  items,
-  amounts,
-  ocr,
-}: {
-  receiptNumber?: string | null
-  customerName?: string | null
-  bookingReference?: string | null
-  issuedAt?: string | null
-  paymentMethod?: string | null
-  items: ReceiptItem[]
-  amounts: ReturnType<typeof resolveAmounts>
-  ocr: OcrDetails | null
-}): string => {
-  const dateString = issuedAt ? new Date(issuedAt).toLocaleString() : new Date().toLocaleString()
-
-  const lines: string[] = [
-    'COMAR GARAGE',
-    'Comar Garage Detail Studio',
-    'OFFICIAL RECEIPT',
-    '',
-    `Receipt No.: ${receiptNumber || 'AUTO'}`,
-    `Issued: ${dateString}`,
-    `Booking Reference: ${bookingReference || 'N/A'}`,
-    `Payment Method: ${paymentMethod || 'Digital / Online Payment'}`,
-    `Customer: ${customerName || 'Customer'}`,
-    '',
-    'Vehicle / Service                          Qty   Unit Price   Line Total',
-    ...items.map((item) => {
-      const label = String(item.vehicle || 'Vehicle Unit').substring(0, 26)
-      const service = String(item.service || 'Service').substring(0, 20)
-      const unit = Number(item.unitPrice ?? item.lineTotal ?? 0)
-      return `${label} ${service} ${item.qty ?? 1} ${formatPeso(unit)} ${formatPeso(item.lineTotal ?? unit)}`
-    }),
-    '',
-    'PAYMENT',
-    ...(ocr?.reference ? [`Reference No.: ${ocr.reference}`] : []),
-    ...(ocr?.transactionAt ? [`Transaction Date: ${ocr.transactionAt}`] : []),
-    `Amount Paid: ${formatPeso(amounts.grossPaid)}`,
-    ...(amounts.transferFee > 0 ? [`Transfer Fee (absorbed): ${formatPeso(amounts.transferFee)}`] : []),
-    ...(amounts.transferFee > 0 ? [`Amount Received: ${formatPeso(amounts.netReceived)}`] : []),
-    ...(amounts.creditApplied > 0 ? [`Credit Applied: -${formatPeso(amounts.creditApplied)}`] : []),
-    ...(amounts.excessCredit > 0 ? [`Recorded as Excess Credit: ${formatPeso(amounts.excessCredit)}`] : []),
-    `Booking Total: ${formatPeso(amounts.totalDue)}`,
-    ...(amounts.remainingBalance > 0 ? [`Balance Still Due: ${formatPeso(amounts.remainingBalance)}`] : []),
-    // No tax lines. Pricing is flat and tax-free, so the booking total IS the
-    // amount due — there is no VAT to break out or add on.
-    '',
-    'Payment verified. This receipt is valid for audit purposes.',
-  ]
-
-  const content = lines
-    .map((line, index) => `BT\n/F1 11 Tf\n72 ${760 - index * 18} Td\n(${escapePdfText(line)}) Tj\nET`)
-    .join('\n')
-
-  let pdf = '%PDF-1.4\n'
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    `<< /Length ${new TextEncoder().encode(content).length} >>\nstream\n${content}\nendstream`,
-  ]
-
-  const offsets: number[] = [0]
-  objects.forEach((obj, index) => {
-    offsets.push(pdf.length)
-    pdf += `${index + 1} 0 obj\n${obj}\nendobj\n`
-  })
-
-  const xrefStart = pdf.length
-  pdf += `xref\n0 ${objects.length + 1}\n`
-  pdf += '0000000000 65535 f \n'
-  offsets.slice(1).forEach((offset) => { pdf += `${String(offset).padStart(10, '0')} 00000 n \n` })
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`
-
-  // Base64 for the Resend attachment payload.
-  const bytes = new TextEncoder().encode(pdf)
-  let binary = ''
-  bytes.forEach((b) => { binary += String.fromCharCode(b) })
-  return btoa(binary)
-}
-
 const canonicalEvent = (raw: string): string => {
   const key = String(raw || '').toUpperCase()
   if (key === 'BOOKING_CREATED' || key === 'SCHEDULED' || key === 'PENDING') return 'booking_created'
@@ -210,6 +108,17 @@ const canonicalEvent = (raw: string): string => {
   if (key === 'FLAGGED_NOSHOW') return 'booking_flagged_noshow'
   return String(raw || 'unknown').toLowerCase()
 }
+
+const EMAILABLE_LIFECYCLE_EVENTS = new Set([
+  'booking_created',
+  'booking_confirmed',
+  'booking_in_progress',
+  'booking_completed',
+  'booking_released',
+  'booking_cancelled',
+  'booking_flagged_noshow',
+  'booking_reminder',
+])
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
@@ -271,6 +180,15 @@ serve(async (req: Request): Promise<Response> => {
     const canonical = reminder ? 'booking_reminder' : canonicalEvent(requested)
     const lifecycleEvent = eventKey || canonical
 
+    if (!EMAILABLE_LIFECYCLE_EVENTS.has(canonical)) {
+      return new Response(JSON.stringify({
+        ok: true,
+        skipped: true,
+        reason: 'EVENT_NOT_EMAILABLE',
+        event: canonical,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
+    }
+
     // ── Fetch everything, including the OCR result ──────────────────────────
     // `.maybeSingle()` so a missing booking is a clean 404 rather than a raw
     // PGRST116 coercion error surfacing as a 500.
@@ -279,7 +197,8 @@ serve(async (req: Request): Promise<Response> => {
       .select(`
         id, customer_id, customer_name, customer_first_name, customer_last_name,
         customer_email, contact_number,
-        total_amount, status, payment_status, payment_method, start_datetime, notes, staff_id,
+        total_amount, discount_amount_snapshot, promo_name_snapshot,
+        status, payment_status, payment_method, start_datetime, notes, staff_id,
         ocr_metadata,
         profiles:profiles!bookings_customer_id_fkey ( full_name, email ),
         vehicles:booking_vehicles!booking_vehicles_booking_id_fkey (
@@ -325,13 +244,12 @@ serve(async (req: Request): Promise<Response> => {
     const payment: PaymentLike | null = payments.length
       ? [...payments].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0]
       : null
+    const verifiedPayment: PaymentLike | null = [...payments]
+      .filter((item) => String(item.status || '').toUpperCase() === 'PAID')
+      .sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0] || null
 
-    const amounts = resolveAmounts(row, payment)
-    // OCR metadata lives on the BOOKING (persist_ocr_result writes it there);
-    // the payment row only carries the detected amount, reference and fee.
-    const ocr = extractOcrDetails(row, payment)
-
-    const items: ReceiptItem[] = (row.vehicles || []).flatMap((v) =>
+    const amounts = resolveAmounts(row, payment, payments)
+    const items = (row.vehicles || []).flatMap((v) =>
       (v.services || []).map((s) => ({
         vehicle: `${v.brand || ''} ${v.model || ''}`.trim() || 'Vehicle Unit',
         service: s.service_name || 'Service',
@@ -342,6 +260,20 @@ serve(async (req: Request): Promise<Response> => {
     )
 
     const bookingRef = String(bookingId).slice(0, 8).toUpperCase()
+    const renderOfficialReceipt = (receiptNumber: string, receiptPayment: PaymentLike | null) =>
+      buildOfficialReceiptPdf({
+        receiptNumber,
+        customerName,
+        customerEmail: row.customer_email || customer?.email || '',
+        customerContact: row.contact_number || '',
+        bookingReference: bookingRef,
+        issuedAt: receiptPayment?.created_at,
+        paymentMethod: receiptPayment?.method || amounts.paymentMethod,
+        discountAmount: Number(row.discount_amount_snapshot || 0),
+        promoName: row.promo_name_snapshot || null,
+        items,
+        amounts,
+      })
 
     // ── Render the right email for this event ───────────────────────────────
     let subject = ''
@@ -351,21 +283,14 @@ serve(async (req: Request): Promise<Response> => {
     const isConfirmed = canonical === 'booking_confirmed'
 
     if (isConfirmed) {
-      const receiptNumber = payment?.reference_number || payment?.detected_ref || `INV-${bookingRef}`
+      const receiptNumber = verifiedPayment?.reference_number || verifiedPayment?.detected_ref || `INV-${bookingRef}`
       // A receipt is only attached when the money is actually settled. A partial
       // payment is confirmed as a booking but must not receive a full receipt.
-      const isSettled = amounts.remainingBalance <= 0
+      // Pending OCR submissions are not verified funds, even if their amount
+      // happens to cover the booking total.
+      const isSettled = amounts.verifiedGrossPaid > 0 && amounts.verifiedRemainingBalance <= 0
       const receiptPdf = isSettled
-        ? buildReceiptPdf({
-            receiptNumber,
-            customerName,
-            bookingReference: bookingRef,
-            issuedAt: payment?.created_at,
-            paymentMethod: amounts.paymentMethod,
-            items,
-            amounts,
-            ocr,
-          })
+        ? renderOfficialReceipt(receiptNumber, verifiedPayment)
         : null
 
       if (receiptPdf) {
@@ -375,21 +300,41 @@ serve(async (req: Request): Promise<Response> => {
         }]
       }
 
-      const built = buildBookingConfirmedEmail({ booking: bookingForEmail, payment, customerName, hasReceipt: Boolean(receiptPdf) })
+      const built = buildBookingConfirmedEmail({ booking: bookingForEmail, payment, payments, customerName, hasReceipt: Boolean(receiptPdf) })
       subject = built.subject
       html = built.html
     } else if (canonical === 'booking_created') {
-      const built = buildBookingCreatedEmail({ booking: bookingForEmail, payment, customerName })
+      const built = buildBookingCreatedEmail({ booking: bookingForEmail, payment, payments, customerName })
       subject = built.subject
       html = built.html
     } else if (canonical === 'booking_reminder') {
-      const built = buildReminderEmail({ booking: bookingForEmail, payment, customerName })
+      const built = buildReminderEmail({ booking: bookingForEmail, payment, payments, customerName })
       subject = built.subject
       html = built.html
     } else {
-      const built = buildStatusEmail({ booking: bookingForEmail, payment, customerName, newStatus: requested, remarks })
+      const statusKey = {
+        booking_in_progress: 'IN_PROGRESS',
+        booking_completed: 'COMPLETED',
+        booking_released: 'RELEASED',
+        booking_cancelled: 'CANCELLED',
+        booking_flagged_noshow: 'FLAGGED_NOSHOW',
+      }[canonical] || requested
+      const built = buildStatusEmail({ booking: bookingForEmail, payment, payments, customerName, newStatus: statusKey, remarks })
       subject = built.subject
       html = built.html
+
+      // A later verified payment can be included in the next major status
+      // email. Do not send a separate receipt mail; attach the official booking
+      // receipt only when verified funds cover the full balance.
+      const mayAttachReceipt = ['booking_in_progress', 'booking_completed', 'booking_released'].includes(canonical)
+      const isSettled = amounts.verifiedGrossPaid > 0 && amounts.verifiedRemainingBalance <= 0
+      if (mayAttachReceipt && amounts.hasPayment && isSettled) {
+        const receiptNumber = verifiedPayment?.reference_number || verifiedPayment?.detected_ref || `INV-${bookingRef}`
+        attachments = [{
+          content: renderOfficialReceipt(receiptNumber, verifiedPayment),
+          filename: `Receipt-${String(receiptNumber).replace(/\s+/g, '-').toUpperCase()}.pdf`,
+        }]
+      }
     }
 
     // ── Claim exactly-once BEFORE sending ───────────────────────────────────
@@ -420,7 +365,14 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     // ── In-app notification (kept in lockstep with the email) ───────────────
-    const statusKey = canonical === 'booking_created' ? 'SCHEDULED' : canonical === 'booking_confirmed' ? 'CONFIRMED' : String(requested).toUpperCase()
+    const statusKey = canonical === 'booking_created' ? 'SCHEDULED'
+      : canonical === 'booking_confirmed' ? 'CONFIRMED'
+        : canonical === 'booking_in_progress' ? 'IN_PROGRESS'
+          : canonical === 'booking_completed' ? 'COMPLETED'
+            : canonical === 'booking_released' ? 'RELEASED'
+              : canonical === 'booking_cancelled' ? 'CANCELLED'
+                : canonical === 'booking_flagged_noshow' ? 'FLAGGED_NOSHOW'
+                  : String(requested).toUpperCase()
     const copy = notificationCopyFor(statusKey, bookingRef, amounts)
 
     if (copy && row.customer_id) {

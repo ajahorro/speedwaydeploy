@@ -100,6 +100,20 @@ const calculateNetPaid = (payments = []) => {
   return Math.max(0, positive - refunds);
 };
 
+const calculateVerifiedPaid = (payments = []) => {
+  const received = payments
+    .filter(payment => String(payment.status || '').toUpperCase() === 'PAID'
+      && String(payment.method || '').toUpperCase() !== 'SYSTEM_REFUND'
+      && Number(payment.amount) > 0)
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const refunds = payments
+    .filter(payment => Number(payment.amount) < 0
+      && (String(payment.method || '').toUpperCase() === 'SYSTEM_REFUND'
+        || String(payment.status || '').toUpperCase() === 'REFUNDED'))
+    .reduce((sum, payment) => sum + Math.abs(Number(payment.amount || 0)), 0);
+  return Math.max(0, received - refunds);
+};
+
 const encryptPendingPassword = (password) => {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', PASSWORD_CIPHER_KEY, iv);
@@ -192,6 +206,32 @@ const getLifecycleActor = async (req) => {
   const { data: profile } = await supabaseAdmin.from('profiles').select('id, role, is_active').eq('id', user.id).maybeSingle();
   if (!profile?.is_active || !['ADMIN', 'STAFF'].includes(String(profile.role || '').toUpperCase())) return null;
   return { user, profile };
+};
+
+const getCancellationActor = async (req) => {
+  const bearerMatch = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
+  if (!bearerMatch || !supabaseAdmin) return null;
+
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(bearerMatch[1].trim());
+  if (authError || !user) {
+    if (authError) console.warn('[cancellation] Unable to verify caller token:', authError.message);
+    return null;
+  }
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('id, role, is_active, email, full_name')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (profileError || !profile || profile.is_active === false) {
+    if (profileError) console.error('[cancellation] Caller profile lookup failed:', profileError.message);
+    return null;
+  }
+
+  const role = String(profile.role || '').trim().toUpperCase();
+  if (!['ADMIN', 'CUSTOMER'].includes(role)) return null;
+
+  return { user, profile: { ...profile, role } };
 };
 
 const getBookingVehicleServiceColumns = async () => {
@@ -3901,56 +3941,6 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
 });
 
 /**
- * 🔄 REQ-CST-08: Transaction Reversal & Cancellation Loop
- * Updates booking and payment status for refund processing
- */
-app.post('/api/bookings/cancel', async (req, res) => {
-  const { bookingId, reason } = req.body;
-  console.log(`🌀 [REVERSAL] CANCELLATION REQUESTED: ${bookingId}`);
-
-  try {
-    // 1. Update Booking Status
-    const { error: bookingError } = await supabaseAdmin
-      .from('bookings')
-      .update({
-        status: 'CANCELLED',
-        staff_id: null,
-        bay_id: null,
-        cancellation_reason: reason,
-        refund_status: 'QUEUED',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', bookingId);
-
-    if (bookingError) throw bookingError;
-
-    // 2. Update Payment Status to REFUND_PENDING
-    const { error: paymentError } = await supabaseAdmin
-      .from('payments')
-      .update({ status: 'REFUND_PENDING' })
-      .eq('booking_id', bookingId);
-
-    if (paymentError) {
-      console.warn('⚠️ Payment record not found or update failed, continuing cancellation flow.');
-    }
-
-    // 3. Record in Audit Log
-    await supabaseAdmin.from('audit_logs').insert({
-      booking_id: bookingId,
-      action_type: 'BOOKING_CANCELLED',
-      actor_name: 'CUSTOMER',
-      actor_role: 'USER',
-      details: `Booking cancelled. Reason: ${reason}`
-    });
-
-    return res.json({ success: true, message: 'Booking cancelled and refund request queued.' });
-  } catch (err) {
-    console.error('❌ Cancellation Failed:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-/**
  * 🛡️ REQ-NFR-14: Secure Receipt Access (Backend Verification Lock)
  * Only returns receipt data if the transaction status is exactly 'PAID'.
  */
@@ -4130,34 +4120,37 @@ const checkOverdueBookings = async () => {
         console.log(`⚠️ [NO-SHOW] Lifecycle: flagged ${flagged}, auto-cancelled ${cancelled} (24h window closed).`);
       }
 
-      // Notify only the bookings THIS sweep flagged, so the customer gets one
-      // email per no-show rather than one per 5-minute poll. `flagged` is a
-      // count, not a list, so we read back the rows the RPC just touched: a
-      // booking flagged within the last minute is one this run is responsible
-      // for. Already-notified bookings are excluded by the same window.
-      if (flagged > 0) {
-        const since = new Date(now.getTime() - 2 * 60000).toISOString();
-        const { data: freshlyFlagged, error: fetchError } = await supabaseAdmin
-          .from('bookings')
-          .select('id, customer:profiles!bookings_customer_id_fkey(email, full_name), payments(id, amount, status)')
-          .eq('status', 'FLAGGED_NOSHOW')
-          .gte('updated_at', since);
+      // Read all open no-show bookings so failed email attempts are retried.
+      // The lifecycle delivery ledger suppresses already-sent messages.
+      const { data: flaggedBookings, error: fetchError } = await supabaseAdmin
+        .from('bookings')
+        .select('id, refund_status, customer_email, payments(amount, detected_amount, status, method, verified_at)')
+        .eq('status', 'FLAGGED_NOSHOW');
 
-        if (fetchError) {
-          console.warn('📧 No-Show notification lookup failed:', fetchError.message);
-        }
-
-        for (const booking of (freshlyFlagged || [])) {
-          if (!booking.customer?.email) continue;
-          const hasPaidPayments = (booking.payments || []).some(p => String(p.status || '').toUpperCase() === 'PAID');
+      if (fetchError) {
+        console.warn('📧 No-Show notification lookup failed:', fetchError.message);
+      } else {
+        // Retry pending deliveries on every sweep; booking-lifecycle's delivery
+        // ledger makes successful sends idempotent and releases failed claims.
+        for (const booking of (flaggedBookings || [])) {
+          const refundRows = (booking.payments || []).filter((payment) =>
+            String(payment.status || '').toUpperCase() === 'REFUND_PENDING'
+            && String(payment.method || '').toUpperCase() !== 'SYSTEM_REFUND'
+            && Number(payment.amount || 0) > 0
+          );
+          const verifiedRefund = refundRows
+            .filter((payment) => payment.verified_at)
+            .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+          const unverifiedRefund = refundRows
+            .filter((payment) => !payment.verified_at)
+            .reduce((sum, payment) => sum + Number(payment.detected_amount || payment.amount || 0), 0);
+          const refundDetails = refundRows.length
+            ? `Refund status: ${booking.refund_status || 'QUEUED'}. Verified payments awaiting refund: ₱${verifiedRefund.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. Unverified payment claims awaiting review: ₱${unverifiedRefund.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`
+            : 'No payment was recorded, so no refund is currently queued.';
           try {
-            await dispatchLifecycleEmail(
-              booking.id,
-              'FLAGGED_NOSHOW',
-              hasPaidPayments ? 'A refund request has been automatically filed because a payment was detected.' : ''
-            );
+            await dispatchLifecycleEmail(booking.id, 'FLAGGED_NOSHOW', refundDetails);
           } catch (emailErr) {
-            console.warn('📧 No-Show email failed:', emailErr.message);
+            console.warn(`📧 No-Show email failed for booking ${booking.id}:`, emailErr.message);
           }
         }
       }
@@ -4329,6 +4322,79 @@ app.post('/api/admin/purge-bookings', async (req, res) => {
   }
 });
 
+const cancelBookingAndQueueRefund = async ({ bookingId, reason, actor }) => {
+  const { data, error } = await supabaseAdmin.rpc('admin_cancel_booking', {
+    p_booking_id: bookingId,
+    p_reason: reason,
+    p_actor_id: actor.profile?.id || null,
+    p_actor_name: actor.profile?.full_name || actor.profile?.email || actor.profile?.role || 'ADMIN',
+    p_actor_role: actor.profile?.role || 'ADMIN'
+  });
+  if (error) throw error;
+  if (!data?.success) throw new Error(data?.error || 'Cancellation was not completed.');
+
+  const refundAmount = Number(data.refund_amount || 0);
+  const refundDetails = refundAmount > 0
+    ? `Refund status: ${data.refund_status || 'QUEUED'}. Amount queued for refund review: ₱${refundAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`
+    : 'No verified or submitted payment was recorded, so no refund is currently queued.';
+  const warnings = [];
+  try {
+    await dispatchLifecycleEmail(
+      bookingId,
+      'CANCELLED',
+      `${reason.trim()}\n${refundDetails}`
+    );
+  } catch (emailError) {
+    console.error(`[cancellation] Customer email failed for booking ${bookingId}:`, emailError.message);
+    warnings.push('Booking was cancelled, but the customer email could not be sent.');
+  }
+
+  return { ...data, warnings };
+};
+
+const handleBookingCancellation = async (req, res, actor) => {
+  const { bookingId, reason } = req.body || {};
+  if (!bookingId) return res.status(400).json({ success: false, error: 'Booking ID is required.' });
+  if (!String(reason || '').trim()) return res.status(400).json({ success: false, error: 'Cancellation reason is required.' });
+  console.log(`[${actor.profile.role}] BOOKING CANCELLATION: ${bookingId} by ${actor.profile.email || actor.profile.id}`);
+
+  try {
+    const result = await cancelBookingAndQueueRefund({ bookingId, reason: String(reason).trim(), actor });
+    return res.json({ ...result, message: 'Booking cancelled and refund status recorded.' });
+  } catch (err) {
+    const message = String(err.message || '');
+    const status = /BOOKING_NOT_FOUND/.test(message) ? 404
+      : /BOOKING_CANNOT_BE_CANCELLED/.test(message) ? 409
+        : /BOOKING_NOT_OWNED_BY_CUSTOMER|CANCELLATION_ACTOR_NOT_ALLOWED/.test(message) ? 403
+        : 500;
+    return res.status(status).json({ success: false, error: err.message });
+  }
+};
+
+app.post('/api/bookings/cancel', async (req, res) => {
+  const actor = await getCancellationActor(req);
+  if (!actor) return res.status(403).json({ success: false, error: 'An active customer or admin session is required.' });
+
+  const { bookingId, reason } = req.body || {};
+  if (!bookingId) return res.status(400).json({ success: false, error: 'Booking ID is required.' });
+  if (!String(reason || '').trim()) return res.status(400).json({ success: false, error: 'Cancellation reason is required.' });
+
+  if (actor.profile.role === 'CUSTOMER') {
+    const { data: booking, error } = await supabaseAdmin
+      .from('bookings')
+      .select('id, customer_id')
+      .eq('id', bookingId)
+      .maybeSingle();
+    if (error) return res.status(500).json({ success: false, error: error.message });
+    if (!booking) return res.status(404).json({ success: false, error: 'Booking not found.' });
+    if (booking.customer_id !== actor.profile.id) {
+      return res.status(403).json({ success: false, error: 'You may only cancel your own booking.' });
+    }
+  }
+
+  return handleBookingCancellation(req, res, actor);
+});
+
 app.post('/api/bookings/admin-cancel', async (req, res) => {
   // ── ADMIN AUTHENTICATION (added — this route had none) ─────────────────────
   //
@@ -4343,41 +4409,7 @@ app.post('/api/bookings/admin-cancel', async (req, res) => {
     return res.status(403).json({ success: false, error: 'Forbidden: an active admin session is required.' });
   }
 
-  const { bookingId, reason } = req.body;
-  console.log(`🛑 [ADMIN] MANUAL CANCELLATION: ${bookingId} (Reason: ${reason}) by ${admin.profile?.email || admin.profile?.id}`);
-
-  try {
-    const { error: bookingError } = await supabaseAdmin
-      .from('bookings')
-      .update({
-        status: 'CANCELLED',
-        staff_id: null,
-        bay_id: null,
-        cancellation_reason: reason,
-        cancellation_type: reason === 'No-Show' ? 'NO_SHOW' : 'ADMIN_MANUAL',
-        needs_attention: false,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', bookingId);
-
-    if (bookingError) throw bookingError;
-
-    // 🛡️ Audit Trail — the actor is now the VERIFIED admin from the JWT, not a
-    // hardcoded string. The previous `actor_name: 'ADMIN'` recorded every
-    // cancellation as if the same person (or an admin at all) had done it.
-    await supabaseAdmin.from('audit_logs').insert({
-      booking_id: bookingId,
-      action_type: 'ADMIN_CANCEL_NOSHOW',
-      actor_name: admin.profile?.full_name || admin.profile?.email || 'ADMIN',
-      actor_role: 'ADMIN',
-      actor_id: admin.profile?.id || null,
-      details: `Manual cancellation performed by ${admin.profile?.email || 'an admin'}. Reason: ${reason}`
-    });
-
-    return res.json({ success: true, message: 'Booking cancelled and audit log recorded.' });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
+  return handleBookingCancellation(req, res, admin);
 });
 
 app.post('/api/bookings/undo-no-show', async (req, res) => {
@@ -4450,7 +4482,7 @@ app.post('/api/bookings/undo-no-show', async (req, res) => {
 
     const { data: restoredBooking, error: restoredBookingError } = await supabaseAdmin
       .from('bookings')
-      .select('staff_id')
+      .select('staff_id, updated_at')
       .eq('id', bookingId)
       .maybeSingle();
     if (restoredBookingError) {
@@ -4473,6 +4505,7 @@ app.post('/api/bookings/undo-no-show', async (req, res) => {
       message: 'No-show was reverted successfully and pending refund requests were intercepted.',
       bookingStatus: 'scheduled',
       needsStaffReassignment: restoredBookingError ? null : !restoredBooking?.staff_id,
+      statusUpdatedAt: restoredBooking?.updated_at || null,
       undoDeadline: result.undo_deadline || null,
     });
   } catch (err) {
@@ -4672,13 +4705,28 @@ app.post('/api/bookings/add-service', async (req, res) => {
 });
 
 app.post('/api/bookings/update-master-status', async (req, res) => {
-  const { bookingId, status, reason = '' } = req.body;
+  const { bookingId, status, reason = '' } = req.body || {};
   const actor = await getLifecycleActor(req);
   if (!actor) return res.status(403).json({ success: false, error: 'Authorized admin or staff account required.' });
   if (!bookingId || !status) return res.status(400).json({ success: false, error: 'Booking ID and status are required.' });
 
   try {
     const normalizedStatus = String(status).toLowerCase();
+    if (normalizedStatus === 'cancelled') {
+      if (String(actor.profile.role).toUpperCase() !== 'ADMIN') {
+        return res.status(403).json({ success: false, error: 'Only an admin may cancel a booking.' });
+      }
+      if (!String(reason).trim()) {
+        return res.status(400).json({ success: false, error: 'Cancellation reason is required.' });
+      }
+      const result = await cancelBookingAndQueueRefund({
+        bookingId,
+        reason: String(reason).trim(),
+        actor
+      });
+      return res.json(result);
+    }
+
     const { data: booking, error: bookingError } = await supabaseAdmin.from('bookings').select('id, status, customer_id, total_amount, staff_id, start_datetime').eq('id', bookingId).single();
     if (bookingError) throw bookingError;
     const { data: vehicles, error: vehiclesError } = await supabaseAdmin.from('booking_vehicles').select('status').eq('booking_id', bookingId);
@@ -4704,22 +4752,14 @@ app.post('/api/bookings/update-master-status', async (req, res) => {
       if (currentStatus !== 'in_progress' || !allCompleted || totalPaid < Number(booking.total_amount || 0)) {
         return res.status(409).json({ success: false, error: 'Booking can be completed only after every vehicle is finished and fully paid.' });
       }
-    } else if (normalizedStatus === 'cancelled') {
-      if (!reason.trim()) return res.status(400).json({ success: false, error: 'Cancellation reason is required.' });
-      if (['completed', 'released', 'cancelled'].includes(currentStatus)) return res.status(409).json({ success: false, error: 'This booking can no longer be cancelled.' });
     } else {
       return res.status(400).json({ success: false, error: 'Unsupported master booking status.' });
     }
 
     const updatePayload = { status: normalizedStatus };
-    if (normalizedStatus === 'cancelled') Object.assign(updatePayload, { cancellation_reason: reason.trim(), cancellation_type: 'ADMIN_MANUAL', refund_status: 'QUEUED', staff_id: null });
     const { error: updateError } = await supabaseAdmin.from('bookings').update(updatePayload).eq('id', bookingId);
     if (updateError) throw updateError;
 
-    if (normalizedStatus === 'cancelled') {
-      await supabaseAdmin.from('booking_vehicles').update({ status: 'CANCELLED' }).eq('booking_id', bookingId);
-      await supabaseAdmin.from('payments').update({ status: 'REFUND_PENDING' }).eq('booking_id', bookingId).in('status', ['PAID', 'FOR_VERIFICATION']);
-    }
     if (normalizedStatus === 'completed') await supabaseAdmin.from('booking_vehicles').update({ status: 'COMPLETED', completed_at: new Date().toISOString() }).eq('booking_id', bookingId);
 
     await supabaseAdmin.from('audit_logs').insert({ booking_id: bookingId, action_type: `BOOKING_${normalizedStatus.toUpperCase()}`, actor_name: actor.user.email || actor.profile.full_name || 'System', actor_role: String(actor.profile.role).toUpperCase(), details: reason.trim() || `Booking moved from ${currentStatus} to ${normalizedStatus}.` });
@@ -4808,12 +4848,164 @@ const singaporeDateKey = (value) => {
   return `${part('year')}-${part('month')}-${part('day')}`;
 };
 
+app.get('/api/staff/tasks', async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ success: false, error: 'Supabase Admin not initialized' });
+  res.set('Cache-Control', 'private, no-store');
+  const actor = await getLifecycleActor(req);
+  if (!actor || String(actor.profile.role).toUpperCase() !== 'STAFF') {
+    return res.status(403).json({ success: false, error: 'An active staff account is required.' });
+  }
+
+  try {
+    const { data: bookings, error: bookingError } = await supabaseAdmin
+      .from('bookings')
+      .select(`
+        *,
+        customer:profiles!bookings_customer_id_fkey(full_name, email, phone_number),
+        vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services(*))
+      `)
+      .eq('staff_id', actor.profile.id);
+    if (bookingError) throw bookingError;
+
+    const assignedBookings = (bookings || []).filter((booking) =>
+      !['cancelled', 'released', 'flagged_noshow', 'no_show'].includes(String(booking.status || '').toLowerCase())
+    );
+    if (!assignedBookings.length) return res.json({ success: true, bookings: [] });
+
+    const bookingIds = assignedBookings.map((booking) => booking.id);
+    const { data: payments, error: paymentError } = await supabaseAdmin
+      .from('payments')
+      .select('booking_id, amount, status, method, detected_amount')
+      .in('booking_id', bookingIds);
+    if (paymentError) throw paymentError;
+
+    const paymentsByBooking = new Map();
+    for (const payment of payments || []) {
+      const rows = paymentsByBooking.get(payment.booking_id) || [];
+      rows.push(payment);
+      paymentsByBooking.set(payment.booking_id, rows);
+    }
+
+    const eligibleBookings = assignedBookings.filter((booking) =>
+      calculateVerifiedPaid(paymentsByBooking.get(booking.id) || [])
+        >= getRequiredDownpayment(booking.total_amount)
+    );
+    return res.json({ success: true, bookings: eligibleBookings });
+  } catch (err) {
+    console.error('Staff task fetch error:', err.message);
+    return res.status(500).json({ success: false, error: 'Could not load assigned work.' });
+  }
+});
+
+app.post('/api/bookings/reconcile-payment-state', async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ success: false, error: 'Supabase Admin not initialized' });
+  const actor = await getLifecycleActor(req);
+  if (!actor || String(actor.profile.role).toUpperCase() !== 'ADMIN') {
+    return res.status(403).json({ success: false, error: 'An active admin account is required.' });
+  }
+
+  const bookingId = req.body?.bookingId;
+  if (!bookingId) return res.status(400).json({ success: false, error: 'Booking identifier is required.' });
+
+  try {
+    const { data: booking, error: bookingError } = await supabaseAdmin
+      .from('bookings')
+      .select('id, status, staff_id, total_amount')
+      .eq('id', bookingId)
+      .single();
+    if (bookingError) throw bookingError;
+
+    const { data: payments, error: paymentError } = await supabaseAdmin
+      .from('payments')
+      .select('amount, status, method, detected_amount')
+      .eq('booking_id', bookingId);
+    if (paymentError) throw paymentError;
+    const netPaid = calculateVerifiedPaid(payments || []);
+    const totalAmount = Number(booking.total_amount || 0);
+    const currentStatus = String(booking.status || '').toLowerCase();
+    let nextStatus = currentStatus;
+
+    if (['scheduled', 'pending'].includes(currentStatus)
+      && booking.staff_id
+      && netPaid >= getRequiredDownpayment(totalAmount)) {
+      nextStatus = 'confirmed';
+    } else if (currentStatus === 'in_progress') {
+      const { data: vehicles, error: vehicleError } = await supabaseAdmin
+        .from('booking_vehicles')
+        .select('status')
+        .eq('booking_id', bookingId);
+      if (vehicleError) throw vehicleError;
+      const allVehiclesComplete = (vehicles || []).length > 0
+        && vehicles.every((vehicle) => String(vehicle.status || '').toUpperCase() === 'COMPLETED');
+      const fullyPaid = totalAmount <= 0 || netPaid >= totalAmount;
+      if (allVehiclesComplete && fullyPaid) nextStatus = 'completed';
+    }
+
+    const warnings = [];
+    if (nextStatus !== currentStatus) {
+      const { error: updateError } = await supabaseAdmin
+        .from('bookings')
+        .update({ status: nextStatus })
+        .eq('id', bookingId);
+      if (updateError) throw updateError;
+
+      try {
+        await dispatchLifecycleEmail(bookingId, nextStatus.toUpperCase());
+      } catch (emailError) {
+        console.error(`[payment-state] ${nextStatus} email dispatch failed for booking ${bookingId}:`, emailError.message);
+        warnings.push(`Status updated, but the ${nextStatus} email could not be sent.`);
+      }
+    }
+
+    const paymentEligible = netPaid >= getRequiredDownpayment(totalAmount);
+    if (booking.staff_id && paymentEligible) {
+      const { data: existingNotice, error: noticeReadError } = await supabaseAdmin
+        .from('notifications')
+        .select('id')
+        .eq('user_id', booking.staff_id)
+        .eq('booking_id', bookingId)
+        .eq('notification_type', 'TASK_ASSIGNED')
+        .limit(1);
+      if (noticeReadError) {
+        console.error(`[payment-state] Staff notification lookup failed for booking ${bookingId}:`, noticeReadError.message);
+        warnings.push('Payment state was updated, but the staff in-app notification could not be checked.');
+      } else if (!(existingNotice || []).length) {
+        const { error: noticeInsertError } = await supabaseAdmin.from('notifications').insert({
+          user_id: booking.staff_id,
+          title: 'New Fleet Assigned',
+          message: 'A paid booking is ready for your assigned service work.',
+          notification_type: 'TASK_ASSIGNED',
+          action_url: '/staff/tasks',
+          booking_id: bookingId,
+          is_read: false
+        });
+        if (noticeInsertError) {
+          console.error(`[payment-state] Staff notification insert failed for booking ${bookingId}:`, noticeInsertError.message);
+          warnings.push('Payment state was updated, but the staff in-app notification could not be created.');
+        }
+      }
+    }
+
+    return res.json({ success: true, status: nextStatus, warnings });
+  } catch (err) {
+    console.error('Payment state reconciliation failed:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/bookings/update-status', async (req, res) => {
-  const { bookingId, unitId, newStatus, notes, actorName, actorRole } = req.body;
+  const { bookingId, unitId, newStatus, notes } = req.body;
 
   if (!supabaseAdmin) return res.status(500).json({ success: false, error: 'Supabase Admin not initialized' });
   const actor = await getLifecycleActor(req);
   if (!actor) return res.status(403).json({ success: false, error: 'Authorized admin or staff account required.' });
+  const requestedStatus = String(newStatus || '').toUpperCase();
+  if (!['IN_PROGRESS', 'COMPLETED'].includes(requestedStatus)) {
+    return res.status(400).json({ success: false, error: 'Only service start and completion updates are supported.' });
+  }
+  if (!bookingId || !unitId) {
+    return res.status(400).json({ success: false, error: 'Booking and vehicle identifiers are required.' });
+  }
 
   try {
     const timestamp = new Date().toISOString();
@@ -4827,11 +5019,27 @@ app.post('/api/bookings/update-status', async (req, res) => {
 
     if (masterFetchError) throw masterFetchError;
     const currentMaster = masterBooking.status?.toLowerCase();
+    if (['completed', 'released', 'cancelled', 'flagged_noshow', 'no_show'].includes(currentMaster)) {
+      return res.status(409).json({ success: false, error: 'This booking is finalized and cannot accept service updates.' });
+    }
     if (String(actor.profile.role).toUpperCase() === 'STAFF' && actor.profile.id !== masterBooking.staff_id) {
       return res.status(403).json({ success: false, error: 'Only the assigned technician may update this booking.' });
     }
 
-    if (newStatus.toUpperCase() === 'IN_PROGRESS') {
+    const { data: vehicle, error: vehicleFetchError } = await supabaseAdmin
+      .from('booking_vehicles')
+      .select('id, booking_id, status')
+      .eq('id', unitId)
+      .eq('booking_id', bookingId)
+      .maybeSingle();
+    if (vehicleFetchError) throw vehicleFetchError;
+    if (!vehicle) return res.status(404).json({ success: false, error: 'Vehicle does not belong to this booking.' });
+    const currentUnitStatus = String(vehicle.status || '').toUpperCase();
+
+    if (requestedStatus === 'IN_PROGRESS') {
+      if (!['PENDING', 'SCHEDULED', 'CONFIRMED'].includes(currentUnitStatus)) {
+        return res.status(409).json({ success: false, error: 'This vehicle is not waiting to start service.' });
+      }
       const scheduledDate = new Date(masterBooking.start_datetime);
       const nowDate = new Date();
       const isScheduledDate = singaporeDateKey(scheduledDate) === singaporeDateKey(nowDate);
@@ -4842,15 +5050,13 @@ app.post('/api/bookings/update-status', async (req, res) => {
         return res.status(409).json({ success: false, error: 'Service can only start after the scheduled time, on the scheduled date, with an assigned technician.' });
       }
 
-      if (currentMaster === 'scheduled') {
-        const { data: startPayments, error: startPaymentsError } = await supabaseAdmin
-          .from('payments')
-          .select('amount, status, method, detected_amount')
-          .eq('booking_id', bookingId);
-        if (startPaymentsError) throw startPaymentsError;
-        if (calculateNetPaid(startPayments || []) < getRequiredDownpayment(masterBooking.total_amount)) {
-          return res.status(409).json({ success: false, error: 'The required downpayment must be verified before service can start.' });
-        }
+      const { data: startPayments, error: startPaymentsError } = await supabaseAdmin
+        .from('payments')
+        .select('amount, status, method, detected_amount')
+        .eq('booking_id', bookingId);
+      if (startPaymentsError) throw startPaymentsError;
+      if (calculateVerifiedPaid(startPayments || []) < getRequiredDownpayment(masterBooking.total_amount)) {
+        return res.status(409).json({ success: false, error: 'The required downpayment must be verified before service can start.' });
       }
 
       const { count: beforePhotoCount, error: beforePhotoCountError } = await supabaseAdmin
@@ -4869,17 +5075,9 @@ app.post('/api/bookings/update-status', async (req, res) => {
       }
     }
 
-    if (newStatus.toUpperCase() === 'COMPLETED') {
-      const { data: completionPayments, error: completionPaymentError } = await supabaseAdmin
-        .from('payments')
-        .select('amount, status')
-        .eq('booking_id', bookingId);
-      if (completionPaymentError) throw completionPaymentError;
-      const totalPaidBeforeCompletion = (completionPayments || [])
-        .filter(payment => payment.status === 'PAID')
-        .reduce((sum, payment) => sum + Number(payment.amount), 0);
-      if (Number(masterBooking.total_amount || 0) > 0 && totalPaidBeforeCompletion < Number(masterBooking.total_amount)) {
-        return res.status(409).json({ success: false, error: 'Final payment is required before completing the service.' });
+    if (requestedStatus === 'COMPLETED') {
+      if (currentUnitStatus !== 'IN_PROGRESS') {
+        return res.status(409).json({ success: false, error: 'Start this vehicle’s service before completing it.' });
       }
 
       // 🛡️ Batch 5: Photo-proof gate. A unit cannot be finalized without at
@@ -4909,10 +5107,10 @@ app.post('/api/bookings/update-status', async (req, res) => {
     const { error: unitError } = await supabaseAdmin
       .from('booking_vehicles')
       .update({
-        status: newStatus.toUpperCase(),
+        status: requestedStatus,
         service_notes: notes || undefined,
-        started_at: newStatus.toUpperCase() === 'IN_PROGRESS' ? timestamp : undefined,
-        completed_at: newStatus.toUpperCase() === 'COMPLETED' ? timestamp : undefined
+        started_at: requestedStatus === 'IN_PROGRESS' ? timestamp : undefined,
+        completed_at: requestedStatus === 'COMPLETED' ? timestamp : undefined
       })
       .eq('id', unitId);
 
@@ -4929,12 +5127,13 @@ app.post('/api/bookings/update-status', async (req, res) => {
     // 🔍 Calculate Financial Balance
     const { data: payments, error: pError } = await supabaseAdmin
       .from('payments')
-      .select('amount, status')
+      .select('amount, status, method')
       .eq('booking_id', bookingId);
+    if (pError) throw pError;
 
-    const totalPaid = calculateNetPaid(payments || []);
+    const totalPaid = calculateVerifiedPaid(payments || []);
     const balance = Math.max(0, (masterBooking.total_amount || 0) - totalPaid);
-    const isFullySettled = (masterBooking.total_amount || 0) > 0 && balance === 0;
+    const isFullySettled = balance === 0;
 
     // 🆕 Status Calculation Logic
     const anyInProgress = (allUnits || []).some(u => u.status?.toUpperCase() === 'IN_PROGRESS');
@@ -5006,15 +5205,15 @@ app.post('/api/bookings/update-status', async (req, res) => {
     await supabaseAdmin.from('audit_logs').insert({
       booking_id: bookingId,
       action_type: 'STATUS_PROPAGATION',
-      actor_name: actorName || 'System',
-      actor_role: actorRole || 'STAFF',
-      details: `Unit ${unitId} updated to ${newStatus}. Master status: ${targetMasterStatus || 'unchanged'}`
+      actor_name: actor.user.email || actor.profile.role,
+      actor_role: actor.profile.role,
+      details: `Unit ${unitId} updated to ${requestedStatus}. Master status: ${targetMasterStatus || 'unchanged'}`
     });
 
     return res.json({
       success: true,
       masterStatus: targetMasterStatus || currentMaster,
-      unitStatus: newStatus.toUpperCase()
+      unitStatus: requestedStatus
     });
 
   } catch (err) {

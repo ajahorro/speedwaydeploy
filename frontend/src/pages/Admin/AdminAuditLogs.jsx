@@ -169,7 +169,7 @@ const buildSentence = (log) => {
     case 'BOOKING_CONFIRMED':
       return <>{performer} confirmed booking {B(shortId(log.booking_id), 'b')}.</>;
     case 'BOOKING_CANCELLED':
-      return <>{performer} cancelled booking {B(shortId(log.booking_id), 'b')}.</>;
+      return <>{performer} cancelled booking {B(shortId(log.booking_id), 'b')}{details ? <> — reason: {B(details, 'r')}</> : null}.</>;
     case 'SERVICE_STARTED':
       return <>Work started on booking {B(shortId(log.booking_id), 'b')}.</>;
     case 'SERVICE_COMPLETED':
