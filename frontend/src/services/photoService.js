@@ -35,6 +35,65 @@ const fileExtension = (file) => {
   return (sub || 'jpg').toLowerCase().replace('jpeg', 'jpg');
 };
 
+const MAX_IMAGE_EDGE = 1920;
+const COMPRESS_ABOVE_BYTES = 1.5 * 1024 * 1024;
+
+const canvasToBlob = (canvas, type, quality) => new Promise((resolve, reject) => {
+  canvas.toBlob((blob) => {
+    if (blob) resolve(blob);
+    else reject(new Error('The selected photo could not be optimized.'));
+  }, type, quality);
+});
+
+/**
+ * Downsize camera images before upload to reduce cellular transfer time.
+ * Unsupported formats (for example HEIC on browsers without a decoder) are
+ * preserved unchanged rather than blocking evidence capture.
+ */
+export const optimizeServicePhoto = async (file) => {
+  if (!(file instanceof File) || file.size <= COMPRESS_ABOVE_BYTES
+    || typeof createImageBitmap !== 'function') return file;
+
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return file;
+  }
+
+  try {
+    const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height));
+    if (scale === 1 && file.type === 'image/jpeg' && file.size <= 4 * 1024 * 1024) return file;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) return file;
+
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+    let blob;
+    try {
+      blob = await canvasToBlob(canvas, 'image/jpeg', 0.82);
+    } catch (error) {
+      logger.warn('Could not optimize service photo; uploading the original file', error);
+      return file;
+    }
+    if (blob.size >= file.size) return file;
+
+    const baseName = String(file.name || 'service-photo').replace(/\.[^.]+$/, '');
+    return new File([blob], `${baseName}.jpg`, {
+      type: 'image/jpeg',
+      lastModified: file.lastModified || Date.now()
+    });
+  } finally {
+    bitmap.close();
+  }
+};
+
 /**
  * Upload a photo to the private bucket and record it in service_photos.
  *
@@ -61,16 +120,21 @@ export const uploadServicePhotos = async ({
 
   const storagePaths = [];
   try {
-    for (const file of photoFiles) {
-      const ext = fileExtension(file);
-      const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const objectName = `${unique}.${ext}`;
-      const storagePath = buildObjectPath(bookingId, bookingVehicleId, phase, objectName);
-      const { error: uploadError } = await supabase.storage
-        .from(PHOTO_BUCKET)
-        .upload(storagePath, file, { cacheControl: '3600', upsert: false, contentType: file.type });
-      if (uploadError) throw uploadError;
-      storagePaths.push(storagePath);
+    for (let index = 0; index < photoFiles.length; index += 2) {
+      const batch = await Promise.all(photoFiles.slice(index, index + 2).map(optimizeServicePhoto));
+      const results = await Promise.allSettled(batch.map(async (file) => {
+        const ext = fileExtension(file);
+        const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const storagePath = buildObjectPath(bookingId, bookingVehicleId, phase, `${unique}.${ext}`);
+        const { error: uploadError } = await supabase.storage
+          .from(PHOTO_BUCKET)
+          .upload(storagePath, file, { cacheControl: '3600', upsert: false, contentType: file.type });
+        if (uploadError) throw uploadError;
+        storagePaths.push(storagePath);
+        return storagePath;
+      }));
+      const failedUpload = results.find((result) => result.status === 'rejected');
+      if (failedUpload) throw failedUpload.reason;
     }
 
     const { data, error: insertError } = await supabase
@@ -84,7 +148,7 @@ export const uploadServicePhotos = async ({
       uploaded_by: uploadedBy,
       source: 'upload'
       })))
-      .select();
+      .select('id, booking_id, booking_vehicle_id, phase, storage_path, caption, uploaded_by, source, uploaded_at');
 
     if (insertError) throw insertError;
     return data || [];
@@ -107,13 +171,13 @@ export const uploadServicePhoto = async ({ file, ...options }) => {
 export const fetchVehiclePhotos = async (bookingVehicleId) => {
   const { data, error } = await supabase
     .from('service_photos')
-    .select('*')
+    .select('id, booking_id, booking_vehicle_id, phase, storage_path, caption, uploaded_by, source, uploaded_at')
     .eq('booking_vehicle_id', bookingVehicleId)
     .is('archived_at', null)
     .order('uploaded_at', { ascending: true });
   if (error) {
     logger.warn('Failed to fetch vehicle photos', error);
-    return [];
+    throw error;
   }
   return data || [];
 };
@@ -122,13 +186,13 @@ export const fetchVehiclePhotos = async (bookingVehicleId) => {
 export const fetchBookingPhotos = async (bookingId) => {
   const { data, error } = await supabase
     .from('service_photos')
-    .select('*')
+    .select('id, booking_id, booking_vehicle_id, phase, storage_path, caption, uploaded_by, source, uploaded_at')
     .eq('booking_id', bookingId)
     .is('archived_at', null)
     .order('uploaded_at', { ascending: true });
   if (error) {
     logger.warn('Failed to fetch booking photos', error);
-    return [];
+    throw error;
   }
   return data || [];
 };
@@ -171,16 +235,38 @@ export const resolvePhotoUrl = async (storagePath) => {
 };
 
 /**
- * Resolve a batch of service_photos rows to { ...row, url }.
- * Signs sequentially-safe in parallel; failures degrade to url=null.
+ * Resolve a batch of service_photos rows using one storage signing request.
+ * Legacy absolute URLs are kept untouched; signing failures are logged and
+ * represented by url=null so the gallery can render its unavailable state.
  */
 export const resolvePhotoUrls = async (photos = []) => {
-  return Promise.all(
-    photos.map(async (photo) => ({
-      ...photo,
-      url: await resolvePhotoUrl(photo.storage_path)
-    }))
-  );
+  const paths = Array.from(new Set(
+    photos.map((photo) => photo.storage_path)
+      .filter((path) => path && !isAbsoluteUrl(path))
+  ));
+  const signedByPath = new Map();
+
+  if (paths.length) {
+    const { data, error } = await supabase.storage
+      .from(PHOTO_BUCKET)
+      .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
+    if (error) {
+      logger.warn('Failed to sign service photo URLs', error);
+      throw error;
+    } else {
+      for (const result of data || []) {
+        if (result.error) logger.warn(`Failed to sign service photo ${result.path}`, result.error);
+        signedByPath.set(result.path, result.signedUrl || null);
+      }
+    }
+  }
+
+  return photos.map((photo) => ({
+    ...photo,
+    url: isAbsoluteUrl(photo.storage_path)
+      ? photo.storage_path
+      : signedByPath.get(photo.storage_path) || null
+  }));
 };
 
 /** Delete a photo row and its storage object. Admin-only at the RLS layer. */

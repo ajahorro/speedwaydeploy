@@ -4861,9 +4861,12 @@ app.get('/api/staff/tasks', async (req, res) => {
     const { data: bookings, error: bookingError } = await supabaseAdmin
       .from('bookings')
       .select(`
-        *,
-        customer:profiles!bookings_customer_id_fkey(full_name, email, phone_number),
-        vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services(*))
+        id, status, start_datetime, total_amount,
+        vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(
+          id, booking_id, status, brand, model, plate_number, vehicle_type,
+          is_fleet, service_notes, started_at, completed_at,
+          services:booking_vehicle_services(service_name)
+        )
       `)
       .eq('staff_id', actor.profile.id);
     if (bookingError) throw bookingError;

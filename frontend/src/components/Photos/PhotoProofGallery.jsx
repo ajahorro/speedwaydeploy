@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { X, Image as ImageIcon, Loader2, Camera } from 'lucide-react';
+import { X, Image as ImageIcon, Loader2, Camera, ChevronLeft, ChevronRight } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { fetchBookingPhotos, fetchVehiclePhotos, resolvePhotoUrls } from '../../services/photoService';
 
 /**
@@ -14,7 +15,19 @@ import { fetchBookingPhotos, fetchVehiclePhotos, resolvePhotoUrls } from '../../
 const PhotoProofGallery = ({ bookingId, bookingVehicleId = null, open, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [photos, setPhotos] = useState([]);
-  const [lightbox, setLightbox] = useState(null);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setLightboxIndex(null);
+      const viewableCount = photos.filter((photo) => photo.url).length;
+      if (viewableCount && event.key === 'ArrowLeft') setLightboxIndex((index) => (index - 1 + viewableCount) % viewableCount);
+      if (viewableCount && event.key === 'ArrowRight') setLightboxIndex((index) => (index + 1) % viewableCount);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxIndex, photos]);
 
   useEffect(() => {
     let cancelled = false;
@@ -27,6 +40,11 @@ const PhotoProofGallery = ({ bookingId, bookingVehicleId = null, open, onClose }
           : await fetchBookingPhotos(bookingId);
         const resolved = await resolvePhotoUrls(rows);
         if (!cancelled) setPhotos(resolved);
+      } catch (error) {
+        if (!cancelled) {
+          setPhotos([]);
+          toast.error(error.message || 'Could not load photo evidence.');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -39,6 +57,10 @@ const PhotoProofGallery = ({ bookingId, bookingVehicleId = null, open, onClose }
 
   const before = photos.filter((p) => p.phase === 'before');
   const after = photos.filter((p) => p.phase === 'after');
+  const viewablePhotos = photos.filter((photo) => photo.url);
+  const lightboxPhoto = lightboxIndex === null ? null : viewablePhotos[lightboxIndex];
+  const showPreviousPhoto = () => setLightboxIndex((index) => (index - 1 + viewablePhotos.length) % viewablePhotos.length);
+  const showNextPhoto = () => setLightboxIndex((index) => (index + 1) % viewablePhotos.length);
 
   const Section = ({ title, items, tone }) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -68,7 +90,8 @@ const PhotoProofGallery = ({ bookingId, bookingVehicleId = null, open, onClose }
                   src={p.url}
                   alt={p.caption || `${p.phase} photo`}
                   loading="lazy"
-                  onClick={() => setLightbox(p)}
+                  decoding="async"
+                  onClick={() => setLightboxIndex(viewablePhotos.findIndex((photo) => photo.id === p.id))}
                   style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in', display: 'block' }}
                 />
               ) : (
@@ -140,20 +163,61 @@ const PhotoProofGallery = ({ bookingId, bookingVehicleId = null, open, onClose }
         </div>
       </aside>
 
-      {lightbox && (
+      {lightboxPhoto && (
         <div
-          onClick={(e) => { e.stopPropagation(); setLightbox(null); }}
-          style={{ position: 'absolute', inset: 0, background: 'var(--modal-overlay)', display: 'grid', placeItems: 'center' }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Photo ${lightboxIndex + 1} of ${viewablePhotos.length}`}
+          onClick={(event) => event.stopPropagation()}
+          onTouchStart={(event) => { event.currentTarget.dataset.touchStartX = String(event.touches[0]?.clientX || 0); }}
+          onTouchEnd={(event) => {
+            const startX = Number(event.currentTarget.dataset.touchStartX);
+            const deltaX = event.changedTouches[0]?.clientX - startX;
+            if (Math.abs(deltaX) > 50) {
+              if (deltaX > 0) showPreviousPhoto();
+              else showNextPhoto();
+            }
+          }}
+          style={{ position: 'absolute', inset: 0, zIndex: 2, background: 'var(--modal-overlay)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', padding: '3.5rem 3rem 1rem' }}
         >
+          <button
+            type="button"
+            aria-label="Close photo"
+            onClick={() => setLightboxIndex(null)}
+            style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', width: 42, height: 42, display: 'grid', placeItems: 'center', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', cursor: 'pointer' }}
+          >
+            <X size={20} />
+          </button>
+          <button
+            type="button"
+            aria-label="Previous photo"
+            onClick={(event) => { event.stopPropagation(); showPreviousPhoto(); }}
+            style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', width: 42, height: 42, display: 'grid', placeItems: 'center', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', cursor: 'pointer' }}
+          >
+            <ChevronLeft size={22} />
+          </button>
           <img
-            src={lightbox.url}
-            alt={lightbox.caption || 'Service photo'}
+            src={lightboxPhoto.url}
+            alt={lightboxPhoto.caption || `${lightboxPhoto.phase} service photo`}
+            decoding="async"
+            onClick={(event) => event.stopPropagation()}
             style={{
-              maxWidth: 'min(92vw, 900px)', maxHeight: '86vh',
+              maxWidth: '100%', maxHeight: 'calc(100% - 2rem)',
               borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)',
               objectFit: 'contain', background: 'var(--admin-card)'
             }}
           />
+          <span style={{ color: 'var(--admin-text-primary)', fontSize: '0.72rem', fontWeight: 800 }}>
+            {lightboxIndex + 1} / {viewablePhotos.length}{lightboxPhoto.caption ? ` · ${lightboxPhoto.caption}` : ''}
+          </span>
+          <button
+            type="button"
+            aria-label="Next photo"
+            onClick={(event) => { event.stopPropagation(); showNextPhoto(); }}
+            style={{ position: 'absolute', right: '0.6rem', top: '50%', transform: 'translateY(-50%)', width: 42, height: 42, display: 'grid', placeItems: 'center', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', cursor: 'pointer' }}
+          >
+            <ChevronRight size={22} />
+          </button>
         </div>
       )}
     </div>

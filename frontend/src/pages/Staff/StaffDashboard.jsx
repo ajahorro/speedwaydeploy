@@ -128,7 +128,6 @@ const StaffDashboard = () => {
       const allVehicleTasks = (data || []).flatMap(b => 
         (b.vehicles || []).map(v => ({
           ...v,
-          customer: b.customer,
           booking_id: b.id,
           booking_status: b.status,
           start_datetime: b.start_datetime
@@ -160,7 +159,7 @@ const StaffDashboard = () => {
       // Fetch System Broadcasts & Announcements
       const { data: notifData } = await supabase
         .from('notifications')
-        .select('*')
+        .select('title, message, created_at')
         .eq('user_id', profile.id)
         .order('created_at', { ascending: false })
         .limit(5);

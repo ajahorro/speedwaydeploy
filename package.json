@@ -1,6 +1,7 @@
 {
   "scripts": {
     "test:source": "node scripts/verify-email-source.mjs",
+    "test:photos": "node scripts/verify-photo-performance.mjs",
     "test:live": "node scripts/verify-booking-prereqs.mjs",
     "test:emails": "node scripts/verify-email-lifecycle.mjs",
     "test:ledger": "node scripts/verify-ocr-ledger-and-verification.mjs",
