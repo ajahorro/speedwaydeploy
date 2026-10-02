@@ -42,7 +42,7 @@ const hasMeaningfulBookingInput = (data) => {
   );
 };
 
-const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminSubmit }) => {
+const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = null, renderAdminPanel, onAdminSubmit }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
@@ -438,7 +438,7 @@ const CustomerBookAppointment = ({ adminMode = false, renderAdminPanel, onAdminS
       {adminMode && renderAdminPanel?.({ bookingData, setBookingData: updateBookingData, isCustomerDetailsLocked: customerDetailsLocked })}
       <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 0, padding: '2rem', boxShadow: 'var(--admin-card-shadow)' }}>
         {currentStep === 1 && <Step2Services bookingData={bookingData} setBookingData={updateBookingData} adminMode={adminMode} activeVehicleIndex={activeVehicleIndex} onNext={nextStep} onCancel={handleCancelBooking} />}
-        {currentStep === 2 && <Step1Schedule bookingData={bookingData} setBookingData={updateBookingData} activeVehicleIndex={activeVehicleIndex} onNext={nextStep} onBack={prevStep} onCancel={handleCancelBooking} customerDetailsLocked={customerDetailsLocked} adminMode={adminMode} />}
+        {currentStep === 2 && <Step1Schedule bookingData={bookingData} setBookingData={updateBookingData} activeVehicleIndex={activeVehicleIndex} onNext={nextStep} onBack={prevStep} onCancel={handleCancelBooking} customerDetailsLocked={customerDetailsLocked} adminMode={adminMode} selectedCustomerId={adminSelectedCustomerId} />}
         {currentStep === 3 && (
           <Step3FleetEditing 
             bookingData={bookingData} 

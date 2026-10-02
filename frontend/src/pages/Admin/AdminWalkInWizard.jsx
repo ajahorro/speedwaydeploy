@@ -147,7 +147,7 @@ const AdminWalkInWizard = () => {
   };
 
   const submitAdminBooking = async bookingData => {
-    const rawCustomerId = bookingData.customerId ?? null;
+    const rawCustomerId = selectedCustomer || bookingData.customerId || null;
     if (rawCustomerId) {
       const { data: freshProfile, error: freshProfileError } = await supabase
         .from('profiles')
@@ -179,7 +179,7 @@ const AdminWalkInWizard = () => {
     // The correct rule: an explicit "Continue as guest" DISABLES the net for
     // that attempt; anything else (no match yet, or an unresolved lookup) means
     // we link to the account that genuinely owns the address.
-    let resolvedCustomerId = bookingData.customerId ?? null;
+    let resolvedCustomerId = rawCustomerId;
     const guestEmail = String(bookingData.customerEmail || '').trim().toLowerCase();
     const guestContinuedExplicitly = guestAsGuest; // set by "Continue as guest"
     if (!resolvedCustomerId && guestEmail.includes('@') && !guestContinuedExplicitly) {
@@ -229,7 +229,7 @@ const AdminWalkInWizard = () => {
     setGuestAsGuest(false);
   };
 
-  return <CustomerBookAppointment adminMode renderAdminPanel={renderAdminPanel} onAdminSubmit={submitAdminBooking} onAdminReset={handleAdminReset} />;
+  return <CustomerBookAppointment adminMode adminSelectedCustomerId={selectedCustomer} renderAdminPanel={renderAdminPanel} onAdminSubmit={submitAdminBooking} onAdminReset={handleAdminReset} />;
 };
 
 export default AdminWalkInWizard;

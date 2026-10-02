@@ -7,7 +7,7 @@ import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { sanitizeVehicleText } from '../../config/constants';
 import DateTimePicker from './DateTimePicker';
 
-const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, onNext, onBack, onCancel, customerDetailsLocked = false, adminMode = false }) => {
+const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, onNext, onBack, onCancel, customerDetailsLocked = false, adminMode = false, selectedCustomerId = null }) => {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   // Batch 6: why the selected date itself may be unbookable (closed/blocked/etc),
@@ -20,7 +20,8 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
     longest,
     (vehicle.services || []).reduce((sum, service) => sum + Number(service.durationMinutes || 60), 0)
   ), 0) || 60) + 60;
-  const showEditableCustomerDetails = !adminMode || !bookingData.customerId;
+  const hasSelectedExistingCustomer = adminMode && Boolean(selectedCustomerId || bookingData.customerId);
+  const showEditableCustomerDetails = !hasSelectedExistingCustomer;
 
   // Basic validation
   const allVehiclesComplete = (bookingData.vehicles || []).length > 0 && (bookingData.vehicles || []).every((item) =>
