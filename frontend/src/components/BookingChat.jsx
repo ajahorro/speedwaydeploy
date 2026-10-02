@@ -541,6 +541,7 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
         </button>
         <input
           type="text"
+          className="chat-message-input"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           onKeyDown={handleKeyDown}

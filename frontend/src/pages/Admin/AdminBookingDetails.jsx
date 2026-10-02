@@ -1377,7 +1377,7 @@ const AdminBookingDetails = () => {
         )}
       </div>
 
-      <BookingSummaryHeader booking={booking} onUnitCollected={derivedStatus === 'completed' ? requestReleaseBooking : undefined} paymentStatus={paymentSummary} />
+      <BookingSummaryHeader booking={booking} showCustomer={!isMobile} onUnitCollected={derivedStatus === 'completed' ? requestReleaseBooking : undefined} paymentStatus={paymentSummary} />
 
       {isNoShowBooking && (
         <div
@@ -1968,7 +1968,7 @@ const AdminBookingDetails = () => {
 
       {undoNoShowModal.open && ReactDOM.createPortal(
         (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '1rem' : '2rem' }}>
+          <div style={{ position: 'fixed', inset: 0, background: 'var(--modal-overlay)', backdropFilter: 'blur(8px)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '1rem' : '2rem' }}>
             <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 0, width: '100%', maxWidth: '28rem', margin: '0 1rem', boxShadow: 'var(--modal-shadow)', overflow: 'hidden' }}>
               <div style={{ padding: isMobile ? '1rem 1rem 0.75rem' : '1.5rem 1.5rem 1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
@@ -1976,7 +1976,7 @@ const AdminBookingDetails = () => {
                     <ShieldAlert size={18} color="var(--admin-brand)" />
                     <span style={{ fontSize: '0.72rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--admin-text-secondary)', fontWeight: '900' }}>Undo No-Show</span>
                   </div>
-                  <button onClick={() => setUndoNoShowModal({ open: false, validationMessage: '', isSubmitting: false })} style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <button onClick={() => setUndoNoShowModal({ open: false, validationMessage: '', isSubmitting: false })} style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer', width: '32px', height: '32px', borderRadius: 'var(--admin-radius)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <X size={18} />
                   </button>
                 </div>
@@ -1999,11 +1999,11 @@ const AdminBookingDetails = () => {
                 )}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: isMobile ? '0.75rem 1rem 1rem' : '0.75rem 1.5rem 1.25rem', borderTop: '1px solid var(--admin-border)', background: 'var(--admin-sidebar)' }}>
-                <button onClick={() => setUndoNoShowModal({ open: false, validationMessage: '', isSubmitting: false })} style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: '10px', padding: '0.8rem 1.1rem', fontSize: '0.8rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: isMobile ? '0.75rem 1rem 1rem' : '0.75rem 1.5rem 1.25rem', borderTop: '1px solid var(--admin-border)', background: 'var(--admin-bg)' }}>
+                <button onClick={() => setUndoNoShowModal({ open: false, validationMessage: '', isSubmitting: false })} style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', padding: '0.8rem 1.1rem', fontSize: '0.8rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer' }}>
                   Cancel
                 </button>
-                <button onClick={confirmUndoNoShow} disabled={undoNoShowModal.isSubmitting} style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '10px', padding: '0.8rem 1.2rem', fontSize: '0.8rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.08em', cursor: undoNoShowModal.isSubmitting ? 'wait' : 'pointer', opacity: undoNoShowModal.isSubmitting ? 0.7 : 1 }}>
+                <button onClick={confirmUndoNoShow} disabled={undoNoShowModal.isSubmitting} style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', padding: '0.8rem 1.2rem', fontSize: '0.8rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.08em', cursor: undoNoShowModal.isSubmitting ? 'wait' : 'pointer', opacity: undoNoShowModal.isSubmitting ? 0.7 : 1 }}>
                   {undoNoShowModal.isSubmitting ? 'Restoring...' : 'Confirm restore'}
                 </button>
               </div>
@@ -2158,29 +2158,30 @@ const AdminBookingDetails = () => {
       {showRescheduleModal && (
         <div style={{
           position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.85)',
+          background: 'var(--modal-overlay)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 9999, backdropFilter: 'blur(8px)', padding: '1rem'
+          zIndex: 9999, backdropFilter: 'blur(8px)', padding: isMobile ? '0.5rem' : '1rem'
         }}>
           <div style={{
             background: 'var(--admin-card)',
-            padding: isMobile ? '1.5rem' : '2rem',
+            padding: isMobile ? '1rem' : '2rem',
             borderRadius: 'var(--admin-radius)',
             border: '1px solid var(--admin-border)',
             maxWidth: '560px', width: '100%',
-            position: 'relative', maxHeight: '90vh', overflowY: 'auto',
+            position: 'relative', maxHeight: 'min(90vh, calc(100dvh - 1rem))', overflowY: 'auto',
+            overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch',
             boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
           }}>
-            <button onClick={() => setShowRescheduleModal(false)} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', background: 'rgba(255,255,255,0.06)', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button onClick={() => setShowRescheduleModal(false)} aria-label="Close reschedule dialog" style={{ position: 'absolute', top: isMobile ? '0.75rem' : '1.25rem', right: isMobile ? '0.75rem' : '1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', cursor: 'pointer', borderRadius: 'var(--admin-radius-sm)', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <X size={18} />
             </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', paddingRight: isMobile ? '2.25rem' : 0, minWidth: 0 }}>
               <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(var(--admin-brand-rgb), 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)' }}>
                 <Calendar size={22} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontWeight: '950', fontSize: '1.2rem', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <h3 style={{ margin: 0, fontWeight: '950', fontSize: isMobile ? '1rem' : '1.2rem', lineHeight: 1.2, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px', overflowWrap: 'anywhere' }}>
                   Reschedule Appointment
                 </h3>
                 <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '700', marginTop: '0.15rem' }}>
@@ -2189,7 +2190,7 @@ const AdminBookingDetails = () => {
               </div>
             </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', padding: '0.75rem 1rem', margin: '1rem 0 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', padding: '0.75rem 1rem', margin: '1rem 0 1.25rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: '0.62rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Current Schedule</div>
                 <div style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--admin-text-primary)', marginTop: '0.2rem' }}>
@@ -2245,7 +2246,7 @@ const AdminBookingDetails = () => {
               ✓ Existing payment records and balances are preserved. Assigned technician and bay allocations will reset to allow re-assignment for the new slot.
             </div>
 
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column-reverse' : 'row', gap: '0.75rem' }}>
               <button type="button" onClick={() => setShowRescheduleModal(false)} disabled={isRescheduling} style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', fontSize: '0.78rem', textTransform: 'uppercase' }}>Go Back</button>
               <button type="button" onClick={confirmReschedule} disabled={!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling} style={{ flex: 1.5, padding: '1rem', background: (!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling) ? 'var(--admin-border)' : 'var(--admin-brand)', color: (!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling) ? 'var(--admin-text-secondary)' : '#fff', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: (!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling) ? 'not-allowed' : 'pointer', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '1px', boxShadow: (!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling) ? 'none' : '0 4px 15px rgba(230, 30, 42, 0.35)' }}>{isRescheduling ? 'Rescheduling...' : 'Confirm Reschedule'}</button>
             </div>

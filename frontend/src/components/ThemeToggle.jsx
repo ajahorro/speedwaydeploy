@@ -1,6 +1,7 @@
 import React from 'react';
 import { Sun, Moon, Monitor } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 /**
  * Section 1.3 — Shared tri-state theme selector.
@@ -19,14 +20,16 @@ const OPTIONS = [
 ];
 
 export const ThemeToggle = ({ variant = 'segmented', label = 'Interface theme' }) => {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, resolvedTheme, toggleTheme } = useTheme();
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const selectedTheme = isMobile && theme === 'system' ? resolvedTheme : theme;
+  const options = isMobile ? OPTIONS.filter((option) => option.value !== 'system') : OPTIONS;
 
   if (variant === 'icon') {
-    // Compact header control: cycles System -> Light -> Dark -> System.
-    const order = ['system', 'light', 'dark'];
-    const currentIndex = order.indexOf(theme);
+    const order = isMobile ? ['light', 'dark'] : ['system', 'light', 'dark'];
+    const currentIndex = order.indexOf(selectedTheme);
     const next = order[(currentIndex + 1) % order.length];
-    const active = OPTIONS.find((o) => o.value === theme) || OPTIONS[0];
+    const active = OPTIONS.find((o) => o.value === selectedTheme) || OPTIONS[0];
     const Icon = active.icon;
     return (
       <button
@@ -55,10 +58,10 @@ export const ThemeToggle = ({ variant = 'segmented', label = 'Interface theme' }
     <div
       role="radiogroup"
       aria-label={label}
-      style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(92px, 1fr))', width: 'min(100%, 390px)', gap: '0.35rem', padding: '0.35rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '10px' }}
+      style={{ display: 'grid', gridTemplateColumns: `repeat(${options.length}, minmax(92px, 1fr))`, width: 'min(100%, 390px)', gap: '0.35rem', padding: '0.35rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '10px' }}
     >
-      {OPTIONS.map(({ value, label: optionLabel, icon: Icon }) => {
-        const isActive = theme === value;
+      {options.map(({ value, label: optionLabel, icon: Icon }) => {
+        const isActive = selectedTheme === value;
         return (
           <button
             key={value}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { 
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { logger } from '../../utils/logger';
 import toast from 'react-hot-toast';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 const AdminSchedulingGrid = ({ onBack }) => {
   const navigate = useNavigate();
@@ -15,11 +16,12 @@ const AdminSchedulingGrid = ({ onBack }) => {
   const [bookings, setBookings] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   // Expanded Command Hours: 06:00 AM - 11:00 PM
   const timeSlots = Array.from({ length: 18 }, (_, i) => i + 6);
 
-  const fetchGridData = async () => {
+  const fetchGridData = useCallback(async () => {
     setLoading(true);
     try {
       const startOfDay = new Date(selectedDate);
@@ -56,11 +58,11 @@ const AdminSchedulingGrid = ({ onBack }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate]);
 
   useEffect(() => {
     fetchGridData();
-  }, [selectedDate]);
+  }, [fetchGridData]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -133,7 +135,7 @@ const AdminSchedulingGrid = ({ onBack }) => {
     <div style={{ display: 'grid', gridTemplateColumns: `180px repeat(${timeSlots.length}, 1fr)`, borderBottom: '1px solid var(--admin-border)', minHeight: '80px', position: 'relative', background: isUnassigned ? 'rgba(230, 30, 42, 0.03)' : 'transparent' }}>
       <div style={{ padding: '1rem', borderRight: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         {isUnassigned ? <AlertCircle size={14} color="var(--admin-brand)" /> : <User size={14} color="var(--admin-text-secondary)" />}
-        <span style={{ fontSize: '0.7rem', fontWeight: '950', color: isUnassigned ? 'var(--admin-brand)' : 'white', textTransform: 'uppercase' }}>{label}</span>
+        <span style={{ fontSize: '0.7rem', fontWeight: '950', color: isUnassigned ? 'var(--admin-brand)' : 'var(--admin-text-primary)', textTransform: 'uppercase' }}>{label}</span>
       </div>
       <div style={{ gridColumn: `2 / span ${timeSlots.length}`, position: 'relative' }}>
         {rowBookings.map(renderBookingBlock)}
@@ -149,8 +151,8 @@ const AdminSchedulingGrid = ({ onBack }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.3s ease' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--admin-card)', padding: '1.5rem', borderRadius: '4px', border: '1px solid var(--admin-border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: '1rem', background: 'var(--admin-card)', padding: isMobile ? '1rem' : '1.5rem', borderRadius: '4px', border: '1px solid var(--admin-border)' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
           <button onClick={onBack} style={{ background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', padding: '0.6rem 1.25rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <LayoutGrid size={14} /> LIST VIEW
           </button>
@@ -165,8 +167,8 @@ const AdminSchedulingGrid = ({ onBack }) => {
             <button onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() + 1)))} style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-primary)', cursor: 'pointer' }}><ChevronRight size={20} /></button>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'flex-end' : 'space-between', gap: '1.5rem' }}>
+          <div style={{ display: isMobile ? 'none' : 'flex', gap: '1rem' }}>
             {['SCHEDULED', 'ONGOING', 'COMPLETED'].map(s => (
               <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: getStatusColor(s.toLowerCase()) }}></div>
@@ -178,31 +180,65 @@ const AdminSchedulingGrid = ({ onBack }) => {
         </div>
       </div>
 
-      <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', overflowX: 'auto' }}>
-        <div style={{ minWidth: '1200px' }}>
-          {renderTimeMarkers()}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {/* Unassigned Row */}
-          {renderRow('Unassigned Bay', bookings.filter(b => !b.staff_id), true)}
-          
-          {/* Staff Rows */}
-          {staff.map(member => (
-            <React.Fragment key={member.id}>
-              {renderRow(
-                member.full_name?.split(' ')[0] || 'Staff', 
-                bookings.filter(b => b.staff_id === member.id)
-              )}
-            </React.Fragment>
-          ))}
-
-          {staff.length === 0 && !loading && (
-            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '800' }}>
-              NO ACTIVE STAFF REGISTERED IN DIRECTORY
-            </div>
-          )}
+      {isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {bookings.length ? bookings
+            .slice()
+            .sort((left, right) => new Date(left.start_datetime) - new Date(right.start_datetime))
+            .map((booking) => (
+              <button
+                key={booking.id}
+                type="button"
+                onClick={() => navigate(`/admin/bookings/${booking.id}`)}
+                style={{ display: 'flex', width: '100%', alignItems: 'center', gap: '0.75rem', padding: '1rem', textAlign: 'left', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderLeft: `4px solid ${getStatusColor(booking.status)}`, borderRadius: 'var(--admin-radius)', cursor: 'pointer' }}
+              >
+                <div style={{ minWidth: '4.5rem', color: 'var(--admin-brand)', fontSize: '0.75rem', fontWeight: 900 }}>
+                  {new Date(booking.start_datetime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.82rem', fontWeight: 900 }}>
+                    {booking.customer?.full_name || booking.customer_name || 'Customer'}
+                  </div>
+                  <div style={{ marginTop: '0.25rem', color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: 700 }}>
+                    {booking.vehicles?.[0]?.plate_number || booking.vehicles?.[0]?.vehicle_type || 'Vehicle'}
+                    {' · '}
+                    {booking.staff?.full_name || 'Unassigned'}
+                  </div>
+                </div>
+                <span style={{ flexShrink: 0, color: getStatusColor(booking.status), fontSize: '0.62rem', fontWeight: 900, textTransform: 'uppercase' }}>
+                  {booking.status?.replaceAll('_', ' ')}
+                </span>
+              </button>
+            ))
+            : !loading && (
+              <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--admin-text-secondary)', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', fontSize: '0.8rem', fontWeight: 800 }}>
+                No appointments scheduled for this day.
+              </div>
+            )}
         </div>
-      </div>
-    </div>
+      ) : (
+        <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', overflowX: 'auto' }}>
+          <div style={{ minWidth: '1200px' }}>
+            {renderTimeMarkers()}
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {renderRow('Unassigned Bay', bookings.filter(b => !b.staff_id), true)}
+              {staff.map(member => (
+                <React.Fragment key={member.id}>
+                  {renderRow(
+                    member.full_name?.split(' ')[0] || 'Staff',
+                    bookings.filter(b => b.staff_id === member.id)
+                  )}
+                </React.Fragment>
+              ))}
+              {staff.length === 0 && !loading && (
+                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '800' }}>
+                  NO ACTIVE STAFF REGISTERED IN DIRECTORY
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--admin-brand)', fontWeight: '950', letterSpacing: '2px' }}>

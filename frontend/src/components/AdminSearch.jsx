@@ -102,9 +102,10 @@ const AdminSearch = () => {
   };
 
   return (
-    <div ref={searchRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+    <div ref={searchRef} className="portal-search-control" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
       <Search size={16} style={{ position: 'absolute', left: '1rem', color: 'var(--admin-text-secondary)', opacity: 0.5, zIndex: 10 }} />
-      <input 
+      <input
+        className="portal-search-input"
         type="text" 
         placeholder="SYSTEM SEARCH..." 
         value={query}

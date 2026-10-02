@@ -229,7 +229,7 @@ const AdminBookings = () => {
                 style={{ 
                   padding: '0.5rem 0.85rem', borderRadius: '6px', border: 'none',
                   background: state.filterStatus === f ? 'var(--admin-brand)' : 'transparent',
-                  color: state.filterStatus === f ? 'white' : 'var(--admin-text-secondary)',
+                  color: state.filterStatus === f ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)',
                   fontSize: '0.65rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase',
                   whiteSpace: 'nowrap'
                 }}
@@ -244,7 +244,7 @@ const AdminBookings = () => {
       {loading ? (
         <LoadingState message="Retrieving booking records..." />
       ) : filteredBookings.length === 0 ? (
-        <div style={{ ...containerStyle, padding: '4rem', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '0.8rem', fontWeight: '900', textTransform: 'uppercase' }}>No matching records found</div>
+        <div style={{ ...containerStyle, padding: '4rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '900', textTransform: 'uppercase' }}>No matching records found</div>
       ) : isMobile ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {filteredBookings.map(booking => {
@@ -269,7 +269,7 @@ const AdminBookings = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1rem 0', borderTop: '1px solid var(--admin-border)', borderBottom: '1px solid var(--admin-border)' }}>
+                <div className="booking-directory-card-meta" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1rem 0', borderTop: '1px solid var(--admin-border)', borderBottom: '1px solid var(--admin-border)' }}>
                   <div>
                     <p style={{ margin: 0, fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Vehicle</p>
                     <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', fontWeight: '800', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>

@@ -317,7 +317,7 @@ const CustomerLayout = () => {
         </header>
 
         {isMobile && (
-          <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--admin-border)', background: 'var(--admin-bg)' }}>
+          <div className="portal-search-row" style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--admin-border)', background: 'var(--admin-bg)' }}>
             <CustomerSearch />
           </div>
         )}

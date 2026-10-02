@@ -4,6 +4,16 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 
+const PAGES = [
+  { name: 'Dashboard', path: '/customer', icon: LayoutDashboard, category: 'Pages' },
+  { name: 'Book Appointment', path: '/customer/book', icon: Calendar, category: 'Pages' },
+  { name: 'My Bookings', path: '/customer/bookings', icon: ClipboardList, category: 'Pages' },
+  { name: 'Transactions & Billing', path: '/customer/billing', icon: FileText, category: 'Pages' },
+  { name: 'Vehicle Garage', path: '/customer/garage', icon: Car, category: 'Pages' },
+  { name: 'Notifications', path: '/customer/notifications', icon: FileText, category: 'Pages' },
+  { name: 'Settings', path: '/customer/settings', icon: Settings, category: 'Pages' }
+];
+
 const CustomerSearch = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -11,16 +21,6 @@ const CustomerSearch = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
-
-  const pages = [
-    { name: 'Dashboard', path: '/customer', icon: LayoutDashboard, category: 'Pages' },
-    { name: 'Book Appointment', path: '/customer/book', icon: Calendar, category: 'Pages' },
-    { name: 'My Bookings', path: '/customer/bookings', icon: ClipboardList, category: 'Pages' },
-    { name: 'Transactions & Billing', path: '/customer/billing', icon: FileText, category: 'Pages' },
-    { name: 'Vehicle Garage', path: '/customer/garage', icon: Car, category: 'Pages' },
-    { name: 'Notifications', path: '/customer/notifications', icon: FileText, category: 'Pages' },
-    { name: 'Settings', path: '/customer/settings', icon: Settings, category: 'Pages' }
-  ];
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -44,7 +44,7 @@ const CustomerSearch = () => {
         supabase.from('vehicles').select('id, brand, model, plate_number').eq('owner_id', user.id).limit(50)
       ]);
 
-      const pageResults = pages.filter(page => page.name.toLowerCase().includes(normalizedQuery));
+      const pageResults = PAGES.filter(page => page.name.toLowerCase().includes(normalizedQuery));
       const bookingResults = (bookingsResult.data || [])
         .filter(booking => booking.id.toLowerCase().includes(normalizedQuery) || booking.status?.toLowerCase().includes(normalizedQuery))
         .slice(0, 5)
@@ -81,9 +81,10 @@ const CustomerSearch = () => {
   };
 
   return (
-    <div ref={searchRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', width: 'min(100%, 320px)' }}>
+    <div ref={searchRef} className="portal-search-control" style={{ position: 'relative', display: 'flex', alignItems: 'center', width: 'min(100%, 320px)' }}>
       <Search size={16} style={{ position: 'absolute', left: '1rem', color: 'var(--admin-text-secondary)', opacity: 0.7, zIndex: 1 }} />
       <input
+        className="portal-search-input"
         type="text"
         placeholder="SEARCH YOUR ACCOUNT..."
         value={query}

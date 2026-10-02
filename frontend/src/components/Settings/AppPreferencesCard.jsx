@@ -7,6 +7,7 @@ import { COMMUNICATION_PREFERENCES } from '../../config/legalContent';
 import { loadPreferences, savePreferences } from '../../utils/preferenceStore';
 import { playJobAssignmentChime } from '../../utils/jobAssignmentChime';
 import { SettingsSection, SettingRow, ToggleSwitch, SegmentedControl } from './SettingsPrimitives';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 /**
  * APP PREFERENCES (Directive §2).
@@ -22,7 +23,8 @@ const THEME_OPTIONS = [
 ];
 
 const AppPreferencesCard = ({ role = 'customer' }) => {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, resolvedTheme, toggleTheme } = useTheme();
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const { user, profile } = useAuth();
   const userId = user?.id || profile?.id;
 
@@ -45,6 +47,10 @@ const AppPreferencesCard = ({ role = 'customer' }) => {
   }, [userId]);
 
   const isAdmin = role === 'admin';
+  const themeOptions = isMobile
+    ? THEME_OPTIONS.filter((option) => option.value !== 'system')
+    : THEME_OPTIONS;
+  const selectedTheme = isMobile && theme === 'system' ? resolvedTheme : theme;
   // Staff get only the implemented assignment chime. Admin communications are system-wide.
   const visiblePrefs = isAdmin
     ? []
@@ -77,11 +83,13 @@ const AppPreferencesCard = ({ role = 'customer' }) => {
     <SettingsSection title="App Preferences">
       <SettingRow
         title="Interface Theme"
-        subtitle={isAdmin ? 'Personal appearance for your admin account.' : 'Choose system, light, or dark appearance.'}
+        subtitle={isAdmin
+          ? 'Personal appearance for your admin account.'
+          : isMobile ? 'Choose light or dark appearance.' : 'Choose system, light, or dark appearance.'}
       >
         <SegmentedControl
-          options={THEME_OPTIONS}
-          value={theme}
+          options={themeOptions}
+          value={selectedTheme}
           onChange={toggleTheme}
           ariaLabel="Interface theme"
         />
