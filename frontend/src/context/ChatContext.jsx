@@ -7,6 +7,8 @@ const ChatContext = createContext(null);
 export const ChatProvider = ({ children }) => {
   const { user, profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const role = String(profile?.role || '').toUpperCase();
+  const chatAccessAllowed = Boolean(user?.id && profile?.is_active !== false && ['ADMIN', 'CUSTOMER'].includes(role));
 
   // ── Section 2: ONE CUSTOMER = ONE CHAT ────────────────────────────────────
   //
@@ -46,7 +48,7 @@ export const ChatProvider = ({ children }) => {
   const accountRevoked = Boolean(user?.id) && (profile === null || profile?.is_active === false);
 
   const refreshUnreadCount = useCallback(async () => {
-    if (!user?.id) {
+    if (!chatAccessAllowed) {
       setGlobalUnreadCount(0);
       setThreadUnread({});
       return;
@@ -80,7 +82,7 @@ export const ChatProvider = ({ children }) => {
 
     setThreadUnread(perThread);
     setGlobalUnreadCount(visibleCount);
-  }, [user?.id, activeCustomerId]);
+  }, [user?.id, activeCustomerId, chatAccessAllowed]);
 
   /**
    * Called by an open chat panel so the thread the user is literally reading
@@ -96,7 +98,7 @@ export const ChatProvider = ({ children }) => {
 
   useEffect(() => {
     // Scenario 6: a revoked account must never hold a realtime socket open.
-    if (!user?.id || accountRevoked) {
+    if (!chatAccessAllowed || accountRevoked) {
       setGlobalUnreadCount(0);
       setThreadUnread({});
       setActiveCustomerId(null);
@@ -145,7 +147,7 @@ export const ChatProvider = ({ children }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, activeCustomerId, refreshUnreadCount, accountRevoked]);
+  }, [user?.id, activeCustomerId, refreshUnreadCount, accountRevoked, chatAccessAllowed]);
 
   /**
    * Open the conversation for a BOOKING. Section 2: the booking is resolved to
@@ -153,7 +155,7 @@ export const ChatProvider = ({ children }) => {
    * is still remembered so new messages default to tagging it.
    */
   const openChatForBooking = async (bookingId) => {
-    if (!bookingId || accountRevoked) return;
+    if (!bookingId || accountRevoked || !chatAccessAllowed) return;
     const { data: booking } = await supabase
       .from('bookings')
       .select('customer_id')
@@ -170,7 +172,7 @@ export const ChatProvider = ({ children }) => {
    * the admin chat launcher, which lists one entry per customer.
    */
   const openChatForCustomer = (customerId) => {
-    if (!customerId || accountRevoked) return;
+    if (!customerId || accountRevoked || !chatAccessAllowed) return;
     setActiveCustomerId(customerId);
     setActiveBookingId(null);
     setIsOpen(true);

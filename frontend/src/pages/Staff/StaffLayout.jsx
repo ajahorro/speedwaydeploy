@@ -26,12 +26,16 @@ const StaffLayout = () => {
   const fetchUnreadCount = useCallback(async () => {
     if (!userId) return;
     try {
-      const { count } = await supabase
+      const { data, error } = await supabase
         .from('notifications')
-        .select('*', { count: 'exact', head: true })
+        .select('notification_type, title')
         .eq('user_id', userId)
         .eq('is_read', false);
-      setUnreadCount(count || 0);
+      if (error) throw error;
+      setUnreadCount((data || []).filter((notification) =>
+        notification.notification_type !== 'MESSAGE_RECEIVED'
+        && !notification.title?.toLowerCase().includes('new message')
+      ).length);
     } catch {
       setUnreadCount(0);
     }

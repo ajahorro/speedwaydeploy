@@ -178,9 +178,19 @@ export const emitEvent = async (eventType, { userId, bookingId, meta = {} }) => 
       .eq('id', userId)
       .maybeSingle();
 
+    if (isChatMessage && (error || !profileRow?.role)) {
+      console.warn('[EventEngine] Suppressed chat notification because the recipient role could not be verified.');
+      return;
+    }
+
     if (!error && profileRow?.role) {
       recipientRole = profileRow.role;
     }
+  }
+
+  if (isChatMessage && String(recipientRole).toUpperCase() === 'STAFF') {
+    console.info('[EventEngine] Suppressed chat notification addressed to a staff account.');
+    return;
   }
 
   const notification = {

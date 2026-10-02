@@ -51,6 +51,7 @@ const FloatingBubbleChat = () => {
   }, [isOpen, closeChat]);
 
   if (!user?.id) return null;
+  if (!['ADMIN', 'CUSTOMER'].includes(String(profile?.role || '').toUpperCase()) || profile?.is_active === false) return null;
 
   // Section 2: a "thread" is a CUSTOMER, so unread keys are customer ids — not
   // booking ids. `activeBookingId` only supplies the tag context once a thread is

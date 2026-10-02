@@ -73,7 +73,10 @@ const StaffNotifications = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setNotifications(data || []);
+      setNotifications((data || []).filter((notification) =>
+        notification.notification_type !== 'MESSAGE_RECEIVED'
+        && !notification.title?.toLowerCase().includes('new message')
+      ));
     } catch (err) {
       logger.error('Staff Notification Fetch Error', err);
       toast.error('Failed to load notifications.');

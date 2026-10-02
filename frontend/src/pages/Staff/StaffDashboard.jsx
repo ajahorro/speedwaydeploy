@@ -167,7 +167,10 @@ const StaffDashboard = () => {
         .order('created_at', { ascending: false })
         .limit(5);
 
-      setBroadcasts(notifData || []);
+      setBroadcasts((notifData || []).filter((notification) =>
+        notification.notification_type !== 'MESSAGE_RECEIVED'
+        && !notification.title?.toLowerCase().includes('new message')
+      ));
     } catch (err) {
       console.error('Task Fetch Error:', err);
       toast.error('Failed to load tasks');
