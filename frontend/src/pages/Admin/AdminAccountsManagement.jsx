@@ -164,6 +164,10 @@ const AdminAccountsManagement = () => {
   const isLastAdmin = (member) => member.role === 'ADMIN' && adminCount <= 1;
 
   const handleDeactivate = (member) => {
+    if (member.role === 'STAFF' && member.hasActiveServices) {
+      toast.error('Cannot deactivate staff assigned to active services. Reassign or complete their services first.');
+      return;
+    }
     if (isDefaultAdmin(member)) {
       toast.error('Default Admin accounts cannot be deactivated.');
       return;
@@ -336,14 +340,21 @@ const AdminAccountsManagement = () => {
                 {!isDefaultAdmin(member) && !isSelf(member) && !isLastAdmin(member) && (
                   <button
                     onClick={() => handleDeactivate(member)}
+                    disabled={isSubmitting || (member.role === 'STAFF' && member.hasActiveServices)}
+                    title={member.role === 'STAFF' && member.hasActiveServices
+                      ? `Assigned to ${member.activeServiceCount} active service(s). Reassign or complete them before deactivation.`
+                      : undefined}
                     style={{
                       padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)',
-                      background: 'rgba(239, 68, 68, 0.05)', color: 'var(--status-danger)',
+                      background: member.role === 'STAFF' && member.hasActiveServices ? 'var(--admin-border)' : 'rgba(239, 68, 68, 0.05)',
+                      color: member.role === 'STAFF' && member.hasActiveServices ? 'var(--admin-text-secondary)' : 'var(--status-danger)',
                       fontSize: '0.65rem', fontWeight: '950', border: '1px solid rgba(239, 68, 68, 0.2)',
-                      cursor: 'pointer', textTransform: 'uppercase'
+                      cursor: member.role === 'STAFF' && member.hasActiveServices ? 'not-allowed' : 'pointer',
+                      opacity: isSubmitting ? 0.6 : 1,
+                      textTransform: 'uppercase'
                     }}
                   >
-                    Deactivate
+                    {member.role === 'STAFF' && member.hasActiveServices ? 'Assigned to Service' : 'Deactivate'}
                   </button>
                 )}
                 {(isDefaultAdmin(member) || isSelf(member) || isLastAdmin(member)) && (

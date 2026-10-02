@@ -2647,8 +2647,47 @@ app.get('/api/admin/profiles', async (req, res) => {
       .order('full_name');
 
     if (error) throw error;
+    const staffIds = (data || [])
+      .filter((profile) => String(profile.role || '').toUpperCase() === 'STAFF')
+      .map((profile) => profile.id);
+    let activeServicesByStaff = new Map();
+    if (staffIds.length) {
+      const { data: assignments, error: assignmentsError } = await supabaseAdmin
+        .from('bookings')
+        .select('id, staff_id, status, vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(status)')
+        .in('staff_id', staffIds);
+      if (assignmentsError) throw assignmentsError;
+
+      const activeBookingStatuses = new Set([
+        'pending', 'pending_confirmation', 'scheduled', 'confirmed',
+        'in_progress', 'ongoing', 'submitted'
+      ]);
+      activeServicesByStaff = new Map(staffIds.map((staffId) => [staffId, 0]));
+      for (const booking of assignments || []) {
+        const bookingStatus = String(booking.status || '').toLowerCase();
+        const terminal = ['cancelled', 'completed', 'released', 'flagged_noshow', 'no_show'].includes(bookingStatus);
+        const hasActiveUnit = !terminal && (booking.vehicles || []).some((vehicle) =>
+          ['IN_PROGRESS', 'ONGOING'].includes(String(vehicle.status || '').toUpperCase())
+        );
+        if (activeBookingStatuses.has(bookingStatus) || hasActiveUnit) {
+          activeServicesByStaff.set(
+            booking.staff_id,
+            (activeServicesByStaff.get(booking.staff_id) || 0) + 1
+          );
+        }
+      }
+    }
+    const profilesWithServiceState = (data || []).map((profile) => ({
+      ...profile,
+      ...(String(profile.role || '').toUpperCase() === 'STAFF'
+        ? {
+            activeServiceCount: activeServicesByStaff.get(profile.id) || 0,
+            hasActiveServices: (activeServicesByStaff.get(profile.id) || 0) > 0
+          }
+        : {})
+    }));
     // Include defaultAdminId so frontend knows which account is protected
-    return res.json({ success: true, data, defaultAdminId: DEFAULT_ADMIN_ID });
+    return res.json({ success: true, data: profilesWithServiceState, defaultAdminId: DEFAULT_ADMIN_ID });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -3144,6 +3183,19 @@ app.post('/api/admin/revoke-access', async (req, res) => {
 
     if (checkErr) throw checkErr;
 
+    if (String(profile.role || '').toUpperCase() === 'STAFF') {
+      const { data: hasActiveServices, error: activeServicesError } = await supabaseAdmin
+        .rpc('staff_has_active_services', { p_staff_id: memberId });
+      if (activeServicesError) throw activeServicesError;
+      if (hasActiveServices) {
+        return res.status(409).json({
+          success: false,
+          code: 'STAFF_HAS_ACTIVE_SERVICES',
+          error: 'This staff account cannot be deactivated while assigned to an active service. Reassign or complete the service first.'
+        });
+      }
+    }
+
     // 🛡️ DEFAULT ADMIN GUARD: The single default admin can never be revoked.
     if (memberId === DEFAULT_ADMIN_ID) {
       console.warn(`🚫 [ADMIN] BLOCKED: Attempted revoke of Default Admin (${profile.email})`);
@@ -3176,7 +3228,16 @@ app.post('/api/admin/revoke-access', async (req, res) => {
       .update({ role: 'CUSTOMER' })
       .eq('id', memberId);
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23514' || /assigned to an active service/i.test(error.message || '')) {
+        return res.status(409).json({
+          success: false,
+          code: 'STAFF_HAS_ACTIVE_SERVICES',
+          error: 'This staff account cannot be deactivated while assigned to an active service. Reassign or complete the service first.'
+        });
+      }
+      throw error;
+    }
 
     await writeAuditLog({
       actionType: 'REVOKE_ACCESS',
@@ -3736,6 +3797,19 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
 
     if (profileError) throw profileError;
 
+    if (String(profile.role || '').toUpperCase() === 'STAFF') {
+      const { data: hasActiveServices, error: activeServicesError } = await supabaseAdmin
+        .rpc('staff_has_active_services', { p_staff_id: userId });
+      if (activeServicesError) throw activeServicesError;
+      if (hasActiveServices) {
+        return res.status(409).json({
+          success: false,
+          code: 'STAFF_HAS_ACTIVE_SERVICES',
+          error: 'This staff account cannot be deactivated while assigned to an active service. Reassign or complete the service first.'
+        });
+      }
+    }
+
     // 🛡️ DEFAULT ADMIN GUARD: Only the specific DEFAULT_ADMIN_ID is protected.
     // Regular admins can self-deactivate via the customer profile page.
     if (userId === DEFAULT_ADMIN_ID) {
@@ -3779,6 +3853,13 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
 
     if (deactivateRpcError) {
       const rpcMissing = /could not find the function|schema cache|does not exist/i.test(deactivateRpcError.message || '');
+      if (deactivateRpcError.code === '23514' || /assigned to an active service/i.test(deactivateRpcError.message || '')) {
+        return res.status(409).json({
+          success: false,
+          code: 'STAFF_HAS_ACTIVE_SERVICES',
+          error: 'This staff account cannot be deactivated while assigned to an active service. Reassign or complete the service first.'
+        });
+      }
       if (!rpcMissing) throw deactivateRpcError;
 
       // Fallback for a DB without the migration: soft-delete only (historical
@@ -3808,6 +3889,13 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
       message: 'Account deactivated. You have 15 days to recover it.'
     });
   } catch (err) {
+    if (err.code === '23514' || /assigned to an active service/i.test(err.message || '')) {
+      return res.status(409).json({
+        success: false,
+        code: 'STAFF_HAS_ACTIVE_SERVICES',
+        error: 'This staff account cannot be deactivated while assigned to an active service. Reassign or complete the service first.'
+      });
+    }
     return res.status(500).json({ success: false, error: err.message });
   }
 });
