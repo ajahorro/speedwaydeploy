@@ -158,8 +158,8 @@ begin
     booking_id, action_type, details, actor_name, actor_role, actor_id, metadata
   ) values (
     p_booking_id,
-    'BOOKING_MUTATED',
-    coalesce(p_note, format('Booking mutated: total delta %s, end delta %s min.', p_total_delta, p_end_delta_minutes)),
+    'BOOKING_UPDATED',
+    coalesce(p_note, format('Booking updated: total delta %s, end delta %s min.', p_total_delta, p_end_delta_minutes)),
     coalesce(p_actor_name, 'System'),
     coalesce(p_actor_role, 'SYSTEM'),
     p_actor_id,

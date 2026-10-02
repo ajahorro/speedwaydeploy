@@ -148,7 +148,7 @@ const buildReceiptPdf = ({
       const label = String(item.vehicle || 'Vehicle Unit').substring(0, 26)
       const service = String(item.service || 'Service').substring(0, 20)
       const unit = Number(item.unitPrice ?? item.lineTotal ?? 0)
-      return `${label} ${service} ${item.qty ?? 1} ${formatPeso(unit)} ${formatPeso(unit)}`
+      return `${label} ${service} ${item.qty ?? 1} ${formatPeso(unit)} ${formatPeso(item.lineTotal ?? unit)}`
     }),
     '',
     'PAYMENT',
@@ -277,7 +277,8 @@ serve(async (req: Request): Promise<Response> => {
     const { data: booking, error: bError } = await supabase
       .from('bookings')
       .select(`
-        id, customer_id, customer_name, customer_email, contact_number,
+        id, customer_id, customer_name, customer_first_name, customer_last_name,
+        customer_email, contact_number,
         total_amount, status, payment_status, payment_method, start_datetime, notes, staff_id,
         ocr_metadata,
         profiles:profiles!bookings_customer_id_fkey ( full_name, email ),
@@ -336,6 +337,7 @@ serve(async (req: Request): Promise<Response> => {
         service: s.service_name || 'Service',
         qty: 1,
         unitPrice: Number(s.price || 0),
+        lineTotal: Number(s.price || 0),
       }))
     )
 
@@ -352,7 +354,7 @@ serve(async (req: Request): Promise<Response> => {
       const receiptNumber = payment?.reference_number || payment?.detected_ref || `INV-${bookingRef}`
       // A receipt is only attached when the money is actually settled. A partial
       // payment is confirmed as a booking but must not receive a full receipt.
-      const isSettled = amounts.remainingBalance <= 0 || amounts.paymentStatus === 'PAID'
+      const isSettled = amounts.remainingBalance <= 0
       const receiptPdf = isSettled
         ? buildReceiptPdf({
             receiptNumber,

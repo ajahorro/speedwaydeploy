@@ -4,6 +4,8 @@ import { Clock, CheckCircle2, User, CreditCard, AlertCircle } from 'lucide-react
 const BookingAuditTrail = ({ logs = [] }) => {
   const formatLabel = (str) => {
     if (!str) return 'System Event';
+    const normalized = String(str).toUpperCase();
+    if (normalized === 'BOOKING_MUTATED' || normalized === 'BOOKING_MUTATED_FALLBACK') return 'Booking Updated';
     return str.split('_')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
@@ -45,7 +47,10 @@ const BookingAuditTrail = ({ logs = [] }) => {
     }
 
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return String(parsed);
+      const details = String(parsed);
+      return /BOOKING_MUTATED/.test(String(log.event_type || '').toUpperCase())
+        ? details.replace(/\bmutated\b/gi, 'updated')
+        : details;
     }
 
     const entries = Object.entries(parsed).filter(([, value]) => value !== null && value !== undefined && value !== '');

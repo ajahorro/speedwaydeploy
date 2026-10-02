@@ -214,6 +214,8 @@ const AdminWalkInWizard = () => {
       // For guest walk-ins there is no profile, so these booking columns are the
       // only source of the customer name/contact used by the confirmation email.
       customerName: bookingData.customerName,
+      customerFirstName: guest.firstName || null,
+      customerLastName: guest.lastName || null,
       contactNumber: bookingData.contactNumber || null,
       customerEmail: bookingData.guest?.email || bookingData.customerEmail || null
     });

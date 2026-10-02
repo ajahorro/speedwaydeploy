@@ -419,6 +419,8 @@ export const createBooking = async (customerId, bookingData) => {
         ].filter(Boolean).join(' | '),
         contact_number: bookingData.contactNumber,
         ocr_metadata: bookingData.payment?.ocrData || {},
+        customer_first_name: bookingData.customerFirstName || null,
+        customer_last_name: bookingData.customerLastName || null,
         service_snapshot: bookingServiceSnapshot,
         service_snapshot_version: 1,
         is_walk_in: isAdminWalkIn
@@ -456,34 +458,12 @@ export const createBooking = async (customerId, bookingData) => {
     }));
   }
 
-  if (!bookingCustomerId && bookingData.customerEmail) {
-    // Only invite an account-less guest when no existing profile already owns
-    // that email — otherwise we would re-invite an existing customer and hit
-    // the profiles email uniqueness constraint (Scenario 1).
-    const normalizedEmail = String(bookingData.customerEmail).trim().toLowerCase();
-    try {
-      const { data: existingAccount } = await supabase
-        .from('profiles')
-        .select('id')
-        .ilike('email', normalizedEmail)
-        .maybeSingle();
-      if (existingAccount?.id) {
-        console.warn('[Booking] Skipped guest invite — email already belongs to a registered account.');
-      } else {
-        await fetch(`${BACKEND_URL}/admin/generate-invite`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: bookingData.customerEmail, role: 'CUSTOMER' })
-        });
-      }
-    } catch (inviteError) {
-      console.warn('Guest account invitation failed:', inviteError);
-    }
-  }
-
   const bookingRef = booking.id.substring(0, 8).toUpperCase();
 
-  // ONE email for this whole submission.
+  // A staff-created walk-in is already confirmed and its payment was recorded
+  // as verified on site. Send the confirmation event so its itemised receipt
+  // is attached; self-service bookings remain on the unverified submission
+  // event until staff review the payment.
   //
   // This used to dispatch a "Payment Submitted" notification email AND a
   // separate SCHEDULED lifecycle email — two mails for one booking, quoting two
@@ -493,13 +473,14 @@ export const createBooking = async (customerId, bookingData) => {
   //
   // The in-app notification is created by the same function, so the bell and
   // the inbox can never describe the same event differently.
-  void sendStatusEmail(booking.id, 'booking_created')
+  const emailEvent = isAdminWalkIn ? 'booking_confirmed' : 'booking_created';
+  void sendStatusEmail(booking.id, emailEvent)
     .then(lifecycleEmailResult => {
       if (lifecycleEmailResult?.error) {
-        console.warn(`[Booking] Creation lifecycle email failed for ${booking.id}:`, lifecycleEmailResult.error);
+        console.warn(`[Booking] ${emailEvent} lifecycle email failed for ${booking.id}:`, lifecycleEmailResult.error);
       }
     })
-    .catch(error => console.warn(`[Booking] Creation lifecycle email failed for ${booking.id}:`, error));
+    .catch(error => console.warn(`[Booking] ${emailEvent} lifecycle email failed for ${booking.id}:`, error));
 
   return booking;
 };

@@ -25,6 +25,24 @@ const Login = ({ isModal = false, onClose }) => {
     clearLoginError
   } = useAuthFlow();
 
+  const [registerPrefill] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('register') !== '1') return null;
+    return {
+      firstName: params.get('firstName') || '',
+      lastName: params.get('lastName') || '',
+      email: params.get('email') || '',
+      phone: params.get('phone') || ''
+    };
+  });
+
+  useEffect(() => {
+    if (registerPrefill) {
+      setPrefillEmail(registerPrefill.email);
+      setMode('REGISTER');
+    }
+  }, [registerPrefill, setMode]);
+
   // Carried across mode switches so "Forgot Password?" does not make the user
   // retype the address they just entered on the login form.
   const [prefillEmail, setPrefillEmail] = useState('');
@@ -50,7 +68,7 @@ const Login = ({ isModal = false, onClose }) => {
       case 'LOGIN':
         return <LoginForm onLogin={login} onSwitchMode={switchMode} isLoading={isLoading} error={loginError} onClearError={clearLoginError} initialEmail={prefillEmail} onEmailChange={setPrefillEmail} />;
       case 'REGISTER':
-        return <RegisterForm onRegister={startRegister} onSwitchMode={switchMode} isLoading={isLoading} initialEmail={prefillEmail} />;
+        return <RegisterForm onRegister={startRegister} onSwitchMode={switchMode} isLoading={isLoading} initialEmail={prefillEmail} initialData={registerPrefill} />;
       case 'RECOVER':
         return <RecoverForm onRecover={recoverPassword} onSwitchMode={switchMode} isLoading={isLoading} initialEmail={prefillEmail} />;
       case 'RECOVER_OTP':

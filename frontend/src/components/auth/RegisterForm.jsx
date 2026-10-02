@@ -6,12 +6,13 @@ import { sanitizeByFieldType } from '../../config/constants';
 // Task 2.5: per-field allowlist so each input keeps only its legitimate chars.
 const FIELD_TYPE = { firstName: 'text', lastName: 'text', email: 'email', phone: 'phone' };
 
-const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '' }) => {
+const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '', initialData = null }) => {
+  const isPrefilled = Boolean(initialData);
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: initialEmail || '',
-    phone: '',
+    firstName: sanitizeByFieldType(initialData?.firstName || '', FIELD_TYPE.firstName),
+    lastName: sanitizeByFieldType(initialData?.lastName || '', FIELD_TYPE.lastName),
+    email: sanitizeByFieldType(initialData?.email || initialEmail || '', FIELD_TYPE.email),
+    phone: sanitizeByFieldType(initialData?.phone || '', FIELD_TYPE.phone),
     password: '',
     confirmPassword: ''
   });
@@ -59,21 +60,26 @@ const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '' }
           <AlertCircle size={16} style={{ flexShrink: 0 }} /> {error}
         </div>
       )}
+      {isPrefilled && (
+        <p style={{ margin: '0 0 1rem', color: 'var(--admin-text-secondary)', fontSize: '0.78rem', lineHeight: 1.5 }}>
+          These details were provided for your booking and are locked. Set a password to create your account.
+        </p>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
         <div style={{ position: 'relative' }}>
-          <StyledInput icon={User} type="text" placeholder="First Name" required value={formData.firstName} onChange={e => updateField('firstName', e.target.value)} autoComplete="given-name" />
+          <StyledInput icon={User} type="text" placeholder="First Name" required value={formData.firstName} onChange={e => updateField('firstName', e.target.value)} autoComplete="given-name" readOnly={isPrefilled} />
         </div>
         <div style={{ position: 'relative' }}>
-          <StyledInput icon={User} type="text" placeholder="Last Name" required value={formData.lastName} onChange={e => updateField('lastName', e.target.value)} autoComplete="family-name" />
+          <StyledInput icon={User} type="text" placeholder="Last Name" required value={formData.lastName} onChange={e => updateField('lastName', e.target.value)} autoComplete="family-name" readOnly={isPrefilled} />
         </div>
       </div>
 
       <div style={{ position: 'relative', marginBottom: '1rem' }}>
-        <StyledInput icon={Mail} type="email" placeholder="Email Address" required value={formData.email} onChange={e => updateField('email', e.target.value)} autoComplete="email" />
+        <StyledInput icon={Mail} type="email" placeholder="Email Address" required value={formData.email} onChange={e => updateField('email', e.target.value)} autoComplete="email" readOnly={isPrefilled} />
       </div>
       
       <div style={{ position: 'relative', marginBottom: '1rem' }}>
-        <StyledInput icon={Phone} type="tel" placeholder="Phone Number" required value={formData.phone} onChange={e => updateField('phone', e.target.value)} autoComplete="tel" />
+        <StyledInput icon={Phone} type="tel" placeholder="Phone Number" required value={formData.phone} onChange={e => updateField('phone', e.target.value)} autoComplete="tel" readOnly={isPrefilled} />
       </div>
 
       <div style={{ position: 'relative', marginBottom: '1.5rem' }}>

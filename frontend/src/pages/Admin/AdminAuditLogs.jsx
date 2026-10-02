@@ -47,6 +47,9 @@ const ACTION_META = {
   PROMO_CREATED: { category: 'BUSINESS', title: 'Promotion created' },
   PROMO_DEACTIVATED: { category: 'BUSINESS', title: 'Promotion deactivated' },
   BOOKING_CREATED: { category: 'BOOKINGS', title: 'Booking created' },
+  BOOKING_UPDATED: { category: 'BOOKINGS', title: 'Booking updated' },
+  BOOKING_MUTATED: { category: 'BOOKINGS', title: 'Booking updated' },
+  BOOKING_MUTATED_FALLBACK: { category: 'BOOKINGS', title: 'Booking updated' },
   BOOKING_CONFIRMED: { category: 'BOOKINGS', title: 'Booking confirmed' },
   BOOKING_CANCELLED: { category: 'BOOKINGS', title: 'Booking cancelled' },
   STATUS_UPDATE: { category: 'BOOKINGS', title: 'Status updated' },
@@ -127,6 +130,10 @@ const buildSentence = (log) => {
     case 'CREATE_BOOKING':
     case 'BOOKING_CREATED':
       return <>Booking {B(shortId(log.booking_id), 'b')} was created.</>;
+    case 'BOOKING_UPDATED':
+    case 'BOOKING_MUTATED':
+    case 'BOOKING_MUTATED_FALLBACK':
+      return <>{performer} updated booking {B(shortId(log.booking_id), 'b')}.</>;
     case 'MANUAL_OVERRIDE_CONFIRM':
       return <>{performer} manually confirmed a flagged payment.</>;
     case 'MANUAL_OVERRIDE_REJECT':

@@ -1092,9 +1092,9 @@ app.post('/admin/generate-invite', async (req, res) => {
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
   const normalizedRole = typeof role === 'string' ? role.trim().toUpperCase() : '';
 
-  if (!normalizedEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail) || !['ADMIN', 'STAFF', 'CUSTOMER'].includes(normalizedRole)) {
+  if (!normalizedEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail) || !['ADMIN', 'STAFF'].includes(normalizedRole)) {
     console.error(`❌ [INVITE SYSTEM] REJECTED: Invalid email (${email}) or role (${role})`);
-    return res.status(400).json({ success: false, error: 'Invalid invitation parameters' });
+    return res.status(400).json({ success: false, error: 'A valid email and STAFF or ADMIN role are required.' });
   }
 
   console.log(`🎟️ [INVITE SYSTEM] GENERATING FOR: ${normalizedEmail} (${normalizedRole})`);
@@ -1103,12 +1103,15 @@ app.post('/admin/generate-invite', async (req, res) => {
     return res.status(503).json({ success: false, error: 'Invitation service unavailable.' });
   }
 
-  // NOTE: This legacy route is the GUEST-BOOKING path (a customer books and the
-  // guest is auto-provisioned). It used to insert into a non-existent `invites`
-  // table, which always threw — producing the 500 you saw. It now provisions a
-  // real account through the SAME primitives as /api/admin/invite-account
-  // (create_invited_account RPC → auth.admin.createUser → profiles upsert) and
-  // delivers the branded temporary-credentials email via the Resend relay.
+  const actor = await requireAdmin(req);
+  if (!actor) {
+    console.warn('🚫 [INVITE SYSTEM] BLOCKED: caller is not an authenticated ADMIN.');
+    return res.status(403).json({ success: false, error: 'Only administrators may invite staff or administrators.' });
+  }
+
+  // Customer access is created through the public, email-confirmed registration
+  // flow. Invitations (and temporary-password emails) are reserved for staff
+  // and administrators.
   try {
     const safeFirst = '';
     const safeLast = '';
@@ -1116,13 +1119,8 @@ app.post('/admin/generate-invite', async (req, res) => {
 
     // 1. Duplicate guard.
     //
-    //    IMPORTANT: this route is the GUEST-BOOKING path and runs WITHOUT an admin
-    //    session, so it must NOT call the admin-guarded `create_invited_account`
-    //    RPC — that function runs is_admin() and raises
-    //    "Only administrators may invite accounts" (SQLSTATE P0001) for an
-    //    anonymous caller, which is exactly the 500 we saw. Instead we do a
-    //    direct, non-atomic duplicate check against profiles + auth.users, which
-    //    is the correct primitive for the guest path.
+    // The legacy customer auto-provisioning path has been retired. Admin-only
+    // staff invitations may still use this endpoint.
     let mustChangePassword = true;
 
     const { data: existingProfile } = await supabaseAdmin
@@ -3929,14 +3927,15 @@ app.post('/api/garage/sync', async (req, res) => {
     const plate = (vehicle.plateNumber || '').toUpperCase();
 
     // 1. Check if vehicle exists in garage
-    const { data: existing } = await supabaseAdmin
+    const { data: existingVehicles, error: lookupError } = await supabaseAdmin
       .from('vehicles')
-      .select('id')
-      .eq('owner_id', customerId)
-      .eq('plate_number', plate)
-      .maybeSingle();
+      .select('id, plate_number')
+      .eq('owner_id', customerId);
 
-    if (existing) {
+    if (lookupError) throw lookupError;
+
+    const normalizedPlate = plate.replace(/[^A-Z0-9]/g, '');
+    if ((existingVehicles || []).some((item) => String(item.plate_number || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === normalizedPlate)) {
       return res.json({ success: true, message: 'Vehicle already in garage', existing: true });
     }
 
@@ -4533,11 +4532,11 @@ app.post('/api/bookings/add-service', async (req, res) => {
 
           await supabaseAdmin.from('audit_logs').insert({
             booking_id: bookingId,
-            action_type: 'BOOKING_MUTATED_FALLBACK',
+            action_type: 'BOOKING_UPDATED',
             actor_name: actor.user.email || actor.profile.full_name || 'Admin',
             actor_role: String(actor.profile.role).toUpperCase(),
             actor_id: actor.user.id,
-            details: `Compatibility fallback added service ${serviceName} to booking ${bookingId}.`,
+            details: `Compatibility fallback updated booking ${bookingId} by adding service ${serviceName}.`,
             metadata: {
               service_name: serviceName,
               total_delta: servicePrice,
@@ -5331,5 +5330,3 @@ httpServer.on('error', (err) => {
     console.error(`\n❌ ERROR: Server listen error:`, err.message);
   }
 });
-
-
