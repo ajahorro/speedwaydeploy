@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useUnifiedData } from '../context/UnifiedContext';
 import { Bell, CheckCheck, ChevronRight, Info, Calendar, Star, Megaphone, MessageSquare } from 'lucide-react';
 import NotificationDetailsModal from './NotificationDetailsModal';
+import { isRedundantStaffTechnicianAssignment } from '../utils/notificationRouting';
 
 const TYPE_ICONS = {
   ANNOUNCEMENT: Megaphone,
@@ -53,7 +54,10 @@ const NotificationPopover = ({ profile, onClose, onRead }) => {
   const { notifications, isLoading: loading, refreshData } = useUnifiedData();
   const [selectedNotification, setSelectedNotification] = useState(null);
 
-  const recentNotifications = (notifications || []).slice(0, 5);
+  const visibleNotifications = profile?.role?.toUpperCase() === 'STAFF'
+    ? (notifications || []).filter((notification) => !isRedundantStaffTechnicianAssignment(notification))
+    : (notifications || []);
+  const recentNotifications = visibleNotifications.slice(0, 5);
 
   const handleMarkAllRead = async () => {
     const unreadIds = (notifications || []).filter(n => !n.is_read).map(n => n.id);

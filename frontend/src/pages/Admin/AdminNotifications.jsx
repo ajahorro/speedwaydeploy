@@ -9,7 +9,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { BACKEND_URL } from '../../config/api';
 import { useNavigate } from 'react-router-dom';
 import NotificationDetailsModal from '../../components/NotificationDetailsModal';
-import { isNotificationActionable } from '../../utils/notificationRouting';
+import { isNotificationActionable, resolveBookingId } from '../../utils/notificationRouting';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DELETE CONFIRMATION MODAL (REQ #5)
@@ -133,17 +133,18 @@ const AdminNotifications = () => {
     const targetUrl = resolveNotificationTarget(notif);
     if (!targetUrl) return;
     const reference = targetUrl.match(/^\/admin\/bookings\/([^/?]+)/)?.[1];
-    if (reference && !reference.includes('-') && reference.length < 20) {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('id')
-        .ilike('id', `${reference}%`)
-        .maybeSingle();
-      if (error || !data?.id) {
-        toast.error('The booking record could not be resolved.');
-        return;
+    if (reference) {
+      try {
+        const bookingId = await resolveBookingId(supabase, reference);
+        if (!bookingId) {
+          toast.error('The booking record could not be resolved.');
+          return;
+        }
+        navigate(`/admin/bookings/${bookingId}`);
+      } catch (error) {
+        logger.error('Notification booking lookup failed:', error);
+        toast.error(`The booking record could not be resolved: ${error.message || 'lookup failed.'}`);
       }
-      navigate(`/admin/bookings/${data.id}`);
       return;
     }
     navigate(targetUrl);

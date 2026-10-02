@@ -4973,8 +4973,8 @@ app.post('/api/bookings/reconcile-payment-state', async (req, res) => {
       } else if (!(existingNotice || []).length) {
         const { error: noticeInsertError } = await supabaseAdmin.from('notifications').insert({
           user_id: booking.staff_id,
-          title: 'New Fleet Assigned',
-          message: 'A paid booking is ready for your assigned service work.',
+          title: 'New Vehicle Assigned',
+          message: 'A new vehicle booking is ready for your assigned service work.',
           notification_type: 'TASK_ASSIGNED',
           action_url: '/staff/tasks',
           booking_id: bookingId,

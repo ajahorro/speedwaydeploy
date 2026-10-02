@@ -11,7 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../context/ThemeContext';
 import HeaderProfileDropdown from '../../components/common/HeaderProfileDropdown';
 import { confirmLogout } from '../../utils/logoutConfirm';
-import { isNotificationActionable } from '../../utils/notificationRouting';
+import { isNotificationActionable, isRedundantStaffTechnicianAssignment } from '../../utils/notificationRouting';
 
 const StaffLayout = () => {
   const { openModal, closeModal } = useUI(); const { user, profile, signOut, fetchProfile, setProfile, toggleShift } = useAuth();
@@ -35,6 +35,7 @@ const StaffLayout = () => {
       if (error) throw error;
       setUnreadCount((data || []).filter((notification) =>
         isNotificationActionable(notification)
+        && !isRedundantStaffTechnicianAssignment(notification)
         && notification.notification_type !== 'MESSAGE_RECEIVED'
         && !notification.title?.toLowerCase().includes('new message')
       ).length);

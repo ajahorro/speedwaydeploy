@@ -24,6 +24,11 @@ const uiContext = fs.readFileSync('frontend/src/context/UIContext.jsx', 'utf8');
 const customerBilling = fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8');
 const bookingSummaryHeader = fs.readFileSync('frontend/src/components/BookingSummaryHeader.jsx', 'utf8');
 const notificationRouting = fs.readFileSync('frontend/src/utils/notificationRouting.js', 'utf8');
+const notificationDetailsModal = fs.readFileSync('frontend/src/components/NotificationDetailsModal.jsx', 'utf8');
+const notificationPopover = fs.readFileSync('frontend/src/components/NotificationPopover.jsx', 'utf8');
+const staffNotifications = fs.readFileSync('frontend/src/pages/Staff/StaffNotifications.jsx', 'utf8');
+const staffLayout = fs.readFileSync('frontend/src/pages/Staff/StaffLayout.jsx', 'utf8');
+const staffDashboard = fs.readFileSync('frontend/src/pages/Staff/StaffDashboard.jsx', 'utf8');
 const notificationSuppressionMigration = fs.readFileSync('supabase/migrations/20261023000003_suppress_unlinked_booking_notifications.sql', 'utf8');
 const officialReceipt = fs.readFileSync('frontend/src/components/OfficialReceipt.jsx', 'utf8');
 const receiptModel = fs.readFileSync('shared/receiptModel.ts', 'utf8');
@@ -132,6 +137,8 @@ checks.push(
   ['event engine: all operational notifications are in-app only', !/sendNotificationEmail/.test(eventEngine)],
   ['event engine: chat notices without a booking link are suppressed', /if \(isChatMessage && !bookingId\)/.test(eventEngine)],
   ['notifications: unlinked chat and status updates are hidden', /BOOKING_CONTEXT_NOTIFICATION_TYPES[\s\S]*?'CHAT_MESSAGE'[\s\S]*?'STATUS_UPDATE'/.test(notificationRouting) && /Boolean\(notification\.booking_id\)/.test(notificationRouting)],
+  ['notifications: short booking references resolve by safe UUID range or public booking ID', /resolveBookingId[\s\S]*?\.gte\('id', formatUuid\(minHex\)\)[\s\S]*?\.lte\('id', formatUuid\(maxHex\)\)[\s\S]*?\.eq\('booking_id', value\)/.test(notificationRouting) && /resolveBookingId\(supabase, hashBookingId\)/.test(notificationDetailsModal) && /resolveBookingId\(supabase, reference\)/.test(fs.readFileSync('frontend/src/pages/Admin/AdminNotifications.jsx', 'utf8')) && !/\.ilike\('id'/.test(notificationDetailsModal)],
+  ['staff: legacy technician-assignment alerts are hidden but vehicle assignment alerts remain', /isRedundantStaffTechnicianAssignment/.test(notificationRouting) && [staffNotifications, staffLayout, staffDashboard, notificationPopover].every((source) => /isRedundantStaffTechnicianAssignment/.test(source)) && /title: 'New Vehicle Assigned'/.test(backend) && !/title: 'New Fleet Assigned'/.test(backend)],
   ['notifications: database blocks unlinked chat and status updates', /before insert on public\.notifications/.test(notificationSuppressionMigration) && /new\.booking_id is null[\s\S]*?return null/.test(notificationSuppressionMigration)],
   ['customer billing: fetch callback is initialized before the effect uses it', customerBilling.indexOf('const fetchData = useCallback') >= 0 && customerBilling.indexOf('const fetchData = useCallback') < customerBilling.indexOf('useEffect(() =>')],
   ['customer booking: flagged no-show has its own visible lifecycle state', /normalizedStatus === 'FLAGGED_NOSHOW'[\s\S]*?Flagged no-show/.test(bookingSummaryHeader)],

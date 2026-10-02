@@ -5,6 +5,7 @@ import { X, ExternalLink, Info, Calendar, Star, Megaphone, Bell, MessageSquare }
 import toast from 'react-hot-toast';
 import { parseChatNotification } from './NotificationPopover';
 import { supabase } from '../lib/supabase';
+import { resolveBookingId } from '../utils/notificationRouting';
 
 const TYPE_ICONS = {
   ANNOUNCEMENT: Megaphone,
@@ -38,25 +39,22 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
 
     const actionBookingId = notification.action_url?.match(/\/bookings\/([A-Za-z0-9-]+)/)?.[1];
     const hashBookingId = notification.booking_id || notification.message?.match(/#([A-Za-z0-9_-]{8})/)?.[1] || actionBookingId;
-    if (hashBookingId) {
-      let resolvedBookingId = hashBookingId;
-      if (!String(hashBookingId).includes('-') && String(hashBookingId).length < 20) {
-        const { data, error } = await supabase
-          .from('bookings')
-          .select('id')
-          .ilike('id', `${hashBookingId}%`)
-          .maybeSingle();
-        if (error || !data?.id) {
-          toast.error('Associated booking record not found.');
-          return;
-        }
-        resolvedBookingId = data.id;
+    if (!hashBookingId) {
+      toast.error('Associated booking record not found.');
+      return;
+    }
+
+    try {
+      const resolvedBookingId = await resolveBookingId(supabase, hashBookingId);
+      if (!resolvedBookingId) {
+        toast.error('Associated booking record not found.');
+        return;
       }
       const targetUrl = `${rolePrefix}/bookings/${resolvedBookingId}${notification.notification_type === 'MESSAGE_RECEIVED' || notification.title?.toLowerCase().includes('new message') ? '?chat=open' : ''}`;
       onClose();
       navigate(targetUrl);
-    } else {
-      toast.error('Associated booking record not found.');
+    } catch (error) {
+      toast.error(`Could not open the associated booking: ${error.message || 'lookup failed.'}`);
     }
   };
 
