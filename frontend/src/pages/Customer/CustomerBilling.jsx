@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CreditCard, Clock, Printer } from 'lucide-react';
-import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import OfficialReceipt from '../../components/OfficialReceipt';
-import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import { calculatePaymentSummary } from '../../utils/paymentUtils';
 
 const CustomerBilling = () => {
@@ -47,12 +45,6 @@ const CustomerBilling = () => {
   }, [user?.id, fetchData]);
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val || 0);
-  // FLAT, TAX-FREE pricing: the total IS the subtotal. There is no tax to
-  // extract, so no VAT figure is derived here.
-  const getReceiptBreakdown = (receipt) => {
-    const total = Number(receipt?.total_amount || 0);
-    return { subtotal: total, total };
-  };
 
   const totalSpent = bookings.reduce((sum, booking) => sum + calculatePaymentSummary(booking).totalPaid, 0);
 
@@ -74,156 +66,7 @@ const CustomerBilling = () => {
     display: 'block'
   };
 
-  const canAccessReceipt = (booking) => {
-    // REQ-ADM-10: Customers can access receipts if payment is PAID OR if refund is PROCESSED
-    return (booking.payments || []).some(p => p.status === 'PAID') || booking.refund_status === 'PROCESSED';
-  };
-
-  const openReceipt = async (booking) => {
-    if (!canAccessReceipt(booking)) return;
-    setSelectedReceipt(booking);
-  };
-
-  const handlePrint = () => {
-    toast.success('Receipt generated and synchronized with ledger.');
-    window.print();
-  };
-
-  const handleDownloadPdf = () => {
-    const receipt = selectedReceipt || {};
-    const total = Number(selectedPayment?.amount || receipt.total_amount || 0);
-    // FLAT, TAX-FREE pricing: the total IS the subtotal. No tax is derived.
-    const subtotal = total;
-    const items = selectedPayment
-      ? [{ name: 'Service Installment / Settlement Payment', amount: Number(selectedPayment.amount || 0) }]
-      : (receipt.vehicles || []).flatMap((v) => (v.services || []).map((s) => ({
-          name: s.service_name || s.service_name_snapshot || 'Service',
-          amount: resolveFrozenServicePrice(s)
-        })));
-
-    const popup = window.open('', '_blank', 'width=900,height=900');
-    if (!popup) {
-      toast.error('Please allow pop-ups to download the PDF receipt.');
-      return;
-    }
-
-    popup.document.write(`<!doctype html>
-      <html>
-        <head>
-          <title>Official Digital Receipt</title>
-          <style>
-            body { font-family: Arial, sans-serif; background: #fff; color: #111; margin: 0; padding: 32px; }
-            .wrap { max-width: 720px; margin: 0 auto; border: 1px solid #111; border-radius: 16px; padding: 24px; }
-            .brand { text-align: center; margin-bottom: 24px; }
-            h1 { margin: 0; font-size: 2.2rem; letter-spacing: 2px; color: #a91b18; }
-            .subtitle { font-size: 12px; letter-spacing: 2px; color: #666; text-transform: uppercase; }
-            .line { height: 2px; background: #000; width: 48px; margin: 12px auto 0; }
-            .meta { display: flex; justify-content: space-between; gap: 16px; margin: 20px 0; }
-            .meta div { flex: 1; }
-            .label { font-size: 11px; font-weight: 800; color: #666; text-transform: uppercase; letter-spacing: 1px; }
-            .item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
-            .total-row { display: flex; justify-content: space-between; padding-top: 12px; font-weight: 800; }
-            .balance { border-top: 2px solid #000; margin-top: 12px; padding-top: 12px; }
-            .foot { text-align: center; margin-top: 24px; font-size: 12px; color: #666; }
-          </style>
-        </head>
-        <body>
-          <div class="wrap">
-            <div class="brand">
-              <h1>COMAR GARAGE</h1>
-              <div class="subtitle">Comar Garage Detail Studio</div>
-              <div class="line"></div>
-            </div>
-            <div class="meta">
-              <div>
-                <div class="label">Customer</div>
-                <div>${receipt.customer_name || user?.user_metadata?.full_name || 'Valued Customer'}</div>
-              </div>
-              <div style="text-align:right;">
-                <div class="label">Date & Time</div>
-                <div>${new Date(selectedPayment?.created_at || receipt.created_at).toLocaleString()}</div>
-              </div>
-            </div>
-            <div class="label" style="margin-bottom: 8px;">Service Summary</div>
-            ${items.map(item => `<div class="item"><span>• ${item.name}</span><strong>${formatCurrency(item.amount)}</strong></div>`).join('')}
-            <div class="total-row"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
-            <div class="total-row balance"><span>Grand Total</span><span>${formatCurrency(total)}</span></div>
-            <div class="foot">Transaction Reference: ${selectedPayment?.reference_number || receipt.payments?.[0]?.reference_number || 'SYSTEM_VALIDATED'}</div>
-          </div>
-        </body>
-      </html>
-    `);
-    popup.document.close();
-    setTimeout(() => popup.print(), 300);
-  };
-
-  const getReceiptStatusText = (receipt) => {
-    if (!receipt) return '';
-
-    // REQ-ADM-10: Hardened check for refund state
-    if (receipt.refund_status === 'PROCESSED') return 'REFUNDED & CLOSED';
-
-    const paidAmount = (receipt.payments || []).filter(p => p.status === 'PAID').reduce((s, p) => s + Number(p.amount), 0);
-    const remaining = Math.max(0, receipt.total_amount - paidAmount);
-
-    if (!canAccessReceipt(receipt)) return 'AWAITING VERIFICATION';
-    if (remaining <= 0) return 'PAID IN FULL';
-    if (paidAmount > 0) return 'PARTIAL PAYMENT';
-    return 'BALANCE DUE';
-  };
-
   if (loading) return <div style={{ padding: '2rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>Synchronizing financial records...</div>;
-
-  const renderServiceRows = (receipt) => {
-    if (receipt.vehicles && receipt.vehicles.length > 0) {
-      return receipt.vehicles.map((v) => (
-        <React.Fragment key={v.id}>
-          <tr>
-            <td colSpan="2" style={{ padding: '15px 5px 5px', fontWeight: 'bold', fontSize: '0.9rem', color: '#000' }}>
-              {v.brand} {v.model} {v.plate_number ? `(${v.plate_number})` : ''}
-            </td>
-          </tr>
-          {(v.services || []).map((s) => (
-            <tr key={s.id}>
-              <td style={{ padding: '5px 5px 5px 20px', fontSize: '0.85rem', color: '#333' }}>
-                {s.service_name || s.service_name_snapshot}
-              </td>
-              <td style={{ padding: '5px 5px', textAlign: 'right', fontSize: '0.85rem', color: '#333' }}>
-                {formatCurrency(resolveFrozenServicePrice(s))}
-              </td>
-            </tr>
-          ))}
-        </React.Fragment>
-      ));
-      
-      return (
-        <>
-          {rows}
-          {receipt.refund_status === 'PROCESSED' && (
-            <tr>
-              <td style={{ padding: '15px 5px', fontSize: '0.85rem', color: 'var(--status-danger)', fontWeight: '900', borderTop: '1px dashed #ef4444' }}>
-                SYSTEM REFUND (Ref: {receipt.payments?.find(p => p.status === 'REFUNDED')?.reference_number || 'VOID'})
-              </td>
-              <td style={{ padding: '15px 5px', textAlign: 'right', fontSize: '0.85rem', color: 'var(--status-danger)', fontWeight: '900', borderTop: '1px dashed #ef4444' }}>
-                {formatCurrency((receipt.payments || []).filter(p => p.status === 'REFUNDED').reduce((s, p) => s + Number(p.amount), 0))}
-              </td>
-            </tr>
-          )}
-        </>
-      );
-    } else {
-      return (
-        <tr>
-          <td style={{ padding: '15px 5px', fontSize: '0.85rem', color: '#333' }}>
-            Premium Detailing Package
-          </td>
-          <td style={{ padding: '15px 5px', textAlign: 'right', fontSize: '0.85rem', color: '#333' }}>
-            {formatCurrency(receipt.total_amount)}
-          </td>
-        </tr>
-      );
-    }
-  };
 
   return (
     <>
@@ -278,9 +121,9 @@ const CustomerBilling = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: 'var(--admin-bg)', borderBottom: '1px solid var(--admin-border)' }}>
-                  <th style={{ padding: '1.25rem 2rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Reference</th>
-                  <th style={{ padding: '1.25rem 2rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Verification Date</th>
-                  <th style={{ padding: '1.25rem 2rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Net Amount</th>
+                  <th style={{ padding: '1.25rem 2rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Receipt No. / Reference ID</th>
+                  <th style={{ padding: '1.25rem 2rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Transaction Date</th>
+                  <th style={{ padding: '1.25rem 2rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Amount</th>
                   <th style={{ padding: '1.25rem 2rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Status</th>
                   <th style={{ padding: '1.25rem 2rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'center' }}>Actions</th>
                 </tr>
@@ -292,19 +135,56 @@ const CustomerBilling = () => {
                   </tr>
                 ) : (
                   bookings.flatMap((booking) => {
-                    const bookingPayments = (booking.payments || []).filter(p =>
-                      ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(String(p.status || '').toUpperCase())
-                      || (String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(p.amount) < 0)
-                    );
+                    const bookingPayments = (booking.payments || [])
+                      .filter(p =>
+                        ['PAID', 'REFUND_PENDING', 'REFUNDED', 'FOR_VERIFICATION', 'REJECTED'].includes(String(p.status || '').toUpperCase())
+                        || (String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(p.amount) < 0)
+                      )
+                      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
-                    return bookingPayments.map((p, pIdx) => (
-                      <tr key={p.id} className="admin-card-hover" role="link" tabIndex={0} aria-label={`Open booking ${booking.id.slice(0, 8)}`} onClick={() => navigate(`/customer/bookings/${booking.id}`)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate(`/customer/bookings/${booking.id}`); } }} style={{ borderBottom: '1px solid var(--admin-border)', transition: 'all 0.2s ease', cursor: 'pointer' }}>
+                    return bookingPayments.map((p) => {
+                      const paymentStatus = String(p.status || '').toUpperCase();
+                      const isRefund = String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(p.amount) < 0;
+                      const canIssueReceipt = Number(p.amount) > 0
+                        && ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(paymentStatus)
+                        && !isRefund;
+                      const receiptNumber = `RCP-${p.id.toUpperCase()}`;
+                      const paymentRecordNumber = `PAY-${p.id.toUpperCase()}`;
+                      const statusLabel = isRefund
+                        ? 'REFUND'
+                        : ({
+                            PAID: 'VERIFIED',
+                            REFUND_PENDING: 'REFUND PENDING',
+                            REFUNDED: 'REFUNDED',
+                            FOR_VERIFICATION: 'AWAITING VERIFICATION',
+                            REJECTED: 'REJECTED',
+                          }[paymentStatus] || paymentStatus);
+                      const statusColor = ['REJECTED', 'REFUNDED'].includes(paymentStatus) || isRefund
+                        ? 'var(--status-danger)'
+                        : ['REFUND_PENDING', 'FOR_VERIFICATION'].includes(paymentStatus)
+                          ? 'var(--status-warning)'
+                          : 'var(--status-success)';
+                      const statusBackground = ['REJECTED', 'REFUNDED'].includes(paymentStatus) || isRefund
+                        ? 'rgba(239, 68, 68, 0.1)'
+                        : ['REFUND_PENDING', 'FOR_VERIFICATION'].includes(paymentStatus)
+                          ? 'rgba(245, 158, 11, 0.1)'
+                          : 'rgba(16, 185, 129, 0.1)';
+
+                      return (
+                      <tr key={p.id} style={{ borderBottom: '1px solid var(--admin-border)' }}>
                         <td style={{ padding: '1.25rem 2rem', fontSize: '0.95rem', fontWeight: '900', color: 'var(--admin-text-primary)', fontFamily: 'monospace' }}>
-                          {p.reference_number || `${String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' ? 'RFD' : 'RCP'}-${p.id.substring(0, 8).toUpperCase()}`}
-                          <div style={{ fontSize: '0.6rem', color: 'var(--admin-brand)', fontWeight: '950', marginTop: '0.2rem' }}>LINKED TO INV-{booking.id.substring(0, 8).toUpperCase()}</div>
+                          <div>{isRefund ? 'Refund Reference ID' : canIssueReceipt ? 'Receipt No.' : 'Payment Record ID'}: {isRefund ? (p.reference_number || `RFD-${p.id.toUpperCase()}`) : canIssueReceipt ? receiptNumber : paymentRecordNumber}</div>
+                          {!isRefund && <div style={{ marginTop: '0.2rem', fontSize: '0.68rem', fontWeight: 700, overflowWrap: 'anywhere' }}>Transaction/Reference ID: {p.reference_number || p.detected_ref || 'Not provided'}</div>}
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/customer/bookings/${booking.id}`)}
+                            style={{ display: 'block', background: 'none', border: 0, padding: 0, marginTop: '0.2rem', color: 'var(--admin-brand)', fontSize: '0.6rem', fontWeight: '950', cursor: 'pointer' }}
+                          >
+                            LINKED TO INV-{booking.id.substring(0, 8).toUpperCase()}
+                          </button>
                         </td>
                         <td style={{ padding: '1.25rem 2rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>
-                          {new Date(p.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                          {p.created_at ? new Date(p.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
                         </td>
                         <td style={{ padding: '1.25rem 2rem', fontSize: '1.1rem', fontWeight: '950', color: 'var(--admin-brand)' }}>
                           <span style={{ color: Number(p.amount) < 0 ? 'var(--status-danger)' : 'var(--admin-brand)' }}>{formatCurrency(p.amount)}</span>
@@ -312,11 +192,11 @@ const CustomerBilling = () => {
                         <td style={{ padding: '1.25rem 2rem' }}>
                           <span style={{
                             fontSize: '0.65rem', fontWeight: '950',
-                            background: 'rgba(16, 185, 129, 0.1)',
-                            color: 'var(--status-success)',
+                            background: statusBackground,
+                            color: statusColor,
                             padding: '0.3rem 0.75rem', borderRadius: '4px', textTransform: 'uppercase', border: '1px solid currentColor'
                           }}>
-                            {String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' ? 'REFUND' : String(p.status || '').toUpperCase() === 'REFUND_PENDING' ? 'REFUND PENDING' : pIdx === 0 ? 'DOWNPAYMENT' : 'SETTLEMENT'}
+                            {statusLabel}
                           </span>
                         </td>
                         <td style={{ padding: '1.25rem 2rem', textAlign: 'center' }}>
@@ -336,21 +216,22 @@ const CustomerBilling = () => {
                                 View Proof
                               </button>
                             )}
-                            {Number(p.amount) > 0 && <button
-                              onClick={(event) => { event.stopPropagation(); setSelectedReceipt(booking); setSelectedPayment(p); }}
-                              title="View Transaction Receipt"
+                            {canIssueReceipt && <button
+                              onClick={() => { setSelectedReceipt(booking); setSelectedPayment(p); }}
+                              title={`View receipt ${receiptNumber}`}
                               style={{ 
                                 background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)',
-                                color: 'var(--admin-text-primary)', borderRadius: '8px', width: '40px', height: '40px',
+                                color: 'var(--admin-text-primary)', borderRadius: '8px', padding: '0 0.65rem', minHeight: '40px',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
                               }}
                             >
-                              <Printer size={18} />
+                              <><Printer size={16} /><span style={{ marginLeft: '0.3rem', fontSize: '0.62rem', fontWeight: 900 }}>RECEIPT</span></>
                             </button>}
                           </div>
                         </td>
                       </tr>
-                    ));
+                    );
+                    });
                   })
                 )}
               </tbody>

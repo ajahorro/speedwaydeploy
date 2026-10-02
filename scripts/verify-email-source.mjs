@@ -15,26 +15,37 @@ const bookingSummaryHeader = fs.readFileSync('frontend/src/components/BookingSum
 const notificationRouting = fs.readFileSync('frontend/src/utils/notificationRouting.js', 'utf8');
 const notificationSuppressionMigration = fs.readFileSync('supabase/migrations/20261023000003_suppress_unlinked_booking_notifications.sql', 'utf8');
 const officialReceipt = fs.readFileSync('frontend/src/components/OfficialReceipt.jsx', 'utf8');
+const receiptModel = fs.readFileSync('shared/receiptModel.ts', 'utf8');
 const { resolveAmounts } = await import('../supabase/functions/_shared/bookingEmail.ts');
 const { buildOfficialReceiptPdf } = await import('../supabase/functions/_shared/officialReceiptPdf.ts');
+const { resolveInvoiceAmounts, resolveTransactionReceiptAmounts } = await import('../shared/receiptModel.ts');
+const samplePayment = {
+  id: 'payment-123',
+  amount: 900,
+  detected_amount: 900,
+  net_credit: 900,
+  transfer_fee: 100,
+  status: 'PAID',
+  method: 'Online Transfer',
+  reference_number: 'TXN-12345',
+  created_at: '2026-10-02T08:00:00.000Z',
+};
+const sampleRefundAllocations = [{
+  amount: 250,
+  refund_payment: {
+    amount: -250,
+    status: 'REFUNDED',
+    reference_number: 'RFD-123',
+    created_at: '2026-10-03T08:00:00.000Z',
+  },
+}];
 const receiptPdf = Buffer.from(buildOfficialReceiptPdf({
-  receiptNumber: 'PAY-12345',
   customerName: 'Sample Customer',
   customerEmail: 'customer@example.com',
   customerContact: '09123456789',
   bookingReference: 'AB12CD34',
-  issuedAt: '2026-10-02T08:00:00.000Z',
-  paymentMethod: 'Online Transfer',
-  items: [{ vehicle: 'Toyota Corolla', service: 'Interior Detail', qty: 1, unitPrice: 1000, lineTotal: 1000 }],
-  amounts: {
-    totalDue: 1000,
-    verifiedGrossPaid: 1000,
-    verifiedNetReceived: 1000,
-    verifiedTransferFee: 0,
-    verifiedCreditApplied: 0,
-    verifiedRemainingBalance: 0,
-    verifiedExcessCredit: 0,
-  },
+  payment: samplePayment,
+  refundAllocations: sampleRefundAllocations,
 }), 'base64').toString('ascii');
 
 const checks = [
@@ -95,16 +106,24 @@ checks.push(
     { amount: 500, status: 'FOR_VERIFICATION' },
     [{ amount: 500, status: 'PAID' }, { amount: 500, status: 'FOR_VERIFICATION' }]
   ).verifiedRemainingBalance === 500],
-  ['receipt: PDF uses the styled official receipt structure and service details', [
+  ['receipt: PDF uses the transaction receipt structure and transaction-level details', [
     '/BaseFont /Helvetica-Bold',
     'COMAR GARAGE',
     'OFFICIAL RECEIPT',
+    'Receipt No. RCP-PAYMENT-123',
+    'Transaction/Reference ID: TXN-12345',
     'BILLED TO',
     'WORK ORDER',
     'DESCRIPTION',
-    'Toyota Corolla - Interior Detail',
+    'Payment for Booking',
+    'Gross Paid',
     'PHP 1,000.00',
-    'PAID IN FULL',
+    'Transfer Fee',
+    'PHP 100.00',
+    'Net Received',
+    'PHP 900.00',
+    'Refund Reference ID: RFD-123',
+    'PAYMENT PARTIALLY REFUNDED',
   ].every((content) => receiptPdf.includes(content))],
   ['receipt: customer contact is separated from the table header', /48 580 516 25 re f/.test(receiptPdf) && /09123456789/.test(receiptPdf)],
   ['receipt: PDF cross-reference points to its actual byte offset', Number(receiptPdf.match(/startxref\n(\d+)/)?.[1]) === receiptPdf.indexOf('xref\n')],
@@ -115,8 +134,21 @@ checks.push(
   ['notifications: database blocks unlinked chat and status updates', /before insert on public\.notifications/.test(notificationSuppressionMigration) && /new\.booking_id is null[\s\S]*?return null/.test(notificationSuppressionMigration)],
   ['customer billing: fetch callback is initialized before the effect uses it', customerBilling.indexOf('const fetchData = useCallback') >= 0 && customerBilling.indexOf('const fetchData = useCallback') < customerBilling.indexOf('useEffect(() =>')],
   ['customer booking: flagged no-show has its own visible lifecycle state', /normalizedStatus === 'FLAGGED_NOSHOW'[\s\S]*?Flagged no-show/.test(bookingSummaryHeader)],
-  ['payment receipt: transaction total matches the selected payment', /const gross = selectedPayment \? paymentReceived : bookingTotal/.test(officialReceipt) && /selectedPayment \? 'Payment Received' : 'Total Amount Due'/.test(officialReceipt)],
-  ['no-show payment receipt: clearly identifies booking and refund status', /Booking flagged as no-show[\s\S]*?Refund status: \$\{refundStatus/.test(officialReceipt)],
+  ['payment receipt: portal uses the shared transaction calculation model', /resolveTransactionReceiptAmounts\(selectedPayment, refundAllocations\)/.test(officialReceipt) && /resolveTransactionReceiptAmounts/.test(receiptModel)],
+  ['payment receipt: gross, fee, and net agree with receipt model', (() => {
+    const amounts = resolveTransactionReceiptAmounts(samplePayment, sampleRefundAllocations);
+    return amounts.grossPaid === 1000 && amounts.transferFee === 100 && amounts.netReceived === 900
+      && amounts.refundAmount === 250 && amounts.refundStatus === 'PARTIALLY_REFUNDED';
+  })()],
+  ['invoice: discount is subtracted from the pre-discount subtotal exactly once', (() => {
+    const amounts = resolveInvoiceAmounts({ total_amount: 900, discount_amount_snapshot: 100 });
+    return amounts.subtotal === 1000 && amounts.discount === 100 && amounts.totalDue === 900;
+  })()],
+  ['customer ledger: displays separate transaction rows including pending verification', /'FOR_VERIFICATION', 'REJECTED'/.test(fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8'))],
+  ['customer ledger: only verified positive payments can open receipts', /canIssueReceipt = Number\(p\.amount\) > 0[\s\S]*?\['PAID', 'REFUND_PENDING', 'REFUNDED'\]/.test(fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8'))],
+  ['payment receipts: portal labels receipt number and gateway reference separately', /getReceiptNumber\(selectedPayment\)/.test(officialReceipt) && /Transaction\/Reference ID/.test(officialReceipt)],
+  ['payment receipts: refunds are sourced from payment-level allocations', /payment_refund_allocations/.test(officialReceipt) && /payment_refund_allocations/.test(fn)],
+  ['payment receipts: refund statuses are shown only for allocated refund slips', /refundAllocations\.filter\(\(allocation\)/.test(officialReceipt) && /allocation\.refund_payment\?\.status/.test(officialReceipt)],
   ['admin payment verification: no standalone receipt dispatch', !/sendPaymentReceiptEmail/.test(adminPayments) && !/sendPaymentReceiptEmail/.test(adminBookingDetails)],
   ['notification service: standalone receipt helper removed', !/sendPaymentReceiptEmail|\/api\/emails\/payment-receipt/.test(notificationService)],
   ['no-show worker: retries flagged bookings without requiring a profile email', /from\('bookings'\)[\s\S]*?\.select\('id, refund_status, customer_email, payments\(amount, detected_amount, status, method, verified_at\)'\)[\s\S]*?\.eq\('status', 'FLAGGED_NOSHOW'\)/.test(backend)],

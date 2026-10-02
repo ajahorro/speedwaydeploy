@@ -241,6 +241,21 @@ serve(async (req: Request): Promise<Response> => {
 
     // Newest payment is the one this event concerns.
     const payments: PaymentLike[] = Array.isArray(row.payments) ? row.payments : []
+    const paymentIds = payments
+      .map((item) => item.id)
+      .filter((id): id is string => Boolean(id))
+    if (paymentIds.length) {
+      const { data: allocations, error: allocationError } = await supabase
+        .from('payment_refund_allocations')
+        .select('amount, source_payment_id, refund_payment:payments!payment_refund_allocations_refund_payment_id_fkey(amount, status, reference_number, created_at, refunded_at)')
+        .in('source_payment_id', paymentIds)
+      if (allocationError) throw new Error(`Refund allocation lookup failed: ${allocationError.message}`)
+      for (const item of payments) {
+        item.refund_allocations = (allocations || [])
+          .filter((allocation) => allocation.source_payment_id === item.id)
+          .map(({ amount, refund_payment }) => ({ amount, refund_payment }))
+      }
+    }
     const payment: PaymentLike | null = payments.length
       ? [...payments].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0]
       : null
@@ -249,30 +264,15 @@ serve(async (req: Request): Promise<Response> => {
       .sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0] || null
 
     const amounts = resolveAmounts(row, payment, payments)
-    const items = (row.vehicles || []).flatMap((v) =>
-      (v.services || []).map((s) => ({
-        vehicle: `${v.brand || ''} ${v.model || ''}`.trim() || 'Vehicle Unit',
-        service: s.service_name || 'Service',
-        qty: 1,
-        unitPrice: Number(s.price || 0),
-        lineTotal: Number(s.price || 0),
-      }))
-    )
-
     const bookingRef = String(bookingId).slice(0, 8).toUpperCase()
-    const renderOfficialReceipt = (receiptNumber: string, receiptPayment: PaymentLike | null) =>
+    const renderOfficialReceipt = (receiptPayment: PaymentLike | null) =>
       buildOfficialReceiptPdf({
-        receiptNumber,
         customerName,
         customerEmail: row.customer_email || customer?.email || '',
         customerContact: row.contact_number || '',
         bookingReference: bookingRef,
-        issuedAt: receiptPayment?.created_at,
-        paymentMethod: receiptPayment?.method || amounts.paymentMethod,
-        discountAmount: Number(row.discount_amount_snapshot || 0),
-        promoName: row.promo_name_snapshot || null,
-        items,
-        amounts,
+        payment: receiptPayment || {},
+        refundAllocations: receiptPayment?.refund_allocations || [],
       })
 
     // ── Render the right email for this event ───────────────────────────────
@@ -283,20 +283,19 @@ serve(async (req: Request): Promise<Response> => {
     const isConfirmed = canonical === 'booking_confirmed'
 
     if (isConfirmed) {
-      const receiptNumber = verifiedPayment?.reference_number || verifiedPayment?.detected_ref || `INV-${bookingRef}`
       // A receipt is only attached when the money is actually settled. A partial
       // payment is confirmed as a booking but must not receive a full receipt.
       // Pending OCR submissions are not verified funds, even if their amount
       // happens to cover the booking total.
       const isSettled = amounts.verifiedGrossPaid > 0 && amounts.verifiedRemainingBalance <= 0
       const receiptPdf = isSettled
-        ? renderOfficialReceipt(receiptNumber, verifiedPayment)
+        ? renderOfficialReceipt(verifiedPayment)
         : null
 
       if (receiptPdf) {
         attachments = [{
           content: receiptPdf,
-          filename: `Receipt-${String(receiptNumber).replace(/\s+/g, '-').toUpperCase()}.pdf`,
+          filename: `Receipt-RCP-${String(verifiedPayment?.id || bookingRef).toUpperCase()}.pdf`,
         }]
       }
 
@@ -329,10 +328,9 @@ serve(async (req: Request): Promise<Response> => {
       const mayAttachReceipt = ['booking_in_progress', 'booking_completed', 'booking_released'].includes(canonical)
       const isSettled = amounts.verifiedGrossPaid > 0 && amounts.verifiedRemainingBalance <= 0
       if (mayAttachReceipt && amounts.hasPayment && isSettled) {
-        const receiptNumber = verifiedPayment?.reference_number || verifiedPayment?.detected_ref || `INV-${bookingRef}`
         attachments = [{
-          content: renderOfficialReceipt(receiptNumber, verifiedPayment),
-          filename: `Receipt-${String(receiptNumber).replace(/\s+/g, '-').toUpperCase()}.pdf`,
+          content: renderOfficialReceipt(verifiedPayment),
+          filename: `Receipt-RCP-${String(verifiedPayment?.id || bookingRef).toUpperCase()}.pdf`,
         }]
       }
     }
