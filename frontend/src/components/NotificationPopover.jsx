@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useUnifiedData } from '../context/UnifiedContext';
 import { Bell, CheckCheck, ChevronRight, Info, Calendar, Star, Megaphone, MessageSquare } from 'lucide-react';
+import toast from 'react-hot-toast';
 import NotificationDetailsModal from './NotificationDetailsModal';
-import { isRedundantStaffTechnicianAssignment } from '../utils/notificationRouting';
+import { isRedundantStaffTechnicianAssignment, resolveStaffJobId } from '../utils/notificationRouting';
 
 const TYPE_ICONS = {
   ANNOUNCEMENT: Megaphone,
@@ -53,6 +54,7 @@ const NotificationPopover = ({ profile, onClose, onRead }) => {
   // 2. Extracted `refreshData` from global context
   const { notifications, isLoading: loading, refreshData } = useUnifiedData();
   const [selectedNotification, setSelectedNotification] = useState(null);
+  const isStaff = profile?.role?.toUpperCase() === 'STAFF';
 
   const visibleNotifications = profile?.role?.toUpperCase() === 'STAFF'
     ? (notifications || []).filter((notification) => !isRedundantStaffTechnicianAssignment(notification))
@@ -129,10 +131,27 @@ const NotificationPopover = ({ profile, onClose, onRead }) => {
       if (typeof onRead === 'function') await onRead();
     }
 
+    if (n.booking_id && isStaff) {
+      try {
+        const jobId = await resolveStaffJobId(supabase, n.booking_id);
+        if (!jobId) {
+          toast.error('No assigned vehicle was found for this booking.');
+          navigate('/staff/tasks');
+          onClose();
+          return;
+        }
+        onClose();
+        navigate(`/staff/job/${jobId}${isChatNotification(n) ? '?chat=open' : ''}`);
+      } catch (error) {
+        toast.error(`Could not open the assigned vehicle: ${error.message || 'lookup failed.'}`);
+      }
+      return;
+    }
+
     if (n.booking_id) {
       const rolePrefix = profile?.role?.toUpperCase() === 'ADMIN'
         ? '/admin'
-        : profile?.role?.toUpperCase() === 'STAFF' ? '/staff' : '/customer';
+        : '/customer';
       onClose();
       navigate(`${rolePrefix}/bookings/${n.booking_id}${isChatNotification(n) ? '?chat=open' : ''}`);
       return;
@@ -141,7 +160,6 @@ const NotificationPopover = ({ profile, onClose, onRead }) => {
   };
 
   const isAdmin = profile?.role?.toUpperCase() === 'ADMIN';
-  const isStaff = profile?.role?.toUpperCase() === 'STAFF';
   const notifPath = isAdmin ? '/admin/notifications' : isStaff ? '/staff/notifications' : '/customer/notifications';
 
   return (

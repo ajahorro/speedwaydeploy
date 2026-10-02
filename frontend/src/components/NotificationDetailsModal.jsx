@@ -5,7 +5,7 @@ import { X, ExternalLink, Info, Calendar, Star, Megaphone, Bell, MessageSquare }
 import toast from 'react-hot-toast';
 import { parseChatNotification } from './NotificationPopover';
 import { supabase } from '../lib/supabase';
-import { resolveBookingId } from '../utils/notificationRouting';
+import { resolveBookingId, resolveStaffJobId } from '../utils/notificationRouting';
 
 const TYPE_ICONS = {
   ANNOUNCEMENT: Megaphone,
@@ -45,6 +45,17 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
     }
 
     try {
+      if (role === 'STAFF') {
+        const jobId = await resolveStaffJobId(supabase, hashBookingId);
+        if (!jobId) {
+          toast.error('No assigned vehicle was found for this booking.');
+          return;
+        }
+        onClose();
+        navigate(`/staff/job/${jobId}`);
+        return;
+      }
+
       const resolvedBookingId = await resolveBookingId(supabase, hashBookingId);
       if (!resolvedBookingId) {
         toast.error('Associated booking record not found.');

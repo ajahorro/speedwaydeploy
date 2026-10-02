@@ -54,6 +54,26 @@ export const resolveBookingId = async (client, reference) => {
   return data?.id || null;
 };
 
+export const resolveStaffJobId = async (client, bookingReference) => {
+  const bookingId = await resolveBookingId(client, bookingReference);
+  if (!bookingId) return null;
+
+  const { data, error } = await client
+    .from('booking_vehicles')
+    .select('id, status')
+    .eq('booking_id', bookingId)
+    .limit(50);
+  if (error) throw error;
+
+  const units = data || [];
+  const priority = { IN_PROGRESS: 0, PENDING: 1, SCHEDULED: 2 };
+  units.sort((a, b) =>
+    (priority[String(a.status || '').toUpperCase()] ?? 3)
+      - (priority[String(b.status || '').toUpperCase()] ?? 3)
+  );
+  return units[0]?.id || null;
+};
+
 export const isRedundantStaffTechnicianAssignment = (notification) => {
   if (!notification) return false;
   const title = String(notification.title || '').trim().toLowerCase();
