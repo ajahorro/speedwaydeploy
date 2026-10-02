@@ -1977,7 +1977,7 @@ const AdminBookingDetails = () => {
       {undoNoShowModal.open && ReactDOM.createPortal(
         (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '1rem' : '2rem' }}>
-            <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '1rem', width: '100%', maxWidth: '28rem', margin: '0 1rem', boxShadow: 'var(--modal-shadow)', overflow: 'hidden', borderTop: '4px solid var(--admin-brand)' }}>
+            <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 0, width: '100%', maxWidth: '28rem', margin: '0 1rem', boxShadow: 'var(--modal-shadow)', overflow: 'hidden' }}>
               <div style={{ padding: isMobile ? '1rem 1rem 0.75rem' : '1.5rem 1.5rem 1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

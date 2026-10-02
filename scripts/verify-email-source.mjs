@@ -167,6 +167,7 @@ checks.push(
     && /create trigger trg_preserve_no_show_booking_marker/.test(noShowUnassignedMigration)
     && /was_flagged_no_show := true/.test(noShowUnassignedMigration)],
   ['modal: confirmation callback can open a replacement modal without being closed afterward', /const onConfirm = modal\.onConfirm;[\s\S]*?setModal\(null\);[\s\S]*?if \(onConfirm\) onConfirm\(value\)/.test(uiContext)],
+  ['undo no-show modal: sharp corners and no red top accent', /undoNoShowModal\.open[\s\S]*?borderRadius: 0,[\s\S]*?boxShadow: 'var\(--modal-shadow\)'/.test(adminBookingDetails) && !/borderTop: '4px solid var\(--admin-brand\)'/.test(adminBookingDetails)],
   ['cancellation: both admin endpoints use the atomic cancellation RPC', /rpc\('admin_cancel_booking'/.test(backend) && /cancelBookingAndQueueRefund\(\{[\s\S]*?bookingId,[\s\S]*?reason/.test(backend)],
   ['booking directory: exposes cancellation on mobile and desktop', (adminBookings.match(/requestCancelBooking\(booking\)/g) || []).length >= 2],
   ['booking directory: hides cancellation after service starts', /const canCancel = \(booking\) => \{[\s\S]*?'in_progress', 'ongoing'[\s\S]*?vehicleStatuses\.some/.test(adminBookings)],
