@@ -27,7 +27,7 @@ const AdminWalkInWizard = () => {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('profiles').select('id, full_name, email, phone_number').eq('role', 'CUSTOMER').eq('is_active', true).order('full_name'),
+      supabase.from('profiles').select('*').eq('role', 'CUSTOMER').eq('is_active', true).order('full_name'),
     ]).then(([customerResult]) => {
       setCustomers(customerResult.data || []);
     });
@@ -59,6 +59,16 @@ const AdminWalkInWizard = () => {
     return () => { cancelled = true; clearTimeout(t); };
   }, [guest.email, isNewGuest]);
 
+  const resolveProfileContact = (profile) => String(
+    profile?.phone_number || profile?.contact_number || profile?.phone || ''
+  ).replace(/\D/g, '').slice(0, 15);
+
+  const resolveProfileName = (profile) => {
+    const fromFull = String(profile?.full_name || '').trim();
+    if (fromFull) return fromFull;
+    return [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim();
+  };
+
   const renderAdminPanel = ({ bookingData, setBookingData, isCustomerDetailsLocked }) => {
     const updateCustomerMode = mode => {
       if (isCustomerDetailsLocked) return;
@@ -86,7 +96,7 @@ const AdminWalkInWizard = () => {
             <input disabled={isCustomerDetailsLocked} style={fieldStyle} placeholder="Phone" inputMode="numeric" value={guest.phone} onChange={event => { const phone = event.target.value.replace(/\D/g, ''); setGuest(current => ({ ...current, phone })); setBookingData(current => ({ ...current, contactNumber: phone, adminCustomerReady: Boolean(guest.firstName.trim() && guest.lastName.trim() && guest.email.trim() && phone.trim()) })); }} />
           </div>
         ) : (
-          <select disabled={isCustomerDetailsLocked} style={fieldStyle} value={selectedCustomer} onChange={event => { const id = event.target.value; const profile = customers.find(customer => customer.id === id); setSelectedCustomer(id); setBookingData(current => ({ ...current, customerId: id, customerName: profile?.full_name || '', customerEmail: profile?.email || '', contactNumber: profile?.phone_number || '', adminCustomerReady: Boolean(id) })); }}>
+          <select disabled={isCustomerDetailsLocked} style={fieldStyle} value={selectedCustomer} onChange={event => { const id = event.target.value; const profile = customers.find(customer => customer.id === id); const fullName = resolveProfileName(profile); const phone = resolveProfileContact(profile); setSelectedCustomer(id); setBookingData(current => ({ ...current, customerId: id, customerName: fullName, customerEmail: profile?.email || '', contactNumber: phone, adminCustomerReady: Boolean(id && fullName && phone) })); }}>
             <option value="">Choose customer account</option>
             {customers.map(customer => <option key={customer.id} value={customer.id}>{customer.full_name || customer.email}</option>)}
           </select>
@@ -110,10 +120,12 @@ const AdminWalkInWizard = () => {
                 type="button"
                 onClick={() => {
                   const profile = customers.find(c => c.id === emailMatch.id) || emailMatch;
+                  const fullName = resolveProfileName(profile);
+                  const phone = resolveProfileContact(profile);
                   setIsNewGuest(false);
                   setSelectedCustomer(emailMatch.id);
                   setGuestAsGuest(false);
-                  setBookingData(current => ({ ...current, customerId: emailMatch.id, customerName: profile.full_name || '', customerEmail: profile.email || '', contactNumber: profile.phone_number || current.contactNumber || '', adminCustomerReady: true }));
+                  setBookingData(current => ({ ...current, customerId: emailMatch.id, customerName: fullName, customerEmail: profile.email || '', contactNumber: phone || current.contactNumber || '', adminCustomerReady: Boolean(emailMatch.id && fullName && phone) }));
                 }}
                 style={{ padding: '.55rem .9rem', background: 'var(--admin-brand)', color: '#fff', border: '1px solid var(--admin-brand)', borderRadius: 0, fontWeight: 900, fontSize: '.72rem', cursor: 'pointer' }}
               >
@@ -134,6 +146,23 @@ const AdminWalkInWizard = () => {
   };
 
   const submitAdminBooking = async bookingData => {
+    const rawCustomerId = bookingData.customerId ?? null;
+    if (rawCustomerId) {
+      const { data: freshProfile, error: freshProfileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, phone_number, contact_number, first_name, last_name')
+        .eq('id', rawCustomerId)
+        .maybeSingle();
+
+      if (!freshProfileError && freshProfile) {
+        const freshFullName = resolveProfileName(freshProfile);
+        const freshPhone = resolveProfileContact(freshProfile);
+        bookingData.customerName = freshFullName || bookingData.customerName || '';
+        bookingData.contactNumber = freshPhone || bookingData.contactNumber || '';
+        bookingData.customerEmail = freshProfile.email || bookingData.customerEmail || '';
+      }
+    }
+
     if (!bookingData.customerName || !bookingData.contactNumber) throw new Error('Complete the customer details before confirming.');
 
     // Identity resolution safety net. If this is a guest booking whose email
