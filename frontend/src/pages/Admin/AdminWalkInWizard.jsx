@@ -70,18 +70,6 @@ const AdminWalkInWizard = () => {
   };
 
   const renderAdminPanel = ({ bookingData, setBookingData, isCustomerDetailsLocked }) => {
-    const updateExistingCustomerDetails = (field, value) => {
-      setBookingData(current => {
-        const next = { ...current, [field]: value };
-        next.adminCustomerReady = Boolean(
-          next.customerId &&
-          next.customerName?.trim() &&
-          next.customerEmail?.trim() &&
-          next.contactNumber?.replace(/\D/g, '').length >= 10
-        );
-        return next;
-      });
-    };
     const updateCustomerMode = mode => {
       if (isCustomerDetailsLocked) return;
       setIsNewGuest(mode);
@@ -108,35 +96,10 @@ const AdminWalkInWizard = () => {
             <input disabled={isCustomerDetailsLocked} style={fieldStyle} placeholder="Phone" inputMode="numeric" value={guest.phone} onChange={event => { const phone = event.target.value.replace(/\D/g, ''); setGuest(current => ({ ...current, phone })); setBookingData(current => ({ ...current, contactNumber: phone, adminCustomerReady: Boolean(guest.firstName.trim() && guest.lastName.trim() && guest.email.trim() && phone.trim()) })); }} />
           </div>
         ) : (
-          <>
-            <select disabled={isCustomerDetailsLocked} style={fieldStyle} value={selectedCustomer} onChange={event => { const id = event.target.value; const profile = customers.find(customer => customer.id === id); const fullName = resolveProfileName(profile); const phone = resolveProfileContact(profile); const email = profile?.email || ''; setSelectedCustomer(id); setBookingData(current => ({ ...current, customerId: id || null, customerName: fullName, customerEmail: email, contactNumber: phone, adminCustomerReady: Boolean(id && fullName && email.trim() && phone.length >= 10) })); }}>
-              <option value="">Choose customer account</option>
-              {customers.map(customer => <option key={customer.id} value={customer.id}>{customer.full_name || customer.email}</option>)}
-            </select>
-            {selectedCustomer && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '.75rem' }}>
-                <input
-                  disabled={isCustomerDetailsLocked}
-                  style={fieldStyle}
-                  aria-label="Customer email"
-                  placeholder="Customer email"
-                  type="email"
-                  value={bookingData.customerEmail || ''}
-                  onChange={event => updateExistingCustomerDetails('customerEmail', event.target.value.trim())}
-                />
-                <input
-                  disabled={isCustomerDetailsLocked}
-                  style={fieldStyle}
-                  aria-label="Customer phone"
-                  placeholder="Customer phone"
-                  type="tel"
-                  inputMode="numeric"
-                  value={bookingData.contactNumber || ''}
-                  onChange={event => updateExistingCustomerDetails('contactNumber', event.target.value.replace(/\D/g, '').slice(0, 15))}
-                />
-              </div>
-            )}
-          </>
+          <select disabled={isCustomerDetailsLocked} style={fieldStyle} value={selectedCustomer} onChange={event => { const id = event.target.value; const profile = customers.find(customer => customer.id === id); const fullName = resolveProfileName(profile); const phone = resolveProfileContact(profile); const email = profile?.email || ''; setSelectedCustomer(id); setBookingData(current => ({ ...current, customerId: id || null, customerName: fullName, customerEmail: email, contactNumber: phone, adminCustomerReady: Boolean(id) })); }}>
+            <option value="">Choose customer account</option>
+            {customers.map(customer => <option key={customer.id} value={customer.id}>{customer.full_name || customer.email}</option>)}
+          </select>
         )}
 
         {/* Identity-collision guard: the typed guest email already belongs to a
@@ -163,7 +126,7 @@ const AdminWalkInWizard = () => {
                   setSelectedCustomer(emailMatch.id);
                   setGuestAsGuest(false);
                   const email = profile.email || '';
-                  setBookingData(current => ({ ...current, customerId: emailMatch.id, customerName: fullName, customerEmail: email, contactNumber: phone || current.contactNumber || '', adminCustomerReady: Boolean(emailMatch.id && fullName && email.trim() && (phone || current.contactNumber || '').replace(/\D/g, '').length >= 10) }));
+                  setBookingData(current => ({ ...current, customerId: emailMatch.id, customerName: fullName, customerEmail: email, contactNumber: phone, adminCustomerReady: Boolean(emailMatch.id) }));
                 }}
                 style={{ padding: '.55rem .9rem', background: 'var(--admin-brand)', color: '#fff', border: '1px solid var(--admin-brand)', borderRadius: 0, fontWeight: 900, fontSize: '.72rem', cursor: 'pointer' }}
               >
