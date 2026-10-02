@@ -334,11 +334,6 @@ const AdminAuditLogs = () => {
       rows.push({ label, value });
     };
 
-    // Performer identity is already present in the human-readable sentence.
-    // Keep only the stable ID here to avoid repeating the same identity block.
-    push('Performer ID', log.actor_id);
-    push('Action', log.action_type || log.event_type);
-
     // Old/new values only exist for diff-style actions, so they appear only when
     // the action actually captured them. Nested objects are FLATTENED into
     // readable sub-rows rather than dumped as a JSON string (Scenario 7).
@@ -350,9 +345,6 @@ const AdminAuditLogs = () => {
     if (newValues !== undefined && newValues !== null) {
       flattenObjectRows('New · ', newValues, rows);
     }
-
-    push('Booking', log.booking_id);
-    push('Timestamp', log.created_at ? new Date(log.created_at).toLocaleString() : null);
 
     // Any extra metadata keys the action recorded, minus the two already shown
     // above, surfaced as their own readable rows instead of a nested blob.
@@ -432,6 +424,10 @@ const AdminAuditLogs = () => {
           filteredLogs.map((log) => {
             const meta = getMeta(log.event_type);
             const isOpen = expandedId === log.id;
+            const actorName = log.profiles?.full_name || log.actor_name || 'System';
+            const actorDetails = [log.actor_email, log.actor_role && log.actor_role !== 'SYSTEM' ? log.actor_role : null]
+              .filter(Boolean)
+              .join(' · ');
             return (
               <div key={log.id} style={{ borderBottom: '1px solid var(--admin-border)' }}>
                 <div
@@ -468,6 +464,48 @@ const AdminAuditLogs = () => {
                 {isOpen && (
                   <div style={{ padding: '0 0.5rem 1rem' }}>
                     <dl style={{
+                      margin: '0 0 0.5rem',
+                      background: 'var(--admin-input-bg)',
+                      border: '1px solid var(--admin-border)',
+                      borderRadius: 0,
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                      gap: '1px',
+                    }}>
+                      <div style={{ padding: '.6rem .75rem', display: 'flex', flexDirection: 'column', gap: '.15rem', minWidth: 0 }}>
+                        <dt style={{ fontSize: '.58rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Action</dt>
+                        <dd style={{ margin: 0, fontSize: '.72rem', fontWeight: 700, color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>{log.action_type || log.event_type || 'System event'}</dd>
+                      </div>
+                      <div style={{ padding: '.6rem .75rem', display: 'flex', flexDirection: 'column', gap: '.15rem', minWidth: 0 }}>
+                        <dt style={{ fontSize: '.58rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Activity By</dt>
+                        <dd style={{ margin: 0, fontSize: '.72rem', fontWeight: 700, color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>
+                          {actorName}{actorDetails ? ` · ${actorDetails}` : ''}
+                        </dd>
+                      </div>
+                      <div style={{ padding: '.6rem .75rem', display: 'flex', flexDirection: 'column', gap: '.15rem', minWidth: 0 }}>
+                        <dt style={{ fontSize: '.58rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Timestamp</dt>
+                        <dd style={{ margin: 0, fontSize: '.72rem', fontWeight: 700, color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>
+                          {log.created_at ? new Date(log.created_at).toLocaleString() : 'Unavailable'}
+                        </dd>
+                      </div>
+                      <div style={{ padding: '.6rem .75rem', display: 'flex', flexDirection: 'column', gap: '.15rem', minWidth: 0 }}>
+                        <dt style={{ fontSize: '.58rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>View Booking</dt>
+                        <dd style={{ margin: 0 }}>
+                          {log.booking_id ? (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/admin/bookings/${log.booking_id}`)}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: 0, background: 'transparent', border: 'none', color: 'var(--admin-text-primary)', fontSize: '.72rem', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer' }}
+                            >
+                              <ExternalLink size={13} /> View booking {shortId(log.booking_id)}
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--admin-text-secondary)' }}>Not linked to a booking</span>
+                          )}
+                        </dd>
+                      </div>
+                    </dl>
+                    <dl style={{
                       margin: 0, background: 'var(--admin-input-bg)',
                       border: '1px solid var(--admin-border)', borderRadius: 0,
                       display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
@@ -480,15 +518,6 @@ const AdminAuditLogs = () => {
                         </div>
                       ))}
                     </dl>
-                    {log.booking_id && (
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/admin/bookings/${log.booking_id}`)}
-                        style={{ marginTop: '0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 0, fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer' }}
-                      >
-                        <ExternalLink size={14} /> View booking {shortId(log.booking_id)}
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
