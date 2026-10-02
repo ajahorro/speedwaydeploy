@@ -94,6 +94,10 @@ const AdminDashboard = () => {
         .select('id, customer_id, customer_name, start_datetime')
         .is('staff_id', null)
         .not('status', 'ilike', 'cancelled')
+        .not('status', 'ilike', 'completed')
+        .not('status', 'ilike', 'released')
+        .not('status', 'ilike', 'in_progress')
+        .not('status', 'ilike', 'ongoing')
         .not('status', 'ilike', 'FLAGGED_NOSHOW')
         .not('status', 'ilike', 'NO_SHOW')
         .limit(2);
@@ -207,6 +211,10 @@ const AdminDashboard = () => {
         .select('*', { count: 'exact', head: true })
         .is('staff_id', null)
         .not('status', 'ilike', 'cancelled')
+        .not('status', 'ilike', 'completed')
+        .not('status', 'ilike', 'released')
+        .not('status', 'ilike', 'in_progress')
+        .not('status', 'ilike', 'ongoing')
         .not('status', 'ilike', 'FLAGGED_NOSHOW')
         .not('status', 'ilike', 'NO_SHOW');
 

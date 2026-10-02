@@ -4803,7 +4803,7 @@ app.post('/api/bookings/release', async (req, res) => {
 
     const { error: updateError } = await supabaseAdmin
       .from('bookings')
-      .update({ status: 'RELEASED', staff_id: null, bay_id: null, updated_at: new Date().toISOString() })
+      .update({ status: 'RELEASED', bay_id: null, updated_at: new Date().toISOString() })
       .eq('id', bookingId);
     if (updateError) throw updateError;
 
@@ -4812,7 +4812,7 @@ app.post('/api/bookings/release', async (req, res) => {
       action_type: 'BOOKING_RELEASED',
       actor_name: 'ADMIN',
       actor_role: 'ADMIN',
-      details: 'Booking released after customer vehicle pickup; staff allocation cleared.'
+      details: 'Booking released after customer vehicle pickup; assigned staff retained for work history and bay allocation cleared.'
     });
 
     try {
