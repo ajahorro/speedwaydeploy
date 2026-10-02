@@ -6,6 +6,7 @@ const notificationEmail = fs.readFileSync('supabase/functions/send-notification-
 const eventEngine = fs.readFileSync('frontend/src/services/eventEngine.js', 'utf8');
 const adminPayments = fs.readFileSync('frontend/src/pages/Admin/AdminPayments.jsx', 'utf8');
 const adminBookingDetails = fs.readFileSync('frontend/src/pages/Admin/AdminBookingDetails.jsx', 'utf8');
+const timeSlotPicker = fs.readFileSync('frontend/src/components/TimeSlotPicker.jsx', 'utf8');
 const adminBookings = fs.readFileSync('frontend/src/pages/Admin/AdminBookings.jsx', 'utf8');
 const backend = fs.readFileSync('backend/server.js', 'utf8');
 const cancellationHelper = backend.slice(
@@ -134,6 +135,7 @@ checks.push(
   ['notifications: database blocks unlinked chat and status updates', /before insert on public\.notifications/.test(notificationSuppressionMigration) && /new\.booking_id is null[\s\S]*?return null/.test(notificationSuppressionMigration)],
   ['customer billing: fetch callback is initialized before the effect uses it', customerBilling.indexOf('const fetchData = useCallback') >= 0 && customerBilling.indexOf('const fetchData = useCallback') < customerBilling.indexOf('useEffect(() =>')],
   ['customer booking: flagged no-show has its own visible lifecycle state', /normalizedStatus === 'FLAGGED_NOSHOW'[\s\S]*?Flagged no-show/.test(bookingSummaryHeader)],
+  ['appointment time-slot groups have no emoji decorations', !/emoji\s*:|group\.emoji/.test(timeSlotPicker)],
   ['payment receipt: portal uses the shared transaction calculation model', /resolveTransactionReceiptAmounts\(selectedPayment\)/.test(officialReceipt) && /resolveTransactionReceiptAmounts/.test(receiptModel)],
   ['payment receipt: gross, fee, and net agree with receipt model', (() => {
     const amounts = resolveTransactionReceiptAmounts(samplePayment);
