@@ -89,7 +89,14 @@ const AdminDashboard = () => {
   const fetchPriorityQueue = useCallback(async () => {
     try {
       const pItems = [];
-      const { data: unassignedRaw } = await supabase.from('bookings').select('id, customer_id, customer_name, start_datetime').is('staff_id', null).not('status', 'ilike', 'cancelled').limit(2);
+      const { data: unassignedRaw } = await supabase
+        .from('bookings')
+        .select('id, customer_id, customer_name, start_datetime')
+        .is('staff_id', null)
+        .not('status', 'ilike', 'cancelled')
+        .not('status', 'ilike', 'FLAGGED_NOSHOW')
+        .not('status', 'ilike', 'NO_SHOW')
+        .limit(2);
 
       for (const item of unassignedRaw || []) {
         const { data: profile } = item.customer_id
@@ -199,7 +206,9 @@ const AdminDashboard = () => {
         .from('bookings')
         .select('*', { count: 'exact', head: true })
         .is('staff_id', null)
-        .not('status', 'ilike', 'cancelled');
+        .not('status', 'ilike', 'cancelled')
+        .not('status', 'ilike', 'FLAGGED_NOSHOW')
+        .not('status', 'ilike', 'NO_SHOW');
 
       // 6. Needs Attention - Flagged for Review (Rejected Payments)
       const { count: flaggedCount } = await supabase

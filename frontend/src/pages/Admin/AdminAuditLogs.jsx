@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import PageHeader from '../../components/PageHeader';
@@ -62,6 +62,8 @@ const ACTION_META = {
   SERVICE_COMPLETED: { category: 'SERVICE', title: 'Service completed' },
   VEHICLE_COMPLETED: { category: 'SERVICE', title: 'Unit completed' },
   MESSAGE_RECEIVED: { category: 'MESSAGES', title: 'Message received' },
+  STAFF_ASSIGNMENT_CHANGED: { category: 'SCHEDULING', title: 'Staff assignment changed' },
+  PAYMENT_REFUND_QUEUED: { category: 'PAYMENTS', title: 'Payment refund queued' },
 };
 
 const titleCase = (value) => String(value || '')
@@ -220,24 +222,30 @@ const AdminAuditLogs = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState('All');
+  const [filterType, setFilterType] = useState('ALL');
   const [expandedId, setExpandedId] = useState(null);
+  const [isAuditListOpen, setIsAuditListOpen] = useState(false);
+  const fetchSequence = useRef(0);
 
-  useEffect(() => {
-    fetchLogs();
-  }, []);
-
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
+    const sequence = ++fetchSequence.current;
     setLoading(true);
     try {
       logger.admin('Fetching live system audit trail...');
-      const { data, error } = await supabase
+      let query = supabase
         .from('audit_logs')
         .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
+        .order('created_at', { ascending: false });
+      if (filterType !== 'ALL') {
+        const actionTypes = Object.entries(ACTION_META)
+          .filter(([, meta]) => meta.category === filterType)
+          .map(([actionType]) => actionType);
+        query = query.in('action_type', actionTypes);
+      }
+      const { data, error } = await query.limit(100);
 
       if (error) throw error;
+      if (sequence !== fetchSequence.current) return;
 
       const rows = data || [];
 
@@ -251,6 +259,7 @@ const AdminAuditLogs = () => {
           .in('id', actorIds);
         emailById = (profiles || []).reduce((acc, p) => { acc[p.id] = p.email; return acc; }, {});
       }
+      if (sequence !== fetchSequence.current) return;
 
       const processed = rows.map((l) => ({
         ...l,
@@ -262,12 +271,17 @@ const AdminAuditLogs = () => {
       setLogs(processed);
       logger.admin('Audit trail synchronized.');
     } catch (err) {
+      if (sequence !== fetchSequence.current) return;
       logger.error('Audit Fetch Error', err);
       toast.error('Failed to load audit trail');
     } finally {
-      setLoading(false);
+      if (sequence === fetchSequence.current) setLoading(false);
     }
-  };
+  }, [filterType]);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
 
   const filteredLogs = logs.filter((log) => {
     const q = searchQuery.toLowerCase();
@@ -280,7 +294,7 @@ const AdminAuditLogs = () => {
       log.profiles?.full_name?.toLowerCase().includes(q) ||
       (log.actor_email || '').toLowerCase().includes(q);
 
-    const matchesFilter = filterType === 'All' || ((log.action_type || log.event_type || '') && (log.action_type || log.event_type).includes(filterType));
+    const matchesFilter = filterType === 'ALL' || meta.category === filterType;
     return matchesSearch && matchesFilter;
   });
 
@@ -403,18 +417,40 @@ const AdminAuditLogs = () => {
               fontSize: '0.85rem', outline: 'none', appearance: 'none', fontWeight: 600,
             }}
           >
-            <option value="All">All Entities</option>
-            <option value="CREATE">Creation</option>
-            <option value="ASSIGN">Assignments</option>
-            <option value="CANCEL">Cancellations</option>
-            <option value="UPDATE">Updates</option>
+            <option value="ALL">All activity</option>
+            <option value="PAYMENTS">Payments &amp; refunds</option>
+            <option value="BOOKINGS">Bookings</option>
+            <option value="SCHEDULING">Staff &amp; scheduling</option>
+            <option value="SERVICE">Service activity</option>
+            <option value="ACCOUNTS">Accounts</option>
           </select>
         </div>
       </div>
 
-      {/* Single container for the activity list (UI uniformity with Settings).
-          The rows inside stay flat and line-divided. */}
-      <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 0, padding: '0.5rem 1.5rem' }}>
+      {isMobile && (
+        <button
+          type="button"
+          aria-expanded={isAuditListOpen}
+          aria-controls="audit-activity-list"
+          onClick={() => setIsAuditListOpen((open) => !open)}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            width: '100%', padding: '0.85rem 1rem',
+            background: 'var(--admin-card)', color: 'var(--admin-text-primary)',
+            border: '1px solid var(--admin-border)', borderRadius: 0,
+            fontSize: '0.8rem', fontWeight: 800, textAlign: 'left',
+          }}
+        >
+          Audit activity
+          <ChevronDown size={16} style={{ transform: isAuditListOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
+        </button>
+      )}
+
+      <div
+        id="audit-activity-list"
+        hidden={isMobile && !isAuditListOpen}
+        style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 0, padding: '0.5rem 1.5rem' }}
+      >
         <div style={{ display: 'flex', flexDirection: 'column' }}>
         {loading ? (
           [1, 2, 3, 4, 5].map((i) => (

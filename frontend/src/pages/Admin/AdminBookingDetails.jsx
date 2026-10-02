@@ -443,17 +443,6 @@ const AdminBookingDetails = () => {
         );
       }
 
-      // LOG AUDIT — differentiate post-service vs normal assignment
-      await supabase.from('audit_logs').insert({
-        booking_id: id,
-        action_type: isPostService ? 'POST_SERVICE_ASSIGNMENT' : 'STAFF_ASSIGNED',
-        actor_name: admin?.email || 'Admin',
-        actor_role: 'ADMIN',
-        details: isPostService
-          ? `Post-service assignment: Linked technician ${staffMember?.full_name || 'Staff'} to completed session for reporting.`
-          : `Assigned technician ${staffMember?.full_name || 'Staff'} to lead this session.`
-      });
-
       toast.success(isPostService ? 'Post-Service Assignment Recorded' : 'Technician Assigned Successfully', { id: toastId });
       await reconcileBookingPaymentState();
       fetchBookingDetails(); fetchAuditLogs();

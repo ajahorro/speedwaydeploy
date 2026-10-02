@@ -9,7 +9,12 @@ const adminBookingDetails = fs.readFileSync('frontend/src/pages/Admin/AdminBooki
 const adminBookings = fs.readFileSync('frontend/src/pages/Admin/AdminBookings.jsx', 'utf8');
 const backend = fs.readFileSync('backend/server.js', 'utf8');
 const cancellationMigration = fs.readFileSync('supabase/migrations/20261023000002_atomic_admin_booking_cancellation.sql', 'utf8');
+const auditEventsMigration = fs.readFileSync('supabase/migrations/20261023000005_audit_payment_and_staff_changes.sql', 'utf8');
+const noShowUnassignedMigration = fs.readFileSync('supabase/migrations/20261023000006_keep_noshow_out_of_unassigned.sql', 'utf8');
 const notificationService = fs.readFileSync('frontend/src/services/notificationService.js', 'utf8');
+const adminAuditLogs = fs.readFileSync('frontend/src/pages/Admin/AdminAuditLogs.jsx', 'utf8');
+const adminBookingsPage = fs.readFileSync('frontend/src/pages/Admin/AdminBookings.jsx', 'utf8');
+const adminDashboard = fs.readFileSync('frontend/src/pages/Admin/AdminDashboard.jsx', 'utf8');
 const customerBilling = fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8');
 const bookingSummaryHeader = fs.readFileSync('frontend/src/components/BookingSummaryHeader.jsx', 'utf8');
 const notificationRouting = fs.readFileSync('frontend/src/utils/notificationRouting.js', 'utf8');
@@ -145,6 +150,15 @@ checks.push(
   ['no-show worker: retries flagged bookings without requiring a profile email', /from\('bookings'\)[\s\S]*?\.select\('id, refund_status, customer_email, payments\(amount, detected_amount, status, method, verified_at\)'\)[\s\S]*?\.eq\('status', 'FLAGGED_NOSHOW'\)/.test(backend)],
   ['no-show email: includes queued refund status and amounts', /Refund status: \$\{booking\.refund_status \|\| 'QUEUED'\}[\s\S]*?Verified payments awaiting refund[\s\S]*?Unverified payment claims awaiting review/.test(backend)],
   ['cancellation: refund state and audit are committed in the database RPC', /update public\.payments[\s\S]*?set status = 'REFUND_PENDING'/.test(cancellationMigration) && /insert into public\.audit_logs/.test(cancellationMigration)],
+  ['audit: payment submissions, verification, rejection, and refunds are captured in the database', /create trigger trg_audit_payment_change[\s\S]*?after insert or update of status on public\.payments/.test(auditEventsMigration) && ['PAYMENT_SUBMITTED', 'PAYMENT_VERIFIED', 'PAYMENT_REJECTED', 'PAYMENT_REFUND_QUEUED', 'REFUND_PROCESSED'].every((action) => auditEventsMigration.includes(`'${action}'`))],
+  ['audit: staff assignment changes are captured transactionally with previous and new assignees', /create trigger trg_audit_booking_staff_assignment_update[\s\S]*?after update of staff_id on public\.bookings/.test(auditEventsMigration) && /previous_staff_id[\s\S]*?new_staff_id/.test(auditEventsMigration) && !/action_type:\s*isPostService/.test(adminBookingDetails)],
+  ['audit: payment and refund category filter queries the selected event category', /option value="PAYMENTS">Payments &amp; refunds/.test(adminAuditLogs) && /meta\.category === filterType/.test(adminAuditLogs) && /query = query\.in\('action_type', actionTypes\)/.test(adminAuditLogs)],
+  ['audit: activity list can be expanded as a mobile dropdown', /aria-expanded=\{isAuditListOpen\}[\s\S]*?aria-controls="audit-activity-list"/.test(adminAuditLogs) && /hidden=\{isMobile && !isAuditListOpen\}/.test(adminAuditLogs)],
+  ['no-show: flagged, cancelled, and restored bookings stay out of unassigned', /was_flagged_no_show[\s\S]*?\['flagged_noshow', 'no_show'\][\s\S]*?bookingStatus !== 'cancelled'/.test(adminBookingsPage)
+    && (adminDashboard.match(/\.not\('status', 'ilike', 'FLAGGED_NOSHOW'\)/g) || []).length >= 2
+    && (adminDashboard.match(/\.not\('status', 'ilike', 'NO_SHOW'\)/g) || []).length >= 2
+    && /create trigger trg_preserve_no_show_booking_marker/.test(noShowUnassignedMigration)
+    && /was_flagged_no_show := true/.test(noShowUnassignedMigration)],
   ['cancellation: both admin endpoints use the atomic cancellation RPC', /rpc\('admin_cancel_booking'/.test(backend) && /cancelBookingAndQueueRefund\(\{[\s\S]*?bookingId,[\s\S]*?reason/.test(backend)],
   ['booking directory: exposes cancellation on mobile and desktop', (adminBookings.match(/requestCancelBooking\(booking\)/g) || []).length >= 2],
   ['booking directory: hides cancellation after service starts', /const canCancel = \(booking\) => \{[\s\S]*?'in_progress', 'ongoing'[\s\S]*?vehicleStatuses\.some/.test(adminBookings)],

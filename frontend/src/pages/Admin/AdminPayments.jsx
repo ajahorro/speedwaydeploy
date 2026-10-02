@@ -15,6 +15,7 @@ import { getAuditCompliantTransactions } from '../../utils/bookingHelpers';
 import { calculateRequiredDownpayment } from '../../utils/paymentUtils';
 import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import OfficialReceipt from '../../components/OfficialReceipt';
+import { writeAdminAuditLog } from '../../services/auditLogService';
 import { useUI } from '../../context/UIContext';
 import { BACKEND_URL } from '../../config/api';
 
@@ -194,6 +195,7 @@ const AdminPayments = () => {
           ? `[AI_OVERRIDE] Admin ID: ${verifier?.id || 'UNKNOWN'} | Required: ₱${requiredDownpayment} | Detected: ₱${ocrAmount || 'NULL'}`
           : null
       });
+      let auditWriteFailed = false;
 
       // Fallback for a database that has not yet received migration
       // 20261018000001: preserve the old write path, but STILL stamp the override
@@ -215,6 +217,11 @@ const AdminPayments = () => {
           ...(ocrReference ? { reference_number: ocrReference } : {})
         }).eq('id', payment.id);
         if (fallbackError) throw fallbackError;
+        auditWriteFailed = !(await writeAdminAuditLog({
+          actionType: 'MANUAL_OVERRIDE_CONFIRM',
+          details: `Admin manually confirmed a flagged payment of ₱${verifiedAmount}.`,
+          metadata: { payment_id: payment.id, verified_amount: verifiedAmount, override_lock: true },
+        }));
       }
 
       // The lifecycle confirmation is the single customer email after payment
@@ -226,12 +233,16 @@ const AdminPayments = () => {
         .filter(existing => existing.id !== payment.id && existing.status === 'PAID')
         .reduce((sum, existing) => sum + Number(existing.amount || 0), 0);
       const remainingBalance = Math.max(0, bookingTotal - previousPaid - verifiedAmount);
-      toast.success(
-        wasOverpaidDownpayment
-          ? `Payment verified. Remaining balance: ₱${remainingBalance.toLocaleString()}`
-          : 'Payment verified',
-        { id: toastId }
-      );
+      if (auditWriteFailed) {
+        toast.error('Payment verified, but its audit entry could not be saved.', { id: toastId });
+      } else {
+        toast.success(
+          wasOverpaidDownpayment
+            ? `Payment verified. Remaining balance: ₱${remainingBalance.toLocaleString()}`
+            : 'Payment verified',
+          { id: toastId }
+        );
+      }
       fetchPayments();
       setState(prev => ({ ...prev, selectedItem: null, overrideAI: false }));
       setConfirmPayment(null);

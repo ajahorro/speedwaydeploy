@@ -63,7 +63,10 @@ const AdminBookings = () => {
       
       // SPECIAL FILTERS
       if (state.filterStatus === 'unassigned') {
-        matchesStatus = !b.staff_id && b.status?.toLowerCase() !== 'cancelled';
+        const bookingStatus = String(b.status || '').toLowerCase();
+        const isNoShowBooking = b.was_flagged_no_show
+          || ['flagged_noshow', 'no_show'].includes(bookingStatus);
+        matchesStatus = !b.staff_id && !isNoShowBooking && bookingStatus !== 'cancelled';
       } else if (state.filterStatus === 'FLAGGED_NOSHOW') {
         matchesStatus = b.status?.toUpperCase() === 'FLAGGED_NOSHOW';
       } else if (state.filterStatus === 'ongoing') {
