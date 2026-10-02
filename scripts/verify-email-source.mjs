@@ -14,6 +14,7 @@ const customerBilling = fs.readFileSync('frontend/src/pages/Customer/CustomerBil
 const bookingSummaryHeader = fs.readFileSync('frontend/src/components/BookingSummaryHeader.jsx', 'utf8');
 const notificationRouting = fs.readFileSync('frontend/src/utils/notificationRouting.js', 'utf8');
 const notificationSuppressionMigration = fs.readFileSync('supabase/migrations/20261023000003_suppress_unlinked_booking_notifications.sql', 'utf8');
+const officialReceipt = fs.readFileSync('frontend/src/components/OfficialReceipt.jsx', 'utf8');
 const { resolveAmounts } = await import('../supabase/functions/_shared/bookingEmail.ts');
 const { buildOfficialReceiptPdf } = await import('../supabase/functions/_shared/officialReceiptPdf.ts');
 const receiptPdf = Buffer.from(buildOfficialReceiptPdf({
@@ -114,6 +115,8 @@ checks.push(
   ['notifications: database blocks unlinked chat and status updates', /before insert on public\.notifications/.test(notificationSuppressionMigration) && /new\.booking_id is null[\s\S]*?return null/.test(notificationSuppressionMigration)],
   ['customer billing: fetch callback is initialized before the effect uses it', customerBilling.indexOf('const fetchData = useCallback') >= 0 && customerBilling.indexOf('const fetchData = useCallback') < customerBilling.indexOf('useEffect(() =>')],
   ['customer booking: flagged no-show has its own visible lifecycle state', /normalizedStatus === 'FLAGGED_NOSHOW'[\s\S]*?Flagged no-show/.test(bookingSummaryHeader)],
+  ['payment receipt: transaction total matches the selected payment', /const gross = selectedPayment \? paymentReceived : bookingTotal/.test(officialReceipt) && /selectedPayment \? 'Payment Received' : 'Total Amount Due'/.test(officialReceipt)],
+  ['no-show payment receipt: clearly identifies booking and refund status', /Booking flagged as no-show[\s\S]*?Refund status: \$\{refundStatus/.test(officialReceipt)],
   ['admin payment verification: no standalone receipt dispatch', !/sendPaymentReceiptEmail/.test(adminPayments) && !/sendPaymentReceiptEmail/.test(adminBookingDetails)],
   ['notification service: standalone receipt helper removed', !/sendPaymentReceiptEmail|\/api\/emails\/payment-receipt/.test(notificationService)],
   ['no-show worker: retries flagged bookings without requiring a profile email', /from\('bookings'\)[\s\S]*?\.select\('id, refund_status, customer_email, payments\(amount, detected_amount, status, method, verified_at\)'\)[\s\S]*?\.eq\('status', 'FLAGGED_NOSHOW'\)/.test(backend)],

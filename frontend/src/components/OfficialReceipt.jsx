@@ -37,7 +37,10 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
   // place is a tax figure that will eventually disagree with itself.
   const bookingTotal = Number(booking?.total_amount ?? 0);
   const paymentReceived = selectedPayment ? Number(selectedPayment.amount || 0) : 0;
-  const gross = bookingTotal;
+  // A payment receipt accounts for one transaction, not the booking's full
+  // invoice. Mixing the two made a partial payment receipt show (for example)
+  // ₱1,090 received against a ₱250 total due.
+  const gross = selectedPayment ? paymentReceived : bookingTotal;
   // The promo/discount snapshot is frozen on the BOOKING at creation time (the
   // payments table has no discount column). Prefer the payment's own value when a
   // caller supplies one, otherwise read the booking snapshot so a discounted
@@ -52,7 +55,9 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
   //
   // Flat, tax-free: the total IS the price. No tax base, no tax line, no division.
   const total = round2(gross);
-  const totalLabel = 'Total Amount Due';
+  const isNoShow = ['FLAGGED_NOSHOW', 'NO_SHOW'].includes(String(booking?.status || '').toUpperCase());
+  const refundStatus = String(booking?.refund_status || '').trim();
+  const totalLabel = selectedPayment ? 'Payment Received' : 'Total Amount Due';
 
   const customerName = booking?.customer?.full_name || booking?.customer_name || user?.user_metadata?.full_name || 'Valued Customer';
   const customerEmail = booking?.customer?.email || booking?.customer_email || user?.email || '';
@@ -70,7 +75,7 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
   };
 
   const rows = selectedPayment
-    ? [{ description: 'Service Installment / Settlement Payment', price: total }]
+    ? [{ description: 'Payment for Booking', price: paymentReceived }]
     : effectiveVehicles.flatMap((vehicle) => (vehicle.services || []).map((service, index) => ({
       key: service.id || `${vehicle.id}-${index}`,
       description: `${vehicle.brand || ''} ${vehicle.model || ''} - ${service.service_name || service.service_name_snapshot || 'Service'}`,
@@ -88,8 +93,18 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
         <div><strong style={{ display: 'block', fontSize: '0.65rem', color: '#9CA3AF', textTransform: 'uppercase' }}>Billed To</strong><div style={{ marginTop: '0.35rem', fontWeight: 700 }}>{customerName}</div><div style={{ color: '#6B7280', fontSize: '0.8rem' }}>{customerEmail}</div></div>
         <div><strong style={{ display: 'block', fontSize: '0.65rem', color: '#9CA3AF', textTransform: 'uppercase' }}>Work Order</strong><div style={{ marginTop: '0.35rem', fontWeight: 700 }}>WO-{(booking?.id || 'REF').slice(0, 12).toUpperCase()}</div><div style={{ color: '#6B7280', fontSize: '0.8rem' }}>{selectedPayment?.method || 'Digital / Online Payment'}</div></div>
       </div>
+      {isNoShow && (
+        <div role="status" style={{ margin: '0 0 1.25rem', padding: '0.85rem 1rem', border: '1px solid #FCA5A5', borderRadius: '4px', background: '#FEF2F2', color: '#991B1B', fontSize: '0.8rem', lineHeight: 1.5 }}>
+          <strong style={{ display: 'block', textTransform: 'uppercase' }}>Booking flagged as no-show</strong>
+          <span>
+            {refundStatus
+              ? `Refund status: ${refundStatus.replace(/_/g, ' ')}.`
+              : 'This receipt records the payment only; check the Refund Hub for refund eligibility and updates.'}
+          </span>
+        </div>
+      )}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}><thead><tr>{['Description', 'Qty', 'Unit Price', 'Total'].map((heading, index) => <th key={heading} style={{ textAlign: index ? 'right' : 'left', padding: '0.65rem 0.4rem', borderBottom: '2px solid #E5E7EB', color: '#6B7280', textTransform: 'uppercase', fontSize: '0.65rem' }}>{heading}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={row.key || index}><td style={{ padding: '0.8rem 0.4rem', borderBottom: '1px solid #F3F4F6' }}>{row.description}</td><td style={{ textAlign: 'right' }}>1</td><td style={{ textAlign: 'right' }}>{currency(row.price)}</td><td style={{ textAlign: 'right', fontWeight: 700 }}>{currency(row.price)}</td></tr>)}</tbody></table>
-      <div style={{ width: '280px', margin: '1.5rem 0 0 auto', borderTop: '2px solid #111827', paddingTop: '0.75rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem' }}><span>Subtotal</span><span>{currency(gross)}</span></div>{discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem', marginTop: '0.4rem' }}><span>Discount / Promo{promoName ? ` (${promoName})` : ''}</span><span>-{currency(discount)}</span></div>}{selectedPayment && paymentReceived > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem', marginTop: '0.4rem' }}><span>Amount Received</span><span>{currency(paymentReceived)}</span></div>}<div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '1.1rem', marginTop: '0.7rem' }}><span>{totalLabel}</span><span>{currency(total)}</span></div></div>
+      <div style={{ width: '280px', margin: '1.5rem 0 0 auto', borderTop: '2px solid #111827', paddingTop: '0.75rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem' }}><span>{selectedPayment ? 'Payment Subtotal' : 'Subtotal'}</span><span>{currency(gross)}</span></div>{!selectedPayment && discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6B7280', fontSize: '0.8rem', marginTop: '0.4rem' }}><span>Discount / Promo{promoName ? ` (${promoName})` : ''}</span><span>-{currency(discount)}</span></div>}<div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '1.1rem', marginTop: '0.7rem' }}><span>{totalLabel}</span><span>{currency(total)}</span></div></div>
     </div>
   );
 
