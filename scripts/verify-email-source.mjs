@@ -30,22 +30,12 @@ const samplePayment = {
   reference_number: 'TXN-12345',
   created_at: '2026-10-02T08:00:00.000Z',
 };
-const sampleRefundAllocations = [{
-  amount: 250,
-  refund_payment: {
-    amount: -250,
-    status: 'REFUNDED',
-    reference_number: 'RFD-123',
-    created_at: '2026-10-03T08:00:00.000Z',
-  },
-}];
 const receiptPdf = Buffer.from(buildOfficialReceiptPdf({
   customerName: 'Sample Customer',
   customerEmail: 'customer@example.com',
   customerContact: '09123456789',
   bookingReference: 'AB12CD34',
   payment: samplePayment,
-  refundAllocations: sampleRefundAllocations,
 }), 'base64').toString('ascii');
 
 const checks = [
@@ -122,9 +112,9 @@ checks.push(
     'PHP 100.00',
     'Net Received',
     'PHP 900.00',
-    'Refund Reference ID: RFD-123',
-    'PAYMENT PARTIALLY REFUNDED',
+    'PAYMENT RECEIPT',
   ].every((content) => receiptPdf.includes(content))],
+  ['receipt: no booking lifecycle or refund status is printed', !/NO-SHOW|REFUND STATUS|REFUNDED|FLAGGED/.test(receiptPdf)],
   ['receipt: customer contact is separated from the table header', /48 580 516 25 re f/.test(receiptPdf) && /09123456789/.test(receiptPdf)],
   ['receipt: PDF cross-reference points to its actual byte offset', Number(receiptPdf.match(/startxref\n(\d+)/)?.[1]) === receiptPdf.indexOf('xref\n')],
   ['notification mailer: operational notifications stay in-app only', /EMAILABLE_NOTIFICATION_TYPES = new Set<string>\(\)/.test(notificationEmail)],
@@ -134,11 +124,10 @@ checks.push(
   ['notifications: database blocks unlinked chat and status updates', /before insert on public\.notifications/.test(notificationSuppressionMigration) && /new\.booking_id is null[\s\S]*?return null/.test(notificationSuppressionMigration)],
   ['customer billing: fetch callback is initialized before the effect uses it', customerBilling.indexOf('const fetchData = useCallback') >= 0 && customerBilling.indexOf('const fetchData = useCallback') < customerBilling.indexOf('useEffect(() =>')],
   ['customer booking: flagged no-show has its own visible lifecycle state', /normalizedStatus === 'FLAGGED_NOSHOW'[\s\S]*?Flagged no-show/.test(bookingSummaryHeader)],
-  ['payment receipt: portal uses the shared transaction calculation model', /resolveTransactionReceiptAmounts\(selectedPayment, refundAllocations\)/.test(officialReceipt) && /resolveTransactionReceiptAmounts/.test(receiptModel)],
+  ['payment receipt: portal uses the shared transaction calculation model', /resolveTransactionReceiptAmounts\(selectedPayment\)/.test(officialReceipt) && /resolveTransactionReceiptAmounts/.test(receiptModel)],
   ['payment receipt: gross, fee, and net agree with receipt model', (() => {
-    const amounts = resolveTransactionReceiptAmounts(samplePayment, sampleRefundAllocations);
-    return amounts.grossPaid === 1000 && amounts.transferFee === 100 && amounts.netReceived === 900
-      && amounts.refundAmount === 250 && amounts.refundStatus === 'PARTIALLY_REFUNDED';
+    const amounts = resolveTransactionReceiptAmounts(samplePayment);
+    return amounts.grossPaid === 1000 && amounts.transferFee === 100 && amounts.netReceived === 900;
   })()],
   ['invoice: discount is subtracted from the pre-discount subtotal exactly once', (() => {
     const amounts = resolveInvoiceAmounts({ total_amount: 900, discount_amount_snapshot: 100 });
@@ -147,8 +136,8 @@ checks.push(
   ['customer ledger: displays separate transaction rows including pending verification', /'FOR_VERIFICATION', 'REJECTED'/.test(fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8'))],
   ['customer ledger: only verified positive payments can open receipts', /canIssueReceipt = Number\(p\.amount\) > 0[\s\S]*?\['PAID', 'REFUND_PENDING', 'REFUNDED'\]/.test(fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8'))],
   ['payment receipts: portal labels receipt number and gateway reference separately', /getReceiptNumber\(selectedPayment\)/.test(officialReceipt) && /Transaction\/Reference ID/.test(officialReceipt)],
-  ['payment receipts: refunds are sourced from payment-level allocations', /payment_refund_allocations/.test(officialReceipt) && /payment_refund_allocations/.test(fn)],
-  ['payment receipts: refund statuses are shown only for allocated refund slips', /refundAllocations\.filter\(\(allocation\)/.test(officialReceipt) && /allocation\.refund_payment\?\.status/.test(officialReceipt)],
+  ['payment receipts: do not fetch or display booking/refund status', !/refund_status|refund|payment_refund_allocations|isNoShow|FLAGGED_NOSHOW|NO-SHOW/.test(officialReceipt)],
+  ['email receipt: uses transaction data only, not booking refund allocations', !/payment_refund_allocations|refundAllocations/.test(fn) && !/refund|bookingStatus|booking_status|no.show/i.test(fs.readFileSync('supabase/functions/_shared/officialReceiptPdf.ts', 'utf8'))],
   ['admin payment verification: no standalone receipt dispatch', !/sendPaymentReceiptEmail/.test(adminPayments) && !/sendPaymentReceiptEmail/.test(adminBookingDetails)],
   ['notification service: standalone receipt helper removed', !/sendPaymentReceiptEmail|\/api\/emails\/payment-receipt/.test(notificationService)],
   ['no-show worker: retries flagged bookings without requiring a profile email', /from\('bookings'\)[\s\S]*?\.select\('id, refund_status, customer_email, payments\(amount, detected_amount, status, method, verified_at\)'\)[\s\S]*?\.eq\('status', 'FLAGGED_NOSHOW'\)/.test(backend)],

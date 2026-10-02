@@ -241,21 +241,6 @@ serve(async (req: Request): Promise<Response> => {
 
     // Newest payment is the one this event concerns.
     const payments: PaymentLike[] = Array.isArray(row.payments) ? row.payments : []
-    const paymentIds = payments
-      .map((item) => item.id)
-      .filter((id): id is string => Boolean(id))
-    if (paymentIds.length) {
-      const { data: allocations, error: allocationError } = await supabase
-        .from('payment_refund_allocations')
-        .select('amount, source_payment_id, refund_payment:payments!payment_refund_allocations_refund_payment_id_fkey(amount, status, reference_number, created_at, refunded_at)')
-        .in('source_payment_id', paymentIds)
-      if (allocationError) throw new Error(`Refund allocation lookup failed: ${allocationError.message}`)
-      for (const item of payments) {
-        item.refund_allocations = (allocations || [])
-          .filter((allocation) => allocation.source_payment_id === item.id)
-          .map(({ amount, refund_payment }) => ({ amount, refund_payment }))
-      }
-    }
     const payment: PaymentLike | null = payments.length
       ? [...payments].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0]
       : null
@@ -272,7 +257,6 @@ serve(async (req: Request): Promise<Response> => {
         customerContact: row.contact_number || '',
         bookingReference: bookingRef,
         payment: receiptPayment || {},
-        refundAllocations: receiptPayment?.refund_allocations || [],
       })
 
     // ── Render the right email for this event ───────────────────────────────

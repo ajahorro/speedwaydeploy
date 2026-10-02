@@ -2,7 +2,6 @@ import {
   getReceiptNumber,
   resolveTransactionReceiptAmounts,
   type ReceiptPayment,
-  type ReceiptRefundAllocation,
 } from '../../../shared/receiptModel.ts'
 
 export interface OfficialReceiptPdfItem {
@@ -19,7 +18,6 @@ export interface OfficialReceiptPdfInput {
   customerContact?: string | null
   bookingReference?: string | null
   payment: ReceiptPayment
-  refundAllocations?: ReceiptRefundAllocation[]
 }
 
 const escapePdfText = (value: unknown): string => String(value ?? '')
@@ -76,7 +74,7 @@ const renderPage = (
   includeTotals: boolean
 ): string => {
   const ops: string[] = []
-  const amounts = resolveTransactionReceiptAmounts(input.payment, input.refundAllocations)
+  const amounts = resolveTransactionReceiptAmounts(input.payment)
   const receiptNumber = getReceiptNumber(input.payment)
   const referenceId = input.payment.reference_number || input.payment.detected_ref || 'Not provided'
   const left = 48
@@ -146,27 +144,13 @@ const renderPage = (
       ops.push(text(currency(amounts.creditApplied), summaryRight, summaryY, 8, 'F1', DARK, 'right'))
     }
 
-    for (const allocation of input.refundAllocations || []) {
-      if (String(allocation.refund_payment?.status || '').toUpperCase() !== 'REFUNDED') continue
-      summaryY -= 15
-      ops.push(text('Refunded', summaryLeft, summaryY, 8, 'F1', RED))
-      ops.push(text(currency(Number(allocation.amount || 0)), summaryRight, summaryY, 8, 'F1', RED, 'right'))
-      summaryY -= 12
-      ops.push(text(`Refund Reference ID: ${allocation.refund_payment?.reference_number || 'Not provided'}`, summaryLeft, summaryY, 7, 'F1', MUTED))
-    }
-
     summaryY -= 18
     ops.push(fillRect(summaryLeft, summaryY - 7, summaryRight - summaryLeft, 25, PALE))
     ops.push(text('NET RECEIVED', summaryLeft + 8, summaryY + 1, 8, 'F2', DARK))
     ops.push(text(currency(amounts.netReceived), summaryRight - 8, summaryY + 1, 10, 'F2', RED, 'right'))
 
-    const refundSummary = amounts.refundStatus === 'REFUNDED'
-      ? 'PAYMENT REFUNDED'
-      : amounts.refundStatus === 'PARTIALLY_REFUNDED'
-        ? 'PAYMENT PARTIALLY REFUNDED'
-        : 'PAYMENT VERIFIED'
-    ops.push(text(refundSummary, left, 91, 8, 'F2', RED))
-    ops.push(text('This receipt records one verified payment transaction.', left, 76, 8, 'F1', MUTED))
+    ops.push(text('PAYMENT RECEIPT', left, 91, 8, 'F2', RED))
+    ops.push(text('This receipt records one payment transaction.', left, 76, 8, 'F1', MUTED))
   } else {
     ops.push(text('Continued on the next page', left, 76, 8, 'F1', MUTED))
   }
@@ -178,7 +162,7 @@ const renderPage = (
 }
 
 export const buildOfficialReceiptPdf = (input: OfficialReceiptPdfInput): string => {
-  const amounts = resolveTransactionReceiptAmounts(input.payment, input.refundAllocations)
+  const amounts = resolveTransactionReceiptAmounts(input.payment)
   const normalizedItems = [{
     service: 'Payment for Booking',
     qty: 1,

@@ -94,16 +94,6 @@ export interface PaymentLike {
   reference_number?: string | null
   detected_ref?: string | null
   created_at?: string | null
-  refund_allocations?: Array<{
-    amount?: number | string | null
-    refund_payment?: {
-      amount?: number | string | null
-      status?: string | null
-      reference_number?: string | null
-      created_at?: string | null
-      refunded_at?: string | null
-    } | null
-  }>
 }
 
 export interface OcrDetails {

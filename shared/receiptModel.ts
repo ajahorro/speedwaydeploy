@@ -12,25 +12,11 @@ export interface ReceiptPayment {
   created_at?: string | null
 }
 
-export interface ReceiptRefundAllocation {
-  amount?: number | string | null
-  refund_payment?: {
-    amount?: number | string | null
-    status?: string | null
-    reference_number?: string | null
-    created_at?: string | null
-    refunded_at?: string | null
-  } | null
-}
-
 export interface TransactionReceiptAmounts {
   grossPaid: number
   transferFee: number
   netReceived: number
   creditApplied: number
-  refundAmount: number
-  remainingAfterRefund: number
-  refundStatus: 'NOT_REFUNDED' | 'PARTIALLY_REFUNDED' | 'REFUNDED'
 }
 
 const numberValue = (value: unknown): number => {
@@ -45,8 +31,7 @@ export const getReceiptNumber = (payment: ReceiptPayment): string =>
   `RCP-${String(payment.id || 'UNKNOWN').toUpperCase()}`
 
 export const resolveTransactionReceiptAmounts = (
-  payment: ReceiptPayment,
-  refundAllocations: ReceiptRefundAllocation[] = []
+  payment: ReceiptPayment
 ): TransactionReceiptAmounts => {
   const declaredAmount = Math.max(0, numberValue(payment.amount))
   const detectedNet = Math.max(0, numberValue(payment.detected_amount))
@@ -63,28 +48,11 @@ export const resolveTransactionReceiptAmounts = (
         : netReceived + transferFee
   )
   const creditApplied = roundReceiptAmount(Math.max(0, numberValue(payment.credit_applied)))
-  const processedRefunds = refundAllocations.filter((allocation) =>
-    String(allocation.refund_payment?.status || '').toUpperCase() === 'REFUNDED'
-  )
-  const refundAmount = roundReceiptAmount(processedRefunds.reduce(
-    (total, allocation) => total + Math.max(0, numberValue(allocation.amount)),
-    0
-  ))
-  const remainingAfterRefund = roundReceiptAmount(Math.max(0, declaredAmount - refundAmount))
-  const refundStatus = refundAmount <= 0
-    ? 'NOT_REFUNDED'
-    : remainingAfterRefund <= 0
-      ? 'REFUNDED'
-      : 'PARTIALLY_REFUNDED'
-
   return {
     grossPaid,
     transferFee,
     netReceived,
     creditApplied,
-    refundAmount,
-    remainingAfterRefund,
-    refundStatus,
   }
 }
 

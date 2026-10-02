@@ -76,14 +76,6 @@ const CustomerBookingDetails = () => {
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val);
 
-  const receiptItems = selectedPayment
-    ? [{ id: 'payment', name: 'Service Installment / Settlement Payment', price: Number(selectedPayment.amount || 0) }]
-    : vehicles.flatMap((v) => (v.services || []).map((s) => ({
-        id: s.id || `${v.id}-${s.service_name || s.service_name_snapshot || 'service'}`,
-        name: s.service_name || s.service_name_snapshot || 'Service',
-        price: resolveFrozenServicePrice(s),
-      })));
-
   // confirmCancellation now lives INSIDE the component where it has access to all state and hooks!
   const confirmCancellation = async () => {
     if (isCancelling) return;
@@ -284,82 +276,6 @@ const CustomerBookingDetails = () => {
   const cardStyle = { background: 'var(--admin-card)', borderRadius: 'var(--admin-radius-lg)', border: '1px solid var(--admin-border)', padding: '1.5rem', boxShadow: 'var(--admin-card-shadow)' };
   const labelStyle = { fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.25rem' };
   const valStyle = { fontSize: '0.95rem', fontWeight: '900', color: 'var(--admin-text-primary)' };
-
-  const handleDownloadPdf = () => {
-    const total = Number(selectedPayment?.amount || booking.total_amount || 0);
-    // FLAT, TAX-FREE pricing: the total IS the subtotal. No tax is derived.
-    const subtotal = total;
-    const items = selectedPayment
-      ? [{ name: 'Service Installment / Settlement Payment', amount: Number(selectedPayment.amount || 0) }]
-      : receiptItems;
-
-    const popup = window.open('', '_blank', 'width=900,height=900');
-    if (!popup) {
-      toast.error('Please allow pop-ups to download the PDF receipt.');
-      return;
-    }
-
-    popup.document.write(`<!doctype html>
-      <html>
-        <head>
-          <title>Official Digital Receipt</title>
-          <style>
-            body { font-family: Arial, sans-serif; background: #fff; color: #111; margin: 0; padding: 32px; }
-            .wrap { max-width: 720px; margin: 0 auto; border: 1px solid #111; border-radius: 16px; padding: 24px; }
-            .brand { text-align: center; margin-bottom: 24px; }
-            h1 { margin: 0; font-size: 2.2rem; letter-spacing: 2px; color: #a91b18; }
-            .subtitle { font-size: 12px; letter-spacing: 2px; color: #666; text-transform: uppercase; }
-            .line { height: 2px; background: #000; width: 48px; margin: 12px auto 0; }
-            .meta { display: flex; justify-content: space-between; gap: 16px; margin: 20px 0; }
-            .meta div { flex: 1; }
-            .label { font-size: 11px; font-weight: 800; color: #666; text-transform: uppercase; letter-spacing: 1px; }
-            .item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
-            .total-row { display: flex; justify-content: space-between; padding-top: 12px; font-weight: 800; }
-            .balance { border-top: 2px solid #000; margin-top: 12px; padding-top: 12px; }
-            .foot { text-align: center; margin-top: 24px; font-size: 12px; color: #666; }
-          </style>
-        </head>
-        <body>
-          <div class="wrap">
-            <div class="brand">
-              <h1>COMAR GARAGE</h1>
-              <div class="subtitle">Comar Garage Detail Studio</div>
-              <div class="line"></div>
-            </div>
-            <div class="meta">
-              <div>
-                <div class="label">Customer</div>
-                <div>${booking.customer_name || user?.user_metadata?.full_name || 'Valued Customer'}</div>
-              </div>
-              <div style="text-align:right;">
-                <div class="label">Date & Time</div>
-                <div>${new Date(selectedPayment?.created_at || booking.created_at).toLocaleString()}</div>
-              </div>
-            </div>
-            <div class="label" style="margin-bottom: 8px;">Service Summary</div>
-            ${items.map(item => `<div class="item"><span>• ${item.name}</span><strong>${formatCurrency(item.amount)}</strong></div>`).join('')}
-            <div class="total-row"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
-            <div class="total-row balance"><span>Grand Total</span><span>${formatCurrency(total)}</span></div>
-            <div class="foot">Transaction Reference: ${selectedPayment?.reference_number || payments?.[0]?.reference_number || 'SYSTEM_VALIDATED'}</div>
-          </div>
-        </body>
-      </html>
-    `);
-    popup.document.close();
-    setTimeout(() => popup.print(), 300);
-  };
-
-  const handlePrintReceipt = () => {
-    const receiptNode = document.getElementById('printable-receipt');
-    if (!receiptNode) {
-      return;
-    }
-
-    const originalTitle = document.title;
-    document.title = 'Official Digital Receipt';
-    window.print();
-    document.title = originalTitle;
-  };
 
   // Status color now from shared helper (bookingHelpers.js)
 

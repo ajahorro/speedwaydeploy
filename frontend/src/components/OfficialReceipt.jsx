@@ -1,7 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { Download, Printer, ShieldCheck, X } from 'lucide-react';
 import { resolveFrozenServicePrice } from '../data/servicesCatalog';
-import { supabase } from '../lib/supabase';
 import {
   getReceiptNumber,
   resolveInvoiceAmounts,
@@ -20,41 +19,7 @@ const dateValue = (value) => value
 
 const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose, mode = 'modal', title }) => {
   const receiptRef = useRef(null);
-  const [refundAllocations, setRefundAllocations] = useState([]);
-  const [refundLookupError, setRefundLookupError] = useState('');
-  const [refundLookupLoading, setRefundLookupLoading] = useState(false);
   const effectiveVehicles = vehicles.length ? vehicles : (booking?.vehicles || []);
-
-  useEffect(() => {
-    let active = true;
-    setRefundAllocations([]);
-    setRefundLookupError('');
-    setRefundLookupLoading(Boolean(selectedPayment?.id));
-    if (!selectedPayment?.id) return () => { active = false; };
-
-    supabase
-      .from('payment_refund_allocations')
-      .select('amount, refund_payment:payments!payment_refund_allocations_refund_payment_id_fkey(amount, status, reference_number, created_at, refunded_at)')
-      .eq('source_payment_id', selectedPayment.id)
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error) {
-          setRefundLookupError(`Refund details could not be loaded: ${error.message}`);
-          setRefundLookupLoading(false);
-          return;
-        }
-        setRefundAllocations(data || []);
-        setRefundLookupLoading(false);
-      })
-      .catch((error) => {
-        if (!active) return;
-        const message = error instanceof Error ? error.message : String(error);
-        setRefundLookupError(`Refund details could not be loaded: ${message}`);
-        setRefundLookupLoading(false);
-      });
-
-    return () => { active = false; };
-  }, [selectedPayment?.id]);
 
   // ── PRICING MODEL: FLAT AND TAX-FREE ─────────────────────────────────────
   //
@@ -73,7 +38,7 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
   // now removed rather than reconciled. A tax figure computed in more than one
   // place is a tax figure that will eventually disagree with itself.
   const paymentAmounts = selectedPayment
-    ? resolveTransactionReceiptAmounts(selectedPayment, refundAllocations)
+    ? resolveTransactionReceiptAmounts(selectedPayment)
     : null;
   const paymentReceived = paymentAmounts?.grossPaid || 0;
   const invoiceAmounts = resolveInvoiceAmounts(booking || {});
@@ -92,7 +57,7 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
   const transactionReference = selectedPayment?.reference_number || selectedPayment?.detected_ref || null;
 
   const downloadPdf = async () => {
-    if (!receiptRef.current || refundLookupLoading || refundLookupError) return;
+    if (!receiptRef.current) return;
     try {
       const html2pdf = (await import('html2pdf.js')).default;
       html2pdf().set({ margin: 0.5, filename: `Comar-Garage-${reference}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).from(receiptRef.current).save();
@@ -120,8 +85,6 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
         <div><strong style={{ display: 'block', fontSize: '0.65rem', color: '#9CA3AF', textTransform: 'uppercase' }}>Billed To</strong><div style={{ marginTop: '0.35rem', fontWeight: 700 }}>{customerName}</div><div style={{ color: '#6B7280', fontSize: '0.8rem' }}>{customerEmail}</div></div>
         <div><strong style={{ display: 'block', fontSize: '0.65rem', color: '#9CA3AF', textTransform: 'uppercase' }}>Work Order</strong><div style={{ marginTop: '0.35rem', fontWeight: 700 }}>WO-{(booking?.id || 'REF').slice(0, 12).toUpperCase()}</div><div style={{ color: '#6B7280', fontSize: '0.8rem' }}>{selectedPayment?.method || 'Digital / Online Payment'}</div></div>
       </div>
-      {refundLookupLoading && <div role="status" style={{ margin: '0 0 1rem', color: '#6B7280', fontSize: '0.75rem' }}>Loading refund history before issuing this receipt…</div>}
-      {refundLookupError && <div role="alert" style={{ margin: '0 0 1rem', color: '#B91C1C', fontSize: '0.75rem' }}>{refundLookupError}</div>}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}><thead><tr>{['Description', 'Qty', 'Unit Price', 'Total'].map((heading, index) => <th key={heading} style={{ textAlign: index ? 'right' : 'left', padding: '0.65rem 0.4rem', borderBottom: '2px solid #E5E7EB', color: '#6B7280', textTransform: 'uppercase', fontSize: '0.65rem' }}>{heading}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={row.key || index}><td style={{ padding: '0.8rem 0.4rem', borderBottom: '1px solid #F3F4F6' }}>{row.description}</td><td style={{ textAlign: 'right' }}>1</td><td style={{ textAlign: 'right' }}>{currency(row.price)}</td><td style={{ textAlign: 'right', fontWeight: 700 }}>{currency(row.price)}</td></tr>)}</tbody></table>
       <div style={{ width: '280px', margin: '1.5rem 0 0 auto', borderTop: '2px solid #111827', paddingTop: '0.75rem' }}>
         {selectedPayment ? (
@@ -131,16 +94,6 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Transfer Fee</span><span>{currency(paymentAmounts.transferFee)}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Net Received</span><span>{currency(paymentAmounts.netReceived)}</span></div>
               {paymentAmounts.creditApplied > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Credit Applied</span><span>{currency(paymentAmounts.creditApplied)}</span></div>}
-              {paymentAmounts.refundAmount > 0 && (
-                <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: '0.45rem', color: '#B91C1C' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800 }}><span>{paymentAmounts.refundStatus === 'REFUNDED' ? 'Refunded' : 'Partially Refunded'}</span><span>{currency(paymentAmounts.refundAmount)}</span></div>
-                  {refundAllocations.filter((allocation) => String(allocation.refund_payment?.status || '').toUpperCase() === 'REFUNDED').map((allocation, index) => (
-                    <div key={`${allocation.refund_payment?.reference_number || 'refund'}-${index}`} style={{ marginTop: '0.3rem', fontSize: '0.68rem', overflowWrap: 'anywhere' }}>
-                      Refund Reference ID: {allocation.refund_payment?.reference_number || 'Not provided'}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '1.1rem', marginTop: '0.75rem', borderTop: '1px solid #E5E7EB', paddingTop: '0.6rem' }}>
               <span>Net Received</span><span>{currency(paymentAmounts.netReceived)}</span>
@@ -158,7 +111,7 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
   );
 
   if (mode === 'page') return content;
-  return <div className="modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}><div style={{ width: '100%', maxWidth: '760px', maxHeight: '92vh', overflow: 'auto', background: '#fff', borderRadius: '6px' }}><div className="no-print" style={{ background: '#111827', color: '#fff', padding: '0.8rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800, fontSize: '0.8rem' }}><ShieldCheck size={18} /> Official Receipt</span>{onClose && <button onClick={onClose} aria-label="Close receipt" style={{ background: 'transparent', border: 0, color: '#fff', cursor: 'pointer' }}><X size={18} /></button>}</div>{content}<div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', padding: '0.8rem 1rem', background: '#F9FAFB' }}><button onClick={downloadPdf} disabled={refundLookupLoading || Boolean(refundLookupError)} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 0.9rem', background: '#111827', color: '#fff', border: 0, cursor: refundLookupLoading || refundLookupError ? 'not-allowed' : 'pointer', opacity: refundLookupLoading || refundLookupError ? 0.5 : 1 }}><Download size={15} /> Download PDF</button><button onClick={() => window.print()} disabled={refundLookupLoading || Boolean(refundLookupError)} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 0.9rem', background: '#E5E7EB', color: '#111827', border: 0, cursor: refundLookupLoading || refundLookupError ? 'not-allowed' : 'pointer', opacity: refundLookupLoading || refundLookupError ? 0.5 : 1 }}><Printer size={15} /> Print</button></div></div></div>;
+  return <div className="modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}><div style={{ width: '100%', maxWidth: '760px', maxHeight: '92vh', overflow: 'auto', background: '#fff', borderRadius: '6px' }}><div className="no-print" style={{ background: '#111827', color: '#fff', padding: '0.8rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800, fontSize: '0.8rem' }}><ShieldCheck size={18} /> Official Receipt</span>{onClose && <button onClick={onClose} aria-label="Close receipt" style={{ background: 'transparent', border: 0, color: '#fff', cursor: 'pointer' }}><X size={18} /></button>}</div>{content}<div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', padding: '0.8rem 1rem', background: '#F9FAFB' }}><button onClick={downloadPdf} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 0.9rem', background: '#111827', color: '#fff', border: 0, cursor: 'pointer' }}><Download size={15} /> Download PDF</button><button onClick={() => window.print()} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 0.9rem', background: '#E5E7EB', color: '#111827', border: 0, cursor: 'pointer' }}><Printer size={15} /> Print</button></div></div></div>;
 };
 
 export default OfficialReceipt;
