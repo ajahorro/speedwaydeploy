@@ -130,7 +130,9 @@ async function functionDef(name) {
 
   const bookingId = probe.data?.booking?.id;
   check('create_booking_atomic() accepts a real payload', Boolean(bookingId),
-    probe.error ? `${probe.error.code} ${probe.error.message}` : 'no booking id returned');
+    probe.error
+      ? `${probe.error.code} ${probe.error.message}`
+      : bookingId ? `booking id=${bookingId}` : 'no booking id returned');
 
   if (bookingId) {
     const { data: vehicles } = await db.from('booking_vehicles').select('id').eq('booking_id', bookingId);
