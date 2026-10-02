@@ -129,7 +129,7 @@ const buildSentence = (log) => {
       return <>{performer} updated the staff assignment for booking {B(shortId(log.booking_id), 'b')}.</>;
     case 'CREATE_BOOKING':
     case 'BOOKING_CREATED':
-      return <>Booking {B(shortId(log.booking_id), 'b')} was created.</>;
+      return <>{performer} created booking {B(shortId(log.booking_id), 'b')}.</>;
     case 'BOOKING_UPDATED':
     case 'BOOKING_MUTATED':
     case 'BOOKING_MUTATED_FALLBACK':
