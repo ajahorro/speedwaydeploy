@@ -4337,19 +4337,20 @@ const cancelBookingAndQueueRefund = async ({ bookingId, reason, actor }) => {
   const refundDetails = refundAmount > 0
     ? `Refund status: ${data.refund_status || 'QUEUED'}. Amount queued for refund review: ₱${refundAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`
     : 'No verified or submitted payment was recorded, so no refund is currently queued.';
-  const warnings = [];
-  try {
-    await dispatchLifecycleEmail(
-      bookingId,
-      'CANCELLED',
-      `${reason.trim()}\n${refundDetails}`
-    );
-  } catch (emailError) {
-    console.error(`[cancellation] Customer email failed for booking ${bookingId}:`, emailError.message);
-    warnings.push('Booking was cancelled, but the customer email could not be sent.');
-  }
 
-  return { ...data, warnings };
+  // The database transaction is authoritative. Do not hold its success response
+  // open while the email provider or Edge Function is slow; log failures
+  // separately so an email problem cannot make a completed cancellation appear
+  // stuck to the caller.
+  void dispatchLifecycleEmail(
+    bookingId,
+    'CANCELLED',
+    `${reason.trim()}\n${refundDetails}`
+  ).catch((emailError) => {
+    console.error(`[cancellation] Customer email failed for booking ${bookingId}:`, emailError.message);
+  });
+
+  return data;
 };
 
 const handleBookingCancellation = async (req, res, actor) => {

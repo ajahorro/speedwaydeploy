@@ -87,23 +87,58 @@ const AdminBookings = () => {
 
   const submitCancellation = async (booking, reason) => {
     const toastId = toast.loading('Cancelling booking and queuing refunds...');
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 30000);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Your admin session has expired. Sign in again before cancelling this booking.');
+      }
       const response = await fetch(`${BACKEND_URL}/api/bookings/cancel`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session?.access_token || ''}`
         },
-        body: JSON.stringify({ bookingId: booking.id, reason })
+        body: JSON.stringify({ bookingId: booking.id, reason }),
+        signal: controller.signal
       });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.success) throw new Error(result.error || 'Cancellation failed.');
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || `Cancellation failed (HTTP ${response.status}).`);
+      }
       toast.success('Booking cancelled; eligible payments are in the Refund Hub.', { id: toastId });
       (result.warnings || []).forEach((warning) => toast.error(warning));
-      refresh();
+      await refresh();
     } catch (error) {
-      toast.error(error.message || 'Cancellation failed.', { id: toastId });
+      const requestTimedOut = error.name === 'AbortError';
+      const isNetworkError = error instanceof TypeError;
+      if (requestTimedOut || isNetworkError) {
+        try {
+          const { data: currentBooking, error: statusError } = await supabase
+            .from('bookings')
+            .select('status')
+            .eq('id', booking.id)
+            .maybeSingle();
+          if (statusError) throw statusError;
+          if (String(currentBooking?.status || '').toUpperCase() === 'CANCELLED') {
+            toast.success('Booking was cancelled. The request response was delayed; the booking status is confirmed.', { id: toastId });
+            await refresh();
+            return;
+          }
+        } catch (statusError) {
+          toast.error(`Could not confirm cancellation status: ${statusError.message || 'status lookup failed'}`, { id: toastId });
+          return;
+        }
+      }
+      const message = requestTimedOut
+        ? 'Cancellation timed out after 30 seconds. The booking is not confirmed as cancelled; refresh and check before retrying.'
+        : isNetworkError
+          ? `Could not reach the booking service at ${BACKEND_URL || 'this site'}. Check the backend connection and try again.`
+          : error.message || 'Cancellation failed.';
+      toast.error(message, { id: toastId });
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   };
 

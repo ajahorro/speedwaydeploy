@@ -8,6 +8,10 @@ const adminPayments = fs.readFileSync('frontend/src/pages/Admin/AdminPayments.js
 const adminBookingDetails = fs.readFileSync('frontend/src/pages/Admin/AdminBookingDetails.jsx', 'utf8');
 const adminBookings = fs.readFileSync('frontend/src/pages/Admin/AdminBookings.jsx', 'utf8');
 const backend = fs.readFileSync('backend/server.js', 'utf8');
+const cancellationHelper = backend.slice(
+  backend.indexOf('const cancelBookingAndQueueRefund ='),
+  backend.indexOf('const handleBookingCancellation =')
+);
 const cancellationMigration = fs.readFileSync('supabase/migrations/20261023000002_atomic_admin_booking_cancellation.sql', 'utf8');
 const auditEventsMigration = fs.readFileSync('supabase/migrations/20261023000005_audit_payment_and_staff_changes.sql', 'utf8');
 const noShowUnassignedMigration = fs.readFileSync('supabase/migrations/20261023000006_keep_noshow_out_of_unassigned.sql', 'utf8');
@@ -151,6 +155,8 @@ checks.push(
   ['no-show worker: retries flagged bookings without requiring a profile email', /from\('bookings'\)[\s\S]*?\.select\('id, refund_status, customer_email, payments\(amount, detected_amount, status, method, verified_at\)'\)[\s\S]*?\.eq\('status', 'FLAGGED_NOSHOW'\)/.test(backend)],
   ['no-show email: includes queued refund status and amounts', /Refund status: \$\{booking\.refund_status \|\| 'QUEUED'\}[\s\S]*?Verified payments awaiting refund[\s\S]*?Unverified payment claims awaiting review/.test(backend)],
   ['cancellation: refund state and audit are committed in the database RPC', /update public\.payments[\s\S]*?set status = 'REFUND_PENDING'/.test(cancellationMigration) && /insert into public\.audit_logs/.test(cancellationMigration)],
+  ['cancellation: API response does not wait for customer email dispatch', /void dispatchLifecycleEmail\([\s\S]*?\.catch\(\(emailError\)/.test(cancellationHelper) && !/await dispatchLifecycleEmail/.test(cancellationHelper)],
+  ['admin cancellation: request times out clearly and checks persisted booking status before retry guidance', /new AbortController\(\)[\s\S]*?controller\.abort\(\), 30000[\s\S]*?select\('status'\)[\s\S]*?requestTimedOut/.test(adminBookingsPage)],
   ['audit: payment submissions, verification, rejection, and refunds are captured in the database', /create trigger trg_audit_payment_change[\s\S]*?after insert or update of status on public\.payments/.test(auditEventsMigration) && ['PAYMENT_SUBMITTED', 'PAYMENT_VERIFIED', 'PAYMENT_REJECTED', 'PAYMENT_REFUND_QUEUED', 'REFUND_PROCESSED'].every((action) => auditEventsMigration.includes(`'${action}'`))],
   ['audit: staff assignment changes are captured transactionally with previous and new assignees', /create trigger trg_audit_booking_staff_assignment_update[\s\S]*?after update of staff_id on public\.bookings/.test(auditEventsMigration) && /previous_staff_id[\s\S]*?new_staff_id/.test(auditEventsMigration) && !/action_type:\s*isPostService/.test(adminBookingDetails)],
   ['audit: payment and refund category filter queries the selected event category', /option value="PAYMENTS">Payments &amp; refunds/.test(adminAuditLogs) && /meta\.category === filterType/.test(adminAuditLogs) && /query = query\.in\('action_type', actionTypes\)/.test(adminAuditLogs)],
