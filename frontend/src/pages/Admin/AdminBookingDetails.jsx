@@ -716,14 +716,6 @@ const AdminBookingDetails = () => {
         throw new Error(result.error || 'Unable to restore booking.');
       }
 
-      await supabase.from('audit_logs').insert({
-        booking_id: id,
-        action_type: 'NOSHOW_FLAG_UNDONE',
-        actor_name: 'ADMIN',
-        actor_role: 'ADMIN',
-        details: `Admin reverted no-show for booking ${id}. ${hasPendingRefund ? 'Pending refund request intercepted and cancelled.' : 'No refund request was pending.'}`
-      });
-
       await sendStatusEmail(id, 'scheduled', {
         remarks: 'Your booking was reinstated after the no-show flag was reversed. Please confirm the updated schedule and staff assignment.',
         eventKey: result.statusUpdatedAt ? `booking_reinstated:${result.statusUpdatedAt}` : undefined,

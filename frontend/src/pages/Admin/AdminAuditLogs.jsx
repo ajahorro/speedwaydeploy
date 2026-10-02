@@ -64,6 +64,8 @@ const ACTION_META = {
   MESSAGE_RECEIVED: { category: 'MESSAGES', title: 'Message received' },
   STAFF_ASSIGNMENT_CHANGED: { category: 'SCHEDULING', title: 'Staff assignment changed' },
   PAYMENT_REFUND_QUEUED: { category: 'PAYMENTS', title: 'Payment refund queued' },
+  UNDO_NO_SHOW: { category: 'BOOKINGS', title: 'No-show flag undone' },
+  NOSHOW_FLAG_UNDONE: { category: 'BOOKINGS', title: 'No-show flag undone' },
 };
 
 const titleCase = (value) => String(value || '')
@@ -76,14 +78,17 @@ const getMeta = (actionType) => {
   return ACTION_META[raw] || { category: 'SYSTEM', title: titleCase(raw) };
 };
 
-// Extract the first email-looking token from a free-text details string.
-const extractEmail = (text) => {
-  const match = String(text || '').match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
-  return match ? match[0] : null;
-};
-
 // Short booking reference (#ABCD) used across several sentence templates.
 const shortId = (id) => (id ? `#${String(id).slice(0, 4).toUpperCase()}` : 'N/A');
+
+const getActorIdentity = (log) => {
+  const role = String(log.profiles?.role || log.actor_role || 'SYSTEM').trim().toUpperCase();
+  const recordedName = String(log.profiles?.full_name || log.actor_name || '').trim();
+  const name = !recordedName || recordedName.toUpperCase() === role
+    ? ({ ADMIN: 'Administrator', CUSTOMER: 'Customer', STAFF: 'Staff member', SYSTEM: 'System' }[role] || 'Unknown user')
+    : recordedName;
+  return { role, name };
+};
 
 /**
  * Build a clear, human-readable summary sentence for a log entry.
@@ -97,9 +102,8 @@ const buildSentence = (log) => {
   // fallback for any future/legacy row shape.
   const raw = String(log.action_type || log.event_type || '').toUpperCase();
   const details = String(log.details || log.metadata?.description || '');
-  const performerName = log.profiles?.full_name || log.actor_name || 'System';
-  const performerEmail = log.actor_email || extractEmail(details) || '';
-  const performer = <strong key="p">{performerName}{performerEmail ? ` (${performerEmail})` : ''}</strong>;
+  const { role: performerRole, name: performerName } = getActorIdentity(log);
+  const performer = <strong key="p">{performerRole} · {performerName}</strong>;
   const B = (t, k) => <strong key={k}>{t}</strong>;
 
   switch (raw) {
@@ -172,6 +176,9 @@ const buildSentence = (log) => {
       return <>{performer} confirmed booking {B(shortId(log.booking_id), 'b')}.</>;
     case 'BOOKING_CANCELLED':
       return <>{performer} cancelled booking {B(shortId(log.booking_id), 'b')}{details ? <> — reason: {B(details, 'r')}</> : null}.</>;
+    case 'UNDO_NO_SHOW':
+    case 'NOSHOW_FLAG_UNDONE':
+      return <>{performer} restored booking {B(shortId(log.booking_id), 'b')} after undoing its no-show flag.</>;
     case 'SERVICE_STARTED':
       return <>Work started on booking {B(shortId(log.booking_id), 'b')}.</>;
     case 'SERVICE_COMPLETED':
@@ -251,24 +258,37 @@ const AdminAuditLogs = () => {
 
       // Resolve actor emails in one round-trip for every distinct actor id.
       const actorIds = Array.from(new Set(rows.map((l) => l.actor_id).filter(Boolean)));
-      let emailById = {};
+      let actorById = {};
       if (actorIds.length) {
         const { data: profiles } = await supabase
           .from('profiles')
-          .select('id, email')
+          .select('id, full_name, email, role')
           .in('id', actorIds);
-        emailById = (profiles || []).reduce((acc, p) => { acc[p.id] = p.email; return acc; }, {});
+        actorById = (profiles || []).reduce((acc, profile) => { acc[profile.id] = profile; return acc; }, {});
       }
       if (sequence !== fetchSequence.current) return;
 
       const processed = rows.map((l) => ({
         ...l,
         event_type: l.action_type,
-        actor_email: emailById[l.actor_id] || null,
-        profiles: l.profiles || { full_name: l.actor_name || 'System', role: l.actor_role || 'SYSTEM' },
+        actor_email: actorById[l.actor_id]?.email || null,
+        profiles: actorById[l.actor_id] || l.profiles || { full_name: l.actor_name || 'System', role: l.actor_role || 'SYSTEM' },
       }));
 
-      setLogs(processed);
+      const visibleLogs = processed.filter((log) => {
+        if (String(log.action_type || '').toUpperCase() !== 'NOSHOW_FLAG_UNDONE') return true;
+        const legacyTimestamp = new Date(log.created_at).getTime();
+        return !processed.some((candidate) => {
+          if (String(candidate.action_type || '').toUpperCase() !== 'UNDO_NO_SHOW'
+            || candidate.booking_id !== log.booking_id) return false;
+          const canonicalTimestamp = new Date(candidate.created_at).getTime();
+          return Number.isFinite(legacyTimestamp)
+            && Number.isFinite(canonicalTimestamp)
+            && Math.abs(legacyTimestamp - canonicalTimestamp) <= 60_000;
+        });
+      });
+
+      setLogs(visibleLogs);
       logger.admin('Audit trail synchronized.');
     } catch (err) {
       if (sequence !== fetchSequence.current) return;
@@ -460,10 +480,7 @@ const AdminAuditLogs = () => {
           filteredLogs.map((log) => {
             const meta = getMeta(log.event_type);
             const isOpen = expandedId === log.id;
-            const actorName = log.profiles?.full_name || log.actor_name || 'System';
-            const actorDetails = [log.actor_email, log.actor_role && log.actor_role !== 'SYSTEM' ? log.actor_role : null]
-              .filter(Boolean)
-              .join(' · ');
+            const { role: actorRole, name: actorName } = getActorIdentity(log);
             return (
               <div key={log.id} style={{ borderBottom: '1px solid var(--admin-border)' }}>
                 <div
@@ -515,7 +532,7 @@ const AdminAuditLogs = () => {
                       <div style={{ padding: '.6rem .75rem', display: 'flex', flexDirection: 'column', gap: '.15rem', minWidth: 0 }}>
                         <dt style={{ fontSize: '.58rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Activity By</dt>
                         <dd style={{ margin: 0, fontSize: '.72rem', fontWeight: 700, color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>
-                          {actorName}{actorDetails ? ` · ${actorDetails}` : ''}
+                          {actorRole} · {actorName}
                         </dd>
                       </div>
                       <div style={{ padding: '.6rem .75rem', display: 'flex', flexDirection: 'column', gap: '.15rem', minWidth: 0 }}>
