@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import PageHeader from '../../components/PageHeader';
-import { Search, Filter, Database, ChevronDown, ExternalLink } from 'lucide-react';
+import { Search, Filter, Database, ChevronDown, ChevronRight, ExternalLink, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { logger } from '../../utils/logger';
@@ -15,7 +15,7 @@ import { logger } from '../../utils/logger';
  *   2. NO table/card wrappers. A flat, line-divided list of rows.
  *   3. Two-line rows: (a) neutral [CATEGORY] tag + action title + timestamp;
  *      (b) a human-readable sentence with the primary entities bolded.
- *   4. Clicking a row expands an inline JSON drawer with the raw event record.
+ *   4. Clicking a row opens a detail modal with readable change metadata.
  */
 
 // ── Category + action copy ──────────────────────────────
@@ -230,9 +230,18 @@ const AdminAuditLogs = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL');
-  const [expandedId, setExpandedId] = useState(null);
+  const [selectedLog, setSelectedLog] = useState(null);
   const [isAuditListOpen, setIsAuditListOpen] = useState(false);
   const fetchSequence = useRef(0);
+
+  useEffect(() => {
+    if (!selectedLog) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setSelectedLog(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedLog]);
 
   const fetchLogs = useCallback(async () => {
     const sequence = ++fetchSequence.current;
@@ -318,7 +327,7 @@ const AdminAuditLogs = () => {
     return matchesSearch && matchesFilter;
   });
 
-  // The technical record shown in the inline drawer, as ORDERED key/value rows.
+  // The technical record shown in the detail modal, as ordered key/value rows.
   //
   // Audit findings addressed here:
   //   1. NO RAW JSON DUMP. The previous implementation rendered
@@ -479,16 +488,15 @@ const AdminAuditLogs = () => {
         ) : filteredLogs.length > 0 ? (
           filteredLogs.map((log) => {
             const meta = getMeta(log.event_type);
-            const isOpen = expandedId === log.id;
-            const { role: actorRole, name: actorName } = getActorIdentity(log);
             return (
               <div key={log.id} style={{ borderBottom: '1px solid var(--admin-border)' }}>
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => setExpandedId(isOpen ? null : log.id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(isOpen ? null : log.id); } }}
-                  style={{ padding: '0.9rem 0.5rem', cursor: 'pointer', transition: 'background 0.15s ease', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}
+                  aria-haspopup="dialog"
+                  onClick={() => setSelectedLog(log)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedLog(log); } }}
+                  style={{ padding: '0.9rem 0.5rem', cursor: 'pointer', transition: 'background 0.15s ease', display: 'flex', flexDirection: 'column', gap: '0.4rem', outlineOffset: '2px' }}
                   onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--admin-input-bg)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                 >
@@ -502,7 +510,7 @@ const AdminAuditLogs = () => {
                       <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--admin-text-secondary)', whiteSpace: 'nowrap' }}>
                         {formatTimestamp(log.created_at)}
                       </span>
-                      <ChevronDown size={16} style={{ color: 'var(--admin-text-secondary)', transition: 'transform 0.2s ease', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                      <ChevronRight size={16} aria-hidden="true" style={{ color: 'var(--admin-text-secondary)', flexShrink: 0 }} />
                     </div>
                   </div>
 
@@ -512,67 +520,6 @@ const AdminAuditLogs = () => {
                   </div>
                 </div>
 
-                {/* Inline expandable technical detail — key/value badges, not a
-                    raw JSON blob, so an auditor can scan it in one pass. */}
-                {isOpen && (
-                  <div style={{ padding: '0 0.5rem 1rem' }}>
-                    <dl style={{
-                      margin: '0 0 0.5rem',
-                      background: 'var(--admin-input-bg)',
-                      border: '1px solid var(--admin-border)',
-                      borderRadius: 0,
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                      gap: '1px',
-                    }}>
-                      <div style={{ padding: '.6rem .75rem', display: 'flex', flexDirection: 'column', gap: '.15rem', minWidth: 0 }}>
-                        <dt style={{ fontSize: '.58rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Action</dt>
-                        <dd style={{ margin: 0, fontSize: '.72rem', fontWeight: 700, color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>{log.action_type || log.event_type || 'System event'}</dd>
-                      </div>
-                      <div style={{ padding: '.6rem .75rem', display: 'flex', flexDirection: 'column', gap: '.15rem', minWidth: 0 }}>
-                        <dt style={{ fontSize: '.58rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Activity By</dt>
-                        <dd style={{ margin: 0, fontSize: '.72rem', fontWeight: 700, color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>
-                          {actorRole} · {actorName}
-                        </dd>
-                      </div>
-                      <div style={{ padding: '.6rem .75rem', display: 'flex', flexDirection: 'column', gap: '.15rem', minWidth: 0 }}>
-                        <dt style={{ fontSize: '.58rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Timestamp</dt>
-                        <dd style={{ margin: 0, fontSize: '.72rem', fontWeight: 700, color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>
-                          {log.created_at ? new Date(log.created_at).toLocaleString() : 'Unavailable'}
-                        </dd>
-                      </div>
-                      <div style={{ padding: '.6rem .75rem', display: 'flex', flexDirection: 'column', gap: '.15rem', minWidth: 0 }}>
-                        <dt style={{ fontSize: '.58rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>View Booking</dt>
-                        <dd style={{ margin: 0 }}>
-                          {log.booking_id ? (
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/admin/bookings/${log.booking_id}`)}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: 0, background: 'transparent', border: 'none', color: 'var(--admin-text-primary)', fontSize: '.72rem', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer' }}
-                            >
-                              <ExternalLink size={13} /> View booking {shortId(log.booking_id)}
-                            </button>
-                          ) : (
-                            <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--admin-text-secondary)' }}>Not linked to a booking</span>
-                          )}
-                        </dd>
-                      </div>
-                    </dl>
-                    <dl style={{
-                      margin: 0, background: 'var(--admin-input-bg)',
-                      border: '1px solid var(--admin-border)', borderRadius: 0,
-                      display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                      gap: '1px',
-                    }}>
-                      {technicalRows(log).map(({ label, value }) => (
-                        <div key={label} style={{ padding: '.6rem .75rem', display: 'flex', flexDirection: 'column', gap: '.15rem', minWidth: 0 }}>
-                          <dt style={{ fontSize: '.58rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{label}</dt>
-                          <dd style={{ margin: 0, fontSize: '.72rem', fontWeight: 700, color: 'var(--admin-text-primary)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', wordBreak: 'break-word' }}>{value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </div>
-                )}
               </div>
             );
           })
@@ -584,6 +531,144 @@ const AdminAuditLogs = () => {
         )}
         </div>
       </div>
+
+      {selectedLog && (() => {
+        const meta = getMeta(selectedLog.event_type);
+        const { role, name } = getActorIdentity(selectedLog);
+        const rows = technicalRows(selectedLog);
+        return (
+          <div
+            role="presentation"
+            onClick={() => setSelectedLog(null)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 100000,
+              background: 'var(--modal-overlay)', backdropFilter: 'blur(4px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 'clamp(0.75rem, 4vw, 1.5rem)',
+            }}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="audit-detail-title"
+              onClick={(event) => event.stopPropagation()}
+              style={{
+                width: 'min(100%, 760px)', maxHeight: 'min(90vh, 820px)',
+                display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                background: 'var(--admin-card)', border: '1px solid var(--admin-border)',
+                borderRadius: 0, boxShadow: 'var(--modal-shadow)',
+                color: 'var(--admin-text-primary)',
+              }}
+            >
+              <header style={{
+                display: 'flex', alignItems: 'flex-start', gap: '1rem',
+                padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--admin-border)',
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={TAG_STYLE}>{meta.category}</span>
+                  <h2 id="audit-detail-title" style={{ margin: '0.55rem 0 0', fontSize: '1.05rem', fontWeight: 850 }}>
+                    {meta.title}
+                  </h2>
+                  <div style={{ marginTop: '0.4rem', fontSize: '0.82rem', lineHeight: 1.55, color: 'var(--admin-text-secondary)' }}>
+                    {buildSentence(selectedLog)}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Close audit details"
+                  onClick={() => setSelectedLog(null)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 36, height: 36, flexShrink: 0, padding: 0,
+                    color: 'var(--admin-text-secondary)', background: 'transparent',
+                    border: '1px solid var(--admin-border)', borderRadius: 0, cursor: 'pointer',
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </header>
+
+              <div style={{ padding: '1rem 1.25rem', overflowY: 'auto' }}>
+                <dl style={{
+                  margin: 0, background: 'var(--admin-input-bg)',
+                  border: '1px solid var(--admin-border)', borderRadius: 0,
+                  display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: '1px',
+                }}>
+                  {[
+                    ['Action', selectedLog.action_type || selectedLog.event_type || 'System event'],
+                    ['Activity By', `${role} · ${name}`],
+                    ['Timestamp', selectedLog.created_at ? new Date(selectedLog.created_at).toLocaleString() : 'Unavailable'],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ padding: '.7rem .8rem', minWidth: 0 }}>
+                      <dt style={{ fontSize: '.62rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{label}</dt>
+                      <dd style={{ margin: '.25rem 0 0', fontSize: '.78rem', fontWeight: 700, overflowWrap: 'anywhere' }}>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+
+                {selectedLog.details && (
+                  <div style={{ marginTop: '0.75rem', padding: '.8rem', border: '1px solid var(--admin-border)', background: 'var(--admin-input-bg)' }}>
+                    <div style={{ marginBottom: '.3rem', fontSize: '.62rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Summary</div>
+                    <div style={{ fontSize: '.8rem', lineHeight: 1.55, overflowWrap: 'anywhere' }}>{selectedLog.details}</div>
+                  </div>
+                )}
+
+                <h3 style={{ margin: '1.1rem 0 .6rem', fontSize: '.72rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--admin-text-secondary)' }}>
+                  Recorded changes
+                </h3>
+                {rows.length ? (
+                  <dl style={{
+                    margin: 0, background: 'var(--admin-input-bg)',
+                    border: '1px solid var(--admin-border)', borderRadius: 0,
+                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: '1px',
+                  }}>
+                    {rows.map(({ label, value }, index) => (
+                      <div key={`${label}-${index}`} style={{ padding: '.7rem .8rem', minWidth: 0 }}>
+                        <dt style={{ fontSize: '.62rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em', overflowWrap: 'anywhere' }}>{label}</dt>
+                        <dd style={{ margin: '.25rem 0 0', fontSize: '.78rem', fontWeight: 700, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', wordBreak: 'break-word' }}>{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : (
+                  <p style={{ margin: 0, padding: '.9rem', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', fontSize: '.8rem', lineHeight: 1.5 }}>
+                    No additional field-level changes were recorded for this activity.
+                  </p>
+                )}
+              </div>
+
+              <footer style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                gap: '.75rem', flexWrap: 'wrap', padding: '1rem 1.25rem',
+                borderTop: '1px solid var(--admin-border)',
+              }}>
+                <span style={{ fontSize: '.72rem', color: 'var(--admin-text-secondary)', overflowWrap: 'anywhere' }}>
+                  {selectedLog.booking_id ? `Booking ${shortId(selectedLog.booking_id)}` : 'Not linked to a booking'}
+                </span>
+                <div style={{ display: 'flex', gap: '.6rem', marginLeft: 'auto' }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLog(null)}
+                    style={{ padding: '.65rem .9rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: 0, color: 'var(--admin-text-primary)', fontSize: '.72rem', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    Close
+                  </button>
+                  {selectedLog.booking_id && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/admin/bookings/${selectedLog.booking_id}`)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', padding: '.65rem .9rem', background: 'var(--admin-text-primary)', border: '1px solid var(--admin-text-primary)', borderRadius: 0, color: 'var(--admin-card)', fontSize: '.72rem', fontWeight: 850, textTransform: 'uppercase', cursor: 'pointer' }}
+                    >
+                      <ExternalLink size={14} /> View booking
+                    </button>
+                  )}
+                </div>
+              </footer>
+            </section>
+          </div>
+        );
+      })()}
     </div>
   );
 };
