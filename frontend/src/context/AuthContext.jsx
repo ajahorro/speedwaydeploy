@@ -69,12 +69,18 @@ export const AuthProvider = ({ children }) => {
     profileRef.current = profile;
   }, [profile]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
+    // Stop any in-flight profile request from putting the public page back into
+    // an authenticated/loading state after the user has chosen to sign out.
+    activeFetchRef.current += 1;
+    setUser(null);
+    setProfile(null);
+    fetchedForRef.current = null;
+    setLoading(false);
+    setIsInitialized(true);
+
     try {
       logger.auth('Initiating sign out sequence...');
-      setUser(null);
-      setProfile(null);
-      fetchedForRef.current = null;
       await supabase.auth.signOut();
       logger.auth('Sign out complete.');
     } catch (err) {
@@ -83,7 +89,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
       setIsInitialized(true);
     }
-  };
+  }, []);
 
   const fetchProfile = useCallback(async (userId, source = 'unknown', force = false) => {
     if (!userId) return;
@@ -142,7 +148,7 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
       }
     }
-  }, []);
+  }, [signOut]);
 
   useEffect(() => {
     const initAuth = async () => {

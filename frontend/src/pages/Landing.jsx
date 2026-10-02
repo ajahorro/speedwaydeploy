@@ -79,6 +79,7 @@ const Landing = () => {
   const { user, profile, signOut, isInitialized, loading: authLoading } = useAuth();
   const { settings } = useConfig();
   const navigate = useNavigate();
+  const authActionPending = Boolean(user && (!isInitialized || authLoading));
 
   const businessName = settings?.BUSINESS_NAME || 'COMAR GARAGE';
 
@@ -127,17 +128,20 @@ const Landing = () => {
   ];
 
   const handleAuthAction = () => {
-    if (!isInitialized || authLoading) return;
-    if (user) {
-      if (profile) {
-        const roleKey = String(profile.role || '').toUpperCase();
-        const routes = { ADMIN: '/admin', STAFF: '/staff', CUSTOMER: '/customer' };
-        navigate(routes[roleKey] || '/customer');
-      } else {
-        navigate('/customer');
-      }
-    } else {
+    if (!user) {
       setShowLoginModal(true);
+      setMenuOpen(false);
+      return;
+    }
+
+    if (authActionPending) return;
+
+    if (profile) {
+      const roleKey = String(profile.role || '').toUpperCase();
+      const routes = { ADMIN: '/admin', STAFF: '/staff', CUSTOMER: '/customer' };
+      navigate(routes[roleKey] || '/customer');
+    } else {
+      navigate('/customer');
     }
     setMenuOpen(false);
   };
@@ -483,7 +487,7 @@ const Landing = () => {
             onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(230, 30, 42, 0.35)'; }}
           >
             {user ? <LayoutDashboard size={16} /> : <LogIn size={16} />}
-            <span>{!isInitialized || authLoading ? 'SYNCING...' : (user ? 'DASHBOARD' : 'LOGIN')}</span>
+            <span>{authActionPending ? 'SYNCING...' : (user ? 'DASHBOARD' : 'LOGIN')}</span>
           </button>
         </div>
 
@@ -567,7 +571,7 @@ const Landing = () => {
             onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
           >
             {user ? <LayoutDashboard size={18} /> : <LogIn size={18} />}
-            <span>{!isInitialized || authLoading ? 'SYNCING...' : (user ? 'DASHBOARD' : 'LOGIN')}</span>
+            <span>{authActionPending ? 'SYNCING...' : (user ? 'DASHBOARD' : 'LOGIN')}</span>
           </button>
 
           {user && (
@@ -671,7 +675,7 @@ const Landing = () => {
               onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 14px 34px rgba(230, 30, 42, 0.52)'; }}
               onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 10px 30px rgba(230, 30, 42, 0.38)'; }}
             >
-              {!isInitialized || authLoading ? 'SYNCING...' : (user ? 'DASHBOARD' : 'BOOK NOW')}
+              {authActionPending ? 'SYNCING...' : (user ? 'DASHBOARD' : 'BOOK NOW')}
             </button>
           </Reveal>
         </div>
