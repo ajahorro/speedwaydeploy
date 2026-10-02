@@ -134,6 +134,10 @@ checks.push(
     return amounts.subtotal === 1000 && amounts.discount === 100 && amounts.totalDue === 900;
   })()],
   ['customer ledger: displays separate transaction rows including pending verification', /'FOR_VERIFICATION', 'REJECTED'/.test(fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8'))],
+  ['customer ledger: gateway reference is primary and receipt UUID is shortened', /primaryReference = transactionReference/.test(customerBilling) && /Receipt \{shortReceiptNumber\}/.test(customerBilling) && /compactId\(p\.id, 'RCP-'\)/.test(customerBilling)],
+  ['customer ledger: status pills do not wrap or use outlined borders', /billing-ledger-status[\s\S]*?border-radius: 999px[\s\S]*?white-space: nowrap/.test(customerBilling) && /billing-ledger-status-warning \{ background: #fef3c7; color: #92400e; \}/.test(customerBilling)],
+  ['customer ledger: mobile transactions use card rows', /@media \(max-width: 700px\)[\s\S]*?grid-template-areas: "identifiers identifiers" "date status" "amount amount" "actions actions"/.test(customerBilling)],
+  ['customer ledger: positive amounts use neutral text color', /color: Number\(p\.amount\) < 0 \? 'var\(--status-danger\)' : 'var\(--admin-text-primary\)'/.test(customerBilling)],
   ['customer ledger: only verified positive payments can open receipts', /canIssueReceipt = Number\(p\.amount\) > 0[\s\S]*?\['PAID', 'REFUND_PENDING', 'REFUNDED'\]/.test(fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8'))],
   ['payment receipts: portal labels receipt number and gateway reference separately', /getReceiptNumber\(selectedPayment\)/.test(officialReceipt) && /Transaction\/Reference ID/.test(officialReceipt)],
   ['payment receipts: do not fetch or display booking/refund status', !/refund_status|refund|payment_refund_allocations|isNoShow|FLAGGED_NOSHOW|NO-SHOW/.test(officialReceipt)],

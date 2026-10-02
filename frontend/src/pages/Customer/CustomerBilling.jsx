@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CreditCard, Clock, Printer } from 'lucide-react';
+import { CreditCard, Clock, Printer, Copy, FileText } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import OfficialReceipt from '../../components/OfficialReceipt';
@@ -45,6 +46,19 @@ const CustomerBilling = () => {
   }, [user?.id, fetchData]);
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val || 0);
+  const compactId = (value, prefix = '') => {
+    const id = String(value || '');
+    return `${prefix}${id.length > 12 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id}`;
+  };
+  const copyIdentifier = async (value, label) => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is not available in this browser.');
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copied`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Could not copy ${label.toLowerCase()}.`);
+    }
+  };
 
   const totalSpent = bookings.reduce((sum, booking) => sum + calculatePaymentSummary(booking).totalPaid, 0);
 
@@ -117,15 +131,22 @@ const CustomerBilling = () => {
             <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Transaction Ledger</h3>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <div className="billing-ledger-table-wrap" style={{ overflowX: 'auto' }}>
+            <table className="billing-ledger-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '36%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '19%' }} />
+              </colgroup>
               <thead>
                 <tr style={{ background: 'var(--admin-bg)', borderBottom: '1px solid var(--admin-border)' }}>
-                  <th style={{ padding: '1.25rem 2rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Receipt No. / Reference ID</th>
-                  <th style={{ padding: '1.25rem 2rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Transaction Date</th>
+                  <th style={{ padding: '1.25rem 1.5rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Reference</th>
+                  <th style={{ padding: '1.25rem 1rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Date</th>
                   <th style={{ padding: '1.25rem 2rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Amount</th>
-                  <th style={{ padding: '1.25rem 2rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Status</th>
-                  <th style={{ padding: '1.25rem 2rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'center' }}>Actions</th>
+                  <th style={{ padding: '1.25rem 1rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Status</th>
+                  <th style={{ padding: '1.25rem 1rem', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -150,6 +171,9 @@ const CustomerBilling = () => {
                         && !isRefund;
                       const receiptNumber = `RCP-${p.id.toUpperCase()}`;
                       const paymentRecordNumber = `PAY-${p.id.toUpperCase()}`;
+                      const transactionReference = p.reference_number || p.detected_ref || '';
+                      const primaryReference = transactionReference || (isRefund ? `RFD-${p.id.toUpperCase()}` : paymentRecordNumber);
+                      const shortReceiptNumber = compactId(p.id, 'RCP-');
                       const statusLabel = isRefund
                         ? 'REFUND'
                         : ({
@@ -159,73 +183,71 @@ const CustomerBilling = () => {
                             FOR_VERIFICATION: 'AWAITING VERIFICATION',
                             REJECTED: 'REJECTED',
                           }[paymentStatus] || paymentStatus);
-                      const statusColor = ['REJECTED', 'REFUNDED'].includes(paymentStatus) || isRefund
-                        ? 'var(--status-danger)'
+                      const statusTone = ['REJECTED', 'REFUNDED'].includes(paymentStatus) || isRefund
+                        ? 'danger'
                         : ['REFUND_PENDING', 'FOR_VERIFICATION'].includes(paymentStatus)
-                          ? 'var(--status-warning)'
-                          : 'var(--status-success)';
-                      const statusBackground = ['REJECTED', 'REFUNDED'].includes(paymentStatus) || isRefund
-                        ? 'rgba(239, 68, 68, 0.1)'
-                        : ['REFUND_PENDING', 'FOR_VERIFICATION'].includes(paymentStatus)
-                          ? 'rgba(245, 158, 11, 0.1)'
-                          : 'rgba(16, 185, 129, 0.1)';
+                          ? 'warning'
+                          : 'success';
 
                       return (
-                      <tr key={p.id} style={{ borderBottom: '1px solid var(--admin-border)' }}>
-                        <td style={{ padding: '1.25rem 2rem', fontSize: '0.95rem', fontWeight: '900', color: 'var(--admin-text-primary)', fontFamily: 'monospace' }}>
-                          <div>{isRefund ? 'Refund Reference ID' : canIssueReceipt ? 'Receipt No.' : 'Payment Record ID'}: {isRefund ? (p.reference_number || `RFD-${p.id.toUpperCase()}`) : canIssueReceipt ? receiptNumber : paymentRecordNumber}</div>
-                          {!isRefund && <div style={{ marginTop: '0.2rem', fontSize: '0.68rem', fontWeight: 700, overflowWrap: 'anywhere' }}>Transaction/Reference ID: {p.reference_number || p.detected_ref || 'Not provided'}</div>}
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/customer/bookings/${booking.id}`)}
-                            style={{ display: 'block', background: 'none', border: 0, padding: 0, marginTop: '0.2rem', color: 'var(--admin-brand)', fontSize: '0.6rem', fontWeight: '950', cursor: 'pointer' }}
-                          >
-                            LINKED TO INV-{booking.id.substring(0, 8).toUpperCase()}
-                          </button>
+                      <tr key={p.id} className="billing-ledger-row" style={{ borderBottom: '1px solid var(--admin-border)' }}>
+                        <td className="billing-ledger-identifiers" style={{ padding: '1rem 1.5rem', color: 'var(--admin-text-primary)' }}>
+                          <div className="billing-ledger-reference-line">
+                            <strong title={primaryReference}>{primaryReference.length > 20 ? compactId(primaryReference) : primaryReference}</strong>
+                            <button
+                              type="button"
+                              className="billing-ledger-copy"
+                              onClick={() => copyIdentifier(primaryReference, isRefund ? 'Refund reference' : 'Transaction reference')}
+                              aria-label={`Copy ${isRefund ? 'refund' : 'transaction'} reference`}
+                              title="Copy reference"
+                            >
+                              <Copy size={13} />
+                            </button>
+                          </div>
+                          <div className="billing-ledger-subdetails">
+                            {canIssueReceipt && <span title={receiptNumber}>Receipt {shortReceiptNumber}</span>}
+                            {!canIssueReceipt && !isRefund && <span title={paymentRecordNumber}>Payment {compactId(p.id, 'PAY-')}</span>}
+                            <button
+                              type="button"
+                              className="billing-ledger-booking-link"
+                              onClick={() => navigate(`/customer/bookings/${booking.id}`)}
+                              title={`Open booking ${booking.id}`}
+                            >
+                              Booking #{booking.id.substring(0, 8).toUpperCase()}
+                            </button>
+                          </div>
                         </td>
-                        <td style={{ padding: '1.25rem 2rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>
+                        <td data-label="Date" style={{ padding: '1.25rem 1rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>
                           {p.created_at ? new Date(p.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
                         </td>
-                        <td style={{ padding: '1.25rem 2rem', fontSize: '1.1rem', fontWeight: '950', color: 'var(--admin-brand)' }}>
-                          <span style={{ color: Number(p.amount) < 0 ? 'var(--status-danger)' : 'var(--admin-brand)' }}>{formatCurrency(p.amount)}</span>
+                        <td data-label="Amount" style={{ padding: '1.25rem 1rem', fontSize: '1.05rem', fontWeight: '850', color: Number(p.amount) < 0 ? 'var(--status-danger)' : 'var(--admin-text-primary)' }}>
+                          {formatCurrency(p.amount)}
                         </td>
-                        <td style={{ padding: '1.25rem 2rem' }}>
-                          <span style={{
-                            fontSize: '0.65rem', fontWeight: '950',
-                            background: statusBackground,
-                            color: statusColor,
-                            padding: '0.3rem 0.75rem', borderRadius: '4px', textTransform: 'uppercase', border: '1px solid currentColor'
-                          }}>
-                            {statusLabel}
-                          </span>
+                        <td data-label="Status" style={{ padding: '1.25rem 1rem' }}>
+                          <span className={`billing-ledger-status billing-ledger-status-${statusTone}`}>{statusLabel}</span>
                         </td>
-                        <td style={{ padding: '1.25rem 2rem', textAlign: 'center' }}>
+                        <td data-label="Actions" style={{ padding: '1rem', textAlign: 'center' }}>
                           <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                             {Number(p.amount) > 0 && p.receipt_url && (
                               <button
                                 type="button"
                                 onClick={(event) => { event.stopPropagation(); window.open(p.receipt_url, '_blank', 'noopener,noreferrer'); }}
                                 title="View proof of payment"
-                                style={{
-                                  background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)',
-                                  color: 'var(--admin-text-primary)', borderRadius: '8px', padding: '0 0.7rem',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                                  fontSize: '0.62rem', fontWeight: '900', textTransform: 'uppercase'
-                                }}
+                                className="billing-ledger-action"
+                                aria-label="View proof of payment"
+                                style={{ background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '8px', cursor: 'pointer' }}
                               >
-                                View Proof
+                                <FileText size={16} /><span>Proof</span>
                               </button>
                             )}
                             {canIssueReceipt && <button
                               onClick={() => { setSelectedReceipt(booking); setSelectedPayment(p); }}
                               title={`View receipt ${receiptNumber}`}
-                              style={{ 
-                                background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)',
-                                color: 'var(--admin-text-primary)', borderRadius: '8px', padding: '0 0.65rem', minHeight: '40px',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
-                              }}
+                              className="billing-ledger-action"
+                              aria-label="View receipt"
+                              style={{ background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '8px', cursor: 'pointer' }}
                             >
-                              <><Printer size={16} /><span style={{ marginLeft: '0.3rem', fontSize: '0.62rem', fontWeight: 900 }}>RECEIPT</span></>
+                              <Printer size={16} /><span>Receipt</span>
                             </button>}
                           </div>
                         </td>
@@ -244,6 +266,41 @@ const CustomerBilling = () => {
 
       {/* 🖨️ PRINT-ONLY CSS ENGINE */}
       <style>{`
+        .billing-ledger-table { min-width: 760px; }
+        .billing-ledger-reference-line { display: flex; align-items: center; gap: 0.4rem; min-width: 0; font: 800 0.9rem/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .billing-ledger-reference-line strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .billing-ledger-copy { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; border-radius: 5px; background: transparent; color: var(--admin-text-secondary); cursor: pointer; opacity: 0.65; }
+        .billing-ledger-copy:hover, .billing-ledger-copy:focus-visible { background: var(--admin-input-bg); opacity: 1; }
+        .billing-ledger-subdetails { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.7rem; margin-top: 0.3rem; color: var(--admin-text-secondary); font-size: 0.68rem; }
+        .billing-ledger-booking-link { background: transparent; border: 0; padding: 0; color: var(--admin-text-secondary); font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--admin-border); text-underline-offset: 2px; }
+        .billing-ledger-booking-link:hover { color: var(--admin-text-primary); }
+        .billing-ledger-status { display: inline-flex; align-items: center; justify-content: center; max-width: 100%; padding: 0.35rem 0.65rem; border: 0; border-radius: 999px; font-size: 0.65rem; font-weight: 800; line-height: 1.2; text-align: center; white-space: nowrap; }
+        .billing-ledger-status-warning { background: #fef3c7; color: #92400e; }
+        .billing-ledger-status-success { background: #d1fae5; color: #065f46; }
+        .billing-ledger-status-danger { background: #fee2e2; color: #991b1b; }
+        .billing-ledger-action { display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; min-height: 36px; padding: 0 0.6rem; font-size: 0.7rem; font-weight: 750; white-space: nowrap; }
+        .billing-ledger-action:hover { border-color: var(--admin-text-secondary) !important; }
+        @media (max-width: 700px) {
+          .billing-ledger-table-wrap { overflow: visible !important; padding: 0.75rem; }
+          .billing-ledger-table { display: block; width: 100%; }
+          .billing-ledger-table thead { display: none; }
+          .billing-ledger-table tbody { display: grid; gap: 0.75rem; }
+          .billing-ledger-table tbody tr.billing-ledger-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "identifiers identifiers" "date status" "amount amount" "actions actions"; gap: 0; border: 1px solid var(--admin-border) !important; border-radius: 10px; background: var(--admin-bg); overflow: hidden; }
+          .billing-ledger-table tbody td { min-width: 0; padding: 0.7rem 0.85rem !important; }
+          .billing-ledger-table tbody td.billing-ledger-identifiers { grid-area: identifiers; border-bottom: 1px solid var(--admin-border); }
+          .billing-ledger-table tbody td:nth-child(2) { grid-area: date; align-self: center; font-size: 0.78rem !important; }
+          .billing-ledger-table tbody td:nth-child(3) { grid-area: amount; text-align: left; font-size: 1.25rem !important; font-weight: 850 !important; }
+          .billing-ledger-table tbody td:nth-child(4) { grid-area: status; justify-self: end; align-self: center; }
+          .billing-ledger-table tbody td:nth-child(5) { grid-area: actions; border-top: 1px solid var(--admin-border); }
+          .billing-ledger-table tbody td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 0.2rem; color: var(--admin-text-secondary); font-size: 0.58rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+          .billing-ledger-table tbody td:nth-child(3)::before { content: "Amount"; }
+          .billing-ledger-table tbody td:nth-child(5)::before { content: none; }
+          .billing-ledger-status { font-size: 0.62rem; }
+          .billing-ledger-table tbody td:nth-child(5) > div { justify-content: flex-start !important; gap: 0.5rem !important; }
+          .billing-ledger-action { min-height: 38px; padding: 0 0.7rem; }
+          .billing-ledger-reference-line { font-size: 0.82rem; }
+          .billing-ledger-copy { width: 30px; height: 30px; opacity: 1; }
+        }
         @media print {
           body * { visibility: hidden; }
           #printable-receipt, #printable-receipt * { visibility: visible; }
