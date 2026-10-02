@@ -164,7 +164,9 @@ const AdminWalkInWizard = () => {
       }
     }
 
-    if (!bookingData.customerName || !bookingData.contactNumber) throw new Error('Complete the customer details before confirming.');
+    if (!rawCustomerId && (!bookingData.customerName || !bookingData.contactNumber)) {
+      throw new Error('Complete the customer details before confirming.');
+    }
 
     // Identity resolution safety net. If this is a guest booking whose email
     // belongs to a registered customer, LINK the booking to that account rather
@@ -212,7 +214,7 @@ const AdminWalkInWizard = () => {
       // For guest walk-ins there is no profile, so these booking columns are the
       // only source of the customer name/contact used by the confirmation email.
       customerName: bookingData.customerName,
-      contactNumber: bookingData.contactNumber,
+      contactNumber: bookingData.contactNumber || null,
       customerEmail: bookingData.guest?.email || bookingData.customerEmail || null
     });
     toastManager.success('Walk-in booking created and confirmed.');
