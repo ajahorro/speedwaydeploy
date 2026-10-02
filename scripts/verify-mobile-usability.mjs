@@ -18,7 +18,7 @@ const checks = [
   ['hourly schedule row labels use the active theme text color', /isUnassigned \? 'var\(--admin-brand\)' : 'var\(--admin-text-primary\)'/.test(scheduleGrid)],
   ['mobile schedule uses a chronological appointment list instead of a wide grid', /isMobile \? \([\s\S]*?bookings[\s\S]*?start_datetime[\s\S]*?navigate\(`\/admin\/bookings\/\$\{booking\.id\}`\)/.test(scheduleGrid) && /: \(\s*<div style=\{\{ background: 'var\(--admin-card\)'[\s\S]*?minWidth: '1200px'/.test(scheduleGrid)],
   ['booking cards collapse safely on narrow screens and empty-state text respects theme', /booking-directory-card-meta/.test(bookings) && /rgba\(255,255,255,0\.2\)/.test(bookings) === false && /\.booking-directory-card-meta\s*\{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/.test(responsiveStyles)],
-  ['booking customer summary is hidden on mobile while detail contact remains available', /BookingSummaryHeader booking=\{booking\} showCustomer=\{!isMobile\}/.test(bookingDetails) && /Registered Contact/.test(bookingDetails)],
+  ['booking customer summary is hidden on mobile while detail contact remains available', /BookingSummaryHeader booking=\{booking\} showCustomer=\{!isMobile\}/.test(bookingDetails) && /Registered Phone/.test(bookingDetails)],
   ['mobile reschedule modal fits dynamic viewport and stacks actions', /maxHeight: 'min\(90vh, calc\(100dvh - 1rem\)\)'/.test(bookingDetails) && /flexDirection: isMobile \? 'column-reverse' : 'row'/.test(bookingDetails)],
   ['undo no-show modal uses theme-aware overlay and square control tokens', /background: 'var\(--modal-overlay\)'/.test(bookingDetails) && /borderRadius: 'var\(--admin-radius-sm\)'/.test(bookingDetails)]
 ];

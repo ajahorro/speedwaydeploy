@@ -448,7 +448,7 @@ const CustomerBookingDetails = () => {
                 </span>
               </div>
 
-              {/* REQ-ADM-15: TECHNICAL DOCUMENTATION (Photos & Notes) */}
+              {/* Service photos and staff notes */}
               <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'flex', gap: '1.5rem' }}>
                   <div>
@@ -486,7 +486,7 @@ const CustomerBookingDetails = () => {
                       </button>
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ ...labelStyle, color: 'var(--admin-brand)', marginBottom: '0.4rem' }}>Technician Detailing Notes</div>
+                      <div style={{ ...labelStyle, color: 'var(--admin-brand)', marginBottom: '0.4rem' }}>Staff Notes</div>
                       <div style={{ fontSize: '0.85rem', color: 'var(--admin-text-secondary)', fontWeight: '600', fontStyle: 'italic', lineHeight: 1.5 }}>
                         "{v.service_notes || 'No detailing notes provided by technician.'}"
                       </div>

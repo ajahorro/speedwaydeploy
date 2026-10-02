@@ -144,17 +144,23 @@ const AdminBookingDetails = () => {
       let assigned_staff = null;
 
       if (bData.customer_id) {
-        const { data: cData } = await supabase.from('profiles').select('full_name, email, phone_number').eq('id', bData.customer_id).maybeSingle();
+        const { data: cData, error: customerError } = await supabase
+          .from('profiles')
+          .select('full_name, email, phone_number')
+          .eq('id', bData.customer_id)
+          .maybeSingle();
+        if (customerError) logger.warn('Could not load registered customer contact details', customerError);
         customer = cData;
       }
 
       if (!customer && bData.customer_email) {
-        const { data: cDataByEmail } = await supabase
+        const { data: cDataByEmail, error: customerEmailError } = await supabase
           .from('profiles')
           .select('full_name, email, phone_number')
           .ilike('email', bData.customer_email.trim())
           .maybeSingle();
 
+        if (customerEmailError) logger.warn('Could not resolve customer profile by booking email', customerEmailError);
         customer = cDataByEmail;
       }
 
@@ -1219,6 +1225,9 @@ const AdminBookingDetails = () => {
     minWidth: 0,
     overflowWrap: 'anywhere'
   };
+  const registeredCustomerPhone = String(booking?.customer?.phone_number || '').trim();
+  const bookingContactPhone = String(booking?.contact_number || booking?.customer_phone || '').trim();
+  const customerPhone = registeredCustomerPhone || bookingContactPhone;
 
   if (loading || !booking) return <LoadingState message="Synchronizing fleet records..." />;
 
@@ -1718,7 +1727,7 @@ const AdminBookingDetails = () => {
                     </div>
                     </div>
 
-                    {/* REQ-ADM-15: TECHNICAL DOCUMENTATION (Photos & Notes) */}
+                    {/* Service photos and staff notes */}
                     <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: '1rem', flexWrap: 'wrap' }}>
                         <div style={{ minWidth: isMobile ? '100%' : '180px', width: isMobile ? '100%' : '180px' }}>
@@ -1772,7 +1781,7 @@ const AdminBookingDetails = () => {
                             </button>
                           </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.4rem' }}>Technical Documentation</div>
+                            <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.4rem' }}>Staff Notes</div>
                             <div style={{ fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: '600', fontStyle: 'italic', lineHeight: 1.4 }}>
                               "{v.service_notes || 'No detailing notes provided by technician.'}"
                             </div>
@@ -1810,9 +1819,11 @@ const AdminBookingDetails = () => {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div>
-                <div style={{ ...labelStyle, opacity: 0.6 }}>Registered Contact</div>
-                <div style={(booking.customer?.phone_number || booking.contact_number || booking.customer_phone) ? valueStyle : naStyle}>
-                  {booking.customer?.phone_number || booking.contact_number || booking.customer_phone || 'N/A'}
+                <div style={{ ...labelStyle, opacity: 0.6 }}>
+                  {registeredCustomerPhone ? 'Registered Phone' : 'Booking Contact'}
+                </div>
+                <div style={customerPhone ? valueStyle : naStyle}>
+                  {customerPhone || 'N/A'}
                 </div>
               </div>
               <div>
