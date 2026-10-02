@@ -37,11 +37,11 @@ export const getAvailableSlots = async (dateStr, requestedDuration = 60, request
     // 1. Load business hours/capacity + admin blocks for EVERY day the service
     //    spans (a midnight-crossing or multi-day job must see later days' blocks).
     const spanDays = Math.max(1, Math.ceil(durationMinutes / 1440));
-    const baseDay = new Date(`${dateStr}T00:00:00`);
+    const baseDay = new Date(`${dateStr}T00:00:00Z`);
     const dayKeys = [];
     for (let i = 0; i <= spanDays; i += 1) {
       const d = new Date(baseDay);
-      d.setDate(d.getDate() + i);
+      d.setUTCDate(d.getUTCDate() + i);
       dayKeys.push(d.toISOString().split('T')[0]);
     }
 
@@ -62,10 +62,10 @@ export const getAvailableSlots = async (dateStr, requestedDuration = 60, request
 
     // 2. Load existing bookings overlapping the requested window. Multi-day
     //    services can spill past midnight, so we widen the range by day count.
-    const startOfDay = `${dateStr}T00:00:00`;
-    const checkDateEnd = new Date(dateStr);
-    checkDateEnd.setDate(checkDateEnd.getDate() + Math.ceil(durationMinutes / 1440) + 1);
-    const endOfRange = `${checkDateEnd.toISOString().split('T')[0]}T23:59:59`;
+    const startOfDay = `${dateStr}T00:00:00+08:00`;
+    const checkDateEnd = new Date(`${dateStr}T00:00:00Z`);
+    checkDateEnd.setUTCDate(checkDateEnd.getUTCDate() + Math.ceil(durationMinutes / 1440) + 1);
+    const endOfRange = `${checkDateEnd.toISOString().split('T')[0]}T23:59:59+08:00`;
 
     const { data: bookings } = await supabase
       .from('bookings')

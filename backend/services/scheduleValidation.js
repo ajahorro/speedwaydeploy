@@ -93,11 +93,11 @@ async function loadScheduleContext(supabaseAdmin, dateStr, opts = {}) {
   const durationMinutes = Math.max(1, Number(opts.durationMinutes) || 60);
   const spanDays = Math.max(1, Math.ceil(durationMinutes / (24 * 60)));
 
-  const baseDay = new Date(`${dateStr}T00:00:00`);
+  const baseDay = new Date(`${dateStr}T00:00:00Z`);
   const dayKeys = [];
   for (let i = 0; i <= spanDays; i += 1) {
     const d = new Date(baseDay);
-    d.setDate(d.getDate() + i);
+    d.setUTCDate(d.getUTCDate() + i);
     dayKeys.push(d.toISOString().split('T')[0]);
   }
 
@@ -112,8 +112,8 @@ async function loadScheduleContext(supabaseAdmin, dateStr, opts = {}) {
 
   // Existing bookings overlapping [start day, last spanned day] plus their
   // vehicles for the weighted bay-usage calculation.
-  const rangeStart = `${dateStr}T00:00:00`;
-  const rangeEnd = `${dayKeys[dayKeys.length - 1]}T23:59:59`;
+  const rangeStart = `${dateStr}T00:00:00+08:00`;
+  const rangeEnd = `${dayKeys[dayKeys.length - 1]}T23:59:59+08:00`;
 
   const { data: bookings, error: bookingsError } = await supabaseAdmin
     .from('bookings')

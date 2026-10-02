@@ -9,25 +9,36 @@ export const formatLocalDateTime = (date) => {
 };
 
 export const buildLocalDateTime = (dateStr, timeStr) => {
-  if (!dateStr) return formatLocalDateTime(new Date());
-  if (!timeStr) return `${dateStr}T00:00:00`;
+  if (!dateStr) return new Date().toISOString();
 
-  try {
-    const [timePart, meridian] = String(timeStr).trim().split(/\s+/);
-    if (!timePart) return `${dateStr}T00:00:00`;
+  const [year, month, day] = String(dateStr).split('-').map(Number);
+  const calendarDay = new Date(Date.UTC(year, month - 1, day));
+  if (
+    !Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day) ||
+    calendarDay.getUTCFullYear() !== year ||
+    calendarDay.getUTCMonth() !== month - 1 ||
+    calendarDay.getUTCDate() !== day
+  ) {
+    throw new Error('Invalid booking date');
+  }
 
-    let [hours, minutes = 0] = timePart.split(':').map(Number);
+  let hours = 0;
+  let minutes = 0;
+  if (timeStr) {
+    const [timePart, meridian] = String(timeStr).trim().toUpperCase().split(/\s+/);
+    const parts = timePart?.split(':').map(Number) || [];
+    hours = parts[0];
+    minutes = parts[1] ?? 0;
     if (meridian === 'PM' && hours !== 12) hours += 12;
     if (meridian === 'AM' && hours === 12) hours = 0;
-
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const date = new Date(year, month - 1, day, hours, minutes, 0);
-
-    if (Number.isNaN(date.getTime())) throw new Error('Invalid booking time');
-    return formatLocalDateTime(date);
-  } catch {
-    return `${dateStr}T12:00:00`;
   }
+
+  if (!Number.isInteger(hours) || hours < 0 || hours > 23 || !Number.isInteger(minutes) || minutes < 0 || minutes > 59) {
+    throw new Error('Invalid booking time');
+  }
+
+  const singaporeWallTimeAsUtc = Date.UTC(year, month - 1, day, hours - 8, minutes);
+  return new Date(singaporeWallTimeAsUtc).toISOString();
 };
 
 export const buildLocalDateWindow = (date) => {

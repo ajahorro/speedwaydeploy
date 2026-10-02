@@ -19,9 +19,8 @@
  *   - Every decision is returned as a structured result `{ bookable, code, reason }`
  *     so the UI can render a specific <ValidationModal> message and the server can
  *     return a machine-readable error code. `code` is stable; `reason` is human.
- *   - Date math is done in LOCAL time on day boundaries to match how
- *     `scheduleService` and the booking wizard build slot timestamps
- *     (`${dateStr}T${HH}:${MM}:00`), avoiding UTC off-by-one-day drift.
+ *   - Schedule dates and slots use the business timezone (Asia/Singapore),
+ *     independent of the browser or Node process timezone.
  *
  * Weekday numbering is JS-style 0=Sun .. 6=Sat, matching `Date.getDay()` on the
  * client and the `closed_weekdays` column added in migration
@@ -65,6 +64,7 @@ const FULL_DAY_CLOSE_HOUR = 24;
 
 const MS_PER_MINUTE = 60 * 1000;
 const MS_PER_DAY = 24 * 60 * MS_PER_MINUTE;
+const SINGAPORE_OFFSET_MS = 8 * 60 * MS_PER_MINUTE;
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
@@ -72,21 +72,31 @@ const ok = () => ({ bookable: true, code: SCHEDULE_DECISION_CODES.OK, reason: nu
 const no = (code, reason) => ({ bookable: false, code, reason });
 
 /**
- * Parses 'YYYY-MM-DD' (optionally with a time suffix) into a local Date at
- * midnight of that calendar day. Returns null when the value is unusable.
+ * Parses a business-calendar date into a UTC-midnight date key. Date inputs
+ * are first projected into Asia/Singapore; strings are already date keys.
  */
 const parseDateOnly = (date) => {
   if (date instanceof Date) {
     if (Number.isNaN(date.getTime())) return null;
-    // Normalise to local midnight so comparisons are day-accurate.
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const singaporeDate = new Date(date.getTime() + SINGAPORE_OFFSET_MS);
+    return new Date(Date.UTC(
+      singaporeDate.getUTCFullYear(),
+      singaporeDate.getUTCMonth(),
+      singaporeDate.getUTCDate()
+    ));
   }
   if (typeof date === 'string') {
     const match = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (!match) return null;
     const [, y, m, d] = match;
-    const parsed = new Date(Number(y), Number(m) - 1, Number(d));
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    const parsed = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
+    if (
+      Number.isNaN(parsed.getTime()) ||
+      parsed.getUTCFullYear() !== Number(y) ||
+      parsed.getUTCMonth() !== Number(m) - 1 ||
+      parsed.getUTCDate() !== Number(d)
+    ) return null;
+    return parsed;
   }
   return null;
 };
@@ -173,9 +183,9 @@ const parseSlot = (slot) => {
   return null;
 };
 
-/** Builds a local Date for `dateStr` + the given hour/minute. */
+/** Builds the UTC instant for a Singapore business date and wall-clock time. */
 const slotToDate = (day, hour, minute) =>
-  new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, minute, 0, 0);
+  new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), hour, minute) - SINGAPORE_OFFSET_MS);
 
 /**
  * Does the requested window overlap a blocked_slots row ON A GIVEN DAY?
@@ -249,8 +259,7 @@ export const isDateBookable = (date, config, options = {}) => {
   const day = parseDateOnly(date);
   if (!day) return no(SCHEDULE_DECISION_CODES.INVALID_DATE, 'That date could not be understood.');
 
-  // Local-midnight boundaries.
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const today = parseDateOnly(now);
 
   // 1. Past-date prevention (compare whole days, not instants).
   if (day.getTime() < today.getTime()) {
@@ -258,7 +267,7 @@ export const isDateBookable = (date, config, options = {}) => {
   }
 
   // 2. Closed weekday.
-  if (cfg.closed_weekdays.includes(day.getDay())) {
+  if (cfg.closed_weekdays.includes(day.getUTCDay())) {
     return no(SCHEDULE_DECISION_CODES.CLOSED_WEEKDAY, 'The shop is closed on this day of the week.');
   }
 
@@ -272,7 +281,7 @@ export const isDateBookable = (date, config, options = {}) => {
   }
 
   // 4. Admin-blocked full days (a whole-day block closes the date).
-  const dateStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+  const dateStr = `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, '0')}-${String(day.getUTCDate()).padStart(2, '0')}`;
   const wholeDayBlock = (blocks || []).some(
     (b) => b && String(b.block_date || '').slice(0, 10) === dateStr && parseTimeToMinutes(b.start_time) == null
   );
@@ -461,11 +470,11 @@ export const getBookableSlots = (date, config, existingBookings = [], options = 
   return slots;
 };
 
-/** Local 'YYYY-MM-DD' key for a Date (module-local helper, exported for reuse). */
+/** Singapore 'YYYY-MM-DD' key for a Date (exported for reuse). */
 export function dateKey(date) {
   const d = parseDateOnly(date);
   if (!d) return null;
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
 export default {
