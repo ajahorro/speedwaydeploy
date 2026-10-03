@@ -1,4 +1,4 @@
-import { BACKEND_URL } from '../config/api';
+import { BACKEND_URL } from '../config/api.js';
 
 export const normalizeRole = (role) => {
   const normalized = String(role || '').trim().toUpperCase();
@@ -57,10 +57,9 @@ export const resolveBookingId = async (client, reference) => {
 };
 
 export const resolveStaffJobId = async (client, bookingReference) => {
-  const bookingId = await resolveBookingId(client, bookingReference);
-  if (!bookingId) return null;
-
-  const bookings = await fetchStaffBookings(client, { bookingId });
+  const reference = String(bookingReference || '').trim();
+  if (!reference) return null;
+  const bookings = await fetchStaffBookings(client, { bookingId: reference });
   const units = bookings.flatMap((booking) => booking.vehicles || []);
   const priority = { IN_PROGRESS: 0, PENDING: 1, SCHEDULED: 2, CONFIRMED: 3 };
   units.sort((a, b) =>

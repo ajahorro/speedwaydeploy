@@ -41,7 +41,7 @@ const resolveBackendUrl = () => {
   if (runtime) return String(runtime).replace(/\/+$/, '');
 
   // 2. Build-time value, but only when it can actually work from this page.
-  const configured = import.meta.env.VITE_BACKEND_URL;
+  const configured = import.meta.env?.VITE_BACKEND_URL;
   if (configured) {
     const value = String(configured).replace(/\/+$/, '');
     if (!isLoopback(value) || pageIsLoopback()) return value;
