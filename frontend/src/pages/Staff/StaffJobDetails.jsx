@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { 
@@ -11,6 +11,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from 'react-hot-toast';
 import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
 import { fetchVehiclePhotos, resolvePhotoUrls } from '../../services/photoService';
+import { fetchStaffBookings } from '../../utils/notificationRouting';
 
 const StaffJobDetails = () => {
   const { id } = useParams();
@@ -23,7 +24,7 @@ const StaffJobDetails = () => {
 
   useEffect(() => {
     fetchJobDetails();
-  }, [id]);
+  }, [fetchJobDetails]);
 
   useEffect(() => {
     if (!unit?.id) return;
@@ -40,40 +41,26 @@ const StaffJobDetails = () => {
     return () => { cancelled = true; };
   }, [id, unit?.id]);
 
-  const fetchJobDetails = async () => {
+  const fetchJobDetails = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: bookingRef, error: bookingRefError } = await supabase
-        .from('booking_vehicles')
-        .select('booking_id')
-        .eq('id', id)
-        .maybeSingle();
-      if (bookingRefError) throw bookingRefError;
-      if (!bookingRef) throw new Error('Assigned work was not found.');
-
-      const { data: paymentEligible, error: eligibilityError } = await supabase.rpc(
-        'staff_booking_has_verified_downpayment',
-        { p_booking_id: bookingRef.booking_id }
-      );
-      if (eligibilityError) throw eligibilityError;
-      if (!paymentEligible) {
-        toast.error('This booking is not available until its required payment is verified.');
+      const bookings = await fetchStaffBookings(supabase, { vehicleId: id });
+      const booking = bookings[0];
+      const vehicle = booking?.vehicles?.find((item) => item.id === id);
+      if (!booking || !vehicle) {
+        toast.error('This vehicle is not available in your assigned work.');
         navigate('/staff/tasks', { replace: true });
         return;
       }
-
-      const { data, error } = await supabase
-        .from('booking_vehicles')
-        .select(`
-          *,
-          booking:bookings!booking_vehicles_booking_id_fkey(id, start_datetime, end_datetime, status, staff_id),
-          services:booking_vehicle_services(*)
-        `)
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      setUnit(data);
+      setUnit({
+        ...vehicle,
+        booking: {
+          id: booking.id,
+          status: booking.status,
+          start_datetime: booking.start_datetime,
+          end_datetime: booking.end_datetime
+        }
+      });
     } catch (err) {
       console.error('Job Details Error:', err);
       toast.error('Failed to load job details');
@@ -81,7 +68,7 @@ const StaffJobDetails = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, navigate]);
 
   if (loading) return <LoadingState message="Retrieving service logs..." />;
   if (!unit) return null;

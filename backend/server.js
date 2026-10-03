@@ -4861,7 +4861,7 @@ app.get('/api/staff/tasks', async (req, res) => {
     const { data: bookings, error: bookingError } = await supabaseAdmin
       .from('bookings')
       .select(`
-        id, status, start_datetime, total_amount,
+        id, status, start_datetime, end_datetime, total_amount,
         vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(
           id, booking_id, status, brand, model, plate_number, vehicle_type,
           is_fleet, service_notes, started_at, completed_at,
@@ -4894,7 +4894,15 @@ app.get('/api/staff/tasks', async (req, res) => {
       calculateVerifiedPaid(paymentsByBooking.get(booking.id) || [])
         >= getRequiredDownpayment(booking.total_amount)
     );
-    return res.json({ success: true, bookings: eligibleBookings });
+    const requestedBookingId = String(req.query.bookingId || '').trim();
+    const requestedVehicleId = String(req.query.vehicleId || '').trim();
+    const requestedBookings = eligibleBookings
+      .filter((booking) => !requestedBookingId || booking.id === requestedBookingId)
+      .map((booking) => requestedVehicleId
+        ? { ...booking, vehicles: (booking.vehicles || []).filter((vehicle) => vehicle.id === requestedVehicleId) }
+        : booking)
+      .filter((booking) => !requestedVehicleId || booking.vehicles.length > 0);
+    return res.json({ success: true, bookings: requestedBookings });
   } catch (err) {
     console.error('Staff task fetch error:', err.message);
     return res.status(500).json({ success: false, error: 'Could not load assigned work.' });

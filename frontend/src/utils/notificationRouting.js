@@ -1,3 +1,5 @@
+import { BACKEND_URL } from '../config/api';
+
 export const normalizeRole = (role) => {
   const normalized = String(role || '').trim().toUpperCase();
 
@@ -58,20 +60,34 @@ export const resolveStaffJobId = async (client, bookingReference) => {
   const bookingId = await resolveBookingId(client, bookingReference);
   if (!bookingId) return null;
 
-  const { data, error } = await client
-    .from('booking_vehicles')
-    .select('id, status')
-    .eq('booking_id', bookingId)
-    .limit(50);
-  if (error) throw error;
-
-  const units = data || [];
-  const priority = { IN_PROGRESS: 0, PENDING: 1, SCHEDULED: 2 };
+  const bookings = await fetchStaffBookings(client, { bookingId });
+  const units = bookings.flatMap((booking) => booking.vehicles || []);
+  const priority = { IN_PROGRESS: 0, PENDING: 1, SCHEDULED: 2, CONFIRMED: 3 };
   units.sort((a, b) =>
-    (priority[String(a.status || '').toUpperCase()] ?? 3)
-      - (priority[String(b.status || '').toUpperCase()] ?? 3)
+    (priority[String(a.status || '').toUpperCase()] ?? 4)
+      - (priority[String(b.status || '').toUpperCase()] ?? 4)
   );
   return units[0]?.id || null;
+};
+
+export const fetchStaffBookings = async (client, filters = {}) => {
+  const { data: { session }, error: sessionError } = await client.auth.getSession();
+  if (sessionError) throw sessionError;
+  if (!session?.access_token) throw new Error('Your staff session has expired. Please sign in again.');
+
+  const query = new URLSearchParams();
+  if (filters.bookingId) query.set('bookingId', filters.bookingId);
+  if (filters.vehicleId) query.set('vehicleId', filters.vehicleId);
+
+  const response = await fetch(`${BACKEND_URL}/api/staff/tasks?${query.toString()}`, {
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${session.access_token}` }
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) {
+    throw new Error(result.error || 'Could not load assigned work.');
+  }
+  return result.bookings || [];
 };
 
 export const isRedundantStaffTechnicianAssignment = (notification) => {
