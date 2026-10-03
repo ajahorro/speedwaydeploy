@@ -4862,7 +4862,7 @@ app.get('/api/staff/tasks', async (req, res) => {
     const { data: bookings, error: bookingError } = await supabaseAdmin
       .from('bookings')
       .select(`
-        id, booking_id, status, start_datetime, end_datetime, total_amount,
+        id, status, start_datetime, end_datetime, total_amount,
         vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(
           id, booking_id, status, brand, model, plate_number, vehicle_type,
           fleet_group_id, service_notes, started_at, completed_at,
@@ -4905,7 +4905,6 @@ app.get('/api/staff/tasks', async (req, res) => {
     const requestedBookings = eligibleBookings
       .filter((booking) => !requestedBookingId
         || booking.id === requestedBookingId
-        || String(booking.booking_id || '').toLowerCase() === requestedBookingId.toLowerCase()
         || (isUuidPrefix && booking.id.replace(/-/g, '').toLowerCase().startsWith(compactBookingReference)))
       .map((booking) => requestedVehicleId
         ? { ...booking, vehicles: (booking.vehicles || []).filter((vehicle) => vehicle.id === requestedVehicleId) }
