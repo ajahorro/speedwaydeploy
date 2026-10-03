@@ -142,7 +142,7 @@ const StaffJobDetails = () => {
               </div>
               <div>
                 <div style={labelStyle}>Fleet Category</div>
-                <div style={dataStyle}>{unit.is_fleet ? 'COMMERCIAL FLEET' : 'PRIVATE PASSENGER'}</div>
+                <div style={dataStyle}>{unit.fleet_group_id ? 'COMMERCIAL FLEET' : 'PRIVATE PASSENGER'}</div>
               </div>
             </div>
           </section>

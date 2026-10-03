@@ -4864,7 +4864,7 @@ app.get('/api/staff/tasks', async (req, res) => {
         id, status, start_datetime, end_datetime, total_amount,
         vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(
           id, booking_id, status, brand, model, plate_number, vehicle_type,
-          is_fleet, service_notes, started_at, completed_at,
+          fleet_group_id, service_notes, started_at, completed_at,
           services:booking_vehicle_services(service_name)
         )
       `)
