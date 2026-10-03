@@ -85,7 +85,10 @@ export const fetchStaffBookings = async (client, filters = {}) => {
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.success) {
-    throw new Error(result.error || 'Could not load assigned work.');
+    const diagnostic = result.diagnostic
+      ? ` [${result.diagnostic.stage}, ${result.diagnostic.code}${result.diagnostic.missingColumn ? `: ${result.diagnostic.missingColumn}` : ''}]`
+      : '';
+    throw new Error(`${result.error || 'Could not load assigned work.'}${diagnostic}`);
   }
   return result.bookings || [];
 };

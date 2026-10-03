@@ -96,7 +96,12 @@ const StaffDashboard = () => {
         headers: { Authorization: `Bearer ${session?.access_token || ''}` }
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.success) throw new Error(result.error || 'Could not load assigned work.');
+      if (!response.ok || !result.success) {
+        const diagnostic = result.diagnostic
+          ? ` [${result.diagnostic.stage}, ${result.diagnostic.code}${result.diagnostic.missingColumn ? `: ${result.diagnostic.missingColumn}` : ''}]`
+          : '';
+        throw new Error(`${result.error || 'Could not load assigned work.'}${diagnostic}`);
+      }
       const data = result.bookings || [];
 
       const allVehicleTasks = (data || []).flatMap(b => 

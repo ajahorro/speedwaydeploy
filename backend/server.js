@@ -4857,6 +4857,7 @@ app.get('/api/staff/tasks', async (req, res) => {
     return res.status(403).json({ success: false, error: 'An active staff account is required.' });
   }
 
+  let stage = 'assigned-bookings-query';
   try {
     const { data: bookings, error: bookingError } = await supabaseAdmin
       .from('bookings')
@@ -4876,6 +4877,7 @@ app.get('/api/staff/tasks', async (req, res) => {
     );
     if (!assignedBookings.length) return res.json({ success: true, bookings: [] });
 
+    stage = 'payments-query';
     const bookingIds = assignedBookings.map((booking) => booking.id);
     const { data: payments, error: paymentError } = await supabaseAdmin
       .from('payments')
@@ -4890,10 +4892,12 @@ app.get('/api/staff/tasks', async (req, res) => {
       paymentsByBooking.set(payment.booking_id, rows);
     }
 
+    stage = 'payment-eligibility-filter';
     const eligibleBookings = assignedBookings.filter((booking) =>
       calculateVerifiedPaid(paymentsByBooking.get(booking.id) || [])
         >= getRequiredDownpayment(booking.total_amount)
     );
+    stage = 'requested-assignment-filter';
     const requestedBookingId = String(req.query.bookingId || '').trim();
     const requestedVehicleId = String(req.query.vehicleId || '').trim();
     const requestedBookings = eligibleBookings
@@ -4904,8 +4908,16 @@ app.get('/api/staff/tasks', async (req, res) => {
       .filter((booking) => !requestedVehicleId || booking.vehicles.length > 0);
     return res.json({ success: true, bookings: requestedBookings });
   } catch (err) {
-    console.error('Staff task fetch error:', err.message);
-    return res.status(500).json({ success: false, error: 'Could not load assigned work.' });
+    const errorCode = typeof err.code === 'string' ? err.code : 'UNKNOWN';
+    console.error(`Staff task fetch error at ${stage} [${errorCode}]:`, err.message);
+    const missingColumn = errorCode === '42703'
+      ? String(err.message || '').match(/column ([\w.]+) does not exist/i)?.[1]
+      : undefined;
+    return res.status(500).json({
+      success: false,
+      error: 'Could not load assigned work.',
+      diagnostic: { stage, code: errorCode, ...(missingColumn ? { missingColumn } : {}) }
+    });
   }
 });
 
