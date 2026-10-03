@@ -4859,6 +4859,13 @@ app.get('/api/staff/tasks', async (req, res) => {
 
   let stage = 'assigned-bookings-query';
   try {
+    const requestedBookingId = String(req.query.bookingId || '').trim();
+    const compactBookingReference = requestedBookingId.replace(/-/g, '').toLowerCase();
+    const isUuidPrefix = /^[0-9a-f]{8,32}$/.test(compactBookingReference);
+    const matchesRequestedBooking = (booking) => !requestedBookingId
+      || booking.id === requestedBookingId
+      || (isUuidPrefix && booking.id.replace(/-/g, '').toLowerCase().startsWith(compactBookingReference));
+
     const { data: bookings, error: bookingError } = await supabaseAdmin
       .from('bookings')
       .select(`
@@ -4872,9 +4879,23 @@ app.get('/api/staff/tasks', async (req, res) => {
       .eq('staff_id', actor.profile.id);
     if (bookingError) throw bookingError;
 
+    const assignedBooking = (bookings || []).find(matchesRequestedBooking);
+    if (requestedBookingId && !assignedBooking) {
+      return res.status(404).json({
+        success: false,
+        error: 'This booking is not currently assigned to your account. Ask an admin to check the assignment.'
+      });
+    }
+
     const assignedBookings = (bookings || []).filter((booking) =>
       !['cancelled', 'released', 'flagged_noshow', 'no_show'].includes(String(booking.status || '').toLowerCase())
     );
+    if (requestedBookingId && assignedBooking && !assignedBookings.some((booking) => booking.id === assignedBooking.id)) {
+      return res.status(404).json({
+        success: false,
+        error: 'This booking is closed and is not available in active assignments.'
+      });
+    }
     if (!assignedBookings.length) return res.json({ success: true, bookings: [] });
 
     stage = 'payments-query';
@@ -4897,19 +4918,23 @@ app.get('/api/staff/tasks', async (req, res) => {
       calculateVerifiedPaid(paymentsByBooking.get(booking.id) || [])
         >= getRequiredDownpayment(booking.total_amount)
     );
+    if (requestedBookingId && assignedBooking && !eligibleBookings.some((booking) => booking.id === assignedBooking.id)) {
+      return res.status(404).json({
+        success: false,
+        error: 'The required downpayment for this booking has not been verified yet.'
+      });
+    }
     stage = 'requested-assignment-filter';
-    const requestedBookingId = String(req.query.bookingId || '').trim();
     const requestedVehicleId = String(req.query.vehicleId || '').trim();
-    const compactBookingReference = requestedBookingId.replace(/-/g, '').toLowerCase();
-    const isUuidPrefix = /^[0-9a-f]{8,32}$/.test(compactBookingReference);
     const requestedBookings = eligibleBookings
-      .filter((booking) => !requestedBookingId
-        || booking.id === requestedBookingId
-        || (isUuidPrefix && booking.id.replace(/-/g, '').toLowerCase().startsWith(compactBookingReference)))
+      .filter(matchesRequestedBooking)
       .map((booking) => requestedVehicleId
         ? { ...booking, vehicles: (booking.vehicles || []).filter((vehicle) => vehicle.id === requestedVehicleId) }
         : booking)
       .filter((booking) => !requestedVehicleId || booking.vehicles.length > 0);
+    if (requestedVehicleId && requestedBookings.length === 0) {
+      return res.status(404).json({ success: false, error: 'No vehicle is attached to this assigned booking.' });
+    }
     return res.json({ success: true, bookings: requestedBookings });
   } catch (err) {
     const errorCode = typeof err.code === 'string' ? err.code : 'UNKNOWN';
