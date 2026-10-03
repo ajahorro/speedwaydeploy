@@ -491,6 +491,37 @@ const getRequiredDownpayment = (total) => {
   return Math.round(amount * (amount >= 2000 ? 0.5 : 0.3) * 100) / 100;
 };
 
+const revokeStaleStaffTaskNotifications = async (bookingId, currentStaffId) => {
+  const { data: taskNotifications, error: notificationError } = await supabaseAdmin
+    .from('notifications')
+    .select('id, user_id')
+    .eq('booking_id', bookingId)
+    .eq('notification_type', 'TASK_ASSIGNED');
+  if (notificationError) throw notificationError;
+
+  const staleNotifications = (taskNotifications || []).filter((notification) =>
+    !currentStaffId || notification.user_id !== currentStaffId
+  );
+  for (const notification of staleNotifications) {
+    const { error } = await supabaseAdmin
+      .from('notifications')
+      .update({
+        title: 'Assignment Changed',
+        message: 'This vehicle has been reassigned or is no longer available in your active work.',
+        notification_type: 'ASSIGNMENT_REVOKED',
+        action_url: null,
+        booking_id: null,
+        entity_id: null,
+        is_read: false
+      })
+      .eq('id', notification.id)
+      .eq('user_id', notification.user_id);
+    if (error) throw error;
+  }
+
+  return staleNotifications.length;
+};
+
 const dispatchLifecycleEmail = async (bookingId, newStatus, remarks = '') => {
   const projectUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -4924,6 +4955,33 @@ app.get('/api/staff/tasks', async (req, res) => {
         }]
       });
     };
+    const revokeNoticeForFormerAssignee = async () => {
+      if (!requestedBookingId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestedBookingId)) {
+        return false;
+      }
+
+      const { data: notice, error: noticeError } = await supabaseAdmin
+        .from('notifications')
+        .select('id')
+        .eq('user_id', actor.profile.id)
+        .eq('booking_id', requestedBookingId)
+        .eq('notification_type', 'TASK_ASSIGNED')
+        .limit(1)
+        .maybeSingle();
+      if (noticeError) throw noticeError;
+      if (!notice) return false;
+
+      const { data: booking, error: bookingError } = await supabaseAdmin
+        .from('bookings')
+        .select('id, staff_id')
+        .eq('id', requestedBookingId)
+        .maybeSingle();
+      if (bookingError) throw bookingError;
+      if (!booking || booking.staff_id === actor.profile.id) return false;
+
+      await revokeStaleStaffTaskNotifications(booking.id, booking.staff_id);
+      return true;
+    };
 
     const { data: bookings, error: bookingError } = await supabaseAdmin
       .from('bookings')
@@ -4934,6 +4992,12 @@ app.get('/api/staff/tasks', async (req, res) => {
     const assignedBooking = (bookings || []).find(matchesRequestedBooking);
     if (requestedBookingId && !assignedBooking) {
       if (await returnReleasedBookingFromAssignmentNotice()) return;
+      if (await revokeNoticeForFormerAssignee()) {
+        return res.status(404).json({
+          success: false,
+          error: 'This vehicle has been reassigned and is no longer in your active work. The old alert has been updated.'
+        });
+      }
       return res.status(404).json({
         success: false,
         error: 'This booking is not currently assigned to your account. Ask an admin to check the assignment.'
@@ -5053,6 +5117,17 @@ app.post('/api/bookings/reconcile-payment-state', async (req, res) => {
     }
 
     const warnings = [];
+    const paymentEligible = netPaid >= getRequiredDownpayment(totalAmount);
+    try {
+      await revokeStaleStaffTaskNotifications(
+        bookingId,
+        paymentEligible ? booking.staff_id : null
+      );
+    } catch (notificationError) {
+      console.error(`[payment-state] Stale staff task notification cleanup failed for booking ${bookingId}:`, notificationError.message);
+      warnings.push('The booking was reconciled, but an outdated staff assignment alert could not be updated.');
+    }
+
     if (nextStatus !== currentStatus) {
       const { error: updateError } = await supabaseAdmin
         .from('bookings')
@@ -5068,7 +5143,6 @@ app.post('/api/bookings/reconcile-payment-state', async (req, res) => {
       }
     }
 
-    const paymentEligible = netPaid >= getRequiredDownpayment(totalAmount);
     if (booking.staff_id && paymentEligible) {
       const { data: existingNotice, error: noticeReadError } = await supabaseAdmin
         .from('notifications')
