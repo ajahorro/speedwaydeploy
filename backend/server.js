@@ -4860,27 +4860,80 @@ app.get('/api/staff/tasks', async (req, res) => {
   let stage = 'assigned-bookings-query';
   try {
     const requestedBookingId = String(req.query.bookingId || '').trim();
+    const requestedVehicleId = String(req.query.vehicleId || '').trim();
     const compactBookingReference = requestedBookingId.replace(/-/g, '').toLowerCase();
     const isUuidPrefix = /^[0-9a-f]{8,32}$/.test(compactBookingReference);
     const matchesRequestedBooking = (booking) => !requestedBookingId
       || booking.id === requestedBookingId
       || (isUuidPrefix && booking.id.replace(/-/g, '').toLowerCase().startsWith(compactBookingReference));
+    const bookingDetailsSelect = `
+      id, status, start_datetime, end_datetime, total_amount,
+      vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(
+        id, booking_id, status, brand, model, plate_number, vehicle_type,
+        fleet_group_id, service_notes, started_at, completed_at,
+        services:booking_vehicle_services(service_name)
+      )
+    `;
+    const returnReleasedBookingFromAssignmentNotice = async () => {
+      if (!requestedBookingId && !requestedVehicleId) return false;
+
+      let bookingId = requestedBookingId;
+      if (!bookingId && requestedVehicleId) {
+        const { data: vehicle, error: vehicleError } = await supabaseAdmin
+          .from('booking_vehicles')
+          .select('booking_id')
+          .eq('id', requestedVehicleId)
+          .maybeSingle();
+        if (vehicleError) throw vehicleError;
+        bookingId = vehicle?.booking_id;
+      }
+      if (!bookingId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId)) return false;
+
+      const { data: assignmentNotice, error: noticeError } = await supabaseAdmin
+        .from('notifications')
+        .select('id')
+        .eq('user_id', actor.profile.id)
+        .eq('booking_id', bookingId)
+        .eq('notification_type', 'TASK_ASSIGNED')
+        .limit(1)
+        .maybeSingle();
+      if (noticeError) throw noticeError;
+      if (!assignmentNotice) return false;
+
+      const { data: historicalBooking, error: historicalBookingError } = await supabaseAdmin
+        .from('bookings')
+        .select(bookingDetailsSelect)
+        .eq('id', bookingId)
+        .maybeSingle();
+      if (historicalBookingError) throw historicalBookingError;
+      if (String(historicalBooking?.status || '').toLowerCase() !== 'released') return false;
+
+      const vehicles = requestedVehicleId
+        ? (historicalBooking.vehicles || []).filter((vehicle) => vehicle.id === requestedVehicleId)
+        : historicalBooking.vehicles || [];
+      if (requestedVehicleId && vehicles.length === 0) return false;
+
+      return res.json({
+        success: true,
+        bookings: [{
+          id: historicalBooking.id,
+          status: historicalBooking.status,
+          start_datetime: historicalBooking.start_datetime,
+          end_datetime: historicalBooking.end_datetime,
+          vehicles
+        }]
+      });
+    };
 
     const { data: bookings, error: bookingError } = await supabaseAdmin
       .from('bookings')
-      .select(`
-        id, status, start_datetime, end_datetime, total_amount,
-        vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(
-          id, booking_id, status, brand, model, plate_number, vehicle_type,
-          fleet_group_id, service_notes, started_at, completed_at,
-          services:booking_vehicle_services(service_name)
-        )
-      `)
+      .select(bookingDetailsSelect)
       .eq('staff_id', actor.profile.id);
     if (bookingError) throw bookingError;
 
     const assignedBooking = (bookings || []).find(matchesRequestedBooking);
     if (requestedBookingId && !assignedBooking) {
+      if (await returnReleasedBookingFromAssignmentNotice()) return;
       return res.status(404).json({
         success: false,
         error: 'This booking is not currently assigned to your account. Ask an admin to check the assignment.'
@@ -4891,12 +4944,16 @@ app.get('/api/staff/tasks', async (req, res) => {
       !['cancelled', 'released', 'flagged_noshow', 'no_show'].includes(String(booking.status || '').toLowerCase())
     );
     if (requestedBookingId && assignedBooking && !assignedBookings.some((booking) => booking.id === assignedBooking.id)) {
+      if (await returnReleasedBookingFromAssignmentNotice()) return;
       return res.status(404).json({
         success: false,
         error: 'This booking is closed and is not available in active assignments.'
       });
     }
-    if (!assignedBookings.length) return res.json({ success: true, bookings: [] });
+    if (!assignedBookings.length) {
+      if (await returnReleasedBookingFromAssignmentNotice()) return;
+      return res.json({ success: true, bookings: [] });
+    }
 
     stage = 'payments-query';
     const bookingIds = assignedBookings.map((booking) => booking.id);
@@ -4919,13 +4976,13 @@ app.get('/api/staff/tasks', async (req, res) => {
         >= getRequiredDownpayment(booking.total_amount)
     );
     if (requestedBookingId && assignedBooking && !eligibleBookings.some((booking) => booking.id === assignedBooking.id)) {
+      if (await returnReleasedBookingFromAssignmentNotice()) return;
       return res.status(404).json({
         success: false,
         error: 'The required downpayment for this booking has not been verified yet.'
       });
     }
     stage = 'requested-assignment-filter';
-    const requestedVehicleId = String(req.query.vehicleId || '').trim();
     const requestedBookings = eligibleBookings
       .filter(matchesRequestedBooking)
       .map((booking) => requestedVehicleId
@@ -4933,6 +4990,7 @@ app.get('/api/staff/tasks', async (req, res) => {
         : booking)
       .filter((booking) => !requestedVehicleId || booking.vehicles.length > 0);
     if (requestedVehicleId && requestedBookings.length === 0) {
+      if (await returnReleasedBookingFromAssignmentNotice()) return;
       return res.status(404).json({ success: false, error: 'No vehicle is attached to this assigned booking.' });
     }
     return res.json({ success: true, bookings: requestedBookings });

@@ -9,6 +9,10 @@ const adminBookingDetails = fs.readFileSync('frontend/src/pages/Admin/AdminBooki
 const timeSlotPicker = fs.readFileSync('frontend/src/components/TimeSlotPicker.jsx', 'utf8');
 const adminBookings = fs.readFileSync('frontend/src/pages/Admin/AdminBookings.jsx', 'utf8');
 const backend = fs.readFileSync('backend/server.js', 'utf8');
+const staffTasksRoute = backend.slice(
+  backend.indexOf("app.get('/api/staff/tasks'"),
+  backend.indexOf("app.post('/api/bookings/reconcile-payment-state'")
+);
 const cancellationHelper = backend.slice(
   backend.indexOf('const cancelBookingAndQueueRefund ='),
   backend.indexOf('const handleBookingCancellation =')
@@ -138,7 +142,7 @@ checks.push(
   ['event engine: chat notices without a booking link are suppressed', /if \(isChatMessage && !bookingId\)/.test(eventEngine)],
   ['notifications: unlinked chat and status updates are hidden', /BOOKING_CONTEXT_NOTIFICATION_TYPES[\s\S]*?'CHAT_MESSAGE'[\s\S]*?'STATUS_UPDATE'/.test(notificationRouting) && /Boolean\(notification\.booking_id\)/.test(notificationRouting)],
   ['notifications: short booking references resolve by safe UUID range or public booking ID', /resolveBookingId[\s\S]*?\.gte\('id', formatUuid\(minHex\)\)[\s\S]*?\.lte\('id', formatUuid\(maxHex\)\)[\s\S]*?\.eq\('booking_id', value\)/.test(notificationRouting) && /resolveBookingId\(supabase, hashBookingId\)/.test(notificationDetailsModal) && /resolveBookingId\(supabase, reference\)/.test(fs.readFileSync('frontend/src/pages/Admin/AdminNotifications.jsx', 'utf8')) && !/\.ilike\('id'/.test(notificationDetailsModal)],
-  ['staff: booking notifications route to an assigned vehicle job instead of a missing bookings route', /resolveStaffJobId[\s\S]*?\.from\('booking_vehicles'\)[\s\S]*?\.eq\('booking_id', bookingId\)/.test(notificationRouting) && /navigate\(`\/staff\/job\/\$\{jobId\}`\)/.test(notificationDetailsModal) && /navigate\(`\/staff\/job\/\$\{jobId\}/.test(notificationPopover) && /path="job\/:id"/.test(fs.readFileSync('frontend/src/main.jsx', 'utf8'))],
+  ['staff: notification links resolve assigned vehicles server-side and allow read-only released jobs from the owner task notice', /resolveStaffJobId[\s\S]*?fetchStaffBookings\(client, \{ bookingId: reference \}\)/.test(notificationRouting) && /navigate\(`\/staff\/job\/\$\{jobId\}`\)/.test(notificationDetailsModal) && /navigate\(`\/staff\/job\/\$\{jobId\}/.test(notificationPopover) && /path="job\/:id"/.test(fs.readFileSync('frontend/src/main.jsx', 'utf8')) && /\.eq\('staff_id', actor\.profile\.id\)/.test(staffTasksRoute) && /\.eq\('user_id', actor\.profile\.id\)[\s\S]*?\.eq\('booking_id', bookingId\)[\s\S]*?\.eq\('notification_type', 'TASK_ASSIGNED'\)/.test(staffTasksRoute) && /toLowerCase\(\) !== 'released'/.test(staffTasksRoute)],
   ['staff: legacy technician-assignment alerts are hidden but vehicle assignment alerts remain', /isRedundantStaffTechnicianAssignment/.test(notificationRouting) && [staffNotifications, staffLayout, staffDashboard, notificationPopover].every((source) => /isRedundantStaffTechnicianAssignment/.test(source)) && /title: 'New Vehicle Assigned'/.test(backend) && !/title: 'New Fleet Assigned'/.test(backend)],
   ['notifications: database blocks unlinked chat and status updates', /before insert on public\.notifications/.test(notificationSuppressionMigration) && /new\.booking_id is null[\s\S]*?return null/.test(notificationSuppressionMigration)],
   ['customer billing: fetch callback is initialized before the effect uses it', customerBilling.indexOf('const fetchData = useCallback') >= 0 && customerBilling.indexOf('const fetchData = useCallback') < customerBilling.indexOf('useEffect(() =>')],
