@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Guardrail: booking money has ONE source of truth — the database ledger
- * (payment_ledger_v / booking_ledger_v, migration 20261024000001).
+ * (payment_ledger_v / booking_ledger_v, migration 20261024000003).
  *
  * Fails when application code reintroduces its own money math:
  *   - summing payment rows (`.reduce(` over payments / p.amount)

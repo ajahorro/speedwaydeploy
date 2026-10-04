@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
  *
  * Every paid / balance / refund / revenue figure in the app must come from
  * these functions. They read the views and RPCs defined in migration
- * 20261024000001_canonical_booking_ledger.sql:
+ * 20261024000003_canonical_booking_ledger.sql:
  *
  *   payment_ledger_v   one row per payment (net_received, gross_paid, flags)
  *   booking_ledger_v   one row per booking (net_settled, verified_paid,

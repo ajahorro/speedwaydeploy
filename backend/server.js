@@ -85,7 +85,7 @@ const PASSWORD_CIPHER_KEY = crypto.createHash('sha256')
 
 // ── Booking money ────────────────────────────────────────────────────────────
 // Every paid/balance/downpayment figure comes from the database ledger
-// (public.booking_ledger_v, migration 20261024000001). The backend never sums
+// (public.booking_ledger_v, migration 20261024000003). The backend never sums
 // payment rows itself, so it cannot disagree with the portal, reports or emails.
 //   net_settled          money held (includes rejected payments awaiting refund)
 //   verified_paid        money ACCEPTED toward the service (PAID only, minus refunds)

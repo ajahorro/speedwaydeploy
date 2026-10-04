@@ -8,7 +8,7 @@ import { normalizeBookingLedger } from './ledgerService';
  * Both Admin Payments and Admin Booking Details call these functions, so a
  * verification has the same write, lock, audit and reconciliation behaviour
  * no matter which screen it came from. The work happens in two database RPCs
- * (admin_verify_payment / admin_reject_payment, migration 20261024000001),
+ * (admin_verify_payment / admin_reject_payment, migration 20261024000003),
  * followed by the backend reconciliation that advances the booking and staff
  * assignment notices.
  */
