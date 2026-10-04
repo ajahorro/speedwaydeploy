@@ -63,6 +63,20 @@ const resolveBackendUrl = () => {
 export const BACKEND_URL = resolveBackendUrl();
 
 /**
+ * Headers for an authenticated backend call. The backend derives the actor from
+ * this bearer token — never from a userId in the request body.
+ */
+export const authHeaders = async (extra = {}) => {
+  const { supabase } = await import('../lib/supabase');
+  const { data: { session } } = await supabase.auth.getSession();
+  return {
+    'Content-Type': 'application/json',
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    ...extra
+  };
+};
+
+/**
  * Standardized Centralized API Fetch Helper
  */
 export const apiFetch = async (endpoint, options = {}) => {

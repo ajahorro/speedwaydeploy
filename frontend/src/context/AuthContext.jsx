@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { supabase, createUniqueChannel } from '../lib/supabase';
 import { logger } from '../utils/logger';
 import toast from 'react-hot-toast';
-import { BACKEND_URL } from '../config/api';
+import { BACKEND_URL, authHeaders } from '../config/api';
 
 export const AuthContext = createContext({});
 
@@ -473,8 +473,8 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/auth/request-email-change`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, oldEmail: user.email, newEmail })
+        headers: await authHeaders(),
+        body: JSON.stringify({ newEmail })
       });
       return await response.json();
     } catch (err) {
@@ -487,8 +487,8 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/auth/confirm-email-change`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, otp })
+        headers: await authHeaders(),
+        body: JSON.stringify({ otp })
       });
       const result = await response.json();
       if (result.success) {
@@ -569,8 +569,8 @@ export const AuthProvider = ({ children }) => {
       // This bypasses RLS restrictions on the profiles table for staff.
       const response = await fetch(`${BACKEND_URL}/api/staff/toggle-shift`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: profile.id, newStatus })
+        headers: await authHeaders(),
+        body: JSON.stringify({ newStatus })
       });
 
       // Read defensively: a backend that is down, crashed mid-request, or behind a

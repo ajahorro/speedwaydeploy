@@ -208,6 +208,22 @@ const getLifecycleActor = async (req) => {
   return { user, profile };
 };
 
+// Any signed-in, active account (customer, staff, or admin). The caller's
+// identity always comes from the verified bearer token, never the request body.
+const getAuthenticatedActor = async (req) => {
+  const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
+  if (!token || !supabaseAdmin) return null;
+  const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+  if (!user) return null;
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('id, role, is_active, email, full_name')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (!profile?.is_active) return null;
+  return { user, profile };
+};
+
 const getCancellationActor = async (req) => {
   const bearerMatch = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
   if (!bearerMatch || !supabaseAdmin) return null;
@@ -2577,7 +2593,14 @@ app.post('/api/auth/recover-password', async (req, res) => {
  * Sends verification token to OLD email address before authorizing change
  */
 app.post('/api/auth/request-email-change', async (req, res) => {
-  const { userId, oldEmail, newEmail } = req.body;
+  const actor = await getAuthenticatedActor(req);
+  if (!actor) return res.status(401).json({ success: false, error: 'Authentication required.' });
+  const userId = actor.user.id;
+  const oldEmail = actor.user.email;
+  const newEmail = String(req.body?.newEmail || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+    return res.status(400).json({ success: false, error: 'A valid new email is required.' });
+  }
   console.log(`📧 [AUTH] EMAIL CHANGE REQUEST: ${oldEmail} -> ${newEmail}`);
 
   try {
@@ -2663,7 +2686,11 @@ app.post('/api/emails/qr-change-otp', async (req, res) => {
   }
 });
 
-app.post('/api/auth/confirm-email-change', async (req, res) => {  const { userId, otp } = req.body;
+app.post('/api/auth/confirm-email-change', async (req, res) => {
+  const actor = await getAuthenticatedActor(req);
+  if (!actor) return res.status(401).json({ success: false, error: 'Authentication required.' });
+  const userId = actor.user.id;
+  const otp = String(req.body?.otp || '');
 
   try {
     const { data: profile, error: fetchError } = await supabaseAdmin
@@ -2708,7 +2735,15 @@ app.post('/api/auth/confirm-email-change', async (req, res) => {  const { userId
  * 📋 REQ-ADM-01: Fetch All Profiles (Service Role — bypasses RLS)
  * Also returns the DEFAULT_ADMIN_ID so the frontend can badge the correct account.
  */
+// Profile columns that must never leave the server (OTP challenges, secrets).
+const PRIVATE_PROFILE_KEYS = /^(email_change_temp)$|otp|token|secret/i;
+const toPublicProfile = (profile) => Object.fromEntries(
+  Object.entries(profile || {}).filter(([key]) => !PRIVATE_PROFILE_KEYS.test(key))
+);
+
 app.get('/api/admin/profiles', async (req, res) => {
+  const actor = await requireAdmin(req);
+  if (!actor) return res.status(403).json({ success: false, error: 'Administrator access required.' });
   console.log('📋 [ADMIN] Fetching all profiles...');
   try {
     const { data, error } = await supabaseAdmin
@@ -2749,7 +2784,7 @@ app.get('/api/admin/profiles', async (req, res) => {
       }
     }
     const profilesWithServiceState = (data || []).map((profile) => ({
-      ...profile,
+      ...toPublicProfile(profile),
       ...(String(profile.role || '').toUpperCase() === 'STAFF'
         ? {
             activeServiceCount: activeServicesByStaff.get(profile.id) || 0,
@@ -3192,6 +3227,7 @@ app.post('/api/auth/emergency-recovery/verify', async (req, res) => {
 app.post('/api/admin/services/usage', async (req, res) => {
   const { names } = req.body || {};
   if (!supabaseAdmin) return res.status(503).json({ success: false, error: 'Service unavailable.' });
+  if (!(await requireAdmin(req))) return res.status(403).json({ success: false, error: 'Administrator access required.' });
   const requested = Array.isArray(names)
     ? names.map((n) => String(n || '').trim()).filter(Boolean)
     : [];
@@ -3434,6 +3470,7 @@ let inMemoryPromoCache = null;
 // genuinely ADDED. Each list is independently gated (emailNewServices /
 // emailNewVehicles) and each fails closed — no opt-in, no email.
 app.post('/api/admin/announce-catalog', async (req, res) => {
+  if (!(await requireAdmin(req))) return res.status(403).json({ success: false, error: 'Administrator access required.' });
   const { services = [], vehicles = [] } = req.body || {};
   try {
     if (Array.isArray(services) && services.length) {
@@ -3749,13 +3786,14 @@ app.get('/api/promos/active', async (req, res) => {
  * Does NOT send emails or notifications; simply updates staff status.
  */
 app.post('/api/staff/toggle-shift', async (req, res) => {
-  const { userId, newStatus } = req.body;
+  const actor = await getLifecycleActor(req);
+  if (!actor) return res.status(401).json({ success: false, error: 'Authentication required.' });
+  // Shift state belongs to the caller only; a body userId is never trusted.
+  const userId = actor.profile.id;
+  const { newStatus } = req.body || {};
   console.log(`⏱️ [STAFF] Shift toggle request: userId=${userId}, newStatus=${newStatus}`);
 
   try {
-    if (!userId) {
-      return res.status(400).json({ success: false, error: 'User ID is required.' });
-    }
 
     const timestamp = newStatus ? new Date().toISOString() : null;
 
@@ -3817,13 +3855,13 @@ app.post('/api/staff/toggle-shift', async (req, res) => {
  * Gracefully handles missing database columns without throwing 400 Bad Request errors.
  */
 app.post('/api/staff/update-preferences', async (req, res) => {
-  const { userId, push_notifications_enabled } = req.body;
+  const actor = await getAuthenticatedActor(req);
+  if (!actor) return res.status(401).json({ success: false, error: 'Authentication required.' });
+  const userId = actor.profile.id;
+  const { push_notifications_enabled } = req.body || {};
   console.log(`⚙️ [STAFF] Preference update request: userId=${userId}, pushEnabled=${push_notifications_enabled}`);
 
   try {
-    if (!userId) {
-      return res.status(400).json({ success: false, error: 'User ID is required.' });
-    }
 
     const { data: updatedProfile, error: updateError } = await supabaseAdmin
       .from('profiles')

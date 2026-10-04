@@ -11,7 +11,7 @@ import {
 import toast from 'react-hot-toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { logger } from '../../utils/logger';
-import { BACKEND_URL } from '../../config/api';
+import { BACKEND_URL, authHeaders } from '../../config/api';
 
 const AdminUserManagement = () => {
   const navigate = useNavigate();
@@ -34,7 +34,7 @@ const AdminUserManagement = () => {
     setLoading(true);
     try {
       logger.admin('Fetching system directory...');
-      const response = await fetch(`${BACKEND_URL}/api/admin/profiles`);
+      const response = await fetch(`${BACKEND_URL}/api/admin/profiles`, { headers: await authHeaders() });
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
       setUsers(result.data || []);

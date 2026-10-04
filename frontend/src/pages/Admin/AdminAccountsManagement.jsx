@@ -13,7 +13,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useConfirmation } from '../../utils/logoutConfirm';
 import { logger } from '../../utils/logger';
 import { useAuth } from '../../hooks/useAuth';
-import { BACKEND_URL } from '../../config/api';
+import { BACKEND_URL, authHeaders } from '../../config/api';
 
 const AdminAccountsManagement = () => {
   const isMobile = useMediaQuery('(max-width: 1024px)');
@@ -42,7 +42,7 @@ const AdminAccountsManagement = () => {
     setLoading(true);
     try {
       logger.admin('Synchronizing account directory...');
-      const response = await fetch(`${BACKEND_URL}/api/admin/profiles`);
+      const response = await fetch(`${BACKEND_URL}/api/admin/profiles`, { headers: await authHeaders() });
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
       // Store the default admin ID from the backend (single source of truth)

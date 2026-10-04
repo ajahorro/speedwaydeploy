@@ -17,7 +17,7 @@ import { SERVICES_DATA, setArchivedServiceIds as setArchivedServiceIdsCache, set
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
 import SegmentedTimePicker from '../../components/AdminSchedule/SegmentedTimePicker';
-import { BACKEND_URL } from '../../config/api';
+import { BACKEND_URL, authHeaders } from '../../config/api';
 import { writeAdminAuditLog } from '../../services/auditLogService';
 
 // ── TAB DEFINITIONS: THE SINGLE SOURCE OF TRUTH ────────────────────────────
@@ -813,7 +813,7 @@ export default function BusinessHub() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/blocked-slots`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify(payload)
       });
       const result = await res.json().catch(() => ({}));
@@ -858,7 +858,8 @@ export default function BusinessHub() {
   const commitDeleteBlock = async (id) => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/blocked-slots/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: await authHeaders()
       });
       const result = await res.json().catch(() => ({}));
 
@@ -978,7 +979,7 @@ export default function BusinessHub() {
         if (addedServices.length || addedVehicles.length) {
           fetch(`${BACKEND_URL}/api/admin/announce-catalog`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await authHeaders(),
             body: JSON.stringify({
               services: addedServices.map((s) => ({ name: s.name })),
               vehicles: addedVehicles,
@@ -1497,7 +1498,7 @@ export default function BusinessHub() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/services/usage`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify({ names: list.map((s) => s.name).filter(Boolean) })
       });
       const result = await res.json();
@@ -1547,7 +1548,7 @@ export default function BusinessHub() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/services/usage`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify({ names: [service.name] })
       });
       const result = await res.json();
