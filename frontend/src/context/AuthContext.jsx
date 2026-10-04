@@ -40,7 +40,7 @@ const isMissingRpcError = (error) =>
 const probeLockoutSupport = () => {
   if (!lockoutAvailabilityPromise) {
     lockoutAvailabilityPromise = supabase
-      .rpc('check_login_lock', { p_email: '__capability_probe__@speedway.local' })
+      .rpc('check_login_lock', { p_email: '__capability_probe__@comar.local' })
       .then(({ error }) => {
         if (error && isMissingRpcError(error)) {
           logger.warn('Login lockout RPCs absent — migration 20260927000001 not applied. Feature disabled.');

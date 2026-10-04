@@ -47,7 +47,7 @@ const CustomerMyBookings = () => {
   const confirmRebook = () => {
     if (selectedRebook) {
       const canReschedule = ['scheduled', 'confirmed'].includes(selectedRebook.status?.toLowerCase());
-      sessionStorage.setItem('speedway_rebook_data', JSON.stringify({
+      sessionStorage.setItem('comar_rebook_data', JSON.stringify({
         ...selectedRebook,
         reschedule: canReschedule
       }));

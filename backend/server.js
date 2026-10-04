@@ -5159,7 +5159,7 @@ app.get('/api/health', (req, res) => {
   return res.status(degraded ? 503 : 200).json({
     success: !degraded,
     status: degraded ? 'degraded' : 'ok',
-    service: 'speedway-backend',
+    service: 'comar-backend',
     supabaseReady: Boolean(supabaseAdmin),
     // Feature-level truth, so a partial outage is visible rather than inferred.
     features: {

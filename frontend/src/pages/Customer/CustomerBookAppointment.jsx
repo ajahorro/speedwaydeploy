@@ -67,7 +67,7 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
   });
 
   // REBOOKING LOGIC: Pull from sessionStorage for persistence
-  const rebookDataRaw = sessionStorage.getItem('speedway_rebook_data');
+  const rebookDataRaw = sessionStorage.getItem('comar_rebook_data');
   const prefillData = rebookDataRaw ? JSON.parse(rebookDataRaw) : null;
   const isRescheduling = Boolean(prefillData?.reschedule && prefillData?.id);
   const isRebooking = Boolean(prefillData && !isRescheduling);
@@ -139,7 +139,7 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
   // the session-storage cleanup and the internal SPA link interception.
   React.useEffect(() => {
     const purgeSessionStorage = () => {
-      sessionStorage.removeItem('speedway_rebook_data');
+      sessionStorage.removeItem('comar_rebook_data');
     };
     window.addEventListener('beforeunload', purgeSessionStorage);
     window.addEventListener('pagehide', purgeSessionStorage);
@@ -164,7 +164,7 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
   // Cleanup sessionStorage on mount to ensure fresh start next time
   React.useEffect(() => {
     if (isRebooking || isRescheduling) {
-      sessionStorage.removeItem('speedway_rebook_data');
+      sessionStorage.removeItem('comar_rebook_data');
       // Styling comes from the global <Toaster> chrome (utils/toastChrome) —
       // no per-call override needed for a standard success toast.
       toastManager.success(isRescheduling ? 'Rescheduling Active!' : 'Fast-Track Rebooking Active!');
@@ -233,7 +233,7 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
 
       if (isRescheduling && prefillData?.id) {
         await rescheduleBooking(prefillData.id, bookingData);
-        sessionStorage.removeItem('speedway_rebook_data');
+        sessionStorage.removeItem('comar_rebook_data');
       } else {
         if (adminMode && onAdminSubmit) {
           // The admin flow (AdminWalkInWizard.submitAdminBooking) owns its own

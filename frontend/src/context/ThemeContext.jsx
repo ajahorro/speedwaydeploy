@@ -3,13 +3,13 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(() => localStorage.getItem('speedway-theme') || 'system');
+  const [theme, setTheme] = useState(() => localStorage.getItem('comar-theme') || localStorage.getItem('speedway-theme') || 'system');
   const [systemTheme, setSystemTheme] = useState(() => (
     window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
   ));
 
   useEffect(() => {
-    localStorage.setItem('speedway-theme', theme);
+    localStorage.setItem('comar-theme', theme);
   }, [theme]);
 
   useEffect(() => {

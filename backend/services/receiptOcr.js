@@ -10,7 +10,7 @@ const MAX_IMAGE_WIDTH = 1000;
 const MAX_IMAGE_HEIGHT = 1000;
 const WORKER_INIT_TIMEOUT_MS = 20000;
 const RECOGNITION_TIMEOUT_MS = 7000;
-const TESSERACT_CACHE_PATH = path.join(os.tmpdir(), 'speedway-tesseract');
+const TESSERACT_CACHE_PATH = path.join(os.tmpdir(), 'comar-tesseract');
 fs.mkdirSync(TESSERACT_CACHE_PATH, { recursive: true });
 let workerPromise;
 

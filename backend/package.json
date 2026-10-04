@@ -1,5 +1,5 @@
 {
-  "name": "speedway-email-service",
+  "name": "comar-garage-api",
   "version": "1.0.0",
   "description": "Backend for Comar Garage Detail Studio email logging and delivery",
   "main": "server.js",

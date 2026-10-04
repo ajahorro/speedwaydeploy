@@ -79,8 +79,8 @@ export const installGlobalErrorReporter = () => {
   if (typeof window === 'undefined') return () => { };
 
   // Guard against double-install (React StrictMode double-invokes effects).
-  if (window.__speedwayErrorReporterInstalled) return () => { };
-  window.__speedwayErrorReporterInstalled = true;
+  if (window.__comarErrorReporterInstalled) return () => { };
+  window.__comarErrorReporterInstalled = true;
 
   const onRejection = (event) => {
     // `event.reason` is often an Error; sometimes a string.
@@ -99,13 +99,13 @@ export const installGlobalErrorReporter = () => {
 
   // Expose a bridge so class-based boundaries (ErrorBoundary) can reuse the
   // same reporting/dedupe path instead of re-implementing it.
-  window.__speedwayReportError = (error) => report('boundary', error);
+  window.__comarReportError = (error) => report('boundary', error);
 
   return () => {
     window.removeEventListener('unhandledrejection', onRejection);
     window.removeEventListener('error', onError);
-    window.__speedwayErrorReporterInstalled = false;
-    delete window.__speedwayReportError;
+    window.__comarErrorReporterInstalled = false;
+    delete window.__comarReportError;
   };
 };
 

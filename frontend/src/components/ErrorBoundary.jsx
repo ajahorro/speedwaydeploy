@@ -35,8 +35,8 @@ class ErrorBoundary extends React.Component {
 
     // Best-effort: surface it to any app-level toast hook the host installed.
     try {
-      if (typeof window !== 'undefined' && typeof window.__speedwayReportError === 'function') {
-        window.__speedwayReportError(error);
+      if (typeof window !== 'undefined' && typeof window.__comarReportError === 'function') {
+        window.__comarReportError(error);
       }
     } catch { /* never let reporting mask the original error */ }
   }

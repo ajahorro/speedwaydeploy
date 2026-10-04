@@ -14,7 +14,8 @@ import { COMMUNICATION_PREFERENCES } from '../config/legalContent';
  *   { emailBookingUpdates: true, promoEmailSms: false }
  */
 
-const STORAGE_KEY = 'speedway-comm-preferences';
+const STORAGE_KEY = 'comar-comm-preferences';
+const LEGACY_STORAGE_KEY = 'speedway-comm-preferences';
 
 export const getDefaultPreferences = () =>
   COMMUNICATION_PREFERENCES.reduce((acc, pref) => {
@@ -26,7 +27,7 @@ export const getDefaultPreferences = () =>
 export const readLocalPreferences = () => {
   const defaults = getDefaultPreferences();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return defaults;
     const parsed = JSON.parse(raw);
     return { ...defaults, ...(parsed && typeof parsed === 'object' ? parsed : {}) };
