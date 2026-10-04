@@ -12,6 +12,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from 'react-hot-toast';
 import { logger } from '../../utils/logger';
 import { fetchBookingLedgers } from '../../services/ledgerService';
+import { matchesSearchText } from '../../utils/searchMatch';
 
 const AdminRefunds = () => {
   const navigate = useNavigate();
@@ -158,10 +159,7 @@ const AdminRefunds = () => {
   // MEMOIZED FILTERING
   const filteredItems = useMemo(() => {
     return state.refundItems.filter(b => {
-      const matchesSearch =
-        b.customer?.full_name?.toLowerCase().includes(state.searchQuery.toLowerCase()) ||
-        b.customer_name?.toLowerCase().includes(state.searchQuery.toLowerCase()) ||
-        b.id.toLowerCase().includes(state.searchQuery.toLowerCase());
+      const matchesSearch = matchesSearchText(state.searchQuery, b.customer?.full_name, b.customer_name, b.customer_email, b.id);
 
       if (state.filter === 'PENDING') return matchesSearch && ['PENDING', 'QUEUED', 'PROCESSING', 'EMAIL_PENDING'].includes(b.refundStatus);
       if (state.filter === 'PROCESSED') {

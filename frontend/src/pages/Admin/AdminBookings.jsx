@@ -17,6 +17,7 @@ import toast from 'react-hot-toast';
 import { BACKEND_URL } from '../../config/api';
 
 import AdminSchedulingGrid from './AdminSchedulingGrid';
+import { matchesSearchText } from '../../utils/searchMatch';
 
 const AdminBookings = () => {
   const navigate = useNavigate();
@@ -55,14 +56,11 @@ const AdminBookings = () => {
   // MEMOIZED FILTERING: Only re-calculates when data or search changes
   const filteredBookings = useMemo(() => {
     return bookings.filter(b => {
-      const matchesSearch = `
-        ${b.id} 
-        ${b.customer?.full_name || b.customer_name || ''} 
-        ${b.customer_email || b.contact_number || ''}
-        ${b.vehicles?.map(v => v.vehicle_type).join(' ') || ''} 
-        ${b.vehicles?.map(v => v.plate_number).join(' ') || ''} 
-        ${b.vehicles?.map(v => `${v.brand || ''} ${v.model || ''} ${(v.services || []).map(s => s.service_name || '').join(' ')}`).join(' ') || ''}
-      `.toLowerCase().includes(state.searchTerm.toLowerCase());
+      const matchesSearch = matchesSearchText(
+        state.searchTerm, b.id, b.status, b.customer?.full_name, b.customer_name, b.guest_name,
+        b.customer_email, b.contact_number,
+        (b.vehicles || []).map(v => [v.vehicle_type, v.plate_number, v.brand, v.model, (v.services || []).map(s => s.service_name)])
+      );
       
       let matchesStatus = state.filterStatus === 'all' || b.status?.toLowerCase() === state.filterStatus.toLowerCase();
       

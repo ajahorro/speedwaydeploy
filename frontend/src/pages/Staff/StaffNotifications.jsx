@@ -9,6 +9,7 @@ import { logger } from '../../utils/logger';
 import { useAuth } from '../../hooks/useAuth';
 import NotificationDetailsModal from '../../components/NotificationDetailsModal';
 import { isNotificationActionable, isRedundantStaffTechnicianAssignment } from '../../utils/notificationRouting';
+import { matchesSearchText } from '../../utils/searchMatch';
 
 const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
   <div style={{
@@ -147,7 +148,7 @@ const StaffNotifications = () => {
   };
 
   const filteredNotifications = notifications.filter(n => {
-    const matchesSearch = n.message?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = matchesSearchText(searchQuery, n.title, n.message);
     if (filter === 'UNREAD') return matchesSearch && !n.is_read;
     if (filter === 'READ') return matchesSearch && n.is_read;
     return matchesSearch;

@@ -11,6 +11,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useUnifiedData } from "../context/UnifiedContext";
 
 import NotificationDetailsModal from '../components/NotificationDetailsModal';
+import { matchesSearchText } from '../utils/searchMatch';
 
 const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
   <div style={{
@@ -99,7 +100,7 @@ const GlobalNotifications = () => {
   };
 
   const filteredNotifications = (globalNotifications || []).filter(n => {
-    const matchesSearch = n.message?.toLowerCase().includes(searchQuery.toLowerCase()) || n.title?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = matchesSearchText(searchQuery, n.title, n.message);
     if (filter === 'UNREAD') return matchesSearch && !n.is_read;
     if (filter === 'READ') return matchesSearch && n.is_read;
     return matchesSearch;

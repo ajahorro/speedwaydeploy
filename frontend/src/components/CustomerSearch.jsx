@@ -3,6 +3,7 @@ import { ArrowRight, Calendar, Car, ClipboardList, FileText, LayoutDashboard, Se
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
+import { matchesSearchText } from '../utils/searchMatch';
 
 const PAGES = [
   { name: 'Dashboard', path: '/customer', icon: LayoutDashboard, category: 'Pages' },
@@ -21,6 +22,7 @@ const CustomerSearch = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [searched, setSearched] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -35,18 +37,19 @@ const CustomerSearch = () => {
       const normalizedQuery = query.trim().toLowerCase();
       if (!user?.id || normalizedQuery.length < 2) {
         setResults([]);
+        setSearched(false);
         setIsOpen(false);
         return;
       }
 
       const [bookingsResult, vehiclesResult] = await Promise.all([
-        supabase.from('bookings').select('id, status, start_datetime').eq('customer_id', user.id).order('created_at', { ascending: false }).limit(50),
+        supabase.from('bookings').select('id, status, start_datetime, vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(brand, model, plate_number)').eq('customer_id', user.id).order('created_at', { ascending: false }).limit(100),
         supabase.from('vehicles').select('id, brand, model, plate_number').eq('owner_id', user.id).limit(50)
       ]);
 
-      const pageResults = PAGES.filter(page => page.name.toLowerCase().includes(normalizedQuery));
+      const pageResults = PAGES.filter(page => matchesSearchText(normalizedQuery, page.name));
       const bookingResults = (bookingsResult.data || [])
-        .filter(booking => booking.id.toLowerCase().includes(normalizedQuery) || booking.status?.toLowerCase().includes(normalizedQuery))
+        .filter(booking => matchesSearchText(normalizedQuery, booking.id, booking.status?.replaceAll('_', ' '), (booking.vehicles || []).map(v => [v.brand, v.model, v.plate_number])))
         .slice(0, 5)
         .map(booking => ({
           name: `Booking #${booking.id.slice(0, 8).toUpperCase()}`,
@@ -56,7 +59,7 @@ const CustomerSearch = () => {
           category: 'My Bookings'
         }));
       const vehicleResults = (vehiclesResult.data || [])
-        .filter(vehicle => `${vehicle.brand} ${vehicle.model} ${vehicle.plate_number}`.toLowerCase().includes(normalizedQuery))
+        .filter(vehicle => matchesSearchText(normalizedQuery, vehicle.brand, vehicle.model, vehicle.plate_number))
         .slice(0, 5)
         .map(vehicle => ({
           name: `${vehicle.brand} ${vehicle.model}`,
@@ -67,6 +70,7 @@ const CustomerSearch = () => {
         }));
 
       setResults([...pageResults, ...bookingResults, ...vehicleResults]);
+      setSearched(true);
       setIsOpen(true);
     };
 
@@ -90,8 +94,17 @@ const CustomerSearch = () => {
         value={query}
         onChange={event => setQuery(event.target.value)}
         onFocus={() => query.length > 0 && setIsOpen(true)}
+        onKeyDown={event => {
+          if (event.key === 'Escape') setIsOpen(false);
+          if (event.key === 'Enter' && results[0]) handleSelect(results[0].path);
+        }}
         style={{ width: '100%', boxSizing: 'border-box', padding: '0.65rem 1rem 0.65rem 2.75rem', borderRadius: 'var(--admin-radius-sm)', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', fontSize: '0.75rem', fontWeight: '700', outline: 'none' }}
       />
+      {isOpen && searched && results.length === 0 && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 0.5rem)', left: 0, right: 0, padding: '0.9rem 1rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: 700, zIndex: 2000 }}>
+          No matches for "{query.trim()}"
+        </div>
+      )}
       {isOpen && results.length > 0 && (
         <div style={{ position: 'absolute', top: 'calc(100% + 0.5rem)', left: 0, right: 0, background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', boxShadow: 'var(--admin-card-shadow)', zIndex: 2000, maxHeight: '400px', overflowY: 'auto' }}>
           {['Pages', 'My Bookings', 'My Garage'].map(category => {

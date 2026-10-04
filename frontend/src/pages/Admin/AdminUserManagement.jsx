@@ -12,6 +12,8 @@ import toast from 'react-hot-toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { logger } from '../../utils/logger';
 import { BACKEND_URL, authHeaders } from '../../config/api';
+import { matchesSearchText } from '../../utils/searchMatch';
+import { normalizePhPhone } from '../../utils/contactValidation';
 
 const AdminUserManagement = () => {
   const navigate = useNavigate();
@@ -80,10 +82,7 @@ const AdminUserManagement = () => {
   };
 
   const filteredUsers = users.filter(u => {
-    const matchesSearch = 
-      u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.phone_number?.includes(searchQuery);
+    const matchesSearch = matchesSearchText(searchQuery, u.full_name, u.email, u.phone_number, normalizePhPhone(u.phone_number), u.role);
     
     const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
     

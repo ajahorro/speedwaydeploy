@@ -3,6 +3,7 @@ import { Calendar, Search, ChevronRight, Car, RotateCw, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useBookings } from '../../hooks/useBookings';
+import { matchesSearchText } from '../../utils/searchMatch';
 
 const CustomerMyBookings = () => {
   const navigate = useNavigate();
@@ -17,8 +18,7 @@ const CustomerMyBookings = () => {
       (filter === 'UPCOMING' && ['scheduled', 'confirmed', 'ongoing', 'in_progress'].includes(b.status?.toLowerCase())) ||
       (filter === 'PAST' && ['completed', 'released', 'cancelled', 'flagged_noshow'].includes(b.status?.toLowerCase()));
 
-    const searchStr = `${b.id} ${b.vehicles?.map(v => `${v.brand} ${v.model} ${v.plate_number}`).join(' ') || ''}`.toLowerCase();
-    const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
+    const matchesSearch = matchesSearchText(searchTerm, b.id, b.status, (b.vehicles || []).map(v => [v.brand, v.model, v.plate_number, (v.services || []).map(s => s.service_name)]));
 
     return matchesFilter && matchesSearch;
   });

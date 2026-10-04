@@ -6,6 +6,7 @@ import { Search, Filter, Database, ChevronDown, ChevronRight, ExternalLink, X } 
 import toast from 'react-hot-toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { logger } from '../../utils/logger';
+import { matchesSearchText } from '../../utils/searchMatch';
 
 /**
  * SYSTEM AUDIT TRAIL — monochromatic, container-free activity list.
@@ -313,15 +314,11 @@ const AdminAuditLogs = () => {
   }, [fetchLogs]);
 
   const filteredLogs = logs.filter((log) => {
-    const q = searchQuery.toLowerCase();
     const meta = getMeta(log.event_type);
-    const matchesSearch =
-      !q ||
-      (log.action_type || log.event_type || '').toLowerCase().includes(q) ||
-      meta.title.toLowerCase().includes(q) ||
-      meta.category.toLowerCase().includes(q) ||
-      log.profiles?.full_name?.toLowerCase().includes(q) ||
-      (log.actor_email || '').toLowerCase().includes(q);
+    const matchesSearch = matchesSearchText(
+      searchQuery, log.action_type, log.event_type, meta.title, meta.category, log.profiles?.full_name,
+      log.actor_email, log.actor_name, typeof log.details === 'string' ? log.details : '', log.booking_id
+    );
 
     const matchesFilter = filterType === 'ALL' || meta.category === filterType;
     return matchesSearch && matchesFilter;

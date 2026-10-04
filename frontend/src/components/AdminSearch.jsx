@@ -3,6 +3,7 @@ import { Search, FileText, User, CreditCard, Bell, Settings, LayoutDashboard, Ca
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
+import { matchesSearchText, escapeForPostgrestFilter } from '../utils/searchMatch';
 
 // Static route table. Hoisted to MODULE scope so its identity is stable across
 // renders — declared inside the component it was a NEW array on every render,
@@ -15,7 +16,9 @@ const PAGES = [
   { name: 'Refund Hub', path: '/admin/refunds', icon: ClipboardList, category: 'Pages' },
   { name: 'Analytics', path: '/admin/analytics', icon: LayoutDashboard, category: 'Pages' },
   { name: 'Audit Logs', path: '/admin/audit-logs', icon: History, category: 'Pages' },
-  { name: 'Staff Management', path: '/admin/staff', icon: User, category: 'Pages' },
+  { name: 'Staff & Admin Accounts', path: '/admin/accounts', icon: User, category: 'Pages' },
+  { name: 'Business Hub', path: '/admin/business', icon: Settings, category: 'Pages' },
+  { name: 'Walk-in Booking', path: '/admin/walk-in', icon: ClipboardList, category: 'Pages' },
   { name: 'Users', path: '/admin/users', icon: User, category: 'Pages' },
   { name: 'Notifications', path: '/admin/notifications', icon: Bell, category: 'Pages' },
   { name: 'Settings', path: '/admin/settings', icon: Settings, category: 'Pages' },
@@ -26,6 +29,7 @@ const AdminSearch = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [searched, setSearched] = useState(false);
   const navigate = useNavigate();
   const searchRef = useRef(null);
 
@@ -40,51 +44,87 @@ const AdminSearch = () => {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     const performSearch = async () => {
-      if (query.length < 2) {
+      const text = query.trim();
+      if (text.length < 2) {
         setResults([]);
+        setSearched(false);
         setIsOpen(false);
         return;
       }
 
       try {
-        logger.admin(`Searching for: ${query}`);
-        
-        // 1. Filter local pages
-        const filteredPages = pages.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
+        logger.admin(`Searching for: ${text}`);
+        const safe = escapeForPostgrestFilter(text);
+        const like = `%${safe}%`;
+        const hex = text.replace(/^#/, '');
+        const looksLikeId = /^[0-9a-f-]{4,36}$/i.test(hex);
 
-        // 2. Search Bookings
-        const bookingSearch = supabase
-          .from('bookings')
-          .select('id, customer_name, customer:profiles!bookings_customer_id_fkey(full_name)')
-          .limit(3);
-        const uuidQuery = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(query.trim());
-        const { data: bookings } = uuidQuery
-          ? await bookingSearch.eq('id', query.trim())
-          : await bookingSearch.ilike('customer_name', `%${query}%`);
+        const [pageHits, bookingsByText, vehicleHits, users, recentIds] = await Promise.all([
+          Promise.resolve(PAGES.filter(p => matchesSearchText(text, p.name))),
+          safe
+            ? supabase
+              .from('bookings')
+              .select('id, status, customer_name, guest_name, customer:profiles!bookings_customer_id_fkey(full_name)')
+              .or(`customer_name.ilike.${like},guest_name.ilike.${like},customer_email.ilike.${like},contact_number.ilike.${like}`)
+              .order('created_at', { ascending: false })
+              .limit(5)
+            : Promise.resolve({ data: [] }),
+          safe
+            ? supabase
+              .from('booking_vehicles')
+              .select('booking_id, plate_number, brand, model')
+              .or(`plate_number.ilike.${like},brand.ilike.${like},model.ilike.${like}`)
+              .limit(5)
+            : Promise.resolve({ data: [] }),
+          safe
+            ? supabase
+              .from('profiles')
+              .select('full_name, role, id, email')
+              .or(`full_name.ilike.${like},email.ilike.${like},phone_number.ilike.${like}`)
+              .limit(5)
+            : Promise.resolve({ data: [] }),
+          // Booking IDs are shown shortened (#A1B2C3D4); a UUID prefix cannot be
+          // filtered in SQL, so match it against the latest bookings instead.
+          looksLikeId
+            ? supabase.from('bookings').select('id, status, customer_name, guest_name').order('created_at', { ascending: false }).limit(300)
+            : Promise.resolve({ data: [] })
+        ]);
+        if (cancelled) return;
 
-        const bookingResults = (bookings || []).map(b => ({
-          name: `Booking #${b.id.slice(0, 8)} - ${b.customer?.full_name || b.customer_name || 'Customer'}`,
-          path: `/admin/bookings/${b.id}`,
+        const bookingMap = new Map();
+        const label = (b) => b.customer?.full_name || b.customer_name || b.guest_name || 'Customer';
+        (recentIds.data || [])
+          .filter(b => b.id.toLowerCase().startsWith(hex.toLowerCase()))
+          .slice(0, 5)
+          .forEach(b => bookingMap.set(b.id, `Booking #${b.id.slice(0, 8).toUpperCase()} - ${label(b)}`));
+        (bookingsByText.data || []).forEach(b => {
+          if (!bookingMap.has(b.id)) bookingMap.set(b.id, `Booking #${b.id.slice(0, 8).toUpperCase()} - ${label(b)}`);
+        });
+        (vehicleHits.data || []).forEach(v => {
+          if (v.booking_id && !bookingMap.has(v.booking_id)) {
+            bookingMap.set(v.booking_id, `Booking #${v.booking_id.slice(0, 8).toUpperCase()} - ${[v.brand, v.model, v.plate_number].filter(Boolean).join(' ')}`);
+          }
+        });
+
+        const bookingResults = [...bookingMap.entries()].slice(0, 6).map(([id, name]) => ({
+          name,
+          path: `/admin/bookings/${id}`,
           icon: FileText,
           category: 'Recent Bookings'
         }));
 
-        // 3. Search Users/Profiles
-        const { data: users } = await supabase
-          .from('profiles')
-          .select('full_name, role, id')
-          .or(`full_name.ilike.%${query}%, email.ilike.%${query}%`)
-          .limit(3);
-
-        const userResults = (users || []).map(u => ({
-          name: `${u.full_name} (${u.role})`,
-          path: u.role === 'CUSTOMER' ? '/admin/users' : '/admin/staff',
+        const userResults = (users.data || []).map(u => ({
+          name: `${u.full_name || u.email} (${u.role})`,
+          path: String(u.role).toUpperCase() === 'CUSTOMER' ? '/admin/users' : '/admin/accounts',
           icon: User,
           category: 'Users & Staff'
         }));
 
-        setResults([...filteredPages, ...bookingResults, ...userResults]);
+        setResults([...pageHits, ...bookingResults, ...userResults]);
+        setSearched(true);
         setIsOpen(true);
       } catch (err) {
         logger.error('Global Search Error', err);
@@ -92,7 +132,10 @@ const AdminSearch = () => {
     };
 
     const timeoutId = setTimeout(performSearch, 300);
-    return () => clearTimeout(timeoutId);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
   }, [query]);
 
   const handleSelect = (path) => {
@@ -111,6 +154,10 @@ const AdminSearch = () => {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => query.length > 0 && setIsOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') setIsOpen(false);
+          if (e.key === 'Enter' && results[0]) handleSelect(results[0].path);
+        }}
         style={{ 
           padding: '0.65rem 1rem 0.65rem 2.75rem', 
           borderRadius: 'var(--admin-radius-sm)', 
@@ -125,6 +172,12 @@ const AdminSearch = () => {
           letterSpacing: '0.5px'
         }} 
       />
+
+      {isOpen && searched && results.length === 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '0.5rem', padding: '0.9rem 1rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: 700, zIndex: 2000 }}>
+          No matches for "{query.trim()}"
+        </div>
+      )}
 
       {isOpen && results.length > 0 && (
         <div style={{ 

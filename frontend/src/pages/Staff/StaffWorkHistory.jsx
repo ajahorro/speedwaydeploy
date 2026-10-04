@@ -7,6 +7,7 @@ import { History, Car, Calendar, CheckCircle2, Search, FileText } from 'lucide-r
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
 import toast from 'react-hot-toast';
+import { matchesSearchText } from '../../utils/searchMatch';
 
 const StaffWorkHistory = () => {
   const { profile } = useAuth();
@@ -83,10 +84,8 @@ const StaffWorkHistory = () => {
     }
   };
 
-  const filteredHistory = history.filter(item => 
-    item.plate_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.model?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredHistory = history.filter(item =>
+    matchesSearchText(searchTerm, item.plate_number, item.brand, item.model, item.service_name, item.booking_id)
   );
 
   if (loading) return <LoadingState message="Retrieving your service records..." />;

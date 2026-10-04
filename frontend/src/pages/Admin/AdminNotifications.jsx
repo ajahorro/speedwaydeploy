@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import NotificationDetailsModal from '../../components/NotificationDetailsModal';
 import { isNotificationActionable, resolveBookingId } from '../../utils/notificationRouting';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
+import { matchesSearchText } from '../../utils/searchMatch';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DELETE CONFIRMATION MODAL (REQ #5)
@@ -298,8 +299,7 @@ const AdminNotifications = () => {
   };
 
   const filteredNotifications = notifications.filter(n => {
-    const haystack = [n.title, n.message, n.notification_type, n.action_url].filter(Boolean).join(' ').toLowerCase();
-    const matchesSearch = haystack.includes(searchQuery.trim().toLowerCase());
+    const matchesSearch = matchesSearchText(searchQuery, n.title, n.message, n.notification_type, n.action_url);
     if (filter === 'UNREAD') return matchesSearch && !n.is_read;
     if (filter === 'READ') return matchesSearch && n.is_read;
     return matchesSearch;

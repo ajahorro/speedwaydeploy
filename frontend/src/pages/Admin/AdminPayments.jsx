@@ -19,6 +19,7 @@ import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import { useUI } from '../../context/UIContext';
 import { useImagePreview } from '../../context/ImagePreviewContext';
+import { matchesSearchText } from '../../utils/searchMatch';
 
 const AdminPayments = () => {
   const { openImage } = useImagePreview();
@@ -109,8 +110,7 @@ const AdminPayments = () => {
   // MEMOIZED FILTERING
   const filteredItems = useMemo(() => {
     return state.payments.filter(p => {
-      const searchStr = `${p.customer_name} ${p.reference_number} ${p.amount}`.toLowerCase();
-      const matchesSearch = searchStr.includes(state.searchTerm.toLowerCase());
+      const matchesSearch = matchesSearchText(state.searchTerm, p.customer_name, p.reference_number, p.detected_ref, p.amount, p.method, p.booking_id);
       const normalizedMethod = String(p.method || '').trim().toLowerCase();
       const isCashMethod = normalizedMethod === 'cash';
       const isDigitalMethod = ['gcash', 'digital', 'bank transfer', 'paymaya', 'maya', 'card', 'online'].includes(normalizedMethod);
