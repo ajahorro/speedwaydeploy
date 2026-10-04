@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, ImagePlus, Loader2, Trash2, X, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
+import { useConfirmAction } from '../../hooks/useConfirmAction';
 import {
   uploadServicePhotos,
   fetchVehiclePhotos,
@@ -34,6 +35,7 @@ const PhotoProofUploader = ({
   compact = false,
   disabled = false
 }) => {
+  const { confirmThen } = useConfirmAction();
   const { user } = useAuth();
   const inputRef = useRef(null);
   const [photos, setPhotos] = useState([]); // resolved rows: { ...row, url }
@@ -308,7 +310,7 @@ const PhotoProofUploader = ({
               )}
               {!evidenceLocked && <button
                 type="button"
-                onClick={() => handleRemove(p)}
+                onClick={() => confirmThen({ title: 'Remove this photo?', message: 'The photo is deleted from the booking and cannot be recovered.', confirmText: 'Remove photo', type: 'danger' }, () => handleRemove(p))}
                 aria-label="Remove photo"
                 style={{
                   position: 'absolute', top: 4, right: 4, width: 22, height: 22,

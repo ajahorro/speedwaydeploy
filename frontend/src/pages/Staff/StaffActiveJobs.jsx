@@ -11,8 +11,10 @@ import toast from 'react-hot-toast';
 import { BACKEND_URL } from '../../config/api';
 import { dateKey } from '../../domain/schedule/rules';
 import { SHOW_START_SERVICE_ACTIONS } from '../../config/workflowFeatures';
+import { useConfirmAction } from '../../hooks/useConfirmAction';
 
 const StaffActiveJobs = () => {
+  const { confirmThen } = useConfirmAction();
   const { profile } = useAuth();
   const { openModal } = useUI();
   const navigate = useNavigate();
@@ -201,7 +203,7 @@ const StaffActiveJobs = () => {
                   data-no-auto-capitalize=""
                   style={{ width: '100%', minHeight: '80px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '1rem', color: 'var(--admin-text-primary)', fontSize: '0.85rem', outline: 'none', resize: 'none' }}
                 />
-                <button onClick={() => handleSaveNotes(task.id)} style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '4px', padding: '0.4rem', cursor: 'pointer', color: 'var(--admin-text-primary)' }}>
+                <button onClick={() => confirmThen({ title: 'Save notes?', message: 'The notes are saved to this job for the admin and customer record.', confirmText: 'Save notes' }, () => handleSaveNotes(task.id))} style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '4px', padding: '0.4rem', cursor: 'pointer', color: 'var(--admin-text-primary)' }}>
                   <Save size={14} />
                 </button>
               </div>

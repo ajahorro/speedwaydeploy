@@ -10,6 +10,7 @@ import { BACKEND_URL } from '../../config/api';
 import { useNavigate } from 'react-router-dom';
 import NotificationDetailsModal from '../../components/NotificationDetailsModal';
 import { isNotificationActionable, resolveBookingId } from '../../utils/notificationRouting';
+import { useConfirmAction } from '../../hooks/useConfirmAction';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DELETE CONFIRMATION MODAL (REQ #5)
@@ -91,6 +92,7 @@ const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
 );
 
 const AdminNotifications = () => {
+  const { confirmThen } = useConfirmAction();
   const isMobile = useMediaQuery('(max-width: 1024px)');
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -337,7 +339,7 @@ const AdminNotifications = () => {
             <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Transmit a priority announcement to all staff and customers. Action is logged in Audit Logs.</p>
           </div>
         </div>
-        <form onSubmit={handleBroadcast} style={{ display: 'flex', gap: '1rem', flexDirection: isMobile ? 'column' : 'row' }}>
+        <form onSubmit={(e) => { e.preventDefault(); if (!broadcastForm.message.trim()) return; confirmThen({ title: 'Send broadcast?', message: 'This message is sent to users right away and cannot be recalled.', confirmText: 'Send broadcast' }, () => handleBroadcast(e)); }} style={{ display: 'flex', gap: '1rem', flexDirection: isMobile ? 'column' : 'row' }}>
           <input
             type="text"
             placeholder="Type your global announcement here..."

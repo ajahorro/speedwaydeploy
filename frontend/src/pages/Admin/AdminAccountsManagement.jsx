@@ -14,8 +14,10 @@ import { useConfirmation } from '../../utils/logoutConfirm';
 import { logger } from '../../utils/logger';
 import { useAuth } from '../../hooks/useAuth';
 import { BACKEND_URL, authHeaders } from '../../config/api';
+import { useConfirmAction } from '../../hooks/useConfirmAction';
 
 const AdminAccountsManagement = () => {
+  const { confirmThen } = useConfirmAction();
   const isMobile = useMediaQuery('(max-width: 1024px)');
   const { profile: currentUserProfile, user: currentUser } = useAuth();
   // Wire the confirmation modal through the UI context — the standalone
@@ -409,7 +411,7 @@ const AdminAccountsManagement = () => {
 
             {/* The form is the scroll region: the header above stays put and the
                 submit button below stays reachable on any viewport height. */}
-            <form onSubmit={handleSendInvite} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: '1 1 auto', minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', paddingRight: '0.25rem' }}>
+            <form onSubmit={(e) => { e.preventDefault(); if (!inviteForm.email) { handleSendInvite(e); return; } confirmThen({ title: 'Create this account?', message: 'The account will be created and an invitation emailed to the address provided.', confirmText: 'Create account' }, () => handleSendInvite(e)); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: '1 1 auto', minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', paddingRight: '0.25rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Email Address</label>
                 <div style={{ position: 'relative' }}>

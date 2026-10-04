@@ -20,7 +20,9 @@ import { playJobAssignmentChime } from '../../utils/jobAssignmentChime';
 import { isNotificationActionable, isRedundantStaffTechnicianAssignment } from '../../utils/notificationRouting';
 import { dateKey } from '../../domain/schedule/rules';
 import { SHOW_START_SERVICE_ACTIONS } from '../../config/workflowFeatures';
+import { useConfirmAction } from '../../hooks/useConfirmAction';
 const StaffDashboard = () => {
+  const { confirmThen } = useConfirmAction();
   const { profile, toggleShift } = useAuth();
   const { openModal } = useUI();
   const navigate = useNavigate();
@@ -315,7 +317,7 @@ const StaffDashboard = () => {
           {!profile?.is_clocked_in && (
             <button
               type="button"
-              onClick={handleClockIn}
+              onClick={() => confirmThen({ title: 'Start your shift?', message: 'You will be marked on duty and can receive assignments.', confirmText: 'Start shift' }, handleClockIn)}
               disabled={!profile?.id || isClockingIn}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', padding: '0.75rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '4px', fontWeight: '900', textTransform: 'uppercase', cursor: isClockingIn ? 'wait' : 'pointer', opacity: !profile?.id || isClockingIn ? 0.65 : 1 }}
             >
@@ -390,7 +392,7 @@ const StaffDashboard = () => {
                           disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'}
                           style={{ width: '100%', minHeight: '100px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '1rem', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '600', outline: 'none', resize: 'none' }}
                         />
-                        <button onClick={() => handleSaveNotes(task.id)} disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'} style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer' }}>
+                        <button onClick={() => confirmThen({ title: 'Save notes?', message: 'The notes are saved to this job for the admin and customer record.', confirmText: 'Save notes' }, () => handleSaveNotes(task.id))} disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'} style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer' }}>
                           <Save size={16} />
                         </button>
                       </div>

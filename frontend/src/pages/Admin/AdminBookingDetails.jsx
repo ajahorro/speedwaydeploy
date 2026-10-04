@@ -40,8 +40,10 @@ import { classifyScheduleError, toCleanMessage } from '../../utils/errorRouting'
 import { BACKEND_URL } from '../../config/api';
 import { reconcilePaymentState, verifyPayment, rejectPayment } from '../../services/paymentVerificationService';
 import { ensureShopConfig } from '../../config/shopConfig';
+import { useConfirmAction } from '../../hooks/useConfirmAction';
 
 const AdminBookingDetails = () => {
+  const { confirmThen } = useConfirmAction();
   const { id } = useParams();
   const navigate = useNavigate();
   const { openModal } = useUI();
@@ -1579,7 +1581,7 @@ const AdminBookingDetails = () => {
                   />
                 </div>
                 <button
-                  onClick={handleRecordPayment}
+                  onClick={() => confirmThen({ title: 'Record this payment?', message: 'The amount will be added to this booking’s ledger and the customer will be notified.', confirmText: 'Record payment' }, handleRecordPayment)}
                   disabled={submittingPayment}
                   style={{ padding: '0 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: submittingPayment ? 0.5 : 1 }}
                 >
@@ -1699,7 +1701,7 @@ const AdminBookingDetails = () => {
                           <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.55rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Technician</label>
                           <select
                             value={booking.staff_id || ''}
-                            onChange={event => handleAssignStaff(event.target.value)}
+                            onChange={event => { const staffId = event.target.value; confirmThen({ title: 'Change technician?', message: 'The assigned technician for this booking will be changed.', confirmText: 'Change technician' }, () => handleAssignStaff(staffId)); }}
                             disabled={isLocked || booking.status === 'in_progress' || hasAssignedStaffBeforeEvidence}
                             title={hasAssignedStaffBeforeEvidence ? 'The assigned technician cannot be changed after submitting a before photo.' : undefined}
                             style={{ width: '100%', padding: '0.4rem', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '800' }}

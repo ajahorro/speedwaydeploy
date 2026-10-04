@@ -20,6 +20,7 @@ import LeaveGuardModal from '../../components/LeaveGuardModal';
 import SegmentedTimePicker from '../../components/AdminSchedule/SegmentedTimePicker';
 import { BACKEND_URL, authHeaders } from '../../config/api';
 import { writeAdminAuditLog } from '../../services/auditLogService';
+import { useConfirmAction } from '../../hooks/useConfirmAction';
 
 // ── TAB DEFINITIONS: THE SINGLE SOURCE OF TRUTH ────────────────────────────
 //
@@ -395,6 +396,7 @@ const SaveBar = ({ canSave, saving, dirty, label }) => {
 };
 
 export default function BusinessHub() {
+  const { confirmThen } = useConfirmAction();
   const [searchParams, setSearchParams] = useSearchParams();
   const { openModal } = useUI();
 
@@ -2175,7 +2177,7 @@ export default function BusinessHub() {
       <div>
         {/* Tab 1: Business Profile & Payment Details */}
         {currentTab === 'profile' && (
-          <form onSubmit={handleSaveSection} style={cardStyle}>
+          <form onSubmit={(e) => { e.preventDefault(); confirmThen({ title: 'Save changes?', message: 'These settings apply to the whole system straight away, including new bookings.', confirmText: 'Save changes' }, () => handleSaveSection(e)); }} style={cardStyle}>
             <SectionHeading>Store Identification &amp; Contact</SectionHeading>
             <div style={gridStyle}>
               <Field label="Business Name" required htmlFor="business-name">
@@ -2406,7 +2408,7 @@ export default function BusinessHub() {
 
         {/* Tab 2: Schedule Rules (hours, capacity, and booking restrictions) */}
         {currentTab === 'schedule' && (
-          <form onSubmit={handleSaveSection} style={cardStyle}>
+          <form onSubmit={(e) => { e.preventDefault(); confirmThen({ title: 'Save changes?', message: 'These settings apply to the whole system straight away, including new bookings.', confirmText: 'Save changes' }, () => handleSaveSection(e)); }} style={cardStyle}>
             <div style={{ display: 'grid', gap: '1.25rem' }}>
               <div
                 style={{
@@ -2891,7 +2893,7 @@ export default function BusinessHub() {
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
                     <button type="button" onClick={() => { setEditingService(null); setEditingServiceForm(null); }} style={{ ...ghostButton, color: 'var(--admin-text-secondary)' }}>Cancel</button>
-                    <button type="button" onClick={handleEditService} style={{ ...buttonBase, background: 'var(--admin-brand)', color: '#fff', border: '1px solid var(--admin-brand)' }}>Save Changes</button>
+                    <button type="button" onClick={() => confirmThen({ title: 'Save service changes?', message: 'Customers will see the updated service straight away.', confirmText: 'Save changes' }, handleEditService)} style={{ ...buttonBase, background: 'var(--admin-brand)', color: '#fff', border: '1px solid var(--admin-brand)' }}>Save Changes</button>
                   </div>
                 </div>
               </div>
@@ -3187,7 +3189,7 @@ export default function BusinessHub() {
                   <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
                     <button
                       type="button"
-                      onClick={handlePublishService}
+                      onClick={() => confirmThen({ title: 'Publish this service?', message: 'The service becomes available to customers straight away.', confirmText: 'Publish' }, handlePublishService)}
                       disabled={!isPublishServiceReady()}
                       style={{
                         ...buttonBase,
@@ -3333,7 +3335,7 @@ export default function BusinessHub() {
                     <button
                       type="button"
                       disabled={!isVehicleCategoryValid()}
-                      onClick={handleAddVehicleCategory}
+                      onClick={() => confirmThen({ title: 'Add vehicle category?', message: 'The category and its starting services become available to customers straight away.', confirmText: 'Add category' }, handleAddVehicleCategory)}
                       style={{
                         ...buttonBase,
                         background: isVehicleCategoryValid() ? 'var(--admin-brand)' : 'var(--admin-input-bg, var(--admin-bg))',

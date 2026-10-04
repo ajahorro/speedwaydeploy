@@ -11,6 +11,7 @@ import { useConfig } from '@/context/ConfigContext';
 import { fetchShopConfig } from '@/config/shopConfig';
 import { writeAdminAuditLog } from '@/services/auditLogService';
 import { formatPeso } from '@/features/finance/money';
+import { useConfirmAction } from '@/hooks/useConfirmAction';
 
 const toDraft = (policy) => ({
   min_total: String(policy?.min_total ?? 1000),
@@ -53,6 +54,7 @@ function Field({ id, label, hint, prefix, suffix, value, onChange, error }) {
  * work-start gate and the ledger, so a save here changes every one of them.
  */
 export function DownpaymentPolicyCard() {
+  const { confirmThen } = useConfirmAction();
   const { settings } = useConfig();
   const configId = settings.config?.id;
   const current = settings.DOWNPAYMENT_POLICY;
@@ -154,7 +156,7 @@ export function DownpaymentPolicyCard() {
       </CardContent>
       <CardFooter className="justify-end gap-2">
         <Button variant="ghost" disabled={!isDirty || saving} onClick={() => setDraft(toDraft(current))}>Discard</Button>
-        <Button disabled={!isDirty || !isValid || saving || !configId} onClick={save}>
+        <Button disabled={!isDirty || !isValid || saving || !configId} onClick={() => confirmThen({ title: 'Save payment policy?', message: 'New bookings will use the updated downpayment rules straight away.', confirmText: 'Save policy' }, save)}>
           <Save /> {saving ? 'Saving…' : 'Save policy'}
         </Button>
       </CardFooter>

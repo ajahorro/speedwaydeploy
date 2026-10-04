@@ -7,8 +7,10 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
+import { useConfirmAction } from '../../hooks/useConfirmAction';
 
 const CustomerProfile = () => {
+  const { confirmThen } = useConfirmAction();
   const { user, profile, updateProfile, verifyPassword, requestPasswordChange, resendPasswordChange, requestEmailChange, confirmEmailChange, deactivateAccount } = useAuth();
 
   // States
@@ -348,7 +350,7 @@ const CustomerProfile = () => {
               <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>Password & Security</h2>
             </div>
 
-            <form onSubmit={handleUpdatePasswordClick} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <form onSubmit={(e) => { e.preventDefault(); confirmThen({ title: 'Change your password?', message: 'Your password will be updated and other sessions may be signed out.', confirmText: 'Change password' }, () => handleUpdatePasswordClick(e)); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <input
                 type="text"
                 name="username"

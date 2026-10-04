@@ -7,8 +7,10 @@ import {
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import toast from 'react-hot-toast';
+import { useConfirmAction } from '../../hooks/useConfirmAction';
 
 const AdminSlotManagement = () => {
+  const { confirmThen } = useConfirmAction();
   const [blockedSlots, setBlockedSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -241,7 +243,7 @@ const AdminSlotManagement = () => {
                   <input type="text" placeholder="e.g. MAINTENANCE" value={formData.reason} onChange={(e) => setFormData({...formData, reason: e.target.value.toUpperCase()})} style={inputStyle} />
                 </div>
 
-                <button onClick={handleAddSlot} style={{ width: '100%', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '4px', padding: '0.85rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', marginTop: '0.5rem' }}>
+                <button onClick={() => { if (!formData.date) { handleAddSlot(); return; } confirmThen({ title: 'Block this time?', message: 'Customers will no longer be able to book the blocked time.', confirmText: 'Block time' }, () => handleAddSlot()); }} style={{ width: '100%', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '4px', padding: '0.85rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', marginTop: '0.5rem' }}>
                   Commit Block
                 </button>
               </div>

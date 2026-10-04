@@ -20,8 +20,10 @@ import { sanitizeVehiclePlate, sanitizeVehicleText } from '../../config/constant
 import { useConfig } from '../../context/ConfigContext';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { getBayCapacity } from '../../config/shopConfig';
+import { useConfirmAction } from '../../hooks/useConfirmAction';
 
 const CustomerGarage = () => {
+  const { confirmThen } = useConfirmAction();
   const { user } = useAuth();
   // Vehicle categories configured in the Business Hub.
   const { settings: { VEHICLE_TYPES: vehicleTypeOptions } } = useConfig();
@@ -417,7 +419,7 @@ const CustomerGarage = () => {
                     return <label key={vehicle.id} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.85rem', background: isSelected ? 'rgba(var(--admin-brand-rgb), 0.1)' : 'var(--admin-bg)', border: `1px solid ${isSelected ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '8px', cursor: 'pointer' }}><input type="checkbox" checked={isSelected} onChange={() => setFleetEditVehicleIds(current => isSelected ? current.filter(id => id !== vehicle.id) : [...current, vehicle.id])} /><span style={{ minWidth: 0, color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '800' }}><strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vehicle.brand} {vehicle.model}</strong><small style={{ color: 'var(--admin-text-secondary)' }}>{vehicle.plate_number} · {vehicle.type}</small></span></label>;
                   })}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}><button type="button" onClick={() => setIsEditingFleet(false)} style={{ padding: '0.75rem 1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '900', cursor: 'pointer' }}>Cancel</button><button type="button" disabled={isSavingFleet} onClick={handleSaveFleetEdit} style={{ padding: '0.75rem 1rem', background: 'var(--admin-brand)', border: 0, borderRadius: '8px', color: 'var(--admin-text-on-brand)', fontWeight: '900', cursor: 'pointer', opacity: isSavingFleet ? 0.5 : 1 }}>{isSavingFleet ? 'Saving...' : 'Save Fleet'}</button></div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}><button type="button" onClick={() => setIsEditingFleet(false)} style={{ padding: '0.75rem 1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '900', cursor: 'pointer' }}>Cancel</button><button type="button" disabled={isSavingFleet} onClick={() => confirmThen({ title: 'Save fleet changes?', message: 'The fleet name and vehicles will be updated.', confirmText: 'Save changes' }, handleSaveFleetEdit)} style={{ padding: '0.75rem 1rem', background: 'var(--admin-brand)', border: 0, borderRadius: '8px', color: 'var(--admin-text-on-brand)', fontWeight: '900', cursor: 'pointer', opacity: isSavingFleet ? 0.5 : 1 }}>{isSavingFleet ? 'Saving...' : 'Save Fleet'}</button></div>
               </>
             ) : (
               <>
@@ -447,7 +449,7 @@ const CustomerGarage = () => {
               </div>
               <button type="button" onClick={() => setIsGroupModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}><X size={24} /></button>
             </div>
-            <form onSubmit={event => { event.preventDefault(); handleCreateGroup(); }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={event => { event.preventDefault(); confirmThen({ title: 'Create this fleet?', message: 'The selected vehicles will be grouped into a fleet.', confirmText: 'Create fleet' }, () => handleCreateGroup()); }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <label style={{ color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '900', textTransform: 'uppercase' }}>
                 Fleet name
                 <input autoFocus required value={newGroupName} onChange={event => setNewGroupName(event.target.value)} placeholder="e.g. Family vehicles" style={{ width: '100%', boxSizing: 'border-box', marginTop: '0.5rem', padding: '0.85rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '8px', fontWeight: '700' }} />
@@ -488,7 +490,7 @@ const CustomerGarage = () => {
               <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}><X size={24} /></button>
             </div>
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <form onSubmit={(e) => { e.preventDefault(); confirmThen({ title: 'Save this vehicle?', message: 'The vehicle details will be saved to your garage.', confirmText: 'Save vehicle' }, () => handleSubmit(e)); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem', letterSpacing: '1px' }}>Vehicle Type</label>

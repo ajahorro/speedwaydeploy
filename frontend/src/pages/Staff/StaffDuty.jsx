@@ -3,6 +3,7 @@ import { Clock, LogIn, LogOut, MapPin, CheckCircle2, Timer } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth';
 import { useUI } from '../../context/UIContext';
 import PageHeader from '../../components/PageHeader';
+import { useConfirmAction } from '../../hooks/useConfirmAction';
 
 /**
  * Duty & Shift
@@ -22,6 +23,7 @@ const formatDuration = (totalSeconds) => {
 };
 
 const StaffDuty = () => {
+  const { confirmThen } = useConfirmAction();
   const { profile, toggleShift } = useAuth();
   const { openModal } = useUI();
   const [elapsed, setElapsed] = useState(0);
@@ -142,7 +144,7 @@ const StaffDuty = () => {
         ) : (
           <button
             type="button"
-            onClick={handleClockIn}
+            onClick={() => confirmThen({ title: 'Start your shift?', message: 'You will be marked on duty and can receive assignments.', confirmText: 'Start shift' }, handleClockIn)}
             disabled={!shiftActionAvailable}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '1rem', background: 'var(--admin-brand)', border: 'none', color: 'var(--admin-text-on-brand)', borderRadius: '8px', fontWeight: '900', fontSize: '0.85rem', cursor: shiftActionAvailable ? 'pointer' : 'not-allowed', opacity: shiftActionAvailable ? 1 : 0.55, textTransform: 'uppercase' }}
           >
