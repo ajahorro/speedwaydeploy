@@ -157,7 +157,7 @@ const StaffJobDetails = () => {
               {unit.services?.map((s, i) => (
                 <div key={i} style={{ flex: '1 1 200px', background: 'var(--admin-bg)', padding: '1rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
                   <div style={{ fontSize: '0.85rem', fontWeight: '900', color: 'var(--admin-text-primary)' }}>{s.service_name}</div>
-                  <div style={{ fontSize: '0.65rem', color: '#444', fontWeight: '700', marginTop: '0.25rem' }}>PROFESSIONAL GRADE</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '700', marginTop: '0.25rem' }}>PROFESSIONAL GRADE</div>
                 </div>
               ))}
             </div>
@@ -224,9 +224,9 @@ const StaffJobDetails = () => {
                 ))}
               </div>
             ) : (
-              <div style={{ height: '150px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: 'var(--admin-bg)', borderRadius: '4px', border: '1px dashed rgba(255,255,255,0.1)' }}>
-                <Info size={24} color="#333" />
-                <div style={{ fontSize: '0.65rem', color: '#444', fontWeight: '950' }}>NO EVIDENCE PHOTOS AVAILABLE</div>
+              <div style={{ height: '150px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: 'var(--admin-bg)', borderRadius: '4px', border: '1px dashed var(--admin-border)' }}>
+                <Info size={24} color="var(--admin-text-secondary)" />
+                <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '950' }}>NO EVIDENCE PHOTOS AVAILABLE</div>
               </div>
             )}
           </section>

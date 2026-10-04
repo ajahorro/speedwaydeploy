@@ -57,9 +57,9 @@ const AttentionCard = React.memo(({ count, label, icon: Icon, color, bg, onClick
 
 const getQueueStatusStyle = status => {
   const normalized = String(status || '').toLowerCase();
-  if (normalized === 'scheduled') return { background: 'rgba(59, 130, 246, 0.1)', border: 'rgba(59, 130, 246, 0.28)', color: '#93c5fd' };
-  if (normalized === 'confirmed') return { background: 'rgba(16, 185, 129, 0.1)', border: 'rgba(16, 185, 129, 0.28)', color: '#6ee7b7' };
-  return { background: 'rgba(168, 85, 247, 0.1)', border: 'rgba(168, 85, 247, 0.28)', color: '#d8b4fe' };
+  if (normalized === 'scheduled') return { background: 'rgba(59, 130, 246, 0.1)', border: 'rgba(59, 130, 246, 0.28)', color: 'var(--status-info)' };
+  if (normalized === 'confirmed') return { background: 'rgba(16, 185, 129, 0.1)', border: 'rgba(16, 185, 129, 0.28)', color: 'var(--status-success)' };
+  return { background: 'rgba(168, 85, 247, 0.1)', border: 'rgba(168, 85, 247, 0.28)', color: 'var(--status-accent)' };
 };
 
 const AdminDashboard = () => {

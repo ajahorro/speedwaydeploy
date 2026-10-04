@@ -130,7 +130,7 @@ const StaffWorkHistory = () => {
           gap: '1.25rem'
         }}>
           <div style={{ position: 'relative', width: isMobile ? '100%' : '300px' }}>
-            <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#444' }} />
+            <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
             <input
               type="text"
               placeholder="Search by Plate or Model..."
@@ -187,14 +187,14 @@ const StaffWorkHistory = () => {
                     {item.services?.slice(0, 3).map((s, i) => (
                       <span key={i} style={{ fontSize: '0.6rem', color: 'var(--admin-text-secondary)', background: 'rgba(255,255,255,0.03)', padding: '0.2rem 0.5rem', borderRadius: '2px' }}>{s.service_name}</span>
                     ))}
-                    {item.services?.length > 3 && <span style={{ fontSize: '0.6rem', color: '#444' }}>+{item.services.length - 3} more</span>}
+                    {item.services?.length > 3 && <span style={{ fontSize: '0.6rem', color: 'var(--admin-text-secondary)' }}>+{item.services.length - 3} more</span>}
                   </div>
                 </div>
               ))
             ) : (
               <div style={{ padding: '5rem', textAlign: 'center' }}>
                 <History size={48} style={{ margin: '0 auto 1.5rem', opacity: 0.1 }} />
-                <div style={{ fontSize: '0.9rem', color: '#444', fontWeight: '950', textTransform: 'uppercase' }}>No history records</div>
+                <div style={{ fontSize: '0.9rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase' }}>No history records</div>
               </div>
             )}
           </div>
@@ -226,7 +226,7 @@ const StaffWorkHistory = () => {
                         </div>
                         <div>
                           <div style={{ fontSize: '0.9rem', textTransform: 'uppercase' }}>{item.brand} {item.model}</div>
-                          <div style={{ fontSize: '0.6rem', color: '#444', textTransform: 'uppercase' }}>Unit ID: {item.id.slice(0, 8)}</div>
+                          <div style={{ fontSize: '0.6rem', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Unit ID: {item.id.slice(0, 8)}</div>
                         </div>
                       </div>
                     </td>
@@ -269,7 +269,7 @@ const StaffWorkHistory = () => {
                 <tr>
                   <td colSpan="5" style={{ padding: '5rem', textAlign: 'center' }}>
                     <History size={48} style={{ margin: '0 auto 1.5rem', opacity: 0.1 }} />
-                    <div style={{ fontSize: '0.9rem', color: '#444', fontWeight: '950', textTransform: 'uppercase' }}>No history records found</div>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase' }}>No history records found</div>
                   </td>
                 </tr>
               )}

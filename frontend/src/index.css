@@ -55,6 +55,8 @@
   --status-success-border: rgba(16, 185, 129, 0.35);
   --status-warning: #f59e0b;
   --status-danger: #ef4444;
+  --status-info: #60a5fa;
+  --status-accent: #a78bfa;
 
   /* ── Aliases & radius scale ──────────────────────────────────────────
      Batch 7.4: these were referenced across the app but never defined, so
@@ -101,6 +103,8 @@
   --status-success-border: rgba(4, 120, 87, 0.30);
   --status-warning: #b45309;
   --status-danger: #b91c1c;
+  --status-info: #1d4ed8;
+  --status-accent: #6d28d9;
 
   /* Light-theme aliases follow the WCAG-safe values above. */
   --admin-success: var(--status-success);

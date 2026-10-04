@@ -166,13 +166,13 @@ export const getPaymentStatusUI = (status) => {
     case 'REFUNDED':
       return { label: 'REFUNDED', color: 'var(--status-danger)' };
     case 'PARTIALLY_REFUNDED':
-      return { label: 'PARTIAL REFUND', color: '#f59e0b' };
+      return { label: 'PARTIAL REFUND', color: 'var(--status-warning)' };
     case 'VERIFYING':
-      return { label: 'VERIFYING', color: '#8b5cf6' };
+      return { label: 'VERIFYING', color: 'var(--status-accent)' };
     case 'NO_CHARGE':
       return { label: 'NO CHARGE', color: 'var(--admin-text-secondary)' };
     case 'DOWNPAYMENT_PAID':
-      return { label: 'DOWNPAYMENT', color: '#3b82f6' };
+      return { label: 'DOWNPAYMENT', color: 'var(--status-info)' };
     default:
       return { label: 'UNPAID', color: 'var(--status-danger)' };
   }
@@ -205,7 +205,7 @@ export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
       statusKey: 'FLEET_BILLING',
       text: 'Billed to Corporate Account',
       shortText: 'Fleet Billed',
-      color: '#8b5cf6',
+      color: 'var(--status-accent)',
       balance,
       subtext: 'Account Invoice Pending',
     };
@@ -216,7 +216,7 @@ export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
       statusKey: 'REFUNDED',
       text: 'Refunded',
       shortText: 'Refunded',
-      color: '#ef4444',
+      color: 'var(--status-danger)',
       balance: 0,
     };
   }
@@ -226,7 +226,7 @@ export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
       statusKey: 'UNPAID',
       text: `Unpaid \u2014 \u20b1${totalAmount.toLocaleString()} outstanding`,
       shortText: 'Unpaid',
-      color: '#ef4444',
+      color: 'var(--status-danger)',
       balance: totalAmount,
       subtext: `Full amount \u20b1${totalAmount.toLocaleString()} outstanding`,
     };
@@ -237,7 +237,7 @@ export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
       statusKey: 'FULLY_PAID',
       text: 'Fully Paid',
       shortText: 'Paid',
-      color: '#10b981',
+      color: 'var(--status-success)',
       balance: 0,
     };
   }
@@ -246,7 +246,7 @@ export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
     statusKey: 'PARTIALLY_PAID',
     text: `Partially Paid \u2014 \u20b1${balance.toLocaleString()} remaining`,
     shortText: 'Partial',
-    color: '#f59e0b',
+    color: 'var(--status-warning)',
     balance,
     subtext: `\u20b1${balance.toLocaleString()} remaining`,
   };

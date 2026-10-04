@@ -23,10 +23,19 @@
 /* --- Global Responsive Resets --- */
 /* In the `base` layer so Tailwind size utilities (e.g. icon `size-4`) win. */
 @layer base {
-  img, video, canvas, svg {
+  img, video, canvas {
     max-width: 100%;
     height: auto;
     display: block;
+  }
+
+  /* Icons are inline: as blocks they stuck to the left edge of any centred
+     container (empty states, cards) instead of sitting above their text. */
+  svg {
+    max-width: 100%;
+    height: auto;
+    display: inline-block;
+    vertical-align: middle;
   }
 }
 
