@@ -3999,7 +3999,9 @@ app.post('/api/bookings/undo-no-show', async (req, res) => {
 
 
 app.post('/api/bookings/add-service', async (req, res) => {
-  const { bookingId, vehicleId, serviceName, price, durationMinutes = 60, paymentAmount, paymentType = 'Downpayment', paymentMethod = 'Cash', referenceNumber = '' } = req.body;
+  const { bookingId, vehicleId, serviceName, price, durationMinutes = 60, paymentAmount, paymentMethod = 'Cash', referenceNumber = '' } = req.body;
+  // payments.payment_type is an enum (Full | Downpayment | Manual); accept any casing.
+  const paymentType = { full: 'Full', downpayment: 'Downpayment', manual: 'Manual' }[String(req.body.paymentType || 'Downpayment').trim().toLowerCase()] || 'Downpayment';
   const actor = await getLifecycleActor(req);
   if (!actor) return res.status(403).json({ success: false, error: 'Authorized admin or staff account required.' });
   try {
