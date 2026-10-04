@@ -4,6 +4,35 @@ import { useGlobalChat } from '../context/ChatContext';
 import { useAuth } from '../hooks/useAuth';
 import BookingChat from './BookingChat';
 
+const BUBBLE = 58;        // bubble diameter in px
+const EDGE = 8;           // the bubble always keeps this gap from every screen edge
+const DEFAULT_GAP = 20;   // first position: bottom-right, like before
+const POSITION_KEY = 'comar-chat-bubble-position';
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), Math.max(min, max));
+
+// Position is stored as a fraction (0..1) of the free area, so it survives window
+// resizes and rotation and can never end up outside the screen.
+const readStoredPosition = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(POSITION_KEY) || 'null');
+    if (parsed && Number.isFinite(parsed.fx) && Number.isFinite(parsed.fy)) {
+      return { fx: clamp(parsed.fx, 0, 1), fy: clamp(parsed.fy, 0, 1) };
+    }
+  } catch { /* storage unavailable */ }
+  return null;
+};
+
+const defaultPosition = (vw, vh) => ({
+  fx: (vw - BUBBLE - DEFAULT_GAP - EDGE) / Math.max(1, vw - BUBBLE - 2 * EDGE),
+  fy: (vh - BUBBLE - DEFAULT_GAP - EDGE) / Math.max(1, vh - BUBBLE - 2 * EDGE)
+});
+
+const toPixels = (pos, vw, vh) => ({
+  x: EDGE + clamp(pos.fx, 0, 1) * Math.max(0, vw - BUBBLE - 2 * EDGE),
+  y: EDGE + clamp(pos.fy, 0, 1) * Math.max(0, vh - BUBBLE - 2 * EDGE)
+});
+
 const FloatingBubbleChat = () => {
   const {
     isOpen,
@@ -16,12 +45,25 @@ const FloatingBubbleChat = () => {
     openChatForCustomer
   } = useGlobalChat();
   const { user, profile } = useAuth();
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [viewport, setViewport] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
+  const [position, setPosition] = useState(() => readStoredPosition() || defaultPosition(window.innerWidth, window.innerHeight));
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ pointerId: null, startX: 0, startY: 0, originX: 0, originY: 0, moved: false });
+  const positionRef = useRef(position);
+  positionRef.current = position;
   const chatRef = useRef(null);
   const bubbleRef = useRef(null);
   const closeTimerRef = useRef(null);
+
+  useEffect(() => {
+    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -59,12 +101,13 @@ const FloatingBubbleChat = () => {
   const unreadCustomerIds = Object.keys(threadUnread || {}).filter(threadId => threadUnread[threadId] > 0);
 
   const handlePointerDown = (event) => {
+    const origin = toPixels(positionRef.current, window.innerWidth, window.innerHeight);
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      originX: offset.x,
-      originY: offset.y,
+      originX: origin.x,
+      originY: origin.y,
       moved: false
     };
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -73,18 +116,28 @@ const FloatingBubbleChat = () => {
 
   const handlePointerMove = (event) => {
     if (dragRef.current.pointerId !== event.pointerId) return;
-    const nextX = dragRef.current.originX + event.clientX - dragRef.current.startX;
-    const nextY = dragRef.current.originY + event.clientY - dragRef.current.startY;
     if (Math.abs(event.clientX - dragRef.current.startX) > 5 || Math.abs(event.clientY - dragRef.current.startY) > 5) {
       dragRef.current.moved = true;
     }
-    setOffset({ x: nextX, y: nextY });
+    if (!dragRef.current.moved) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const x = clamp(dragRef.current.originX + event.clientX - dragRef.current.startX, EDGE, vw - BUBBLE - EDGE);
+    const y = clamp(dragRef.current.originY + event.clientY - dragRef.current.startY, EDGE, vh - BUBBLE - EDGE);
+    setPosition({
+      fx: (x - EDGE) / Math.max(1, vw - BUBBLE - 2 * EDGE),
+      fy: (y - EDGE) / Math.max(1, vh - BUBBLE - 2 * EDGE)
+    });
   };
 
   const handlePointerUp = (event) => {
     if (dragRef.current.pointerId !== event.pointerId) return;
     event.currentTarget.releasePointerCapture(event.pointerId);
     setIsDragging(false);
+
+    if (dragRef.current.moved) {
+      try { localStorage.setItem(POSITION_KEY, JSON.stringify(positionRef.current)); } catch { /* storage unavailable */ }
+    }
 
     if (!dragRef.current.moved) {
       if (isOpen) {
@@ -101,10 +154,31 @@ const FloatingBubbleChat = () => {
     dragRef.current.pointerId = null;
   };
 
+  const bubble = toPixels(position, viewport.w, viewport.h);
+
+  // The open panel sits on whichever side of the bubble has room, and never
+  // leaves the screen: above if there is space, otherwise below; aligned to the
+  // bubble's right edge on the right half of the screen, left edge on the left.
+  const placePanel = (width, height) => {
+    const w = Math.min(width, viewport.w - 2 * EDGE);
+    const h = Math.min(height, viewport.h - 2 * EDGE);
+    const roomAbove = bubble.y - 12 - EDGE;
+    const roomBelow = viewport.h - (bubble.y + BUBBLE + 12) - EDGE;
+    const above = roomAbove >= h || roomAbove >= roomBelow;
+    const top = above ? Math.max(EDGE, bubble.y - 12 - h) : Math.min(viewport.h - EDGE - h, bubble.y + BUBBLE + 12);
+    const onRightHalf = bubble.x + BUBBLE / 2 > viewport.w / 2;
+    const left = clamp(onRightHalf ? bubble.x + BUBBLE - w : bubble.x, EDGE, viewport.w - EDGE - w);
+    return { position: 'fixed', top, left, width: w, height: h, zIndex: 9999 };
+  };
+
+  const chatWidth = Math.min(420, Math.max(300, viewport.w * 0.9));
+  const chatHeight = Math.min(620, Math.max(400, viewport.h * 0.78));
+  const hintWidth = Math.min(360, Math.max(280, viewport.w * 0.85));
+
   return (
-    <div style={{ position: 'fixed', right: '1.25rem', bottom: '1.25rem', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', transform: `translate(${offset.x}px, ${offset.y}px)`, touchAction: 'none' }}>
+    <>
       {isOpen && activeCustomerId && (
-        <div ref={chatRef} style={{ width: 'clamp(300px, 90vw, 420px)', height: 'clamp(400px, 78vh, 620px)', marginBottom: '0.75rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div ref={chatRef} style={{ ...placePanel(chatWidth, chatHeight), background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)' }}>
             <span style={{ fontWeight: '900', fontSize: '0.8rem' }}>
               {activeBookingId ? `Booking #${activeBookingId.slice(0, 8).toUpperCase()}` : 'Support Chat'}
@@ -120,11 +194,12 @@ const FloatingBubbleChat = () => {
       {/* Keep the chat bubble as the sole affordance; no small side popup is
           shown while the thread remains closed. Users can see the unread badge on the bubble itself. */}
       {isOpen && !activeCustomerId && (
-        <div style={{ width: 'clamp(280px, 85vw, 360px)', marginBottom: '0.75rem', padding: '1.25rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '700' }}>
+        <div style={{ ...placePanel(hintWidth, 80), height: 'auto', padding: '1.25rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '700' }}>
           Open a booking to start a support conversation.
         </div>
       )}
 
+      <div style={{ position: 'fixed', left: bubble.x, top: bubble.y, width: BUBBLE, height: BUBBLE, zIndex: 10000, touchAction: 'none' }}>
       <button
         ref={bubbleRef}
         type="button"
@@ -132,12 +207,13 @@ const FloatingBubbleChat = () => {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        style={{ width: '58px', height: '58px', border: 'none', borderRadius: '50%', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', display: 'grid', placeItems: 'center', cursor: isDragging ? 'grabbing' : 'grab', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', position: 'relative' }}
+        style={{ width: '100%', height: '100%', border: 'none', borderRadius: '50%', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', display: 'grid', placeItems: 'center', cursor: isDragging ? 'grabbing' : 'grab', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', position: 'relative' }}
       >
         <MessageCircle size={26} />
         {globalUnreadCount > 0 && !isOpen && <span style={{ position: 'absolute', top: '-4px', left: '-4px', minWidth: '21px', height: '21px', padding: '0 4px', borderRadius: '999px', background: 'var(--status-danger)', color: 'var(--admin-text-on-status)', border: '2px solid var(--admin-bg)', display: 'grid', placeItems: 'center', fontSize: '0.65rem', fontWeight: '900' }}>{globalUnreadCount > 99 ? '99+' : globalUnreadCount}</span>}
       </button>
-    </div>
+      </div>
+    </>
   );
 };
 
