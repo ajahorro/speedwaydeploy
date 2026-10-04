@@ -76,14 +76,11 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
     // Persist the snapshot onto the booking row when we already have one
     // (reschedule / admin / draft). For a brand-new customer booking the row is
-    // written at submit time and the snapshot is stored then.
+    // written at submit time and the snapshot is stored then. The server builds
+    // the persisted snapshot from its own business_config.
     if (existingBookingId) {
-      captureQrSnapshot(existingBookingId, {
-        qr_account_name: snapshot.QR_ACCOUNT_NAME,
-        qr_account_number: snapshot.QR_ACCOUNT_NUMBER,
-        gcash_qr_url: snapshot.PAYMENT_QR_URL,
-        qr_config_version: snapshot.QR_CONFIG_VERSION,
-      }).catch((err) => logger.warn('QR snapshot capture skipped', err));
+      captureQrSnapshot(existingBookingId)
+        .catch((err) => logger.warn('QR snapshot capture skipped', err));
     }
     // Intentionally depends only on the booking id: the snapshot must NOT be
     // refreshed by a live settings change mid-checkout.

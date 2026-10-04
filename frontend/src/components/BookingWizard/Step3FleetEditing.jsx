@@ -4,7 +4,19 @@ import toast from 'react-hot-toast';
 import Step2Services from './Step2Services';
 import { supabase } from '../../lib/supabase';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
+import { fetchScheduleOccupancy } from '../../services/scheduleService';
 import { SHOP_CONFIG, sanitizeVehiclePlate, sanitizeVehicleText } from '../../config/constants';
+
+const NON_OCCUPYING_BOOKING_STATUSES = ['CANCELLED', 'RELEASED', 'COMPLETED'];
+const NON_OCCUPYING_VEHICLE_STATUSES = ['COMPLETED', 'RELEASED'];
+
+// Vehicles still holding a bay in [start, end), across ALL customers' bookings.
+const fetchExternalVehicles = async (start, end) => {
+  const occupancy = await fetchScheduleOccupancy(start.toISOString(), end.toISOString());
+  return occupancy
+    .filter(booking => !NON_OCCUPYING_BOOKING_STATUSES.includes(String(booking.status || '').toUpperCase()))
+    .flatMap(booking => (booking.vehicles || []).filter(vehicle => !NON_OCCUPYING_VEHICLE_STATUSES.includes(String(vehicle.status || '').toUpperCase())));
+};
 
 const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, setActiveVehicleIndex, setCurrentStep, onNext, onBack, isSubTaskActive, setIsSubTaskActive, onCancel }) => {
   // useMemo so the identity is STABLE across renders: a bare `|| []` was a new
@@ -39,13 +51,14 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
         const currentDuration = vehicles.reduce((longest, vehicle) => Math.max(longest, (vehicle.services || []).reduce((sum, service) => sum + Number(service.durationMinutes || 60), 0)), 0) || 60;
         if (!Number.isNaN(start.getTime())) {
           const end = new Date(start.getTime() + (currentDuration + 60) * 60000);
-          const { data: existingBookings } = await supabase
-            .from('bookings')
-            .select('start_datetime, end_datetime, status, vehicles:booking_vehicles(vehicle_type, status)')
-            .lt('start_datetime', end.toISOString())
-            .gt('end_datetime', start.toISOString())
-            .not('status', 'in', '(cancelled,CANCELLED,released,RELEASED,completed,COMPLETED)');
-          externalVehicles = (existingBookings || []).flatMap(booking => (booking.vehicles || []).filter(vehicle => !['COMPLETED', 'RELEASED'].includes(String(vehicle.status || '').toUpperCase())));
+          try {
+            externalVehicles = await fetchExternalVehicles(start, end);
+          } catch {
+            // Unknown occupancy: keep the snapshot in its loading state so the
+            // UI does not advertise capacity it could not verify. canAddVehicle
+            // re-checks (and refuses) when the user actually adds a vehicle.
+            return;
+          }
         }
       }
       if (active) setCapacityContext({ maxBays, externalVehicles, loading: false });
@@ -73,13 +86,11 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
       const start = parseBookingDateTime(bookingData.date, bookingData.time);
       if (Number.isNaN(start.getTime())) return false;
       const end = new Date(start.getTime() + durationMinutes * 60000);
-      const { data: existingBookings } = await supabase
-        .from('bookings')
-        .select('id, start_datetime, end_datetime, vehicles:booking_vehicles(vehicle_type, status)')
-        .lt('start_datetime', end.toISOString())
-        .gt('end_datetime', start.toISOString())
-        .not('status', 'in', '(cancelled,CANCELLED,released,RELEASED,completed,COMPLETED)');
-      externalVehicles = (existingBookings || []).flatMap(booking => (booking.vehicles || []).filter(vehicle => !['COMPLETED', 'RELEASED'].includes(String(vehicle.status || '').toUpperCase())));
+      try {
+        externalVehicles = await fetchExternalVehicles(start, end);
+      } catch {
+        return false;
+      }
     }
     return calculateBayUsage([
       ...externalVehicles,
