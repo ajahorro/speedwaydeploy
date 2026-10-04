@@ -132,6 +132,18 @@ export const fetchLedgerTransactions = async ({ from, to, kind = 'settled', meth
   return { rows: (data || []).map(normalizePaymentLedger), total: count || 0 };
 };
 
+/** Every ledger transaction (payments and refunds) for one booking, oldest first. */
+export const fetchBookingTransactions = async (bookingId) => {
+  if (!bookingId) return [];
+  const { data, error } = await supabase
+    .from('payment_ledger_v')
+    .select('*')
+    .eq('booking_id', bookingId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data || []).map(normalizePaymentLedger);
+};
+
 /** Downpayment required for a total that is not saved yet (wizard preview). */
 export const fetchRequiredDownpayment = async (total) => {
   const { data, error } = await supabase.rpc('booking_required_downpayment', { p_total: Number(total || 0) });

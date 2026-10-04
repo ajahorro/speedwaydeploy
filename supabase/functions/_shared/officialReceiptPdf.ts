@@ -3,6 +3,7 @@ import {
   resolveTransactionReceiptAmounts,
   type ReceiptPayment,
 } from '../../../shared/receiptModel.ts'
+import { RED, DARK, MUTED, PALE, RULE, currency, dateLabel, text, fillRect, line, assemblePdf } from './pdfDocument.ts'
 
 export interface OfficialReceiptPdfItem {
   vehicle?: string
@@ -20,52 +21,6 @@ export interface OfficialReceiptPdfInput {
   payment: ReceiptPayment
 }
 
-const escapePdfText = (value: unknown): string => String(value ?? '')
-  .normalize('NFKD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .replace(/[^\x20-\x7E]/g, '?')
-  .replace(/\\/g, '\\\\')
-  .replace(/\(/g, '\\(')
-  .replace(/\)/g, '\\)')
-
-const currency = (value: number): string =>
-  `PHP ${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-
-const dateLabel = (value?: string | null): string => {
-  if (!value) return new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
-  const date = new Date(value)
-  return Number.isNaN(date.getTime())
-    ? '-'
-    : date.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
-}
-
-const text = (
-  value: unknown,
-  x: number,
-  y: number,
-  size = 10,
-  font = 'F1',
-  color: [number, number, number] = [0.07, 0.09, 0.13],
-  align: 'left' | 'right' = 'left'
-): string => {
-  const safe = escapePdfText(value)
-  const estimatedWidth = safe.length * size * 0.5
-  const left = align === 'right' ? x - estimatedWidth : x
-  return `BT /${font} ${size} Tf ${color.join(' ')} rg 1 0 0 1 ${left.toFixed(2)} ${y.toFixed(2)} Tm (${safe}) Tj ET`
-}
-
-const fillRect = (x: number, y: number, width: number, height: number, color: [number, number, number]): string =>
-  `${color.join(' ')} rg ${x} ${y} ${width} ${height} re f`
-
-const line = (x1: number, y1: number, x2: number, y2: number, color: [number, number, number], width = 0.7): string =>
-  `${color.join(' ')} RG ${width} w ${x1} ${y1} m ${x2} ${y2} l S`
-
-const RED: [number, number, number] = [0.65, 0.11, 0.09]
-const DARK: [number, number, number] = [0.07, 0.09, 0.13]
-const MUTED: [number, number, number] = [0.42, 0.45, 0.50]
-const PALE: [number, number, number] = [0.97, 0.97, 0.98]
-const RULE: [number, number, number] = [0.88, 0.89, 0.91]
-
 const renderPage = (
   items: OfficialReceiptPdfItem[],
   pageIndex: number,
@@ -76,7 +31,7 @@ const renderPage = (
   const ops: string[] = []
   const amounts = resolveTransactionReceiptAmounts(input.payment)
   const receiptNumber = getReceiptNumber(input.payment)
-  const referenceId = input.payment.reference_number || input.payment.detected_ref || 'Not provided'
+  const referenceId = input.payment.reference || input.payment.reference_number || input.payment.detected_ref || 'Not provided'
   const left = 48
   const right = 564
 
@@ -85,7 +40,7 @@ const renderPage = (
   ops.push(text('123 Comar Garage Drive, Quezon City, Metro Manila', left, 710, 8, 'F1', MUTED))
   ops.push(text('OFFICIAL RECEIPT', right, 744, 10, 'F2', RED, 'right'))
   ops.push(text(`Receipt No. ${receiptNumber}`, right, 726, 9, 'F2', DARK, 'right'))
-  ops.push(text(dateLabel(input.payment.created_at), right, 710, 8, 'F1', MUTED, 'right'))
+  ops.push(text(dateLabel(input.payment.verified_at || input.payment.created_at), right, 710, 8, 'F1', MUTED, 'right'))
   ops.push(line(left, 694, right, 694, DARK, 1.4))
 
   ops.push(text('BILLED TO', left, 672, 7, 'F2', MUTED))
@@ -179,41 +134,5 @@ export const buildOfficialReceiptPdf = (input: OfficialReceiptPdfInput): string 
     renderPage(pageItems, index, pageCount, input, index === pageCount - 1)
   )
 
-  const objects: string[] = []
-  const pageObjectIds: number[] = []
-  objects.push('<< /Type /Catalog /Pages 2 0 R >>')
-  objects.push('') // The pages tree is filled after page objects are assigned.
-  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>')
-  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>')
-  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>')
-
-  for (const content of pageContents) {
-    const pageId = objects.length + 1
-    const streamId = pageId + 1
-    pageObjectIds.push(pageId)
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents ${streamId} 0 R >>`)
-    objects.push(`<< /Length ${new TextEncoder().encode(content).length} >>\nstream\n${content}\nendstream`)
-  }
-
-  objects[1] = `<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageObjectIds.length} >>`
-
-  let pdf = '%PDF-1.4\n'
-  const offsets = [0]
-  objects.forEach((object, index) => {
-    offsets.push(new TextEncoder().encode(pdf).length)
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`
-  })
-
-  const xrefStart = new TextEncoder().encode(pdf).length
-  pdf += `xref\n0 ${objects.length + 1}\n`
-  pdf += '0000000000 65535 f \n'
-  offsets.slice(1).forEach((offset) => {
-    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`
-  })
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`
-
-  const bytes = new TextEncoder().encode(pdf)
-  let binary = ''
-  bytes.forEach((byte) => { binary += String.fromCharCode(byte) })
-  return btoa(binary)
+  return assemblePdf(pageContents)
 }

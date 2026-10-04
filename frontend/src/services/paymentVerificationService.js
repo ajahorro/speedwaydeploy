@@ -13,23 +13,26 @@ import { normalizeBookingLedger } from './ledgerService';
  * assignment notices.
  */
 
-/** Advance booking status and staff task notices after a money change. */
-export const reconcilePaymentState = async (bookingId) => {
+/**
+ * Advance booking status and staff task notices after a money change. Passing
+ * the verified payment lets the server email its receipt (exactly once).
+ */
+export const reconcilePaymentState = async (bookingId, paymentId = null) => {
   const response = await fetch(`${BACKEND_URL}/api/bookings/reconcile-payment-state`, {
     method: 'POST',
     headers: await authHeaders(),
-    body: JSON.stringify({ bookingId })
+    body: JSON.stringify(paymentId ? { bookingId, paymentId } : { bookingId })
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.success) throw new Error(result.error || 'Booking workflow update failed.');
   return result;
 };
 
-const finish = async (bookingId, data) => {
+const finish = async (bookingId, data, paymentId = null) => {
   let reconciliation = null;
   let reconcileError = null;
   try {
-    reconciliation = await reconcilePaymentState(bookingId);
+    reconciliation = await reconcilePaymentState(bookingId, paymentId);
   } catch (error) {
     reconcileError = error;
   }
@@ -58,7 +61,7 @@ export const verifyPayment = async ({ payment, verifiedAmount, override = false,
     p_override: Boolean(override)
   });
   if (error) throw error;
-  return finish(payment.booking_id, data);
+  return finish(payment.booking_id, data, payment.id);
 };
 
 /**

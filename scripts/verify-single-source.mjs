@@ -23,8 +23,7 @@ const SCAN = [
 
 // Files allowed to keep legacy logic for one release (documented fallbacks).
 const ALLOWLIST = new Set([
-  'frontend/src/pages/Admin/AdminSalesReport.jsx', // classic report at /admin/finance/classic
-  'backend/services/transactionAmounts.js' // removed in Phase 2 (receipts move to shared/receiptModel)
+  'frontend/src/pages/Admin/AdminSalesReport.jsx' // classic report at /admin/finance/classic
 ]);
 
 const RULES = [

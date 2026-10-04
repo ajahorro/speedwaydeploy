@@ -101,21 +101,20 @@ const checks = [
 
 checks.push(
   ['function: in-progress and release milestones are emailable', /EMAILABLE_LIFECYCLE_EVENTS = new Set\(\[[\s\S]*?'booking_in_progress'[\s\S]*?'booking_released'/.test(fn)],
-  ['function: booking email idempotency remains keyed by event', /p_event:\s*lifecycleEvent/.test(fn) && /primary key \(booking_id, event\)/i.test(fs.readFileSync('supabase/migrations/20261019000003_booking_email_deliveries.sql', 'utf8'))],
+  ['function: booking email idempotency remains keyed by event (plus per-payment and settlement keys)', /await claim\(lifecycleEvent\)/.test(fn) && /p_event:\s*key/.test(fn) && /payment_verified:\$\{verifiedTransaction\.payment_id\}/.test(fn) && /claim\('booking_settled'\)/.test(fn) && /primary key \(booking_id, event\)/i.test(fs.readFileSync('supabase/migrations/20261019000003_booking_email_deliveries.sql', 'utf8'))],
   ['function: status updates include payment details', /paymentBlock\(amounts, extractOcrDetails\(booking, payment\)\)/.test(shared)],
-  ['function: receipts require verified payment status', /amounts\.verifiedGrossPaid > 0 && amounts\.verifiedRemainingBalance <= 0/.test(fn)],
-  ['function: official receipt metadata comes from a verified payment', /const verifiedPayment: PaymentLike \| null = \[\.\.\.payments\][\s\S]*?status \|\| ''\)\.toUpperCase\(\) === 'PAID'/.test(fn)],
+  ['function: transaction receipts require a verified (PAID) payment; the statement requires a fully settled ledger', /item\.payment_id === paymentId && item\.status === 'PAID'/.test(fn) && /mayCarryStatement && amounts\.fullySettled/.test(fn)],
+  ['function: official receipt metadata comes from the verified payment_ledger_v row', /const verifiedTransaction: LedgerTransaction \| null = paymentId[\s\S]*?status === 'PAID'/.test(fn) && /from\('payment_ledger_v'\)/.test(fn)],
+  ['function: email amounts come from the database ledger', /rpc\('booking_financial_ledger'/.test(fn) && !/\.reduce\(/.test(shared)],
   ['function: explicit reinstatement event key is stable across retries', /booking_reinstated:\$\{result\.statusUpdatedAt\}/.test(adminBookingDetails)],
-  ['shared: split verified payments aggregate to a settled booking', resolveAmounts(
-    { total_amount: 1000 },
-    { amount: 500, status: 'PAID' },
-    [{ amount: 500, status: 'PAID' }, { amount: 500, status: 'PAID' }]
-  ).verifiedRemainingBalance === 0],
-  ['shared: unverified balance payment does not qualify for an official receipt', resolveAmounts(
-    { total_amount: 1000 },
-    { amount: 500, status: 'FOR_VERIFICATION' },
-    [{ amount: 500, status: 'PAID' }, { amount: 500, status: 'FOR_VERIFICATION' }]
-  ).verifiedRemainingBalance === 500],
+  ['shared: a ledger settled by split verified payments maps to a settled booking', (() => {
+    const amounts = resolveAmounts({ expected_amount: 1000, verified_paid: 1000, service_balance_due: 0, fully_settled: true, submitted_gross_paid: 1000 }, { status: 'PAID' });
+    return amounts.verifiedRemainingBalance === 0 && amounts.fullySettled === true && amounts.paymentStatus === 'PAID';
+  })()],
+  ['shared: unverified balance payment does not qualify for an official receipt', (() => {
+    const amounts = resolveAmounts({ expected_amount: 1000, verified_paid: 500, service_balance_due: 500, fully_settled: false, has_pending_verification: true, submitted_gross_paid: 1000 }, { status: 'FOR_VERIFICATION' });
+    return amounts.verifiedRemainingBalance === 500 && amounts.fullySettled === false && amounts.paymentStatus === 'FOR_VERIFICATION';
+  })()],
   ['receipt: PDF uses the transaction receipt structure and transaction-level details', [
     '/BaseFont /Helvetica-Bold',
     'COMAR GARAGE',

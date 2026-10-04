@@ -136,79 +136,54 @@ const formatDateTime = (value: unknown): string => {
   return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' });
 };
 
-// ── Money model (mirrors frontend/src/utils/paymentAmounts.js) ──────────────
+// ── Money model: the database ledger ────────────────────────────────────────
 
 /**
- * The TRANSFER FEE is not a shortfall: the customer paid it, the bank kept it
- * in transit. Crediting the booking with the gross keeps a cross-bank transfer
- * from reading as short-paid.
+ * Row from booking_financial_ledger(booking_id) / public.booking_ledger_v.
+ * Every amount in a customer email is read from here, so emails always match
+ * the portal, the admin screens and the financial reports.
+ */
+export type LedgerLike = Record<string, unknown>
+
+/**
+ * Email amounts, mapped from the ledger (no payment-row arithmetic here).
  *
- * PRICING: flat and TAX-FREE. This module applies no VAT and no
- * percentage-based tax split. The booking total is the price, full stop.
+ *   "submitted" figures include receipts still awaiting verification (used by
+ *   the booking-created mail); "verified" figures count accepted money only.
+ *   Transfer fees are shown to the customer but never credited to the booking
+ *   (net-received rule, shared with public.payment_net_received()).
  *
- * (History: this file previously derived a 12% split as `base = gross / 1.12`,
- * and before that divided by 112 as though the rate were 12 of 112 = 10.71%,
- * which understated the tax. Both are removed — the receipt no longer prints a
- * tax line, so there is nothing to compute.)
+ * PRICING: flat and tax-free; the booking total is the amount due.
  */
 export const resolveAmounts = (
-  booking: BookingLike = {},
-  payment: PaymentLike | null = null,
-  allPayments: PaymentLike[] = payment ? [payment] : []
+  ledger: LedgerLike | null | undefined,
+  payment: PaymentLike | null = null
 ) => {
-  const bookingTotal = num(booking?.total_amount);
-  const activePayments = allPayments.filter((item) => {
-    const status = String(item.status || '').toUpperCase();
-    return !status || status === 'PAID' || status === 'FOR_VERIFICATION';
-  });
-  const totalsFor = (rows: PaymentLike[]) => rows.reduce((totals, item) => {
-    const declared = num(item.amount);
-    const detectedNet = num(item.detected_amount);
-    const recordedNet = num(item.net_credit);
-    const transferFee = Math.max(0, num(item.transfer_fee));
-    const netReceived = detectedNet > 0 ? detectedNet : (recordedNet > 0 ? recordedNet : declared);
-    const grossPaid = detectedNet > 0
-      ? round2(detectedNet + transferFee)
-      : (declared > 0 ? declared : netReceived);
-    return {
-      grossPaid: totals.grossPaid + grossPaid,
-      netReceived: totals.netReceived + netReceived,
-      transferFee: totals.transferFee + transferFee,
-      creditApplied: totals.creditApplied + Math.max(0, num(item.credit_applied)),
-    };
-  }, { grossPaid: 0, netReceived: 0, transferFee: 0, creditApplied: 0 });
-
-  const submitted = totalsFor(activePayments);
-  const verified = totalsFor(activePayments.filter((item) => String(item.status || '').toUpperCase() === 'PAID'));
-  const netApplied = round2(submitted.netReceived + submitted.creditApplied);
-  const creditedToBooking = round2(netApplied + submitted.transferFee);
-  const verifiedCreditedToBooking = round2(verified.netReceived + verified.creditApplied + verified.transferFee);
+  const row = ledger || {};
+  const hasPending = Boolean(row.has_pending_verification);
+  const verifiedPaid = num(row.verified_paid);
+  const submittedGross = num(row.submitted_gross_paid);
 
   return {
-    bookingTotal,
-    totalDue: bookingTotal,
-    grossPaid: round2(submitted.grossPaid),
-    netReceived: round2(submitted.netReceived),
-    transferFee: round2(submitted.transferFee),
-    creditApplied: round2(submitted.creditApplied),
-    netApplied,
-    creditedToBooking,
-    remainingBalance: Math.max(0, round2(bookingTotal - creditedToBooking)),
-    excessCredit: Math.max(0, round2(creditedToBooking - bookingTotal)),
-    verifiedGrossPaid: round2(verified.grossPaid),
-    verifiedNetReceived: round2(verified.netReceived),
-    verifiedTransferFee: round2(verified.transferFee),
-    verifiedCreditApplied: round2(verified.creditApplied),
-    verifiedRemainingBalance: Math.max(0, round2(bookingTotal - verifiedCreditedToBooking)),
-    verifiedExcessCredit: Math.max(0, round2(verifiedCreditedToBooking - bookingTotal)),
-    // No vatIncluded / vatExclusiveSales. Pricing is flat and tax-free, so the
-    // booking total IS the amount due. Any template still reading those keys gets
-    // `undefined`, which surfaces immediately rather than printing a silent zero.
-    paymentStatus: activePayments.some((item) => String(item.status || '').toUpperCase() === 'FOR_VERIFICATION')
+    bookingTotal: num(row.expected_amount),
+    totalDue: num(row.expected_amount),
+    grossPaid: round2(submittedGross),
+    netReceived: round2(num(row.submitted_net_received)),
+    transferFee: round2(num(row.submitted_transfer_fee)),
+    creditApplied: round2(num(row.credit_applied)),
+    creditedToBooking: round2(num(row.submitted_net_received)),
+    remainingBalance: round2(num(row.submitted_balance_due)),
+    excessCredit: round2(num(row.submitted_excess)),
+    verifiedGrossPaid: round2(num(row.verified_gross_paid)),
+    verifiedNetReceived: round2(verifiedPaid),
+    verifiedRemainingBalance: round2(num(row.service_balance_due)),
+    verifiedExcessCredit: round2(num(row.excess_amount)),
+    fullySettled: Boolean(row.fully_settled),
+    paymentStatus: hasPending
       ? 'FOR_VERIFICATION'
-      : String(payment?.status || activePayments.at(-1)?.status || '').toUpperCase(),
-    paymentMethod: payment?.method || booking?.payment_method || '—',
-    hasPayment: activePayments.length > 0,
+      : verifiedPaid > 0 ? 'PAID' : String(payment?.status || '').toUpperCase(),
+    paymentMethod: payment?.method || '—',
+    hasPayment: submittedGross > 0 || hasPending,
   };
 };
 
@@ -332,7 +307,7 @@ const paymentBlock = (
   rows.push(`<tr><td style="padding:10px 14px;color:#6b7280;font-size:13px;">Amount Paid</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.grossPaid)}</td></tr>`);
 
   if (amounts.transferFee > 0) {
-    rows.push(`<tr><td style="padding:10px 14px;color:#6b7280;font-size:13px;">Transfer Fee (absorbed)</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.transferFee)}</td></tr>`);
+    rows.push(`<tr><td style="padding:10px 14px;color:#6b7280;font-size:13px;">Transfer Fee (charged by your bank)</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.transferFee)}</td></tr>`);
     rows.push(`<tr><td style="padding:10px 14px;color:#6b7280;font-size:13px;">Amount Received</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.netReceived)}</td></tr>`);
   }
 
@@ -408,13 +383,13 @@ const ctaButton = (booking: BookingLike, label: string): string => {
  * The SUBMISSION email: booking + payment as submitted (OCR detail included),
  * explicitly NOT yet verified.
  */
-export const buildBookingCreatedEmail = ({ booking, payment, payments, customerName }: {
+export const buildBookingCreatedEmail = ({ booking, payment, ledger, customerName }: {
   booking: BookingLike
   payment?: PaymentLike | null
-  payments?: PaymentLike[]
+  ledger?: LedgerLike | null
   customerName?: string | null
 }) => {
-  const amounts = resolveAmounts(booking, payment, payments);
+  const amounts = resolveAmounts(ledger, payment);
   const ocr = extractOcrDetails(booking, payment);
   const appointmentDate = formatDateTime(booking?.start_datetime);
 
@@ -441,14 +416,14 @@ export const buildBookingCreatedEmail = ({ booking, payment, payments, customerN
  * receipt may only be issued against VERIFIED money, so it must not ride on the
  * submission mail where the payment could still be rejected.
  */
-export const buildBookingConfirmedEmail = ({ booking, payment, payments, customerName, hasReceipt }: {
+export const buildBookingConfirmedEmail = ({ booking, payment, ledger, customerName, hasReceipt }: {
   booking: BookingLike
   payment?: PaymentLike | null
-  payments?: PaymentLike[]
+  ledger?: LedgerLike | null
   customerName?: string | null
   hasReceipt?: boolean
 }) => {
-  const amounts = resolveAmounts(booking, payment, payments);
+  const amounts = resolveAmounts(ledger, payment);
   const appointmentDate = formatDateTime(booking?.start_datetime);
 
   const body = `
@@ -468,6 +443,62 @@ export const buildBookingConfirmedEmail = ({ booking, payment, payments, custome
 
 const SITE_INTRO = 'Thank you for choosing Comar Garage.';
 
+/**
+ * PAYMENT RECEIVED: sent once per verified payment (claim key
+ * payment_verified:<payment id>) with that payment's transaction receipt.
+ */
+export const buildPaymentVerifiedEmail = ({ booking, payment, ledger, customerName, hasReceipt, hasStatement }: {
+  booking: BookingLike
+  payment?: PaymentLike | null
+  ledger?: LedgerLike | null
+  customerName?: string | null
+  hasReceipt?: boolean
+  hasStatement?: boolean
+}) => {
+  const amounts = resolveAmounts(ledger, payment);
+  const appointmentDate = formatDateTime(booking?.start_datetime);
+  const attachmentsNote = [
+    hasReceipt ? 'the official receipt for this payment' : null,
+    hasStatement ? 'your Statement of Account (the booking is now fully paid)' : null,
+  ].filter(Boolean).join(' and ');
+
+  const body = `
+    <p style="font-size:16px;">Hi ${escapeHtml(customerName)},</p>
+    <p style="font-size:15px;line-height:1.6;">We have verified your payment.${attachmentsNote ? ` Attached is ${escapeHtml(attachmentsNote)}.` : ''}</p>
+    ${bookingTable(booking, appointmentDate, amounts)}
+    ${paymentBlock(amounts, null, { includeOcr: false, receiptAttached: Boolean(hasReceipt) })}
+    ${ctaButton(booking, 'VIEW RECEIPT IN PORTAL')}`;
+
+  return {
+    subject: `Comar Garage: Payment received for booking #${String(booking?.id || '').slice(0, 8).toUpperCase()}${amounts.fullySettled ? ' — fully paid' : ''}`,
+    html: shell('Payment Received', body),
+    amounts,
+  };
+};
+
+/**
+ * FULLY PAID: sent once per booking (claim key booking_settled) when the ledger
+ * first reports fully_settled, carrying the cumulative Statement of Account.
+ */
+export const buildBookingSettledEmail = ({ booking, ledger, customerName }: {
+  booking: BookingLike
+  ledger?: LedgerLike | null
+  customerName?: string | null
+}) => {
+  const amounts = resolveAmounts(ledger, null);
+  const appointmentDate = formatDateTime(booking?.start_datetime);
+  const body = `
+    <p style="font-size:16px;">Hi ${escapeHtml(customerName)},</p>
+    <p style="font-size:15px;line-height:1.6;">Your booking is now fully paid. Your Statement of Account, listing every payment and refund, is attached.</p>
+    ${bookingTable(booking, appointmentDate, amounts)}
+    ${ctaButton(booking, 'VIEW IN PORTAL')}`;
+  return {
+    subject: `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} fully paid — Statement of Account`,
+    html: shell('Booking Fully Paid', body),
+    amounts,
+  };
+};
+
 const STATUS_COPY: Record<string, string> = {
   IN_PROGRESS: "Great news! We've started detailing your vehicle.",
   ONGOING: "Great news! We've started detailing your vehicle.",
@@ -478,16 +509,16 @@ const STATUS_COPY: Record<string, string> = {
 };
 
 /** A plain major status-change email; the lifecycle dispatcher may attach a settled receipt. */
-export const buildStatusEmail = ({ booking, payment, payments, customerName, newStatus, remarks }: {
+export const buildStatusEmail = ({ booking, payment, ledger, customerName, newStatus, remarks }: {
   booking: BookingLike
   payment?: PaymentLike | null
-  payments?: PaymentLike[]
+  ledger?: LedgerLike | null
   customerName?: string | null
   newStatus?: string | null
   remarks?: string | null
 }): { subject: string; html: string; amounts: ReturnType<typeof resolveAmounts> } => {
   const statusKey = String(newStatus || '').toUpperCase();
-  const amounts = resolveAmounts(booking, payment, payments);
+  const amounts = resolveAmounts(ledger, payment);
   const appointmentDate = formatDateTime(booking?.start_datetime);
 
   const body: string = `
@@ -507,13 +538,13 @@ export const buildStatusEmail = ({ booking, payment, payments, customerName, new
 };
 
 /** The reminder mail (scheduled) — unchanged content, shared chrome. */
-export const buildReminderEmail = ({ booking, payment, payments, customerName }: {
+export const buildReminderEmail = ({ booking, payment, ledger, customerName }: {
   booking: BookingLike
   payment?: PaymentLike | null
-  payments?: PaymentLike[]
+  ledger?: LedgerLike | null
   customerName?: string | null
 }) => {
-  const amounts = resolveAmounts(booking, payment, payments);
+  const amounts = resolveAmounts(ledger, payment);
   const appointmentDate = formatDateTime(booking?.start_datetime);
 
   const body = `
@@ -548,6 +579,8 @@ export const notificationCopyFor = (
       type: 'BOOKING_CREATED',
     },
     CONFIRMED: { title: 'Booking Confirmed', message: `Your appointment #${bookingRef} has been confirmed. Your receipt is in your portal.`, type: 'BOOKING_CONFIRMED' },
+    PAYMENT_VERIFIED: { title: 'Payment Received', message: `We verified your payment for booking #${bookingRef}. Your receipt is in your portal.`, type: 'PAYMENT_APPROVED' },
+    BOOKING_SETTLED: { title: 'Booking Fully Paid', message: `Booking #${bookingRef} is fully paid. Your Statement of Account is in your portal.`, type: 'BOOKING_SETTLED' },
     IN_PROGRESS: { title: 'Service Started', message: `Work has started on booking #${bookingRef}.`, type: 'SERVICE_STARTED' },
     ONGOING: { title: 'Service Started', message: `Work has started on booking #${bookingRef}.`, type: 'SERVICE_STARTED' },
     COMPLETED: { title: 'Service Completed', message: `Service for booking #${bookingRef} is complete and ready for pickup.`, type: 'SERVICE_COMPLETED' },
@@ -563,6 +596,8 @@ export default {
   extractOcrDetails,
   buildBookingCreatedEmail,
   buildBookingConfirmedEmail,
+  buildPaymentVerifiedEmail,
+  buildBookingSettledEmail,
   buildStatusEmail,
   buildReminderEmail,
   notificationCopyFor,

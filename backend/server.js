@@ -27,7 +27,6 @@ const ocrGuard = require('./services/ocrGuard');
 const { appUrl } = require('./services/appUrl');
 // ONE money model shared by the receipt email, the receipt PDF and the portal,
 // plus the OCR-vs-recorded reconciliation that surfaces amount drift.
-const { resolveTransactionAmounts, reconcileOcrAmounts, formatPeso } = require('./services/transactionAmounts');
 const resendClient = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const RESEND_FROM = process.env.RESEND_FROM || 'Comar Garage <bookings@yourdomain.com>';
 
@@ -544,13 +543,13 @@ const revokeStaleStaffTaskNotifications = async (bookingId, currentStaffId) => {
   return staleNotifications.length;
 };
 
-const dispatchLifecycleEmail = async (bookingId, newStatus, remarks = '') => {
+const dispatchLifecycleEmail = async (bookingId, newStatus, remarks = '', extra = {}) => {
   const projectUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const response = await fetch(`${projectUrl}/functions/v1/booking-lifecycle`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
-    body: JSON.stringify({ bookingId, newStatus, remarks })
+    body: JSON.stringify({ bookingId, newStatus, remarks, ...extra })
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || result.error) throw new Error(result.error || `Lifecycle email failed (${response.status})`);
@@ -600,548 +599,10 @@ const generateTemplate = (type, data) => {
   return { subject, html };
 };
 
-const formatCurrency = (value) => new Intl.NumberFormat('en-PH', {
-  style: 'currency',
-  currency: 'PHP',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-}).format(Number(value || 0));
-
-const escapePdfText = (value = '') => String(value).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
-
-const buildReceiptPdfBuffer = ({ receiptNumber, customerName, bookingReference, issuedAt, paymentMethod, processedBy, customerContact, customerAddress, customerTaxId, items = [], subtotal = 0, discountAmount = 0, amounts = null }) => {
-  // The attached PDF is the "official receipt" — it MUST agree with the email
-  // that carries it. Both now render from the shared amount model. Previously
-  // this function independently ADDED 12% VAT to the booking total, so the PDF
-  // and the email could quote different totals for the very same payment.
-  const a = amounts || resolveTransactionAmounts({ total_amount: subtotal }, null);
-  const dateString = issuedAt ? new Date(issuedAt).toLocaleString() : new Date().toLocaleString();
-
-  const lines = [
-    'COMAR GARAGE',
-    'Auto Detailing Studio',
-    '',
-    `Receipt No.: ${receiptNumber || 'AUTO'}`,
-    `Issued: ${dateString}`,
-    `Booking Reference: ${bookingReference || 'N/A'}`,
-    `Payment Method: ${paymentMethod || 'Digital / Online Payment'}`,
-    `Customer: ${customerName || 'Customer'}`,
-    `Contact: ${customerContact || 'N/A'}`,
-    `Address: ${customerAddress || '-'}`,
-    `Processed By: ${processedBy || 'System Admin'}`,
-    `Customer Tax ID: ${customerTaxId || '-'}`,
-    '',
-    'Vehicle / Service                          Qty   Unit Price   Line Total',
-    ...items.map((item) => {
-      const label = (item.vehicle || 'Vehicle Unit').substring(0, 26);
-      const service = (item.service || 'Service').substring(0, 20);
-      const qty = item.qty ?? 1;
-      const unitPrice = Number(item.unitPrice ?? item.lineTotal ?? 0);
-      const lineTotal = Number(item.lineTotal ?? item.unitPrice ?? 0);
-      return `${label} ${service} ${qty} ${formatCurrency(unitPrice)} ${formatCurrency(lineTotal)}`;
-    }),
-    '',
-    ...(a.transferFee > 0 ? [`Transfer Fee (absorbed): ${formatCurrency(a.transferFee)}`] : []),
-    ...(a.creditApplied > 0 ? [`Credit Applied: -${formatCurrency(a.creditApplied)}`] : []),
-    `Amount Paid: ${formatCurrency(a.grossPaid)}`,
-    `Amount Received: ${formatCurrency(a.netReceived)}`,
-    `Amount Credited to Booking: ${formatCurrency(a.creditedToBooking)}`,
-    ...(a.excessCredit > 0 ? [`Recorded as Excess Credit: ${formatCurrency(a.excessCredit)}`] : []),
-    `Booking Total: ${formatCurrency(a.totalDue)}`,
-    ...(a.remainingBalance > 0 ? [`Balance Still Due: ${formatCurrency(a.remainingBalance)}`] : []),
-    // No tax lines. Pricing is flat and tax-free: the booking total IS the
-    // amount due, and there is no VAT to break out or add on.
-    '',
-    'This receipt is valid for audit purposes.'
-  ];
-
-  const content = lines.map((line, index) => `BT\n/F1 11 Tf\n72 ${760 - index * 18} Td\n(${escapePdfText(line)}) Tj\nET`).join('\n');
-
-  let pdf = '%PDF-1.4\n';
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    `<< /Length ${Buffer.byteLength(content, 'utf8')} >>\nstream\n${content}\nendstream`
-  ];
-
-  const offsets = [0];
-  objects.forEach((obj, index) => {
-    offsets.push(pdf.length);
-    pdf += `${index + 1} 0 obj\n${obj}\nendobj\n`;
-  });
-
-  const xrefStart = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n`;
-  pdf += '0000000000 65535 f \n';
-  offsets.slice(1).forEach((offset) => {
-    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
-  });
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
-
-  return Buffer.from(pdf, 'binary');
-};
-
-const buildReceiptEmailHtml = ({ customerName, bookingReference, receiptNumber, amounts, paymentMethod, issuedAt, items, pendingLabel, receiptNarrative }) => {
-  const a = amounts;
-  const itemRows = (items || []).map((item) => `
-    <tr>
-      <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: top;">
-        <div style="font-size: 13px; font-weight: 700; color: #111827;">${item.vehicle || 'Vehicle / Service'}</div>
-        <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">${item.service || 'Service'}</div>
-      </td>
-      <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #111827; font-feature-settings: 'tnum' 1; font-variant-numeric: tabular-nums;">${item.qty ?? 1}</td>
-      <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 12px; color: #111827; font-feature-settings: 'tnum' 1; font-variant-numeric: tabular-nums;">${formatCurrency(item.unitPrice ?? item.lineTotal ?? 0)}</td>
-      <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 12px; color: #111827; font-weight: 700; font-feature-settings: 'tnum' 1; font-variant-numeric: tabular-nums;">${formatCurrency(item.lineTotal ?? item.unitPrice ?? 0)}</td>
-    </tr>
-  `).join('');
-
-  // Totals are rendered from the SHARED amount model, so the email and the PDF
-  // can never quote different numbers. Pricing is FLAT and TAX-FREE: there is no
-  // VAT line, because there is no tax — the booking total IS the amount due.
-  const totalRows = [
-    `<div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #4b5563;"><span>Booking Total</span><span>${formatCurrency(a.totalDue)}</span></div>`,
-    a.transferFee > 0
-      ? `<div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #4b5563;"><span>Transfer Fee (absorbed)</span><span>${formatCurrency(a.transferFee)}</span></div>`
-      : '',
-    a.creditApplied > 0
-      ? `<div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #4b5563;"><span>Credit Applied</span><span>- ${formatCurrency(a.creditApplied)}</span></div>`
-      : '',
-    `<div style="display: flex; justify-content: space-between; padding-top: 8px; font-size: 18px; font-weight: 800; color: #111827;"><span>${a.remainingBalance > 0 ? 'Balance Still Due' : 'Amount Paid'}</span><span>${formatCurrency(a.remainingBalance > 0 ? a.remainingBalance : a.creditedToBooking)}</span></div>`,
-    // No VAT row: pricing is flat and tax-free, so the total above IS the amount due.
-  ].filter(Boolean).join('');
-
-  const pendingBanner = pendingLabel
-    ? `<div style="margin: 0 0 16px; padding: 12px 14px; background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 6px; font-size: 13px; color: #92400e;"><strong>${pendingLabel}</strong></div>`
-    : '';
-
-  return `
-    <div style="font-family: Inter, system-ui, sans-serif; max-width: 640px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; color: #111827;">
-      <div style="background: #111827; color: #f9fafb; padding: 16px 20px; border-bottom: 1px solid #262626;">
-        <div style="font-size: 18px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; text-align: center;">COMAR GARAGE</div>
-        <div style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; text-align: center; color: #d1d5db; margin-top: 6px;">Auto Detailing Studio</div>
-      </div>
-      <div style="padding: 24px 24px 12px;">
-        <div style="display: flex; justify-content: space-between; gap: 16px; margin-bottom: 16px;">
-          <div>
-            <div style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.12em;">Receipt No.</div>
-            <div style="font-size: 14px; font-weight: 700; color: #111827; margin-top: 4px;">${receiptNumber || 'AUTO'}</div>
-          </div>
-          <div style="text-align: right;">
-            <div style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.12em;">Issued</div>
-            <div style="font-size: 14px; font-weight: 700; color: #111827; margin-top: 4px;">${issuedAt ? new Date(issuedAt).toLocaleString() : new Date().toLocaleString()}</div>
-          </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-bottom: 18px;">
-          <div>
-            <div style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;">Business Details</div>
-            <div style="font-size: 14px; font-weight: 700; color: #111827;">Comar Garage</div>
-            <div style="font-size: 12px; color: #4b5563; margin-top: 4px;">123 Auto Avenue, Mandaluyong City</div>
-            <div style="font-size: 12px; color: #4b5563;">+63 917 123 4567 | hello@comargarage.com</div>
-          </div>
-          <div style="text-align: right;">
-            <div style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;">Booking Reference</div>
-            <div style="font-size: 14px; font-weight: 700; color: #111827;">${bookingReference || 'N/A'}</div>
-            <div style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.12em; margin-top: 10px; margin-bottom: 6px;">Payment Method</div>
-            <div style="font-size: 14px; font-weight: 700; color: #111827;">${paymentMethod}</div>
-          </div>
-        </div>
-
-        <div style="margin-bottom: 18px;">
-          <div style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;">Customer</div>
-          <div style="font-size: 14px; font-weight: 700; color: #111827;">${customerName}</div>
-        </div>
-
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">
-          <thead>
-            <tr>
-              <th style="padding: 10px 12px; background: #f9fafb; border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 11px; font-weight: 600; color: #4b5563; text-transform: uppercase; letter-spacing: 0.12em;">Vehicle / Service</th>
-              <th style="padding: 10px 12px; background: #f9fafb; border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 11px; font-weight: 600; color: #4b5563; text-transform: uppercase; letter-spacing: 0.12em;">Qty</th>
-              <th style="padding: 10px 12px; background: #f9fafb; border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 11px; font-weight: 600; color: #4b5563; text-transform: uppercase; letter-spacing: 0.12em;">Unit Price</th>
-              <th style="padding: 10px 12px; background: #f9fafb; border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 11px; font-weight: 600; color: #4b5563; text-transform: uppercase; letter-spacing: 0.12em;">Line Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemRows}
-          </tbody>
-        </table>
-
-        <div style="max-width: 300px; margin-left: auto; border-top: 2px solid #111827; padding-top: 12px;">
-          ${totalRows}
-        </div>
-      </div>
-      <div style="padding: 0 24px 24px; font-size: 12px; color: #4b5563; line-height: 1.6;">
-        ${pendingBanner}
-        <p style="margin: 0;">Hi ${customerName},</p>
-        <p style="margin: 10px 0 0;">${receiptNarrative}</p>
-      </div>
-    </div>
-  `;
-};
-
-// A receipt must never read as "paid in full" while the money is still sitting
-// in the verification queue. The narrative sentence is derived from the SAME
-// amount model as the totals table, so the two cannot contradict each other.
-const buildReceiptNarrative = (amounts, isPending) => {
-  const received = formatPeso(amounts.creditedToBooking);
-  const balance = formatPeso(amounts.remainingBalance);
-
-  if (isPending) {
-    return `We have received ${received} against this booking and it is now queued for verification. ` +
-      (amounts.remainingBalance > 0
-        ? `A balance of ${balance} remains on the booking. `
-        : '') +
-      'You will receive a final confirmation once our team has verified the payment. Please keep this copy for your records.';
-  }
-
-  if (amounts.remainingBalance > 0) {
-    return `We have recorded ${received} against this booking. A balance of ${balance} remains payable. ` +
-      'This receipt covers the amount received to date and is attached for your records.';
-  }
-
-  if (amounts.excessCredit > 0) {
-    return `We have received ${received} in full payment for this booking. This is ${formatPeso(amounts.excessCredit)} ` +
-      `more than the booking total; the surplus has been banked as credit on your account. Receipt attached.`;
-  }
-
-  return `We have received ${received} in full payment for this booking. Your official receipt is attached below for your records.`;
-};
-
-/**
- * Record a material OCR-vs-recorded amount divergence so it can be reconciled
- * rather than silently shipped. Without this the receipt quoted one figure and
- * the booking ledger another, and nothing anywhere recorded the disagreement.
- * Best-effort: a failure to log must not fail the receipt.
- */
-const auditOcrMismatch = async ({ bookingId, paymentId, reconciliation, booking }) => {
-  try {
-    await supabaseAdmin.from('audit_logs').insert({
-      booking_id: bookingId,
-      action_type: 'OCR_AMOUNT_MISMATCH',
-      details:
-        `Recorded amount ${formatPeso(reconciliation.declared)} does not match the OCR-read amount ` +
-        `${formatPeso(reconciliation.detected)} (difference ${formatPeso(reconciliation.difference)}). ` +
-        `Severity: ${reconciliation.severity}. The recorded amount remains authoritative; review the receipt.`,
-      actor_name: 'SYSTEM',
-      actor_role: 'SYSTEM',
-      metadata: {
-        payment_id: paymentId,
-        declared: reconciliation.declared,
-        detected: reconciliation.detected,
-        difference: reconciliation.difference,
-        severity: reconciliation.severity,
-        booking_total: Number(booking?.total_amount || 0),
-      },
-    });
-  } catch (err) {
-    console.warn('Could not write OCR_AMOUNT_MISMATCH audit row:', err?.message);
-  }
-};
-
-/**
- * The booking's OVERALL FINANCIAL LEDGER.
- *
- * One place that answers "where does this booking stand financially?", composed
- * from the same rule the UI uses (settled = PAID-family only) PLUS the
- * OCR-attributed money that the ledger deliberately excludes while it awaits
- * verification.
- *
- * The OCR output previously reached payments.detected_amount and
- * bookings.ocr_metadata but appeared in NO financial total, because an unverified
- * receipt must never count as recognised revenue. This endpoint surfaces it as a
- * named, separate figure (with the declared-vs-OCR variance) so a reconciliation
- * can see it without inflating the books.
- */
-app.get('/api/bookings/:bookingId/financial-ledger', async (req, res) => {
-  const { bookingId } = req.params;
-  try {
-    const { data, error } = await supabaseAdmin.rpc('booking_financial_ledger', {
-      p_booking_id: bookingId,
-    });
-
-    if (error) {
-      // A missing booking is a client error, not a server fault.
-      const notFound = error.code === 'P0002' || /not found/i.test(error.message || '');
-      return res.status(notFound ? 404 : 500).json({ success: false, error: error.message });
-    }
-
-    return res.json({
-      success: true,
-      ledger: data,
-      // Explicit so no consumer has to re-derive the accounting rule:
-      // unverified money is reported, never recognised.
-      note: 'settled_amount counts verified money only; pending_verification is claimed but unverified and is NOT revenue.',
-    });
-  } catch (err) {
-    console.error('❌ Financial ledger lookup failed:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.post('/api/emails/booking-confirmation', async (req, res) => {
-  const { bookingId } = req.body;
-  console.log(`📧 [EMAIL SYSTEM] DISPATCHING BOOKING CONFIRMATION: ${bookingId}`);
-
-  try {
-    // 1. Fetch full booking context
-    const { data: booking, error: bError } = await supabaseAdmin
-      .from('bookings')
-      .select('*, booking_vehicles(*, booking_vehicle_services(*))')
-      .eq('id', bookingId)
-      .single();
-
-    if (bError || !booking) throw new Error('Booking not found');
-
-    // Fetch customer separately for reliability. Walk-in bookings may not have a profile row.
-    let customer = null;
-    if (booking.customer_id) {
-      const { data, error: cError } = await supabaseAdmin
-        .from('profiles')
-        .select('full_name, email')
-        .eq('id', booking.customer_id)
-        .maybeSingle();
-
-      customer = data;
-      if (cError) throw new Error(cError.message || 'Customer profile lookup failed');
-    }
-
-    const customerEmail = booking.customer_email || customer?.email;
-    const customerName = booking.customer_name || customer?.full_name || 'Customer';
-    if (!customerEmail) throw new Error('Customer email not found for confirmation email');
-
-    const vehicles = booking.booking_vehicles || [];
-    const confirmationResult = await sendBookingConfirmationEmail({
-      customerEmail,
-      customerName,
-      bookingId: bookingId.substring(0, 8).toUpperCase(),
-      serviceName: vehicles.flatMap(vehicle => vehicle.booking_vehicle_services || []).map(service => service.service_name).join(', ') || 'Detailing service',
-      scheduledAt: booking.start_datetime,
-      totalAmount: booking.total_amount
-    });
-    if (!confirmationResult.success) throw new Error(confirmationResult.error?.message || confirmationResult.error || 'Booking confirmation email failed');
-    // The legacy template below remains as a compatibility fallback only.
-
-    const dateStr = new Date(booking.start_datetime).toLocaleDateString('en-US', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-    });
-
-    const vehicleHtml = vehicles.map(v => `
-      <div style="margin-bottom: 15px; padding: 10px; border-left: 4px solid #A91B18; background: #f9f9f9;">
-        <strong style="text-transform: uppercase;">${v.year} ${v.brand} ${v.model}</strong> [${v.plate_number}]
-        <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
-          ${(v.booking_vehicle_services || []).map(s => `<li>${s.service_name} - ₱${s.price}</li>`).join('')}
-        </ul>
-      </div>
-    `).join('');
-
-    if (resendClient && !confirmationResult.success) {
-      await resendClient.emails.send({
-        from: RESEND_FROM,
-        to: customerEmail,
-        subject: `BOOKING CONFIRMED: ${bookingId.substring(0, 8).toUpperCase()}`,
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; border: 1px solid #eee; padding: 20px;">
-            <h2 style="color: #A91B18; margin-top: 0;">COMAR GARAGE</h2>
-            <h3 style="text-transform: uppercase; border-bottom: 2px solid #eee; padding-bottom: 10px;">Booking Confirmation</h3>
-            
-            <p>Hi <strong>${customerName}</strong>,</p>
-            <p>Your booking has been successfully <strong>APPROVED</strong> and scheduled. We are excited to see you!</p>
-            
-            <div style="background: #111; color: #fff; padding: 15px; border-radius: 4px; margin: 20px 0;">
-              <div style="font-size: 12px; opacity: 0.7; text-transform: uppercase;">Scheduled For</div>
-              <div style="font-size: 18px; font-weight: bold;">${dateStr}</div>
-            </div>
-
-            <h4 style="text-transform: uppercase; color: #666; font-size: 12px; margin-bottom: 10px;">Vehicle & Service Details</h4>
-            ${vehicleHtml}
-
-            <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #eee;">
-              <div style="display: flex; justify-content: space-between;">
-                <span>Total Amount:</span>
-                <strong style="font-size: 18px; color: #A91B18;">₱${booking.total_amount}</strong>
-              </div>
-              <div style="font-size: 12px; color: #666; margin-top: 5px;">Payment Status: ${booking.payment_status}</div>
-            </div>
-
-            <p style="margin-top: 30px; font-size: 12px; color: #888;">
-              Please arrive 15 minutes before your scheduled slot. If you need to reschedule, contact Comar Garage through the contact details in your portal.
-            </p>
-          </div>
-        `
-      });
-      console.log(`✅ Confirmation email sent to ${customer.email}`);
-    }
-
-    return res.json({ success: true });
-  } catch (err) {
-    console.error('❌ Confirmation Email Error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.post('/api/emails/payment-receipt', async (req, res) => {
-  const { bookingId, paymentId } = req.body;
-  console.log(`📧 [EMAIL SYSTEM] DISPATCHING PAYMENT RECEIPT: ${paymentId} for Booking ${bookingId}`);
-
-  try {
-    const { data: booking, error: bError } = await supabaseAdmin
-      .from('bookings')
-      .select('*')
-      .eq('id', bookingId)
-      .single();
-
-    const { data: payment, error: pError } = await supabaseAdmin
-      .from('payments')
-      .select('*')
-      .eq('id', paymentId)
-      .single();
-
-    if (bError || pError || !booking || !payment) throw new Error('Booking or Payment records missing');
-
-    let customer = null;
-    if (booking.customer_id) {
-      const { data } = await supabaseAdmin
-        .from('profiles')
-        .select('full_name, email, phone')
-        .eq('id', booking.customer_id)
-        .maybeSingle();
-      customer = data;
-    }
-
-    const customerEmail = customer?.email || booking.customer_email;
-    if (!customerEmail) throw new Error('Customer email not found');
-
-    const customerName = customer?.full_name || booking.customer_name || 'Customer';
-    const customerContact = customer?.phone || booking.customer_phone || booking.customer_contact || 'N/A';
-    const customerAddress = booking.customer_address || 'N/A';
-    const customerTaxId = booking.customer_tax_id || 'N/A';
-    const receiptNumber = payment.reference_number || `INV-${String(paymentId || bookingId).slice(0, 8).toUpperCase()}`;
-    const issuedAt = payment.created_at || booking.created_at;
-
-    // ONE money model for the email, the PDF and the portal. Previously the
-    // receipt took `payment.amount || booking.total_amount` and then ADDED 12%
-    // VAT on top, so a customer who paid ₱250 was emailed a ₱280 demand in a
-    // shop whose prices already include VAT.
-    const amounts = resolveTransactionAmounts(booking, payment);
-
-    // The customer paid the GROSS; the shop received the NET. Quote the gross
-    // as "paid" so the receipt never reads as short-paid.
-    const paidAmount = amounts.grossPaid;
-
-    // RECONCILE the recorded figure against what the AI actually read.
-    // These two were drifting silently — the receipt quoted one and the booking
-    // ledger another. We surface the divergence for an admin instead of
-    // pretending they agree; the recorded amount stays authoritative so the
-    // system's own numbers remain self-consistent.
-    const reconciliation = reconcileOcrAmounts(amounts.declared, Number(payment.detected_amount || 0));
-    if (!reconciliation.matches) {
-      console.warn(
-        `⚠️ [OCR RECONCILE] Booking ${bookingId} / payment ${paymentId}: ` +
-        `recorded ₱${reconciliation.declared} vs OCR ₱${reconciliation.detected} ` +
-        `(diff ₱${reconciliation.difference}, ${reconciliation.severity}).`
-      );
-      auditOcrMismatch({ bookingId, paymentId, reconciliation, booking }).catch(() => {});
-    }
-
-    const isPendingVerification = String(payment.status || '').toUpperCase() === 'FOR_VERIFICATION';
-
-    const items = booking.booking_vehicles?.flatMap((vehicle) => (vehicle.booking_vehicle_services || []).map((service) => ({
-      vehicle: `${vehicle.brand || ''} ${vehicle.model || ''}`.trim() || 'Vehicle Unit',
-      service: service.service_name || service.name || 'Service',
-      qty: 1,
-      unitPrice: Number(service.price || service.price_snapshot || 0),
-      lineTotal: Number(service.price || service.price_snapshot || 0),
-    }))) || [{
-      vehicle: 'Booking Summary',
-      service: 'Booking Service Summary',
-      qty: 1,
-      unitPrice: amounts.totalDue,
-      lineTotal: amounts.totalDue,
-    }];
-
-    const receiptHtml = buildReceiptEmailHtml({
-      customerName,
-      bookingReference: booking.booking_id || bookingId,
-      receiptNumber,
-      amounts,
-      paymentMethod: payment.method || booking.payment_method || 'Digital / Online Payment',
-      issuedAt,
-      items,
-      pendingLabel: isPendingVerification
-        ? 'Payment received and queued for verification. This is not yet an official receipt.'
-        : null,
-      receiptNarrative: buildReceiptNarrative(amounts, isPendingVerification),
-    });
-
-    const pdfBuffer = buildReceiptPdfBuffer({
-      receiptNumber,
-      customerName,
-      bookingReference: booking.booking_id || bookingId,
-      issuedAt,
-      paymentMethod: payment.method || booking.payment_method || 'Digital / Online Payment',
-      processedBy: 'System Admin',
-      customerContact,
-      customerAddress,
-      customerTaxId,
-      items,
-      subtotal: amounts.totalDue,
-      discountAmount: 0,
-      amounts,
-      paidAmount,
-      // No vatRate / vatAmount. Pricing is flat and tax-free; `totalDue` IS the
-      // price. A template reading these keys now gets `undefined` rather than a
-      // plausible number, which fails loudly instead of printing a silent zero.
-      totalDue: amounts.totalDue,
-    });
-
-    const attachments = [{
-      content: pdfBuffer,
-      filename: `Receipt-${String(receiptNumber).replace(/\s+/g, '-').toUpperCase()}.pdf`
-    }];
-
-    if (payment.receipt_url) {
-      try {
-        const bucket = 'payment-receipts';
-        const marker = '/payment-receipts/';
-        const filePath = payment.receipt_url.includes(marker)
-          ? decodeURIComponent(payment.receipt_url.split(marker)[1])
-          : payment.receipt_url;
-
-        const { data: fileData } = await supabaseAdmin.storage
-          .from(bucket)
-          .download(filePath);
-
-        if (fileData) {
-          const imageBuffer = Buffer.from(await fileData.arrayBuffer());
-          attachments.push({
-            content: imageBuffer,
-            filename: `receipt_${String(paymentId || bookingId).slice(0, 8)}.png`
-          });
-        }
-      } catch (fErr) {
-        console.warn('Could not attach legacy receipt image:', fErr.message);
-      }
-    }
-
-    if (resendClient) {
-      await resendClient.emails.send({
-        from: RESEND_FROM,
-        to: customerEmail,
-        subject: `OFFICIAL RECEIPT: ${String(receiptNumber).slice(0, 12).toUpperCase()}`,
-        attachments,
-        html: receiptHtml,
-      });
-      console.log(`✅ Payment receipt email sent to ${customerEmail}`);
-    }
-
-    return res.json({ success: true, attachmentName: attachments[0]?.filename || null });
-  } catch (err) {
-    console.error('❌ Payment Receipt Email Error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
+// Booking emails (confirmation, payment receipts, Statement of Account) are sent
+// only by the booking-lifecycle Edge Function; amounts come from the database
+// ledger. The former /api/emails/payment-receipt, /api/emails/booking-confirmation
+// and GET /api/bookings/:id/financial-ledger routes were removed in Phase 2.
 
 app.post('/send-email', async (req, res) => {
   const { to, type, data } = req.body;
@@ -2858,12 +2319,15 @@ const attemptRoleElevation = async ({ email, role, firstName, lastName, actor })
 
     // Let the person know their access level changed (best-effort).
     try {
-      const backendBase = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`;
-      await fetch(`${backendBase}/api/emails/status-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, type: 'ROLE_ELEVATED', role })
-      });
+      if (elevated && resendClient) {
+        const roleLabel = role === 'ADMIN' ? 'administrator' : 'staff';
+        await resendClient.emails.send({
+          from: RESEND_FROM,
+          to: email,
+          subject: 'Comar Garage: your account access was updated',
+          html: `<div style="font-family:sans-serif;padding:20px;color:#111827;"><h2 style="color:#a91b18;">COMAR GARAGE</h2><p>Your existing Comar Garage account now has <strong>${roleLabel}</strong> access. Your history and bookings were preserved.</p><p>Sign in as usual to use your new workspace.</p></div>`
+        });
+      }
     } catch (mailErr) {
       console.warn('🎟️ [INVITE] Elevation notice email failed (non-fatal):', mailErr.message);
     }
@@ -5102,6 +4566,8 @@ app.post('/api/bookings/reconcile-payment-state', async (req, res) => {
   }
 
   const bookingId = req.body?.bookingId;
+  // Optional: the payment that was just verified. Its receipt is emailed once.
+  const paymentId = req.body?.paymentId || null;
   if (!bookingId) return res.status(400).json({ success: false, error: 'Booking identifier is required.' });
 
   try {
@@ -5152,11 +4618,37 @@ app.post('/api/bookings/reconcile-payment-state', async (req, res) => {
       if (updateError) throw updateError;
 
       try {
-        await dispatchLifecycleEmail(bookingId, nextStatus.toUpperCase());
+        // A confirmation carries the triggering payment's receipt (and the
+        // Statement of Account if this payment settles the booking).
+        await dispatchLifecycleEmail(bookingId, nextStatus.toUpperCase(), '', paymentId ? { paymentId } : {});
       } catch (emailError) {
         console.error(`[payment-state] ${nextStatus} email dispatch failed for booking ${bookingId}:`, emailError.message);
         warnings.push(`Status updated, but the ${nextStatus} email could not be sent.`);
       }
+    }
+
+    // Money emails. booking-lifecycle claims each once (payment_verified:<id>,
+    // booking_settled), so retries and the confirmation above never duplicate.
+    try {
+      let verifiedPaymentId = null;
+      if (paymentId) {
+        const { data: paymentRow, error: paymentRowError } = await supabaseAdmin
+          .from('payment_ledger_v')
+          .select('payment_id, status')
+          .eq('payment_id', paymentId)
+          .eq('booking_id', bookingId)
+          .maybeSingle();
+        if (paymentRowError) throw paymentRowError;
+        if (paymentRow?.status === 'PAID') verifiedPaymentId = paymentRow.payment_id;
+      }
+      if (verifiedPaymentId && nextStatus !== 'confirmed') {
+        await dispatchLifecycleEmail(bookingId, 'PAYMENT_VERIFIED', '', { event: 'payment_verified', paymentId: verifiedPaymentId });
+      } else if (!verifiedPaymentId && ledger.fully_settled) {
+        await dispatchLifecycleEmail(bookingId, 'BOOKING_SETTLED', '', { event: 'booking_settled' });
+      }
+    } catch (emailError) {
+      console.error(`[payment-state] payment email dispatch failed for booking ${bookingId}:`, emailError.message);
+      warnings.push('The payment was recorded, but its receipt email could not be sent.');
     }
 
     if (booking.staff_id && paymentEligible) {

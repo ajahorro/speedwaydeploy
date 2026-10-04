@@ -15,21 +15,43 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend'
 import { buildOfficialReceiptPdf } from '../_shared/officialReceiptPdf.ts'
+import { buildStatementOfAccountPdf } from '../_shared/statementOfAccountPdf.ts'
 import {
   resolveAmounts,
   buildBookingCreatedEmail,
   buildBookingConfirmedEmail,
+  buildPaymentVerifiedEmail,
+  buildBookingSettledEmail,
   buildStatusEmail,
   buildReminderEmail,
   notificationCopyFor,
   type BookingLike,
   type PaymentLike,
+  type LedgerLike,
 } from '../_shared/bookingEmail.ts'
 
 /** A Resend attachment: base64 `content` plus a filename. */
 interface EmailAttachment {
   content: string
   filename: string
+}
+
+/** A public.payment_ledger_v row (SQL-computed net_received / gross_paid). */
+interface LedgerTransaction {
+  payment_id: string
+  status: string
+  method?: string | null
+  amount?: number | string | null
+  net_received?: number | string | null
+  gross_paid?: number | string | null
+  transfer_fee?: number | string | null
+  credit_applied?: number | string | null
+  reference?: string | null
+  created_at?: string | null
+  verified_at?: string | null
+  recognized_at?: string | null
+  is_settled_credit?: boolean
+  is_refund?: boolean
 }
 
 /** The shape returned by the embedded selects in this function. */
@@ -106,6 +128,8 @@ const canonicalEvent = (raw: string): string => {
   if (key === 'RELEASED') return 'booking_released'
   if (key === 'CANCELLED') return 'booking_cancelled'
   if (key === 'FLAGGED_NOSHOW') return 'booking_flagged_noshow'
+  if (key === 'PAYMENT_VERIFIED') return 'payment_verified'
+  if (key === 'BOOKING_SETTLED' || key === 'FULLY_SETTLED') return 'booking_settled'
   return String(raw || 'unknown').toLowerCase()
 }
 
@@ -118,6 +142,8 @@ const EMAILABLE_LIFECYCLE_EVENTS = new Set([
   'booking_cancelled',
   'booking_flagged_noshow',
   'booking_reminder',
+  'payment_verified',
+  'booking_settled',
 ])
 
 serve(async (req: Request): Promise<Response> => {
@@ -170,15 +196,18 @@ serve(async (req: Request): Promise<Response> => {
       remarks?: string
       reminder?: boolean
       eventKey?: string
+      paymentId?: string
     } = await req.json()
 
-    const { bookingId, event, newStatus, remarks, eventKey } = payload
+    const { bookingId, event, newStatus, remarks, eventKey, paymentId } = payload
     const reminder: boolean = payload.reminder === true
 
     if (!bookingId) throw new Error('bookingId is required')
     const requested = event || newStatus || 'booking_created'
     const canonical = reminder ? 'booking_reminder' : canonicalEvent(requested)
-    const lifecycleEvent = eventKey || canonical
+    if (canonical === 'payment_verified' && !paymentId) throw new Error('paymentId is required for payment_verified')
+    const lifecycleEvent = eventKey
+      || (canonical === 'payment_verified' ? `payment_verified:${paymentId}` : canonical)
 
     if (!EMAILABLE_LIFECYCLE_EVENTS.has(canonical)) {
       return new Response(JSON.stringify({
@@ -189,9 +218,10 @@ serve(async (req: Request): Promise<Response> => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     }
 
-    // ── Fetch everything, including the OCR result ──────────────────────────
-    // `.maybeSingle()` so a missing booking is a clean 404 rather than a raw
-    // PGRST116 coercion error surfacing as a 500.
+    // ── Fetch the booking, its ledger and its ledger transactions ───────────
+    // Money comes ONLY from the database ledger (booking_ledger_v /
+    // payment_ledger_v), so every email matches the portal and the reports.
+    // `.maybeSingle()` so a missing booking is a clean 404.
     const { data: booking, error: bError } = await supabase
       .from('bookings')
       .select(`
@@ -206,8 +236,8 @@ serve(async (req: Request): Promise<Response> => {
           services:booking_vehicle_services!booking_vehicle_id ( service_name, price )
         ),
         payments:payments!payments_booking_id_fkey (
-          id, amount, detected_amount, net_credit, transfer_fee, credit_applied,
-          status, method, reference_number, detected_ref, created_at
+          id, amount, detected_amount, verified_amount, transfer_fee, credit_applied,
+          status, method, reference_number, detected_ref, created_at, verified_at
         )
       `)
       .eq('id', bookingId)
@@ -215,6 +245,15 @@ serve(async (req: Request): Promise<Response> => {
 
     if (bError) throw new Error(`Booking lookup failed: ${bError.message}`)
     if (!booking) throw new Error('Booking not found: no row returned')
+
+    const [{ data: ledgerData, error: ledgerError }, { data: transactionRows, error: transactionsError }] = await Promise.all([
+      supabase.rpc('booking_financial_ledger', { p_booking_id: bookingId }),
+      supabase.from('payment_ledger_v').select('*').eq('booking_id', bookingId).order('created_at', { ascending: true }),
+    ])
+    if (ledgerError) throw new Error(`Ledger lookup failed: ${ledgerError.message}`)
+    if (transactionsError) throw new Error(`Ledger transactions lookup failed: ${transactionsError.message}`)
+    const ledger = (ledgerData || {}) as LedgerLike
+    const transactions = (transactionRows || []) as LedgerTransaction[]
 
     // The embedded select above returns exactly this shape.
     const row = booking as unknown as BookingRow
@@ -239,111 +278,133 @@ serve(async (req: Request): Promise<Response> => {
     const customerName = row.customer_name || customer?.full_name || 'Valued Customer'
     if (!email) throw new Error('No customer email found for this booking.')
 
-    // Newest payment is the one this event concerns.
+    // The payment this event concerns: the explicit paymentId, else the newest.
     const payments: PaymentLike[] = Array.isArray(row.payments) ? row.payments : []
-    const payment: PaymentLike | null = payments.length
-      ? [...payments].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0]
+    const payment: PaymentLike | null = (paymentId && payments.find((item) => item.id === paymentId))
+      || (payments.length
+        ? [...payments].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0]
+        : null)
+    const verifiedTransaction: LedgerTransaction | null = paymentId
+      ? (transactions.find((item) => item.payment_id === paymentId && item.status === 'PAID') || null)
       : null
-    const verifiedPayment: PaymentLike | null = [...payments]
-      .filter((item) => String(item.status || '').toUpperCase() === 'PAID')
-      .sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0] || null
 
-    const amounts = resolveAmounts(row, payment, payments)
+    const amounts = resolveAmounts(ledger, payment)
     const bookingRef = String(bookingId).slice(0, 8).toUpperCase()
-    const renderOfficialReceipt = (receiptPayment: PaymentLike | null) =>
-      buildOfficialReceiptPdf({
-        customerName,
-        customerEmail: row.customer_email || customer?.email || '',
-        customerContact: row.contact_number || '',
-        bookingReference: bookingRef,
-        payment: receiptPayment || {},
+    const customerEmail = row.customer_email || customer?.email || ''
+    const customerContact = row.contact_number || ''
+
+    // ── Claim exactly-once BEFORE building/sending ──────────────────────────
+    // The main event is claimed first. Attachments that have their own
+    // once-only key (a payment's receipt, the settlement statement) are claimed
+    // too, so a confirmation that also settles the booking sends ONE email with
+    // both documents and neither is ever re-sent. Every claim is released if the
+    // provider rejects the message, so failures stay retryable.
+    const claimedKeys: string[] = []
+    const claim = async (key: string) => {
+      const { data, error }: {
+        data: { claimed?: boolean; reason?: string; sent_at?: string } | null
+        error: { message: string } | null
+      } = await supabase.rpc('claim_booking_email', {
+        p_booking_id: bookingId,
+        p_event: key,
+        p_recipient: email,
+        p_sent_by: 'booking-lifecycle',
       })
-
-    // ── Render the right email for this event ───────────────────────────────
-    let subject = ''
-    let html = ''
-    let attachments: EmailAttachment[] = []
-
-    const isConfirmed = canonical === 'booking_confirmed'
-
-    if (isConfirmed) {
-      // A receipt is only attached when the money is actually settled. A partial
-      // payment is confirmed as a booking but must not receive a full receipt.
-      // Pending OCR submissions are not verified funds, even if their amount
-      // happens to cover the booking total.
-      const isSettled = amounts.verifiedGrossPaid > 0 && amounts.verifiedRemainingBalance <= 0
-      const receiptPdf = isSettled
-        ? renderOfficialReceipt(verifiedPayment)
-        : null
-
-      if (receiptPdf) {
-        attachments = [{
-          content: receiptPdf,
-          filename: `Receipt-RCP-${String(verifiedPayment?.id || bookingRef).toUpperCase()}.pdf`,
-        }]
-      }
-
-      const built = buildBookingConfirmedEmail({ booking: bookingForEmail, payment, payments, customerName, hasReceipt: Boolean(receiptPdf) })
-      subject = built.subject
-      html = built.html
-    } else if (canonical === 'booking_created') {
-      const built = buildBookingCreatedEmail({ booking: bookingForEmail, payment, payments, customerName })
-      subject = built.subject
-      html = built.html
-    } else if (canonical === 'booking_reminder') {
-      const built = buildReminderEmail({ booking: bookingForEmail, payment, payments, customerName })
-      subject = built.subject
-      html = built.html
-    } else {
-      const statusKey = {
-        booking_in_progress: 'IN_PROGRESS',
-        booking_completed: 'COMPLETED',
-        booking_released: 'RELEASED',
-        booking_cancelled: 'CANCELLED',
-        booking_flagged_noshow: 'FLAGGED_NOSHOW',
-      }[canonical] || requested
-      const built = buildStatusEmail({ booking: bookingForEmail, payment, payments, customerName, newStatus: statusKey, remarks })
-      subject = built.subject
-      html = built.html
-
-      // A later verified payment can be included in the next major status
-      // email. Do not send a separate receipt mail; attach the official booking
-      // receipt only when verified funds cover the full balance.
-      const mayAttachReceipt = ['booking_in_progress', 'booking_completed', 'booking_released'].includes(canonical)
-      const isSettled = amounts.verifiedGrossPaid > 0 && amounts.verifiedRemainingBalance <= 0
-      if (mayAttachReceipt && amounts.hasPayment && isSettled) {
-        attachments = [{
-          content: renderOfficialReceipt(verifiedPayment),
-          filename: `Receipt-RCP-${String(verifiedPayment?.id || bookingRef).toUpperCase()}.pdf`,
-        }]
-      }
+      if (error) throw new Error(`Could not claim the email delivery: ${error.message}`)
+      if (data?.claimed) claimedKeys.push(key)
+      return data
     }
 
-    // ── Claim exactly-once BEFORE sending ───────────────────────────────────
-    // Claiming first is what makes duplicates impossible. Releasing the claim on
-    // failure (below) keeps a genuine failure retryable.
-    const { data: claimData, error: claimError }: {
-      data: { claimed?: boolean; reason?: string; sent_at?: string } | null
-      error: { message: string } | null
-    } = await supabase.rpc('claim_booking_email', {
-      p_booking_id: bookingId,
-      p_event: lifecycleEvent,
-      p_recipient: email,
-      p_sent_by: 'booking-lifecycle',
-    })
-
-    if (claimError) throw new Error(`Could not claim the email delivery: ${claimError.message}`)
-
-    const claim = claimData
-
-    if (!claim?.claimed) {
+    const mainClaim = await claim(lifecycleEvent)
+    if (!mainClaim?.claimed) {
       return new Response(JSON.stringify({
         ok: true,
         skipped: true,
-        reason: claim?.reason || 'ALREADY_SENT',
+        reason: mainClaim?.reason || 'ALREADY_SENT',
         event: lifecycleEvent,
-        alreadySentAt: claim?.sent_at,
+        alreadySentAt: mainClaim?.sent_at,
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
+    }
+
+    let attachments: EmailAttachment[] = []
+    let subject = ''
+    let html = ''
+    try {
+      // Transaction receipt: the verified payment this event is about.
+      let hasReceipt = false
+      if (verifiedTransaction && ['payment_verified', 'booking_confirmed'].includes(canonical)) {
+        const receiptKey = `payment_verified:${verifiedTransaction.payment_id}`
+        const receiptClaimed = receiptKey === lifecycleEvent || (await claim(receiptKey))?.claimed
+        if (receiptClaimed) {
+          attachments.push({
+            content: buildOfficialReceiptPdf({
+              customerName,
+              customerEmail,
+              customerContact,
+              bookingReference: bookingRef,
+              payment: verifiedTransaction,
+            }),
+            filename: `Receipt-RCP-${String(verifiedTransaction.payment_id).toUpperCase()}.pdf`,
+          })
+          hasReceipt = true
+        }
+      }
+
+      // Statement of Account: once, the first time the ledger reports the
+      // booking fully settled.
+      let hasStatement = false
+      const mayCarryStatement = ['booking_settled', 'payment_verified', 'booking_confirmed', 'booking_in_progress', 'booking_completed', 'booking_released'].includes(canonical)
+      if (mayCarryStatement && amounts.fullySettled) {
+        const statementClaimed = lifecycleEvent === 'booking_settled' || (await claim('booking_settled'))?.claimed
+        if (statementClaimed) {
+          attachments.push({
+            content: buildStatementOfAccountPdf({
+              customerName,
+              customerEmail,
+              customerContact,
+              bookingReference: bookingRef,
+              ledger,
+              transactions,
+              issuedAt: new Date().toISOString(),
+            }),
+            filename: `Statement-SOA-${bookingRef}.pdf`,
+          })
+          hasStatement = true
+        }
+      }
+      if (canonical === 'booking_settled' && !amounts.fullySettled) {
+        throw new Error('booking_settled requested but the ledger does not report the booking as fully settled')
+      }
+
+      // ── Render the right email for this event ─────────────────────────────
+      let built: { subject: string; html: string }
+      if (canonical === 'booking_confirmed') {
+        built = buildBookingConfirmedEmail({ booking: bookingForEmail, payment, ledger, customerName, hasReceipt: hasReceipt || hasStatement })
+      } else if (canonical === 'payment_verified') {
+        built = buildPaymentVerifiedEmail({ booking: bookingForEmail, payment, ledger, customerName, hasReceipt, hasStatement })
+      } else if (canonical === 'booking_settled') {
+        built = buildBookingSettledEmail({ booking: bookingForEmail, ledger, customerName })
+      } else if (canonical === 'booking_created') {
+        built = buildBookingCreatedEmail({ booking: bookingForEmail, payment, ledger, customerName })
+      } else if (canonical === 'booking_reminder') {
+        built = buildReminderEmail({ booking: bookingForEmail, payment, ledger, customerName })
+      } else {
+        const statusKey = {
+          booking_in_progress: 'IN_PROGRESS',
+          booking_completed: 'COMPLETED',
+          booking_released: 'RELEASED',
+          booking_cancelled: 'CANCELLED',
+          booking_flagged_noshow: 'FLAGGED_NOSHOW',
+        }[canonical] || requested
+        built = buildStatusEmail({ booking: bookingForEmail, payment, ledger, customerName, newStatus: statusKey, remarks })
+      }
+      subject = built.subject
+      html = built.html
+    } catch (buildError) {
+      for (const key of claimedKeys) {
+        await supabase.rpc('release_booking_email_claim', { p_booking_id: bookingId, p_event: key })
+      }
+      throw buildError
     }
 
     // ── In-app notification (kept in lockstep with the email) ───────────────
@@ -354,6 +415,8 @@ serve(async (req: Request): Promise<Response> => {
             : canonical === 'booking_released' ? 'RELEASED'
               : canonical === 'booking_cancelled' ? 'CANCELLED'
                 : canonical === 'booking_flagged_noshow' ? 'FLAGGED_NOSHOW'
+                  : canonical === 'payment_verified' ? 'PAYMENT_VERIFIED'
+                    : canonical === 'booking_settled' ? 'BOOKING_SETTLED'
                   : String(requested).toUpperCase()
     const copy = notificationCopyFor(statusKey, bookingRef, amounts)
 
@@ -384,15 +447,21 @@ serve(async (req: Request): Promise<Response> => {
     if (sendError) {
       // Release the claim so this mail can be retried — otherwise a transient
       // provider failure would permanently silence the customer.
-      await supabase.rpc('release_booking_email_claim', { p_booking_id: bookingId, p_event: lifecycleEvent })
-      throw sendError
+      for (const key of claimedKeys) {
+        await supabase.rpc('release_booking_email_claim', { p_booking_id: bookingId, p_event: key })
+      }
+      // Resend returns a plain object; wrap it so the status mapping (502) and
+      // the logged message are meaningful.
+      throw new Error(`Email provider rejected the message: ${(sendError as { message?: string }).message || String((sendError as { name?: string }).name || 'unknown error')}`)
     }
 
-    await supabase.rpc('record_booking_email_result', {
-      p_booking_id: bookingId,
-      p_event: lifecycleEvent,
-      p_resend_id: sent?.id ?? null,
-    })
+    for (const key of claimedKeys) {
+      await supabase.rpc('record_booking_email_result', {
+        p_booking_id: bookingId,
+        p_event: key,
+        p_resend_id: sent?.id ?? null,
+      })
+    }
 
     return new Response(JSON.stringify({
       ok: true,
@@ -400,6 +469,7 @@ serve(async (req: Request): Promise<Response> => {
       to: email,
       subject,
       attachments: attachments.length,
+      claimed: claimedKeys,
       resendId: sent?.id ?? null,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
 

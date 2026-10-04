@@ -373,9 +373,9 @@ const AdminBookingDetails = () => {
     }
   };
 
-  const reconcileBookingPaymentState = async () => {
+  const reconcileBookingPaymentState = async (paymentId = null) => {
     try {
-      const result = await reconcilePaymentState(id);
+      const result = await reconcilePaymentState(id, paymentId);
       (result.warnings || []).forEach((warning) => toast.error(warning));
       return result;
     } catch (error) {
@@ -776,7 +776,8 @@ const AdminBookingDetails = () => {
         details: `Manually recorded Cash payment of ₱${Number(paymentAmount).toLocaleString()}.`
       });
 
-      await reconcileBookingPaymentState();
+      // Passing the new payment emails its receipt once (booking-lifecycle).
+      await reconcileBookingPaymentState(pData?.id || null);
       toast.success('Payment Recorded & Audit Verified', { id: toastId });
       setPaymentModal(false);
       setPaymentAmount('');
