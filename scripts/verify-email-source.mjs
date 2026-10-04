@@ -93,8 +93,11 @@ const checks = [
   // Supabase client (line ~105) and that read succeeds — the env var IS
   // available. What failed was only its use as a request-auth comparison, which
   // is why the guard was replaced rather than the env access removed.
-  ['function: a Bearer credential is required', /!authHeader\.startsWith\('Bearer '\)/.test(fn)],
-  ['function: the authorization gap is documented, not silently left', /FOLLOW-UP REQUIRED/.test(fn)],
+  ['function: the caller is resolved from the bearer credential and denied callers are refused', /const caller = await resolveCaller\(bearer\)/.test(fn) && /caller\.kind === 'denied'/.test(fn)],
+  ['function: customers may only send booking_created for their own booking, without custom keys', /CUSTOMER_EVENTS = new Set\(\['booking_created'\]\)/.test(fn) && /ownBooking\.customer_id !== caller\.userId/.test(fn) && /const eventKey = isCustomer \? undefined/.test(fn)],
+  ['function: service-role callers are proven with an admin-only Auth call, not a string compare', /auth\.admin\.listUsers/.test(fn) && !/FOLLOW-UP REQUIRED/.test(fn)],
+  ['status-email shim forwards the caller credential, never the service-role key', /req\.headers\.get\('Authorization'\)/.test(fs.readFileSync('supabase/functions/send-status-email/index.ts', 'utf8')) && !/SERVICE_ROLE_KEY/.test(fs.readFileSync('supabase/functions/send-status-email/index.ts', 'utf8'))],
+  ['backend: the unauthenticated /send-email relay is gone', !/app\.post\('\/send-email'/.test(fs.readFileSync('backend/server.js', 'utf8'))],
   ['function: auth no longer gated on env comparison', !/authHeader !== `Bearer \$\{serviceKey\}`/.test(fn)],
   ['function: no stale error message', !/bError\?\.message\}`/.test(fn)],
 ];

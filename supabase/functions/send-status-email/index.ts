@@ -39,7 +39,10 @@ serve(async (req) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        // Forward the CALLER's credential so booking-lifecycle authorizes the
+        // real caller. Forwarding the service-role key here made this retired
+        // shim an unauthenticated way to email any booking.
+        Authorization: req.headers.get('Authorization') || '',
       },
       body: JSON.stringify({
         bookingId,

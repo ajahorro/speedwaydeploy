@@ -146,46 +146,70 @@ const EMAILABLE_LIFECYCLE_EVENTS = new Set([
   'booking_settled',
 ])
 
+/**
+ * Who is calling. The function is deployed --no-verify-jwt, so it resolves the
+ * caller itself instead of trusting the platform:
+ *   - an end-user JWT  -> that user's profile (admin, or the booking's customer)
+ *   - a service-role key (legacy JWT or sb_secret_ key) held by the backend ->
+ *     proven by successfully calling an admin-only Auth endpoint with it
+ * Comparing the header to SUPABASE_SERVICE_ROLE_KEY is not used: the backend
+ * and the Edge runtime can hold different key formats for the same project.
+ */
+type Caller =
+  | { kind: 'service' }
+  | { kind: 'admin'; userId: string }
+  | { kind: 'customer'; userId: string }
+  | { kind: 'denied'; status: number; reason: string }
+
+const resolveCaller = async (token: string): Promise<Caller> => {
+  if (!token) return { kind: 'denied', status: 401, reason: 'Missing bearer credential' }
+
+  const { data: userData } = await supabase.auth.getUser(token)
+  const user = userData?.user
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, is_active')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (!profile || profile.is_active === false) return { kind: 'denied', status: 403, reason: 'Inactive account' }
+    const role = String(profile.role || '').toUpperCase()
+    if (role === 'ADMIN') return { kind: 'admin', userId: user.id }
+    if (role === 'CUSTOMER') return { kind: 'customer', userId: user.id }
+    return { kind: 'denied', status: 403, reason: 'Not permitted to send booking email' }
+  }
+
+  const probe = createClient(Deno.env.get('SUPABASE_URL') ?? '', token, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+  const { error: adminError } = await probe.auth.admin.listUsers({ page: 1, perPage: 1 })
+  if (!adminError) return { kind: 'service' }
+
+  return { kind: 'denied', status: 401, reason: 'Invalid credential' }
+}
+
+/** Events a customer may trigger for their own booking (submission/reschedule). */
+const CUSTOMER_EVENTS = new Set(['booking_created'])
+
 serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   // ── Authorization ─────────────────────────────────────────────────────────
-  //
-  // SECURITY POSTURE (and an honest note on what this is):
-  //
-  // This function is deployed `--no-verify-jwt`, so the platform does NOT
-  // authenticate callers for us. The previous guard was:
-  //
-  //     if (!authHeader && !Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) reject
-  //
-  // which is an AND — it only rejected when the header was missing AND the
-  // env var was missing. Any request carrying any header passed. That is not
-  // a guard.
-  //
-  // An attempt to require an exact service-role match was then MEASURED and
-  // rejected: comparing the header against `Bearer ${Deno.env.get(...)}`
-  // returned 401 for EVERY caller, including a valid service-role JWT (verified
-  // across five auth shapes with scripts/diagnose-guard.mjs). Whatever the
-  // platform does to the Authorization header before the function sees it, that
-  // comparison is not a usable signal here, so it is deliberately not used.
-  //
-  // What is enforced instead: a caller must present a Bearer credential. That
-  // stops anonymous and cross-origin drive-by calls. It does NOT prove the
-  // caller is privileged — a logged-in customer holds a valid token too.
-  //
-  // FOLLOW-UP REQUIRED: since the body carries `bookingId` and the function
-  // uses the service role internally, a customer who can call this could ask
-  // it to mail ANOTHER customer's booking details. The correct fix is to
-  // resolve the caller from the token and authorize per booking:
-  //     admin  -> any booking
-  //     customer -> only bookings where bookings.customer_id = auth.uid()
-  // That needs the end-user JWT context plumbed in (not the service key), and
-  // is tracked as the next change to this function.
-  const authHeader = req.headers.get('Authorization') || ''
-  if (!authHeader.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
+  // Resolve the caller from the bearer credential (see resolveCaller):
+  //   backend (service role) and active admins -> any booking and event
+  //   a customer -> only their own booking, only the booking_created event,
+  //                 and no custom eventKey/paymentId (so a customer cannot
+  //                 re-key the exactly-once ledger to resend mail)
+  //   anyone else -> refused
+  const bearer = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim()
+  const caller = await resolveCaller(bearer)
+  if (caller.kind === 'denied') {
+    return new Response(JSON.stringify({ error: caller.reason }), {
+      status: caller.status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   }
 
   try {
@@ -199,12 +223,30 @@ serve(async (req: Request): Promise<Response> => {
       paymentId?: string
     } = await req.json()
 
-    const { bookingId, event, newStatus, remarks, eventKey, paymentId } = payload
-    const reminder: boolean = payload.reminder === true
+    const { bookingId, event, newStatus, remarks } = payload
+    const isCustomer = caller.kind === 'customer'
+    // Customers cannot choose claim keys, payments, remarks or reminders.
+    const eventKey = isCustomer ? undefined : payload.eventKey
+    const paymentId = isCustomer ? undefined : payload.paymentId
+    const reminder: boolean = !isCustomer && payload.reminder === true
 
     if (!bookingId) throw new Error('bookingId is required')
     const requested = event || newStatus || 'booking_created'
     const canonical = reminder ? 'booking_reminder' : canonicalEvent(requested)
+
+    if (isCustomer) {
+      const { data: ownBooking } = await supabase
+        .from('bookings')
+        .select('customer_id')
+        .eq('id', bookingId)
+        .maybeSingle()
+      if (!ownBooking || ownBooking.customer_id !== caller.userId || !CUSTOMER_EVENTS.has(canonical)) {
+        return new Response(JSON.stringify({ error: 'Not permitted to send this booking email' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+    }
     if (canonical === 'payment_verified' && !paymentId) throw new Error('paymentId is required for payment_verified')
     const lifecycleEvent = eventKey
       || (canonical === 'payment_verified' ? `payment_verified:${paymentId}` : canonical)
@@ -396,7 +438,7 @@ serve(async (req: Request): Promise<Response> => {
           booking_cancelled: 'CANCELLED',
           booking_flagged_noshow: 'FLAGGED_NOSHOW',
         }[canonical] || requested
-        built = buildStatusEmail({ booking: bookingForEmail, payment, ledger, customerName, newStatus: statusKey, remarks })
+        built = buildStatusEmail({ booking: bookingForEmail, payment, ledger, customerName, newStatus: statusKey, remarks: isCustomer ? undefined : remarks })
       }
       subject = built.subject
       html = built.html

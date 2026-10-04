@@ -573,70 +573,11 @@ console.log(`🛡️  Default Admin ID locked: ${DEFAULT_ADMIN_ID}`);
   }
 })();
 
-const generateTemplate = (type, data) => {
-  let subject = '';
-  let html = '';
-
-  switch (type) {
-    case 'VERIFICATION_CODE':
-      subject = 'Verify Your Comar Garage Account';
-      html = buildEmailShell({
-        title: 'Verify Your Account',
-        eyebrow: 'SECURITY CHECK',
-        bodyHtml: `
-          <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Your verification code is:</p>
-          <div style="font-size: 32px; font-weight: 900; letter-spacing: 5px; padding: 16px 18px; background: #f5f5f4; border-radius: 12px; color: #111827; display: inline-block; margin-bottom: 16px;">${data.otp}</div>
-          <p style="margin: 0; font-size: 15px; color: #374151; line-height: 1.7;">This code expires in 10 minutes. Use it to complete your sign-in or account creation flow.</p>
-        `,
-        ctaLink: null,
-        footerNote: 'Comar Garage | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal'
-      });
-      break;
-    default:
-      subject = 'Comar Garage Update';
-      html = `<p>New update for ${type}</p><pre>${JSON.stringify(data, null, 2)}</pre>`;
-  }
-  return { subject, html };
-};
-
 // Booking emails (confirmation, payment receipts, Statement of Account) are sent
 // only by the booking-lifecycle Edge Function; amounts come from the database
-// ledger. The former /api/emails/payment-receipt, /api/emails/booking-confirmation
-// and GET /api/bookings/:id/financial-ledger routes were removed in Phase 2.
-
-app.post('/send-email', async (req, res) => {
-  const { to, type, data } = req.body;
-
-  console.log('\n' + '='.repeat(40));
-  console.log(`📧 [SHADOW BACKEND] EMAIL TRIGGERED`);
-  console.log(`TYPE: ${type}`);
-  console.log(`TO:   ${to}`);
-  if (data?.otp) {
-    console.log(`🔑 VERIFICATION CODE: ${data.otp}`);
-  }
-  console.log('='.repeat(40) + '\n');
-
-  try {
-    const { subject, html } = generateTemplate(type, data);
-
-    if (resendClient) {
-      await resendClient.emails.send({
-        from: RESEND_FROM,
-        to,
-        subject,
-        html
-      });
-      console.log('✅ Email successfully delivered to inbox via Resend.');
-    } else {
-      console.warn('⚠️ No RESEND_API_KEY found. Logging to terminal only.');
-    }
-
-    return res.json({ success: true, message: 'Code logged to terminal and email attempted.' });
-  } catch (err) {
-    console.warn(`⚠️ Email delivery failed, but your code is logged above! (${err.message})`);
-    return res.json({ success: true, message: 'Email delivery failed, but check your terminal for the code!', dev_mode: true });
-  }
-});
+// ledger. Removed routes: /api/emails/payment-receipt, /api/emails/booking-confirmation,
+// GET /api/bookings/:id/financial-ledger (Phase 2) and the unauthenticated
+// POST /send-email relay, which mailed caller-chosen templates to any address.
 
 // 🚀 ISOLATED INVITATION SYSTEM
 
