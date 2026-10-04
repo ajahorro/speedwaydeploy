@@ -1,107 +1,122 @@
 /**
  * paymentUtils.js
- * Centralized source of truth for calculating booking and payment statuses.
+ *
+ * PRESENTATION helpers for booking money. This file does not compute money:
+ * every paid / balance / credit / refund figure comes from the database ledger
+ * (public.booking_ledger_v, read through services/ledgerService.js) and is
+ * attached to a booking as `booking.ledger`. Summing `payments` rows here is
+ * what used to make screens disagree, so it is deliberately not possible.
+ *
+ * The downpayment policy is the shop's configured policy from business_config
+ * (shop_downpayment_policy()), loaded by ConfigContext via setDownpaymentPolicy.
+ * The server re-checks every amount with the same policy.
  */
 
-export const calculatePaymentStatus = (booking) => {
-  return calculatePaymentSummary(booking).status;
+// ── Downpayment policy (mirrors business_config; defaults = shop defaults) ──
+const DEFAULT_DOWNPAYMENT_POLICY = Object.freeze({ min_total: 1000, rate: 0.3, high_threshold: 2000, high_rate: 0.5 });
+let downpaymentPolicy = DEFAULT_DOWNPAYMENT_POLICY;
+
+/** Called by ConfigContext with the result of shop_downpayment_policy(). */
+export const setDownpaymentPolicy = (policy) => {
+  if (!policy) return;
+  downpaymentPolicy = {
+    min_total: Number(policy.min_total ?? DEFAULT_DOWNPAYMENT_POLICY.min_total),
+    rate: Number(policy.rate ?? DEFAULT_DOWNPAYMENT_POLICY.rate),
+    high_threshold: Number(policy.high_threshold ?? DEFAULT_DOWNPAYMENT_POLICY.high_threshold),
+    high_rate: Number(policy.high_rate ?? DEFAULT_DOWNPAYMENT_POLICY.high_rate)
+  };
 };
 
-export const calculatePaymentSummary = (booking = {}) => {
-  const payments = booking.payments || [];
-  const totalAmount = Number(booking.total_amount || 0);
+export const getDownpaymentPolicy = () => downpaymentPolicy;
 
-  // 🛡️ SCENARIO 10 FIX — LEDGER DESYNC ON PARTIAL REFUNDS.
-  //
-  // A partial refund is written as a NEGATIVE SYSTEM_REFUND row with
-  // status = 'REFUNDED' (process_booking_refund). The previous credit filter
-  // matched rows with status IN ('PAID','REFUND_PENDING','REFUNDED') AND
-  // amount > 0 — but the refund filter ALSO matched any row with status
-  // 'REFUNDED', so depending on row shape a partial refund could be subtracted
-  // from the credits while the refund total ignored the sign, or the negative
-  // row was picked up twice (once as a credit line, once as a refund). On the
-  // ₱150-paid / ₱30-refunded / ₱110-new-total example this produced a ₱40
-  // credit instead of ₱10.
-  //
-  // Canonical rule (mirrors public.booking_net_paid in the DB):
-  //   credits = Σ positive, non-refund rows that are settled
-  //             (PAID | REFUND_PENDING | REFUNDED)
-  //   refunds = Σ |negative rows| where the row IS a refund
-  //             (method SYSTEM_REFUND OR status REFUNDED — but only when the
-  //             amount is negative, so a positive source line can never be
-  //             mistaken for a refund)
-  //   netPaid = max(0, credits − refunds)
-  const isRefundRow = (payment) => String(payment.method || '').toUpperCase() === 'SYSTEM_REFUND';
-  const settledCreditAmount = (payment) => {
-    const detected = Number(payment.detected_amount || 0);
-    if (detected > 0) return detected;
-    return Number(payment.amount || 0);
+const EMPTY_LEDGER = Object.freeze({
+  original_amount: 0,
+  expected_amount: 0,
+  settled_amount: 0,
+  refunded_amount: 0,
+  net_settled: 0,
+  verified_paid: 0,
+  outstanding_amount: 0,
+  excess_amount: 0,
+  pending_verification: 0,
+  has_pending_verification: false,
+  cancelled_no_fee: false,
+  downpayment_met: false,
+  paid_status: 'unpaid'
+});
+
+export const calculatePaymentStatus = (booking) => calculatePaymentSummary(booking).status;
+
+/**
+ * Booking payment summary, mapped from the ledger row on `booking.ledger`.
+ *
+ *   totalPaid  : net money held for the booking (ledger net_settled)
+ *   balance    : still owed (ledger outstanding_amount, never negative)
+ *   credit     : overpaid amount held for the customer (ledger excess_amount)
+ *   netBalance : signed balance; negative = credit
+ *
+ * When the ledger has not loaded yet the summary reports zero paid and the
+ * full total due, with `ledgerLoaded: false` so callers can show a loader.
+ */
+export const calculatePaymentSummary = (booking = {}) => {
+  const ledger = booking.ledger || null;
+  const row = ledger || {
+    ...EMPTY_LEDGER,
+    original_amount: Number(booking.total_amount || 0),
+    expected_amount: Number(booking.total_amount || 0),
+    outstanding_amount: Number(booking.total_amount || 0)
   };
 
-  const positivePayments = payments
-    .filter(payment => !isRefundRow(payment)
-      && ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(String(payment.status || '').toUpperCase())
-      && settledCreditAmount(payment) > 0)
-    .reduce((sum, payment) => sum + settledCreditAmount(payment), 0);
-
-  const processedRefunds = payments
-    .filter(payment => (isRefundRow(payment)
-      || String(payment.status || '').toUpperCase() === 'REFUNDED')
-      && Number(payment.amount) < 0)
-    .reduce((sum, payment) => sum + Math.abs(Number(payment.amount)), 0);
-
-  const totalPaid = Math.max(0, positivePayments - processedRefunds);
+  const totalAmount = Number(row.original_amount || 0);
+  const effectiveTotalAmount = Number(row.expected_amount || 0);
+  const totalPaid = Number(row.net_settled || 0);
+  const processedRefunds = Number(row.refunded_amount || 0);
+  const balance = Number(row.outstanding_amount || 0);
+  const credit = Number(row.excess_amount || 0);
   const refundStatus = String(booking.refund_status || '').toUpperCase();
-  const hasProcessedRefund = ['PROCESSED', 'REFUNDED', 'RELEASED'].includes(refundStatus)
-    || payments.some(payment => String(payment.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(payment.amount) < 0)
-    || payments.some(payment => String(payment.status || '').toUpperCase() === 'REFUNDED');
-  const isPendingVerification = payments.some(payment => String(payment.status || '').toUpperCase() === 'FOR_VERIFICATION');
-  const isCancelledNoFee = String(booking.status || '').toUpperCase() === 'CANCELLED'
-    && totalPaid <= 0
-    && !isPendingVerification;
-  const effectiveTotalAmount = isCancelledNoFee ? 0 : totalAmount;
-  const requiredDownpayment = calculateRequiredDownpayment(effectiveTotalAmount).amount;
-
-  // 🛡️ HOTFIX Fix 2 — SIGNED BALANCE + CREDIT CARRY-FORWARD.
-  //
-  // `balance` used to be clamped with Math.max(0, ...), which SILENTLY DISCARDED
-  // an overpayment: a customer who paid ₱2,000 against a ₱980 bill reported
-  // balance 0 — indistinguishable from exactly-paid, and the ₱1,020 credit was
-  // invisible to every caller (including the Add-Service coverage check).
-  //
-  // We now return THREE distinct figures so no caller can conflate them:
-  //   balance   : still OWED by the customer (clamped at 0 — never negative)
-  //   credit    : overpaid amount the shop holds for the customer (>= 0)
-  //   netBalance: SIGNED truth (totalAmount − totalPaid); negative = credit
-  const rawBalance = Math.round((effectiveTotalAmount - totalPaid) * 100) / 100;
-  const balance = Math.max(0, rawBalance);
-  const credit = Math.max(0, -rawBalance);
-  const netBalance = rawBalance;
+  const hasProcessedRefund = processedRefunds > 0 || ['PROCESSED', 'REFUNDED', 'RELEASED'].includes(refundStatus);
 
   let status = 'UNPAID';
-  // A refunded booking is only fully REFUNDED when the net credit has been
-  // driven to zero. A PARTIAL refund must keep the booking's true paid balance,
-  // otherwise the UI would label a still-owed booking as REFUNDED and hide the
-  // outstanding balance (the same ₱10-vs-₱40 desync). We therefore only report
-  // REFUNDED when the booking is settled at ₱0 net after the refund.
-  if (hasProcessedRefund && totalPaid <= 0) status = 'REFUNDED';
-  else if (totalAmount > 0 && totalPaid >= totalAmount) status = 'PAID';
-  else if (isPendingVerification) status = 'VERIFYING';
-  else if (totalPaid >= requiredDownpayment) status = 'DOWNPAYMENT_PAID';
-  else if (hasProcessedRefund) status = 'PARTIALLY_REFUNDED';
+  switch (row.paid_status) {
+    case 'refunded':
+      status = 'REFUNDED';
+      break;
+    case 'void':
+      status = 'NO_CHARGE';
+      break;
+    case 'paid':
+    case 'overpaid':
+      status = 'PAID';
+      break;
+    default:
+      if (row.has_pending_verification) status = 'VERIFYING';
+      else if (row.downpayment_met && totalPaid > 0) status = 'DOWNPAYMENT_PAID';
+      else if (row.paid_status === 'partially_refunded') status = 'PARTIALLY_REFUNDED';
+  }
 
-  return { status, totalAmount, effectiveTotalAmount, totalPaid, processedRefunds, balance, credit, netBalance, hasProcessedRefund, isOverpaid: credit > 0, isCancelledNoFee };
+  return {
+    status,
+    totalAmount,
+    effectiveTotalAmount,
+    totalPaid,
+    verifiedPaid: Number(row.verified_paid || 0),
+    processedRefunds,
+    balance,
+    credit,
+    netBalance: balance > 0 ? balance : -credit,
+    hasProcessedRefund,
+    isOverpaid: credit > 0,
+    isCancelledNoFee: Boolean(row.cancelled_no_fee),
+    requiredDownpayment: Number(row.required_downpayment || 0),
+    downpaymentMet: Boolean(row.downpayment_met),
+    paidInFull: Boolean(row.service_paid_in_full),
+    ledgerLoaded: Boolean(ledger)
+  };
 };
 
 /**
- * Scenario 10 — the exact credit the shop owes (or is owed by) the customer
- * after a refund, expressed so callers cannot invert the sign.
- *
- *   creditOwed = netPaid − currentTotal
- *
- * On the canonical example (₱150 paid, ₱30 refunded, new total ₱110) this
- * returns +10 — the shop owes ₱10. A more-is-owed result (₱40) is the defect
- * this function exists to prevent.
+ * Scenario 10 — credit the shop owes (positive) or is owed (negative) if the
+ * booking total became `newTotalAmount`.
  */
 export const calculateAdjustmentCredit = (booking = {}, newTotalAmount = null) => {
   const { totalPaid } = calculatePaymentSummary(booking);
@@ -111,35 +126,23 @@ export const calculateAdjustmentCredit = (booking = {}, newTotalAmount = null) =
   return Math.round((totalPaid - target) * 100) / 100;
 };
 
-export const requiresDownpayment = (totalAmount) => Number(totalAmount || 0) >= 1000;
+export const requiresDownpayment = (totalAmount) => Number(totalAmount || 0) >= downpaymentPolicy.min_total;
 
 /**
- * 🔧 DEFECT A1 FIX — DOWNPAYMENT TIER BASIS.
+ * Downpayment for an amount, with the tier chosen by the booking's CART total
+ * (never by an individual line item) using the shop's configured policy.
  *
- * The 30% vs 50% TIER must be decided by the AGGREGATE CART TOTAL of the whole
- * booking, never by an individual line item. Previously the tier was computed
- * from whatever number was passed in, so adding a ₱500 service to a ₱2,300 cart
- * evaluated the tier against ₱500 (30%) instead of the ₱2,300 cart total (50%) —
- * the wrong tier on the wrong basis.
- *
- * @param {number} amountToCover  the figure the percentage is APPLIED to
- *                                (the outstanding balance for that line/service)
- * @param {number} [cartTotal]    the booking's GRAND TOTAL used to choose the
- *                                tier. Defaults to `amountToCover` so existing
- *                                single-argument callers keep working, but every
- *                                add-service path MUST pass the cart total.
+ * @param {number} amountToCover  the figure the percentage is applied to
+ * @param {number} [cartTotal]    the booking grand total that picks the tier
  */
 export const calculateRequiredDownpayment = (amountToCover, cartTotal = null) => {
   const base = Number(amountToCover || 0);
-  // The tier is chosen from the CART total when supplied, else the base.
-  const tierBasis = cartTotal === null || cartTotal === undefined
-    ? base
-    : Number(cartTotal || 0);
-  const percentage = tierBasis >= 2000 ? 50 : 30;
+  const tierBasis = cartTotal === null || cartTotal === undefined ? base : Number(cartTotal || 0);
+  const rate = tierBasis >= downpaymentPolicy.high_threshold ? downpaymentPolicy.high_rate : downpaymentPolicy.rate;
   return {
-    percentage,
+    percentage: Math.round(rate * 100),
     basis: tierBasis,
-    amount: Math.round(base * (percentage / 100) * 100) / 100
+    amount: Math.round(base * rate * 100) / 100
   };
 };
 
@@ -166,6 +169,8 @@ export const getPaymentStatusUI = (status) => {
       return { label: 'PARTIAL REFUND', color: '#f59e0b' };
     case 'VERIFYING':
       return { label: 'VERIFYING', color: '#8b5cf6' };
+    case 'NO_CHARGE':
+      return { label: 'NO CHARGE', color: 'var(--admin-text-secondary)' };
     case 'DOWNPAYMENT_PAID':
       return { label: 'DOWNPAYMENT', color: '#3b82f6' };
     default:

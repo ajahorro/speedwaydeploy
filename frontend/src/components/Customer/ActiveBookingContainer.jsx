@@ -127,7 +127,7 @@ const ActiveBookingContainer = ({ booking, loading }) => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '600' }}>Balance:</span>
-              <span style={{ color: 'var(--admin-warning)', fontWeight: '800' }}>₱{((booking.total_amount || 0) - (booking.totalPaid || 0)).toLocaleString()}</span>
+              <span style={{ color: 'var(--admin-warning)', fontWeight: '800' }}>₱{Number(booking.ledger?.outstanding_amount ?? booking.total_amount ?? 0).toLocaleString()}</span>
             </div>
           </div>
 

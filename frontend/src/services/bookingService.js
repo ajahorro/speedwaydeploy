@@ -14,6 +14,7 @@ import { buildLocalDateTime, formatLocalISODate } from '../utils/dateTimeUtils';
 import { sendStatusEmail } from './notificationService';
 import { calculateBayUsage } from '../utils/schedulingUtils';
 import { BACKEND_URL } from '../config/api';
+import { fetchBookingLedgers } from './ledgerService';
 
 const normalizeServiceId = (value) => {
   if (typeof value !== 'string') return null;
@@ -565,7 +566,19 @@ export const fetchCustomerBookings = async (customerId) => {
     });
     throw new Error(error.message || 'We could not load your bookings right now. Please try again.');
   }
-  return data || [];
+  // Attach each booking's ledger (paid, balance, status) in one request so no
+  // customer screen has to sum payment rows itself.
+  const bookings = data || [];
+  let ledgers = new Map();
+  try {
+    ledgers = await fetchBookingLedgers(bookings.map((booking) => booking.id));
+  } catch (ledgerError) {
+    console.error('[CustomerBookings] Ledger load failed:', ledgerError);
+  }
+  return bookings.map((booking) => {
+    const ledger = ledgers.get(booking.id) || null;
+    return { ...booking, ledger, totalPaid: Number(ledger?.net_settled || 0) };
+  });
 };
 
 /**

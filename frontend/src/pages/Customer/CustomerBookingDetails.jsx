@@ -22,6 +22,7 @@ import ValidationModal from '../../components/ValidationModal';
 import { classifyScheduleError, toCleanMessage } from '../../utils/errorRouting';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { calculatePaymentSummary } from '../../utils/paymentUtils';
+import { fetchBookingLedger } from '../../services/ledgerService';
 import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import { getAvailableSlots, getBusinessHours } from '../../services/scheduleService';
 
@@ -251,9 +252,13 @@ const CustomerBookingDetails = () => {
         return { ...p, receipt_url: url };
       });
 
-      const totalPaid = processedPayments.filter(p => p.status === 'PAID' || p.status === 'REFUNDED').reduce((sum, p) => sum + Number(p.amount), 0);
+      // Booking money comes from the database ledger, never from summing rows here.
+      const ledger = await fetchBookingLedger(id).catch((ledgerError) => {
+        console.error('Ledger load failed:', ledgerError);
+        return null;
+      });
 
-      setBooking({ ...bData, assigned_staff: staff, totalPaid });
+      setBooking({ ...bData, assigned_staff: staff, ledger, totalPaid: Number(ledger?.net_settled || 0) });
       setVehicles(vehiclesWithServices);
       setPayments(processedPayments);
     } catch (err) {
@@ -296,14 +301,14 @@ const CustomerBookingDetails = () => {
   const totalPaid = paymentSummary.totalPaid || 0;
   const appliedToBooking = Math.max(0, totalPaid - Number(paymentSummary.credit || 0));
   const excessCredit = Number(paymentSummary.credit || 0);
-  const balance = Math.max(0, (booking.total_amount || 0) - totalPaid);
+  const balance = paymentSummary.balance;
   const selectedRescheduleSlot = rescheduleSlots.some(slot => slot.time === rescheduleTime);
 
   // 🚀 DERIVED STATE: Ensure UI reflects reality even if master status lags
   const vehicleStatuses = (vehicles || []).map(v => v.status?.toUpperCase());
   const anyUnitStarted = vehicleStatuses.includes('IN_PROGRESS');
   const allUnitsFinished = vehicleStatuses.length > 0 && vehicleStatuses.every(s => s === 'COMPLETED' || s === 'CANCELLED');
-  const isFullySettled = (booking.total_amount || 0) > 0 && totalPaid >= (booking.total_amount || 0);
+  const isFullySettled = Boolean(booking.ledger?.fully_settled);
 
   // Real-time derived status for UI responsiveness
   let derivedStatus = (booking.status || 'scheduled').toLowerCase();

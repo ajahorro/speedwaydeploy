@@ -469,18 +469,20 @@ begin
          notes = concat_ws('|', notes, case when p_override then '[MANUAL_OVERRIDE]' else '[VERIFIED]' end, nullif(p_note, ''))
    where id = p_payment_id;
 
-  insert into public.audit_logs (
-    booking_id, action_type, details, actor_name, actor_role, actor_id, metadata
-  ) values (
-    p_booking_id,
-    case when p_override then 'MANUAL_OVERRIDE_CONFIRM' else 'PAYMENT_VERIFIED' end,
-    case when p_override
-      then format('Administrator manually confirmed a flagged payment as ₱%s. Automated OCR updates are now locked out.', v_amount)
-      else format('Administrator verified a payment of ₱%s.', v_amount)
-    end,
-    'Administrator', 'ADMIN', auth.uid(),
-    jsonb_build_object('payment_id', p_payment_id, 'verified_amount', v_amount, 'override', p_override)
-  );
+  -- One audit row per action: trg_audit_payment_change records normal
+  -- verifications (PAYMENT_VERIFIED) and deliberately skips overrides, which
+  -- are recorded here.
+  if p_override then
+    insert into public.audit_logs (
+      booking_id, action_type, details, actor_name, actor_role, actor_id, metadata
+    ) values (
+      p_booking_id,
+      'MANUAL_OVERRIDE_CONFIRM',
+      format('Administrator manually confirmed a flagged payment as ₱%s. Automated OCR updates are now locked out.', v_amount),
+      'Administrator', 'ADMIN', auth.uid(),
+      jsonb_build_object('payment_id', p_payment_id, 'verified_amount', v_amount, 'override', true)
+    );
+  end if;
 
   return jsonb_build_object(
     'payment_id', p_payment_id,
@@ -563,18 +565,9 @@ begin
      where id = p_booking_id;
   end if;
 
-  insert into public.audit_logs (
-    booking_id, action_type, details, actor_name, actor_role, actor_id, metadata
-  ) values (
-    p_booking_id,
-    'PAYMENT_REJECTED',
-    case when p_queue_refund
-      then format('Administrator rejected a payment of ₱%s and queued a refund. Reason: %s', v_amount, p_reason)
-      else format('Administrator rejected a payment proof of ₱%s. Reason: %s', v_amount, p_reason)
-    end,
-    'Administrator', 'ADMIN', auth.uid(),
-    jsonb_build_object('payment_id', p_payment_id, 'amount', v_amount, 'queue_refund', p_queue_refund, 'reason', p_reason)
-  );
+  -- Audited by trg_audit_payment_change (PAYMENT_REJECTED / PAYMENT_REFUND_QUEUED);
+  -- the reason is stored on the payment row (rejection_reason).
+
 
   return jsonb_build_object(
     'payment_id', p_payment_id,

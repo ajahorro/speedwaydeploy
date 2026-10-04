@@ -265,25 +265,6 @@ const AdminPayments = () => {
     String(payment?.status || '').trim().toUpperCase()
   );
 
-  const canAccessReceipt = (booking) => {
-    // REQ-ADM-10: Admins can access receipts if payment is PAID OR if refund is PROCESSED
-    return (booking?.payments || []).some(p => p.status === 'PAID') || booking?.refund_status === 'PROCESSED';
-  };
-
-  const getReceiptStatusText = (receipt) => {
-    if (!receipt) return '';
-
-    // REQ-ADM-10: Hardened check for refund state
-    if (receipt.refund_status === 'PROCESSED') return 'REFUNDED & CLOSED';
-
-    const paidAmount = (receipt.payments || []).filter(p => p.status === 'PAID').reduce((s, p) => s + Number(p.amount), 0);
-    const remaining = Math.max(0, receipt.total_amount - paidAmount);
-    if (!canAccessReceipt(receipt)) return 'AWAITING VERIFICATION';
-    if (remaining <= 0) return 'PAID IN FULL';
-    if (paidAmount > 0) return 'PARTIAL PAYMENT';
-    return 'BALANCE DUE';
-  };
-
   const handleViewReceipt = async (payment) => {
     const toastId = toast.loading('Verifying security clearance...');
     try {

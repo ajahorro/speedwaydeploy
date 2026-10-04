@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, createUniqueChannel } from '../lib/supabase';
 import { fetchCustomerBookings } from '../services/bookingService';
+import { calculatePaymentStatus } from '../utils/paymentUtils';
 
 /**
  * useBookings hook — PRODUCTION GRADE
@@ -19,23 +20,8 @@ export const useBookings = (customerId) => {
     try {
       const data = await fetchCustomerBookings(customerId);
 
-      // Enrich each booking with computed payment status
-      const enriched = data.map(b => {
-        const payments = b.payments || [];
-        const totalPaid = payments.filter(p => p.status === 'PAID').reduce((sum, p) => sum + Number(p.amount), 0);
-        const isPendingVerification = payments.some(p => p.status === 'FOR_VERIFICATION');
-
-        let paymentStatus = 'UNPAID';
-        if (totalPaid >= b.total_amount && b.total_amount > 0) {
-          paymentStatus = 'PAID';
-        } else if (isPendingVerification) {
-          paymentStatus = 'VERIFYING';
-        } else if (totalPaid >= (b.total_amount * 0.3) && b.total_amount > 0) {
-          paymentStatus = 'DOWNPAYMENT_PAID';
-        }
-
-        return { ...b, paymentStatus, totalPaid };
-      });
+      // fetchCustomerBookings attaches each booking's ledger; status is derived from it.
+      const enriched = data.map((b) => ({ ...b, paymentStatus: calculatePaymentStatus(b) }));
 
       setBookings(enriched);
     } catch (err) {

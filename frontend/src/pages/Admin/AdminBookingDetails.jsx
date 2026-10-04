@@ -14,7 +14,8 @@ import { SERVICES_DATA, resolveFrozenServicePrice } from '../../data/servicesCat
 import { calculateBayUsage, calculateOccupancy, filterActiveBookings } from '../../utils/schedulingUtils';
 import { SHOP_CONFIG } from '../../config/constants';
 import { getStatusColor, isStaffOccupied } from '../../utils/bookingHelpers';
-import { calculatePaymentSummary, calculateRequiredDownpayment, calculateAdditionalDownpayment, requiresDownpayment } from '../../utils/paymentUtils';
+import { calculatePaymentSummary, requiresDownpayment } from '../../utils/paymentUtils';
+import { fetchBookingLedger, fetchRequiredDownpayment } from '../../services/ledgerService';
 import { fetchBookingExcessCredit } from '../../services/creditLedgerService';
 import toast from 'react-hot-toast';
 import BookingAuditTrail from '../../components/BookingAuditTrail';
@@ -50,6 +51,8 @@ const AdminBookingDetails = () => {
   const [hasAssignedStaffBeforeEvidence, setHasAssignedStaffBeforeEvidence] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
   const [bookingPayments, setBookingPayments] = useState([]);
+  // Booking money from the database ledger (booking_ledger_v); never re-summed here.
+  const [ledger, setLedger] = useState(null);
   const [loading, setLoading] = useState(true);
   const [paymentModal, setPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -257,6 +260,9 @@ const AdminBookingDetails = () => {
   };
 
   const fetchPayments = async () => {
+    fetchBookingLedger(id)
+      .then(setLedger)
+      .catch((ledgerError) => logger.error('Booking ledger load failed:', ledgerError));
     const { data } = await supabase.from('payments').select('*').eq('booking_id', id).order('created_at', { ascending: true });
     if (data) {
       // Process URLs for previews
@@ -931,11 +937,10 @@ const AdminBookingDetails = () => {
 
     const cartTotalBefore = Number(booking?.total_amount || 0);
     const cartTotalAfter = Math.round((cartTotalBefore + price) * 100) / 100;
-    const netPaid = Math.max(0, Number(
-      calculatePaymentSummary({ ...booking, payments: bookingPayments })?.totalPaid || 0
-    ));
-    const requiredAggregateDownpayment = calculateRequiredDownpayment(cartTotalAfter).amount;
-    const requiredNow = calculateAdditionalDownpayment(cartTotalAfter, netPaid, price);
+    const netPaid = Math.max(0, Number(ledger?.net_settled || 0));
+    const acceptedPaid = Math.max(0, Number(ledger?.verified_paid || 0));
+    const requiredAggregateDownpayment = await fetchRequiredDownpayment(cartTotalAfter);
+    const requiredNow = Math.min(price, Math.max(0, requiredAggregateDownpayment - acceptedPaid));
     let existingCredit = Math.max(0, netPaid - cartTotalBefore);
     const customerId = booking?.customer_id;
     if (customerId) {
@@ -1158,23 +1163,6 @@ const AdminBookingDetails = () => {
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val || 0);
 
-  const canAccessReceipt = () => {
-    // REQ-ADM-10: Admins can access receipts if payment is PAID OR if refund is PROCESSED
-    return bookingPayments.some(p => p.status === 'PAID') || booking.refund_status === 'PROCESSED';
-  };
-
-  const getReceiptStatusText = () => {
-    // REQ-ADM-10: Hardened check for refund state
-    if (booking.refund_status === 'PROCESSED') return 'REFUNDED & CLOSED';
-
-    const paidAmount = bookingPayments.filter(p => p.status === 'PAID').reduce((s, p) => s + Number(p.amount), 0);
-    const remaining = Math.max(0, booking.total_amount - paidAmount);
-    if (!canAccessReceipt()) return 'AWAITING VERIFICATION';
-    if (remaining <= 0) return 'PAID IN FULL';
-    if (paidAmount > 0) return 'PARTIAL PAYMENT';
-    return 'BALANCE DUE';
-  };
-
   const cardStyle = {
     background: 'var(--admin-card)',
     borderRadius: 'var(--admin-radius)',
@@ -1220,7 +1208,7 @@ const AdminBookingDetails = () => {
   if (loading || !booking) return <LoadingState message="Synchronizing fleet records..." />;
 
   const pendingVerification = bookingPayments.find(p => p.status === 'FOR_VERIFICATION');
-  const paymentSummary = calculatePaymentSummary({ ...booking, payments: bookingPayments });
+  const paymentSummary = calculatePaymentSummary({ ...booking, payments: bookingPayments, ledger });
   const totalPaid = paymentSummary.totalPaid;
   const balance = paymentSummary.balance;
 
@@ -1228,18 +1216,7 @@ const AdminBookingDetails = () => {
   const vehicleStatuses = (vehicles || []).map(v => v.status?.toUpperCase());
   const anyUnitStarted = vehicleStatuses.includes('IN_PROGRESS');
   const allUnitsFinished = vehicleStatuses.length > 0 && vehicleStatuses.every(s => s === 'COMPLETED' || s === 'CANCELLED');
-  const verifiedPaid = bookingPayments
-    .filter(payment => String(payment.status || '').toUpperCase() === 'PAID'
-      && String(payment.method || '').toUpperCase() !== 'SYSTEM_REFUND'
-      && Number(payment.amount) > 0)
-    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
-    - bookingPayments
-      .filter(payment => Number(payment.amount) < 0
-        && (String(payment.method || '').toUpperCase() === 'SYSTEM_REFUND'
-          || String(payment.status || '').toUpperCase() === 'REFUNDED'))
-      .reduce((sum, payment) => sum + Math.abs(Number(payment.amount || 0)), 0);
-  const isFullySettled = Number(booking?.total_amount || 0) <= 0
-    || Math.max(0, verifiedPaid) >= Number(booking?.total_amount || 0);
+  const isFullySettled = Boolean(ledger?.service_paid_in_full);
 
   // Package plan frozen onto the booking at creation (see bookingService notes:
   // "PACKAGES:[...]"). Parsed defensively so a malformed/absent marker never

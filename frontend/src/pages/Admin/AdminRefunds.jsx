@@ -11,6 +11,7 @@ import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from 'react-hot-toast';
 import { logger } from '../../utils/logger';
+import { fetchBookingLedgers } from '../../services/ledgerService';
 
 const AdminRefunds = () => {
   const navigate = useNavigate();
@@ -54,6 +55,7 @@ const AdminRefunds = () => {
       if (error) throw error;
 
       const bookingIds = (data || []).map(booking => booking.id);
+      const ledgers = await fetchBookingLedgers(bookingIds);
       let queuedCredits = [];
       if (bookingIds.length) {
         const { data: creditRows, error: creditError } = await supabase
@@ -66,31 +68,12 @@ const AdminRefunds = () => {
       }
 
       const processed = (data || []).map(b => {
-        // ── The ₱0 refundable-total bug ──────────────────────────────────────
-        // The whitelist below previously compared p.status against MIXED CASE
-        // ('PAID', 'REFUND_PENDING', 'REFUNDED') while the payments table stores
-        // the enum in UPPERCASE. Every row failed the test, positivePayments was
-        // always 0, and totalPaid — which seeds the refund modal, hence the
-        // reported ₱0 — came out as 0. Statuses are now uppercased and the
-        // whitelist widened to every genuinely settled credit (PAID is the norm;
-        // REFUND_PENDING still counts, because the money has not left yet).
-        const statusOf = (p) => String(p?.status || '').trim().toUpperCase();
+        // Paid and refunded totals come from the database ledger (booking_ledger_v),
+        // the same figures the booking, customer and report screens show.
         const methodOfPayment = (p) => String(p?.method || '').trim().toUpperCase();
-        const SETTLED_CREDIT_STATUSES = ['PAID', 'REFUND_PENDING', 'REFUNDED'];
-
-        const positivePayments = (b.payments || [])
-          .filter(p => Number(p.amount) > 0
-            && methodOfPayment(p) !== 'SYSTEM_REFUND'
-            && SETTLED_CREDIT_STATUSES.includes(statusOf(p)))
-          .reduce((sum, p) => sum + Number(p.amount), 0);
-        // A refund is ALWAYS a negative SYSTEM_REFUND row. Counting only those
-        // (rather than "any REFUNDED row") is the rule booking_net_paid() uses in
-        // SQL, and it stops a partial refund being subtracted twice. See
-        // migration 20261018000001_ocr_override_lock_and_refund_ledger.sql (SC-10).
-        const processedRefunds = (b.payments || [])
-          .filter(p => Number(p.amount) < 0 && methodOfPayment(p) === 'SYSTEM_REFUND')
-          .reduce((sum, p) => sum + Math.abs(Number(p.amount)), 0);
-        const totalPaid = Math.max(0, positivePayments - processedRefunds);
+        const ledger = ledgers.get(b.id) || null;
+        const totalPaid = Number(ledger?.net_settled || 0);
+        const processedRefunds = Number(ledger?.refunded_amount || 0);
 
         // Derive the payment channel from the booking's positive payments so the
         // PROCESSED view can be split into Digital vs Cash. Mirrors the method
@@ -114,7 +97,7 @@ const AdminRefunds = () => {
           .filter(p => Number(p.amount) < 0
             && methodOfPayment(p) === 'SYSTEM_REFUND'
             && String(p.notes || '').startsWith('OVERPAYMENT_CREDIT_REFUND:'))
-          .reduce((sum, p) => sum + Math.abs(Number(p.amount)), 0);
+          .reduce((sum, p) => sum + Math.abs(Number(p.amount)), 0); // single-source-ok: matches overpayment-credit refund rows by note; not a paid total
         const overpaymentRefundRemaining = Math.max(0, queuedOverpayment - processedOverpaymentRefunds);
         const refundLimit = overpaymentRefundRemaining > 0 ? overpaymentRefundRemaining : totalPaid;
 

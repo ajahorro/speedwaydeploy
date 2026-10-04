@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, createUniqueChannel } from '../lib/supabase';
 import { SHOP_CONFIG } from '../config/constants';
 import { logger } from '../utils/logger';
+import { setDownpaymentPolicy } from '../utils/paymentUtils';
 
 const ConfigContext = createContext();
 
@@ -81,8 +82,18 @@ export const ConfigProvider = ({ children }) => {
             }
           } catch { /* ignore quota / private-mode errors */ }
         }
+        // Downpayment policy lives in this same business_config row and is the
+        // one the database enforces (booking_required_downpayment).
+        const downpaymentPolicy = {
+          min_total: data.downpayment_min_total,
+          rate: data.downpayment_rate,
+          high_threshold: data.downpayment_high_threshold,
+          high_rate: data.downpayment_high_rate
+        };
+        setDownpaymentPolicy(downpaymentPolicy);
         setSettings({
           MAX_BAYS: data.slots_per_hour || SHOP_CONFIG.MAX_BAYS,
+          DOWNPAYMENT_POLICY: downpaymentPolicy,
           // When the shop is open 24 hours the whole day is bookable. Report the
           // window as 0..24 so the existing timeline/grid math (which derives its
           // hour axis from CLOSING_HOUR - OPENING_HOUR) spans the full day with no

@@ -4207,7 +4207,7 @@ const checkOverdueBookings = async () => {
       // The lifecycle delivery ledger suppresses already-sent messages.
       const { data: flaggedBookings, error: fetchError } = await supabaseAdmin
         .from('bookings')
-        .select('id, refund_status, customer_email, payments(amount, detected_amount, status, method, verified_at)')
+        .select('id, refund_status, customer_email')
         .eq('status', 'FLAGGED_NOSHOW');
 
       if (fetchError) {
@@ -4215,19 +4215,13 @@ const checkOverdueBookings = async () => {
       } else {
         // Retry pending deliveries on every sweep; booking-lifecycle's delivery
         // ledger makes successful sends idempotent and releases failed claims.
+        const noShowLedgers = await getBookingLedgers((flaggedBookings || []).map((booking) => booking.id));
         for (const booking of (flaggedBookings || [])) {
-          const refundRows = (booking.payments || []).filter((payment) =>
-            String(payment.status || '').toUpperCase() === 'REFUND_PENDING'
-            && String(payment.method || '').toUpperCase() !== 'SYSTEM_REFUND'
-            && Number(payment.amount || 0) > 0
-          );
-          const verifiedRefund = refundRows
-            .filter((payment) => payment.verified_at)
-            .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-          const unverifiedRefund = refundRows
-            .filter((payment) => !payment.verified_at)
-            .reduce((sum, payment) => sum + Number(payment.detected_amount || payment.amount || 0), 0);
-          const refundDetails = refundRows.length
+          // Money held and unverified claims come from the ledger, like every other screen.
+          const ledger = noShowLedgers.get(booking.id);
+          const verifiedRefund = Number(ledger?.net_settled || 0);
+          const unverifiedRefund = Number(ledger?.pending_verification || 0);
+          const refundDetails = (verifiedRefund > 0 || unverifiedRefund > 0)
             ? `Refund status: ${booking.refund_status || 'QUEUED'}. Verified payments awaiting refund: ₱${verifiedRefund.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. Unverified payment claims awaiting review: ₱${unverifiedRefund.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`
             : 'No payment was recorded, so no refund is currently queued.';
           try {

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, createUniqueChannel } from '../lib/supabase';
 import { logger } from '../utils/logger';
 import { calculatePaymentStatus } from '../utils/paymentUtils';
+import { fetchBookingLedgers } from '../services/ledgerService';
 import toast from 'react-hot-toast';
 
 /**
@@ -33,13 +34,17 @@ export const useAdminBookings = () => {
 
       if (error) throw error;
 
+      // Payment status from the database ledger, fetched once for all bookings.
+      const ledgers = await fetchBookingLedgers((data || []).map(b => b.id));
+
       // DEDUPLICATION ENGINE: Resolve Cartesian Product from nested joins
       const uniqueMap = new Map();
       (data || []).forEach(b => {
         if (!uniqueMap.has(b.id)) {
+          const withLedger = { ...b, ledger: ledgers.get(b.id) || null };
           uniqueMap.set(b.id, {
-            ...b,
-            calculatedPaymentStatus: calculatePaymentStatus(b)
+            ...withLedger,
+            calculatedPaymentStatus: calculatePaymentStatus(withLedger)
           });
         }
       });

@@ -224,8 +224,7 @@ const CustomerMyBookings = () => {
                       if (b.status?.toUpperCase() === 'CANCELLED') {
                         return <div style={{ fontSize: '0.8rem', fontWeight: '950', color: 'var(--status-danger)' }}>CANCELLED</div>;
                       }
-                      const totalPaid = (b.payments || []).filter(p => p.status === 'PAID').reduce((s, p) => s + Number(p.amount), 0);
-                      const balance = Math.max(0, (b.total_amount || 0) - totalPaid);
+                      const balance = Number(b.ledger?.outstanding_amount ?? b.total_amount ?? 0);
                       return (
                         <div style={{ fontSize: '0.8rem', fontWeight: '950', color: balance === 0 ? 'var(--admin-success)' : 'var(--admin-brand)' }}>
                           {balance === 0 ? 'FULLY PAID' : `BALANCE: ₱${balance.toLocaleString()}`}

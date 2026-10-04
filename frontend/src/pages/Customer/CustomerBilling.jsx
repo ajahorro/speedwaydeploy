@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import { calculatePaymentSummary } from '../../utils/paymentUtils';
+import { fetchBookingLedgers } from '../../services/ledgerService';
 
 const CustomerBilling = () => {
   const { user } = useAuth();
@@ -32,7 +33,9 @@ const CustomerBilling = () => {
           return { ...payment, receipt_url: publicUrl };
         })
       }));
-      setBookings(processedBookings);
+      // Money for every booking comes from the ledger in one request.
+      const ledgers = await fetchBookingLedgers(processedBookings.map((booking) => booking.id));
+      setBookings(processedBookings.map((booking) => ({ ...booking, ledger: ledgers.get(booking.id) || null })));
     } catch (err) {
       console.error('Error fetching billing data:', err);
     } finally {
@@ -48,13 +51,11 @@ const CustomerBilling = () => {
 
   const totalSpent = bookings.reduce((sum, booking) => sum + calculatePaymentSummary(booking).totalPaid, 0);
 
-  const outstandingBalance = bookings.reduce((sum, b) => {
-    if (['confirmed', 'scheduled', 'in_progress'].includes(b.status?.toLowerCase())) {
-      const totalPaid = calculatePaymentSummary(b).totalPaid;
-      return sum + Math.max(0, (b.total_amount || 0) - totalPaid);
-    }
-    return sum;
-  }, 0);
+  const outstandingBalance = bookings.reduce((sum, b) => (
+    ['confirmed', 'scheduled', 'in_progress'].includes(b.status?.toLowerCase())
+      ? sum + calculatePaymentSummary(b).balance
+      : sum
+  ), 0);
 
   const labelStyle = {
     fontSize: '0.65rem',

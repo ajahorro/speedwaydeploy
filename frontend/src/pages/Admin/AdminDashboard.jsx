@@ -11,6 +11,7 @@ import { useUI } from '../../context/UIContext';
 import { logger } from '../../utils/logger';
 import toast from 'react-hot-toast';
 import { BACKEND_URL } from '../../config/api';
+import { fetchBookingLedgers, fetchSalesReport } from '../../services/ledgerService';
 
 // MEMOIZED SUB-COMPONENTS: Prevent entire dashboard from re-rendering on single metric change
 const AttentionCard = React.memo(({ count, label, icon: Icon, color, bg, onClick }) => {
@@ -175,9 +176,12 @@ const AdminDashboard = () => {
         .from('bookings')
         .select('*', { count: 'exact', head: true });
 
-      // 3. Total Revenue
-      const { data: payments } = await supabase.from('payments').select('amount').eq('status', 'PAID');
-      const revenue = (payments || []).reduce((sum, p) => sum + Number(p.amount), 0);
+      // 3. Total Revenue — all-time net revenue from the same ledger report as
+      // Financial Reports (net received minus refunds; transfer fees excluded).
+      const tomorrow = new Date();
+      tomorrow.setHours(24, 0, 0, 0);
+      const lifetime = await fetchSalesReport({ from: new Date(2000, 0, 1), to: tomorrow });
+      const revenue = Number(lifetime?.net_revenue || 0);
 
       // 4. Success Rate Calculation
       const { data: allVehicles } = await supabase.from('booking_vehicles').select('status');
@@ -239,20 +243,15 @@ const AdminDashboard = () => {
       // 8. Needs Attention - Refund Requests (REQ-ADM-05)
       const { data: refundData } = await supabase
         .from('bookings')
-        .select(`id, refund_status, payments(amount, status)`)
+        .select('id, refund_status')
         .in('status', ['cancelled', 'FLAGGED_NOSHOW']);
 
-      const refundRequestsCount = (refundData || []).filter(b => {
-        // Exclude bookings already processed in the hub
-        if (b.refund_status === 'PROCESSED') return false;
-
-        // Check if there is actual financial liability (money was paid)
-        const totalPaid = (b.payments || [])
-          .filter(p => p.status === 'PAID' || p.status === 'REFUND_PENDING')
-          .reduce((sum, p) => sum + Number(p.amount), 0);
-
-        return totalPaid > 0;
-      }).length;
+      // A refund is owed when the ledger still holds money for the booking.
+      const refundCandidates = (refundData || []).filter(b => b.refund_status !== 'PROCESSED');
+      const refundLedgers = await fetchBookingLedgers(refundCandidates.map(b => b.id));
+      const refundRequestsCount = refundCandidates
+        .filter(b => Number(refundLedgers.get(b.id)?.net_settled || 0) > 0)
+        .length;
 
       const { data: activeQueue } = await supabase
         .from('bookings')
