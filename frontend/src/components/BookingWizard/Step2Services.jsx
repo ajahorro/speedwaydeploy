@@ -5,9 +5,11 @@ import { fetchUserGarage, fetchFleetGroups } from '../../services/garageService'
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
-import { sanitizeVehiclePlate, sanitizeVehicleText, VEHICLE_TYPE_OPTIONS, SHOP_CONFIG } from '../../config/constants';
+import { sanitizeVehiclePlate, sanitizeVehicleText, SHOP_CONFIG } from '../../config/constants';
+import { useConfig } from '../../context/ConfigContext';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { appendNewGarageVehicles, uniqueGarageVehicles } from '../../utils/fleetVehicleUtils';
+import { getBayCapacity } from '../../config/shopConfig';
 
 const newId = () => crypto.randomUUID ? crypto.randomUUID() : `v_${Math.random().toString(36).slice(2)}`;
 const emptyVehicle = (manual = false) => ({ id: newId(), type: '', brand: '', model: '', plateNumber: '', services: [], locked: false, manual });
@@ -34,6 +36,8 @@ const normalizePlate = (plate) => String(plate || '').toUpperCase().replace(/[^A
 
 const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext, onCancel, onCancelNewVehicle }) => {
   const { user } = useAuth();
+  // Vehicle categories configured in the Business Hub.
+  const { settings: { VEHICLE_TYPES: vehicleTypeOptions } } = useConfig();
   // useMemo so the identity is STABLE. A bare `|| []` produced a NEW array on
   // every render whenever bookingData.vehicles was unset, which made every hook
   // depending on `vehicles` (the `units` memo below) recompute constantly.
@@ -66,9 +70,9 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
     Promise.all([
       fetchUserGarage(ownerId),
       fetchFleetGroups(ownerId),
-      supabase.from('business_config').select('slots_per_hour').maybeSingle()
+      getBayCapacity()
     ])
-      .then(([savedVehicles, groups, capacityResult]) => { setGarageVehicles(savedVehicles); setFleetGroups(groups); setMaxBays(Number(capacityResult.data?.slots_per_hour) || SHOP_CONFIG.MAX_BAYS); })
+      .then(([savedVehicles, groups, bayCapacity]) => { setGarageVehicles(savedVehicles); setFleetGroups(groups); setMaxBays(bayCapacity); })
       .catch((error) => console.error('Failed to load garage:', error));
   }, [user, bookingData.customerId]);
 
@@ -222,9 +226,8 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
     const fleetVehicles = selectedFleet?.vehicles || [];
     if (!fleetId || !fleetVehicles.length) return;
     const uniqueFleetVehicles = uniqueGarageVehicles(fleetVehicles);
-    const { data: capacityConfig, error } = await supabase.from('business_config').select('slots_per_hour').maybeSingle();
-    const maxBays = Number(capacityConfig?.slots_per_hour);
-    if (error || !Number.isFinite(maxBays) || maxBays <= 0) {
+    const maxBays = await getBayCapacity().catch(() => NaN);
+    if (!Number.isFinite(maxBays) || maxBays <= 0) {
       toast.error('Fleet capacity is unavailable. Ask an administrator to configure the number of bays.');
       return;
     }
@@ -557,7 +560,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
 
         return <article key={unit.id} style={{ overflow: 'hidden', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: 'var(--admin-card-shadow)' }}>
           <header style={{ padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', background: 'var(--admin-sidebar)', borderBottom: '1px solid var(--admin-border)' }}><div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', minWidth: 0 }}><span style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', padding: '.2rem .45rem', borderRadius: '4px', fontSize: '.68rem', fontWeight: '900' }}>UNIT {index + 1}</span><Car size={17} color="var(--admin-brand)" /><strong style={{ color: 'var(--admin-text-primary)' }}>{unit.locked ? `${unit.vehicles.length} saved ${vehicle.type || 'vehicle'}${unit.vehicles.length === 1 ? '' : 's'}` : (vehicle.brand && vehicle.model ? `${vehicle.brand} ${vehicle.model}` : 'New vehicle details required')}</strong></div><button type="button" onClick={() => removeUnit(unit)} aria-label={`Remove unit ${index + 1}`} style={{ background: 'transparent', color: 'var(--status-danger)', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '.35rem', fontWeight: '800', fontSize: '.72rem' }}><Trash2 size={15} /> REMOVE</button></header>
-          {unit.locked ? <div style={{ padding: '1rem 1.25rem', background: 'var(--admin-bg)', borderBottom: '1px solid var(--admin-border)' }}><div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', color: 'var(--admin-text-secondary)', fontSize: '.7rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '.6rem' }}><Lock size={14} /> Saved vehicle details are locked</div>{unit.vehicles.map((member) => <div key={member.id} style={{ color: 'var(--admin-text-primary)', fontSize: '.8rem', lineHeight: 1.7 }}>{member.brand} {member.model} · {member.plateNumber} · {member.type}</div>)}</div> : <div style={{ padding: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '.75rem', borderBottom: '1px solid var(--admin-border)' }}><select aria-label="Vehicle type" value={vehicle.type} onChange={(event) => changeUnitType(unit, event.target.value)} style={inputStyle}><option value="">Vehicle type</option>{VEHICLE_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><input aria-label="Vehicle brand" value={vehicle.brand} onChange={(event) => updateUnit(unit, { brand: sanitizeVehicleText(event.target.value) })} placeholder="Brand" style={inputStyle} /><input aria-label="Vehicle model" value={vehicle.model} onChange={(event) => updateUnit(unit, { model: sanitizeVehicleText(event.target.value) })} placeholder="Model" style={inputStyle} /><div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}><input aria-label="Vehicle plate number" value={vehicle.plateNumber} onChange={(event) => updateUnit(unit, { plateNumber: sanitizeVehiclePlate(event.target.value) })} onBlur={() => {/* duplicate check fires via useMemo on every render */}} placeholder="Plate number" style={{ ...inputStyle, ...(plateDuplicateMap[unit.id] ? { border: '1.5px solid #ef4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.15)', outline: 'none' } : {}) }} />{plateDuplicateMap[unit.id] && <span role="alert" style={{ display: 'block', fontSize: '.65rem', color: 'var(--status-danger)', fontWeight: '800', lineHeight: 1.35, paddingTop: '.1rem' }}>Duplicate Entry: Plate number &lsquo;{plateDuplicateMap[unit.id].conflictPlate}&rsquo; is already assigned to Unit {plateDuplicateMap[unit.id].conflictUnitIndex}.</span>}</div></div>}
+          {unit.locked ? <div style={{ padding: '1rem 1.25rem', background: 'var(--admin-bg)', borderBottom: '1px solid var(--admin-border)' }}><div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', color: 'var(--admin-text-secondary)', fontSize: '.7rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '.6rem' }}><Lock size={14} /> Saved vehicle details are locked</div>{unit.vehicles.map((member) => <div key={member.id} style={{ color: 'var(--admin-text-primary)', fontSize: '.8rem', lineHeight: 1.7 }}>{member.brand} {member.model} · {member.plateNumber} · {member.type}</div>)}</div> : <div style={{ padding: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '.75rem', borderBottom: '1px solid var(--admin-border)' }}><select aria-label="Vehicle type" value={vehicle.type} onChange={(event) => changeUnitType(unit, event.target.value)} style={inputStyle}><option value="">Vehicle type</option>{vehicleTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><input aria-label="Vehicle brand" value={vehicle.brand} onChange={(event) => updateUnit(unit, { brand: sanitizeVehicleText(event.target.value) })} placeholder="Brand" style={inputStyle} /><input aria-label="Vehicle model" value={vehicle.model} onChange={(event) => updateUnit(unit, { model: sanitizeVehicleText(event.target.value) })} placeholder="Model" style={inputStyle} /><div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}><input aria-label="Vehicle plate number" value={vehicle.plateNumber} onChange={(event) => updateUnit(unit, { plateNumber: sanitizeVehiclePlate(event.target.value) })} onBlur={() => {/* duplicate check fires via useMemo on every render */}} placeholder="Plate number" style={{ ...inputStyle, ...(plateDuplicateMap[unit.id] ? { border: '1.5px solid #ef4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.15)', outline: 'none' } : {}) }} />{plateDuplicateMap[unit.id] && <span role="alert" style={{ display: 'block', fontSize: '.65rem', color: 'var(--status-danger)', fontWeight: '800', lineHeight: 1.35, paddingTop: '.1rem' }}>Duplicate Entry: Plate number &lsquo;{plateDuplicateMap[unit.id].conflictPlate}&rsquo; is already assigned to Unit {plateDuplicateMap[unit.id].conflictUnitIndex}.</span>}</div></div>}
           <div className="booking-unit-columns" style={{ opacity: complete ? 1 : .45, pointerEvents: complete ? 'auto' : 'none' }}>
             <div className="booking-unit-column"><p style={{ margin: '0 0 .75rem', fontSize: '.68rem', color: 'var(--admin-text-secondary)', fontWeight: '900', textTransform: 'uppercase' }}>A. Service type</p>{categories.map((item) => <button key={item} type="button" onClick={() => setActiveCategories((current) => ({ ...current, [unit.id]: item }))} style={{ width: '100%', marginBottom: '.5rem', padding: '.75rem', textAlign: 'left', borderRadius: '6px', border: `1px solid ${category === item ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: category === item ? 'var(--admin-brand)' : 'var(--admin-bg)', color: category === item ? '#fff' : 'var(--admin-text-primary)', cursor: 'pointer', fontWeight: '800', fontSize: '.78rem' }}>{item}</button>)}</div>
             <div className="booking-unit-column">

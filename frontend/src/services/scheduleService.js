@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
 import { filterActiveBookings, formatDisplayTime } from '../utils/schedulingUtils';
 import { getBookableSlots } from '../domain/schedule/rules';
+import { ensureShopConfig } from '../config/shopConfig';
 
 /**
  * scheduleService.js
@@ -65,12 +66,7 @@ export const getAvailableSlots = async (dateStr, requestedDuration = 60, request
     }
 
     const [configRes, blocksRes] = await Promise.all([
-      supabase
-        .from('business_config')
-        .select('opening_hour, closing_hour, is_24_7, slots_per_hour, booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity')
-        .order('id')
-        .limit(1)
-        .maybeSingle(),
+      ensureShopConfig().then((data) => ({ data, error: null }), (error) => ({ data: null, error })),
       supabase
         .from('blocked_slots')
         .select('block_date, start_time, end_time')
@@ -118,10 +114,7 @@ export const getAvailableSlots = async (dateStr, requestedDuration = 60, request
  * Can be used to dynamically generate slot ranges.
  */
 export const getBusinessHours = async () => {
-  const { data, error } = await supabase
-    .from('business_config')
-    .select('opening_hour, closing_hour, is_24_7')
-    .maybeSingle();
+  const { data, error } = await ensureShopConfig().then((data) => ({ data, error: null }), (error) => ({ data: null, error }));
 
   if (error || !data) return { opening: '08:00 AM', closing: '06:00 PM', is24_7: false };
   if (data.is_24_7 === true) return { opening: '12:00 AM', closing: '12:00 AM', is24_7: true };

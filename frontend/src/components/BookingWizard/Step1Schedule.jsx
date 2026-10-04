@@ -6,6 +6,7 @@ import { isDateBookable } from '../../domain/schedule/rules';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { sanitizeVehicleText } from '../../config/constants';
 import DateTimePicker from './DateTimePicker';
+import { ensureShopConfig } from '../../config/shopConfig';
 
 const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, onNext, onBack, onCancel, customerDetailsLocked = false, adminMode = false, selectedCustomerId = null }) => {
   const [availableSlots, setAvailableSlots] = useState([]);
@@ -44,14 +45,9 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
       // instead of only rejecting them at submit. We only fetch the config +
       // blocks here to explain WHY the whole day is unavailable.
       const [configRes, blockRes, slots] = await Promise.all([
-        supabase
-          .from('business_config')
-          // Include the operating-hours columns too: isDateBookable() and the
-          // rules engine read is_24_7/opening_hour/closing_hour, so omitting
-          // them here would let the wizard's date gate disagree with the slot
-          // generator and the server validator.
-          .select('opening_hour, closing_hour, is_24_7, booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity, slots_per_hour')
-          .maybeSingle(),
+        // The shop configuration row (single reader: config/shopConfig.js), so the
+        // date gate, the slot generator and the server use the same rules.
+        ensureShopConfig().then((data) => ({ data, error: null }), (error) => ({ data: null, error })),
         supabase
           .from('blocked_slots')
           .select('block_date, start_time, end_time')

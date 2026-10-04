@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { fetchScheduleOccupancy } from '../../services/scheduleService';
 import { SHOP_CONFIG, sanitizeVehiclePlate, sanitizeVehicleText } from '../../config/constants';
+import { getBayCapacity } from '../../config/shopConfig';
 
 const NON_OCCUPYING_BOOKING_STATUSES = ['CANCELLED', 'RELEASED', 'COMPLETED'];
 const NON_OCCUPYING_VEHICLE_STATUSES = ['COMPLETED', 'RELEASED'];
@@ -43,8 +44,7 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
   React.useEffect(() => {
     let active = true;
     const refreshCapacityContext = async () => {
-      const { data: config } = await supabase.from('business_config').select('slots_per_hour').maybeSingle();
-      const maxBays = Number(config?.slots_per_hour) || SHOP_CONFIG.MAX_BAYS;
+      const maxBays = await getBayCapacity();
       let externalVehicles = [];
       if (bookingData.date && bookingData.time) {
         const start = parseBookingDateTime(bookingData.date, bookingData.time);
@@ -75,8 +75,7 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
   const canAddAnyVehicle = capacityContext.loading || canAddTypeFromSnapshot('Sedan') || vehicles.some(vehicle => canAddTypeFromSnapshot(vehicle.type || 'Sedan'));
 
   const canAddVehicle = async (vehicleType, candidateServices = []) => {
-    const { data: config } = await supabase.from('business_config').select('slots_per_hour').maybeSingle();
-    const maxBays = Number(config?.slots_per_hour) || SHOP_CONFIG.MAX_BAYS;
+    const maxBays = await getBayCapacity();
     if (vehicles.length >= maxBays) return false;
     let externalVehicles = [];
     const currentDuration = vehicles.reduce((longest, vehicle) => Math.max(longest, (vehicle.services || []).reduce((sum, service) => sum + Number(service.durationMinutes || 60), 0)), 0) || 60;

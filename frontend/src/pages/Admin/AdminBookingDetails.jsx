@@ -38,6 +38,7 @@ import ValidationModal from '../../components/ValidationModal';
 import { classifyScheduleError, toCleanMessage } from '../../utils/errorRouting';
 import { BACKEND_URL } from '../../config/api';
 import { reconcilePaymentState, verifyPayment, rejectPayment } from '../../services/paymentVerificationService';
+import { ensureShopConfig } from '../../config/shopConfig';
 
 const AdminBookingDetails = () => {
   const { id } = useParams();
@@ -815,10 +816,7 @@ const AdminBookingDetails = () => {
 
       // 1. BUSINESS HOURS GUARD: Validate against the live admin configuration.
       const newEndDatetime = new Date(new Date(booking.end_datetime).getTime() + extraMinutes * 60000);
-      const { data: businessConfig } = await supabase
-        .from('business_config')
-        .select('opening_hour, closing_hour, slots_per_hour, is_24_7')
-        .maybeSingle();
+      const businessConfig = await ensureShopConfig();
       const parseBusinessHour = (value, fallback) => {
         const parsed = Number(String(value ?? '').split(':')[0]);
         return Number.isFinite(parsed) ? parsed : fallback;

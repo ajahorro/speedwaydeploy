@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, AlertCircle, Loader2, Calendar } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { isDateBookable } from '../../domain/schedule/rules';
+import { ensureShopConfig } from '../../config/shopConfig';
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
@@ -53,10 +54,7 @@ function InlineCalendar({ selectedDate, onDateSelect, config = null, blocks = nu
     (async () => {
       try {
         const [configRes, blockRes] = await Promise.all([
-          supabase
-            .from('business_config')
-            .select('opening_hour, closing_hour, is_24_7, booking_lead_time_minutes, max_advance_days, closed_weekdays, enforce_capacity, slots_per_hour')
-            .maybeSingle(),
+          ensureShopConfig().then((data) => ({ data, error: null }), (error) => ({ data: null, error })),
           supabase.from('blocked_slots').select('block_date, start_time, end_time'),
         ]);
         if (cancelled) return;

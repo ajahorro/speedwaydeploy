@@ -120,8 +120,8 @@ export const buildBookingServiceSnapshot = (service = {}, vehicleType = '', sour
 // `getServiceCatalog()` used to return SERVICES_DATA only, with the comment
 // "intentionally limited to the governed built-in services". Meanwhile the
 // Business Hub Service Catalog wrote to business_config.custom_services and
-// ConfigContext mirrored it into localStorage under 'speedway_custom_services'
-// — and BusinessHub.jsx said that cache was "the local cache the pricing catalog
+// ConfigContext mirrored it into a browser-storage copy (since removed: the
+// catalog now reads config/shopConfig.js) — and BusinessHub.jsx said that cache was "the local cache the pricing catalog
 // reads from". It never read from it.
 //
 // The result: an admin could add a service, edit a price, archive or delete one,
@@ -192,92 +192,61 @@ const priceVehicleKey = (value) => {
 /** Case-insensitive service-name key, safe to call at module scope. */
 const priceServiceName = (name) => String(name || '').trim().toLowerCase();
 
-const CUSTOM_SERVICES_CACHE_KEY = 'speedway_custom_services';
-const ARCHIVED_SERVICE_IDS_CACHE_KEY = 'speedway_archived_service_ids';
-const DELETED_SERVICE_IDS_CACHE_KEY = 'speedway_deleted_service_ids';
-
-/**
- * Read the admin's durable tombstone list of suppressed service ids.
- *
- * Section 3 (fake-success delete bug): suppressing a built-in ONLY by writing an
- * `archived: true` custom row is fragile — if that row's id does not exactly
- * match the built-in's generated id, the merge silently drops the suppression
- * and the built-in reappears. This list is written independently of the custom
- * rows, so a built-in stays gone regardless of id drift.
- */
-const readArchivedServiceIds = () => {
-  if (typeof window === 'undefined') return [];
-
-  const collect = (value) => (Array.isArray(value) ? value.map((v) => String(v || '')).filter(Boolean) : []);
-
-  try {
-    const raw = window.localStorage.getItem(ARCHIVED_SERVICE_IDS_CACHE_KEY);
-    if (raw) return collect(JSON.parse(raw));
-  } catch {
-    // A corrupt tombstone cache must not empty the catalog.
-  }
-
-  return collect(window.__speedway_archived_service_ids_cache);
+// ── Catalog source: the business_config row ─────────────────────────────────
+//
+// config/shopConfig.js (the single business_config reader) calls
+// setCatalogSource() whenever the row loads or changes, and the Business Hub
+// applies its own saves the same way. Nothing here reads localStorage, so a
+// stale browser copy can never resurrect a deleted service or an old price.
+const catalogSource = {
+  customServices: [],
+  archivedServiceIds: [],
+  deletedServiceIds: [],
+  promoRules: [],
+  vehicleTypes: []
 };
 
-/**
- * Section 3: record a tombstone in the module-level cache the next catalog build
- * reads. Mirrors the format BusinessHub persists to business_config.
- */
+const idList = (value) => (Array.isArray(value) ? value.map((v) => String(v || '')).filter(Boolean) : []);
+
+export const setCatalogSource = (source = {}) => {
+  if ('customServices' in source) catalogSource.customServices = Array.isArray(source.customServices) ? source.customServices.filter(Boolean) : [];
+  if ('archivedServiceIds' in source) catalogSource.archivedServiceIds = idList(source.archivedServiceIds);
+  if ('deletedServiceIds' in source) catalogSource.deletedServiceIds = idList(source.deletedServiceIds);
+  if ('promoRules' in source) catalogSource.promoRules = Array.isArray(source.promoRules) ? source.promoRules.filter(Boolean) : [];
+  if ('vehicleTypes' in source) catalogSource.vehicleTypes = Array.isArray(source.vehicleTypes) ? source.vehicleTypes.filter(Boolean) : [];
+};
+
+/** Section 3: archived (tombstoned) service ids, as saved by the Business Hub. */
 export const setArchivedServiceIds = (ids) => {
-  const list = Array.isArray(ids) ? ids.map((v) => String(v || '')).filter(Boolean) : [];
-  if (typeof window !== 'undefined') {
-    window.__speedway_archived_service_ids_cache = list;
-  }
-  return list;
+  catalogSource.archivedServiceIds = idList(ids);
+  return catalogSource.archivedServiceIds;
 };
 
 export const setDeletedServiceIds = (ids) => {
-  const list = Array.isArray(ids) ? ids.map((v) => String(v || '')).filter(Boolean) : [];
-  if (typeof window !== 'undefined') {
-    window.__speedway_deleted_service_ids_cache = list;
-  }
-  return list;
+  catalogSource.deletedServiceIds = idList(ids);
+  return catalogSource.deletedServiceIds;
 };
 
-const readDeletedServiceIds = () => {
-  if (typeof window === 'undefined') return [];
-
-  const collect = (value) => (Array.isArray(value) ? value.map((v) => String(v || '')).filter(Boolean) : []);
-
-  try {
-    const raw = window.localStorage.getItem(DELETED_SERVICE_IDS_CACHE_KEY);
-    if (raw) return collect(JSON.parse(raw));
-  } catch {
-    // A corrupt delete cache must not break the catalog.
-  }
-
-  return collect(window.__speedway_deleted_service_ids_cache);
+export const setCustomServices = (services) => {
+  catalogSource.customServices = Array.isArray(services) ? services.filter(Boolean) : [];
+  return catalogSource.customServices;
 };
+
+/** Vehicle categories configured in the Business Hub (empty = use the built-in list). */
+export const getConfiguredVehicleTypes = () => [...catalogSource.vehicleTypes];
+
+const readArchivedServiceIds = () => catalogSource.archivedServiceIds;
+const readDeletedServiceIds = () => catalogSource.deletedServiceIds;
+const readCustomServices = () => catalogSource.customServices;
 
 /**
- * Read the admin-authored services.
- *
- * localStorage is the fast path (it is what BusinessHub writes for an immediate
- * effect without a round-trip). The in-memory cache is the fallback for a
- * context where storage is unavailable (private mode, quota exceeded).
+ * Is a built-in variant (service + vehicle category) removed by a tombstone?
+ * The Business Hub records tombstones in three forms; all are honoured here:
+ *   'wash_1' (whole service), 'wash_1-Sedan' and 'Regular Wash-Sedan' (one variant).
  */
-const readCustomServices = () => {
-  if (typeof window === 'undefined') return [];
-
-  try {
-    const raw = window.localStorage.getItem(CUSTOM_SERVICES_CACHE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.filter(Boolean);
-    }
-  } catch {
-    // A corrupt cache must not break the catalog — fall through to the memory copy.
-  }
-
-  const memory = window.__speedway_custom_services_cache;
-  return Array.isArray(memory) ? memory.filter(Boolean) : [];
-};
+const isVariantTombstoned = (ids, builtIn, vehicleKey) => ids.has(String(builtIn.id))
+  || ids.has(`${builtIn.id}-${vehicleKey}`)
+  || ids.has(`${builtIn.name}-${vehicleKey}`);
 
 /** The vehicle categories a custom service applies to, however it was authored. */
 const customServiceVehicleTypes = (service) => {
@@ -341,6 +310,7 @@ const buildServiceCatalog = () => {
   const tombstonedIds = new Set(readArchivedServiceIds());
   const deletedIds = new Set(readDeletedServiceIds());
   if (!custom.length && !tombstonedIds.size && !deletedIds.size) return SERVICES_DATA;
+  const removedIds = new Set([...tombstonedIds, ...deletedIds]);
 
   // Group custom rows by the category they should appear under.
   const overridesById = new Map();   // id -> adapted entry
@@ -381,7 +351,16 @@ const buildServiceCatalog = () => {
   const merged = {};
   for (const [category, services] of Object.entries(SERVICES_DATA)) {
     merged[category] = services
+      .map((builtIn) => {
+        // Remove only the vehicle variants the admin archived/deleted.
+        const prices = Object.fromEntries(Object.entries(builtIn.prices || {})
+          .filter(([vehicleKey]) => !isVariantTombstoned(removedIds, builtIn, vehicleKey)));
+        return Object.keys(prices).length === Object.keys(builtIn.prices || {}).length
+          ? builtIn
+          : { ...builtIn, prices };
+      })
       .filter((builtIn) => {
+        if (!Object.keys(builtIn.prices || {}).length) return false;
         if (suppressedIds.has(builtIn.id)) return false;
         // Section 3: durable tombstone. Applies regardless of id drift between a
         // custom suppression row and the built-in it was meant to remove.
@@ -450,46 +429,19 @@ export const getAvailableServiceNames = () => {
   return Object.values(catalog).flatMap(list => list.map(service => service.name));
 };
 
-export const getPromoRules = () => {
-  if (typeof window === 'undefined') return [];
-  try {
-    const parsed = JSON.parse(localStorage.getItem('speedway_promo_rules') || '[]');
-    return Array.isArray(parsed)
-      ? parsed.filter(rule => rule && rule.active !== false)
-      : [];
-  } catch {
-    return [];
-  }
-};
+/** A promo rule that has not been switched off or soft-deleted. Dates are checked per booking. */
+export const isPromoRuleLive = (rule) => Boolean(rule)
+  && rule.active !== false
+  && rule.is_active !== false
+  && !rule.deleted_at;
 
-export const fetchActivePromos = async () => {
-  try {
-    // Resolve the backend origin defensively. This module is also imported by
-    // Node tests (servicesCatalog.test.mjs), where `window` does not exist, so we
-    // cannot pull it from config/api.js (a browser-only module). A leftover
-    // localhost VITE_BACKEND_URL must not be used from a deployed page, or every
-    // promo fetch dies on a connection-refused to the viewer's own machine.
-    const configured = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || '';
-    const onLoopback = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(window.location.hostname);
-    const isLoopback = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(configured);
-    const BACKEND_URL = (configured && (!isLoopback || onLoopback))
-      ? String(configured).replace(/\/+$/, '')
-      : (typeof window !== 'undefined' ? window.location.origin : '');
-    const res = await fetch(`${BACKEND_URL}/api/promos/active`);
-    if (res.ok) {
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('speedway_promo_rules', JSON.stringify(json.data));
-        }
-        return json.data;
-      }
-    }
-  } catch {
-    // Fall back gracefully
-  }
-  return getPromoRules();
-};
+export const getPromoRules = () => catalogSource.promoRules.filter(isPromoRuleLive);
+
+/**
+ * Kept for existing callers. Promo rules arrive with the business_config row
+ * (live via ConfigContext), so there is nothing to fetch separately.
+ */
+export const fetchActivePromos = async () => getPromoRules();
 
 const isPromoActiveForNow = (rule, atDate = null) => {
   if (!rule || rule.active === false) return false;

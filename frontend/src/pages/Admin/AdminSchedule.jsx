@@ -7,7 +7,7 @@ import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from 'react-hot-toast';
 import { logger } from '../../utils/logger';
-import { getServiceCatalog, fetchActivePromos } from '../../data/servicesCatalog';
+import { getServiceCatalog } from '../../data/servicesCatalog';
 import { buildLocalDateWindow, buildLocalMonthWindow } from '../../utils/dateTimeUtils';
 
 // Refactored Imports
@@ -23,6 +23,8 @@ import { useUI } from '../../context/UIContext';
 // Shared backend-origin resolver (see config/api.js) — a localhost VITE_BACKEND_URL
 // must never be baked into a deployed build.
 import { BACKEND_URL } from '../../config/api';
+import { ensureShopConfig, getShopConfig } from '../../config/shopConfig';
+import { isPromoRuleLive, setCatalogSource } from '../../data/servicesCatalog';
 
 const AdminSchedule = () => {
   const navigate = useNavigate();
@@ -286,13 +288,10 @@ const AdminSchedule = () => {
     }
   ];
 
+  // Rules come from the business_config row (config/shopConfig.js), not a browser copy.
   const [promoRules, setPromoRules] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('speedway_promo_rules') || '[]');
-      return Array.isArray(saved) ? saved : [];
-    } catch {
-      return defaultPromoRules;
-    }
+    const saved = getShopConfig()?.promo_rules;
+    return Array.isArray(saved) ? saved : [];
   });
 
   const defaultPromoDraft = {
@@ -326,8 +325,10 @@ const AdminSchedule = () => {
 
   useEffect(() => {
     let active = true;
-    fetchActivePromos().then((rules) => {
-      if (active && Array.isArray(rules)) syncPromoRules(rules);
+    // Wait for the business_config row so the list never starts empty.
+    ensureShopConfig().then((row) => {
+      const rules = Array.isArray(row?.promo_rules) ? row.promo_rules.filter(isPromoRuleLive) : [];
+      if (active) syncPromoRules(rules);
     }).catch(() => {});
     return () => { active = false; };
   }, []);
@@ -367,7 +368,9 @@ const AdminSchedule = () => {
 
   const syncPromoRules = (nextRules) => {
     setPromoRules(nextRules);
-    localStorage.setItem('speedway_promo_rules', JSON.stringify(nextRules));
+    // Promo pricing in this tab uses the new rules at once; other screens get
+    // them from the saved business_config row.
+    setCatalogSource({ promoRules: nextRules });
   };
 
   const resetPromoDraft = () => {

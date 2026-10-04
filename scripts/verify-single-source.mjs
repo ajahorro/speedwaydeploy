@@ -7,6 +7,7 @@
  *   - summing payment rows (`.reduce(` over payments / p.amount)
  *   - hard-coded downpayment tiers (30% / 50% at ₱2,000)
  *   - the removed JS ledger helpers
+ *   - reading business_config outside config/shopConfig.js (or caching it in localStorage)
  *
  * Run: node scripts/verify-single-source.mjs
  */
@@ -38,6 +39,13 @@ const RULES = [
     hint: 'Use booking_required_downpayment() or paymentUtils.calculateRequiredDownpayment (DB policy).'
   },
   {
+    name: 'shop config read outside config/shopConfig.js',
+    pattern: /from('business_config')s*.select|speedway_custom_services|speedway_promo_rules|speedway_archived_service_ids|speedway_deleted_service_ids|__speedway_/,
+    hint: 'Use ensureShopConfig()/useConfig() (frontend/src/config/shopConfig.js); the Business Hub is the only writer.',
+    onlyIn: 'frontend/src/',
+    except: ['frontend/src/config/shopConfig.js', 'frontend/src/pages/Admin/BusinessHub.jsx']
+  },
+  {
     name: 'removed JS ledger helper',
     pattern: /\bcalculateNetPaid\b|\bcalculateVerifiedPaid\b|utils\/paymentAmounts/,
     hint: 'These were replaced by the database ledger.'
@@ -64,6 +72,8 @@ for (const file of files) {
   lines.forEach((line, index) => {
     if (/single-source-ok/.test(line)) return; // explicit, reviewed exception
     for (const rule of RULES) {
+      if (rule.onlyIn && !rel.startsWith(rule.onlyIn)) continue;
+      if (rule.except && rule.except.includes(rel)) continue;
       if (rule.pattern.test(line)) violations.push({ rel, line: index + 1, rule, text: line.trim().slice(0, 140) });
     }
   });

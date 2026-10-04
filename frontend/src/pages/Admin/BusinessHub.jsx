@@ -2,18 +2,19 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Building, Wrench, Tag, Save, AlertCircle, CheckCircle, Check,
-  Plus, X, Trash2, Archive, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown
+  Plus, X, Trash2, Archive, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown, Wallet
 } from 'lucide-react';
 import { useConfig } from '../../context/ConfigContext';
 import { useUI } from '../../context/UIContext';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import PromoManager from '../../components/AdminSchedule/PromoManager';
+import { DownpaymentPolicyCard } from '../../features/business-hub/DownpaymentPolicyCard';
 import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
 import { validateQrRecipients } from '../../services/qrSecurityService';
 import { buildBusinessConfigUpdatePayload, stripUnsupportedBusinessConfigColumns } from '../../services/businessConfigPayload';
 import { sanitizeAlphaNum, sanitizeByFieldType, toTitleCase, VEHICLE_TYPE_OPTIONS } from '../../config/constants';
-import { SERVICES_DATA, setArchivedServiceIds as setArchivedServiceIdsCache, setDeletedServiceIds as setDeletedServiceIdsCache } from '../../data/servicesCatalog';
+import { SERVICES_DATA, setCatalogSource, setArchivedServiceIds as setArchivedServiceIdsCache, setDeletedServiceIds as setDeletedServiceIdsCache } from '../../data/servicesCatalog';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
 import SegmentedTimePicker from '../../components/AdminSchedule/SegmentedTimePicker';
@@ -49,6 +50,8 @@ const TAB_DEFINITIONS = [
   // It was unreachable because it was missing from BOTH lists above.
   { id: 'services', label: 'Service Catalog' },
   { id: 'promos', label: 'Promo Management' },
+  // Downpayment policy (business_config.downpayment_*), enforced by the database.
+  { id: 'payments', label: 'Payment Policy' },
 ];
 
 // Derived, never hand-maintained. `?tab=` values are validated against this.
@@ -557,14 +560,10 @@ export default function BusinessHub() {
           : [];
         setArchivedServiceIds(configuredArchivedIds);
         setDeletedServiceIds(configuredDeletedIds);
-        // Mirror the tombstone into the pricing cache BEFORE anything renders, so
+        // Apply the tombstones to the pricing catalog BEFORE anything renders, so
         // the booking wizard and this page agree on which built-ins are suppressed.
-        try {
-          localStorage.setItem('speedway_archived_service_ids', JSON.stringify(configuredArchivedIds));
-          localStorage.setItem('speedway_deleted_service_ids', JSON.stringify(configuredDeletedIds));
-          setArchivedServiceIdsCache(configuredArchivedIds);
-          setDeletedServiceIdsCache(configuredDeletedIds);
-        } catch { /* storage unavailable — the DB value still governs the next load */ }
+        setArchivedServiceIdsCache(configuredArchivedIds);
+        setDeletedServiceIdsCache(configuredDeletedIds);
         const mergedServices = configuredServices.length > 0
           ? configuredServices
           : flattenDefaultServices(configuredArchivedIds, configuredDeletedIds);
@@ -999,9 +998,9 @@ export default function BusinessHub() {
   // ---- Service catalog helpers (Tab 3) ----
   const persistCustomServices = (next) => {
     setBusinessForm((prev) => ({ ...prev, custom_services: next }));
-    // Mirror to the local cache the pricing catalog reads from, so changes
-    // take effect immediately for the booking wizard without a DB round-trip.
-    try { localStorage.setItem('speedway_custom_services', JSON.stringify(next)); } catch { /* ignore quota errors */ }
+    // Apply to the pricing catalog immediately; every other screen picks the
+    // saved row up through ConfigContext (realtime).
+    setCatalogSource({ customServices: next });
   };
 
   const normalizeVehicleTypes = (service) => {
@@ -1847,12 +1846,8 @@ export default function BusinessHub() {
       const nextDeletedIds = Array.isArray(primaryPayload.deleted_service_ids)
         ? primaryPayload.deleted_service_ids.filter(Boolean)
         : deletedIdsForSave;
-      try {
-        localStorage.setItem('speedway_archived_service_ids', JSON.stringify(nextArchivedIds));
-        localStorage.setItem('speedway_deleted_service_ids', JSON.stringify(nextDeletedIds));
-        setArchivedServiceIdsCache(nextArchivedIds);
-        setDeletedServiceIdsCache(nextDeletedIds);
-      } catch { /* storage unavailable — the DB value still governs the next load */ }
+      setArchivedServiceIdsCache(nextArchivedIds);
+      setDeletedServiceIdsCache(nextDeletedIds);
       setArchivedServiceIds(nextArchivedIds);
       setDeletedServiceIds(nextDeletedIds);
 
@@ -2067,6 +2062,7 @@ export default function BusinessHub() {
     schedule: CalendarClock,
     services: Wrench,
     promos: Tag,
+    payments: Wallet,
   };
 
   const tabs = TAB_DEFINITIONS.map((tab) => ({
@@ -3362,6 +3358,9 @@ export default function BusinessHub() {
             <PromoManager isMobile={false} />
           </div>
         )}
+
+        {/* Tab 6: Payment Policy (downpayment) */}
+        {currentTab === 'payments' && <DownpaymentPolicyCard />}
       </div>
 
       {/* Task B: QR change is gated behind a 6-digit email OTP. */}

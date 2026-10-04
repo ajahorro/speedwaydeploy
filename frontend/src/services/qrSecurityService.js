@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
 import { BACKEND_URL } from '../config/api';
+import { fetchShopConfig } from '../config/shopConfig';
 import {
   QR_FIELDS,
   buildQrSubmission as buildQrSubmissionFromUtil,
@@ -32,12 +33,9 @@ export const buildQrSubmission = (config = {}) => buildQrSubmissionFromUtil(conf
 
 /** Fetch the current QR recipient configuration (fail-closed on error). */
 export const fetchQrConfig = async () => {
-  const { data, error } = await supabase
-    .from('business_config')
-    .select('id, qr_account_name, qr_account_number, payment_qr_url, gcash_qr_url, qr_photo_url, qr_config_version, qr_config_complete, qr_updated_at')
-    .order('id')
-    .limit(1)
-    .maybeSingle();
+  // Always fresh at checkout; the forced reload also refreshes every screen.
+  const { data, error } = await fetchShopConfig({ force: true })
+    .then((row) => ({ data: row, error: null }), (err) => ({ data: null, error: err }));
 
   if (error) {
     logger.error('Failed to load QR configuration', error);

@@ -15,6 +15,7 @@ import { sendStatusEmail } from './notificationService';
 import { calculateBayUsage } from '../utils/schedulingUtils';
 import { BACKEND_URL } from '../config/api';
 import { fetchBookingLedgers } from './ledgerService';
+import { getBayCapacity } from '../config/shopConfig';
 
 const normalizeServiceId = (value) => {
   if (typeof value !== 'string') return null;
@@ -103,8 +104,7 @@ export const createBooking = async (customerId, bookingData) => {
     throw new Error('SYSTEM ERROR: No vehicles provided for this booking session. Operation aborted for integrity.');
   }
 
-  const { data: capacityConfig } = await supabase.from('business_config').select('slots_per_hour').maybeSingle();
-  const maxBays = Number(capacityConfig?.slots_per_hour || SHOP_CONFIG.MAX_BAYS);
+  const maxBays = await getBayCapacity();
   const requestedBays = calculateBayUsage(vehicles);
   if (requestedBays > maxBays) {
     throw new Error(`This booking needs ${requestedBays} bays, but the shop currently has ${maxBays}. Two motorcycles can share one bay; cars and vans need a full bay.`);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Tag, Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getServiceCatalog, getPackageStandaloneSum, fetchActivePromos } from '../../data/servicesCatalog';
+import { getServiceCatalog, getPackageStandaloneSum } from '../../data/servicesCatalog';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useUI } from '../../context/UIContext';
 import { logger } from '../../utils/logger';
@@ -9,6 +9,8 @@ import { supabase } from '../../lib/supabase';
 // Shared backend-origin resolver (see config/api.js).
 import { BACKEND_URL } from '../../config/api';
 import { writeAdminAuditLog } from '../../services/auditLogService';
+import { ensureShopConfig, getShopConfig } from '../../config/shopConfig';
+import { isPromoRuleLive, setCatalogSource } from '../../data/servicesCatalog';
 
 /**
  * PromoManager (System A)
@@ -102,13 +104,10 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
   const isMobile = isMobileProp || isMobileQuery;
   const { openModal } = useUI();
 
+  // Rules come from the business_config row (config/shopConfig.js), not a browser copy.
   const [promoRules, setPromoRules] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('speedway_promo_rules') || '[]');
-      return Array.isArray(saved) ? saved : [];
-    } catch {
-      return defaultPromoRules;
-    }
+    const saved = getShopConfig()?.promo_rules;
+    return Array.isArray(saved) ? saved : [];
   });
 
   const [promoDraft, setPromoDraft] = useState(defaultPromoDraft);
@@ -128,8 +127,10 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
 
   useEffect(() => {
     let active = true;
-    fetchActivePromos().then((rules) => {
-      if (active && Array.isArray(rules)) syncPromoRules(rules);
+    // Wait for the business_config row so the list never starts empty.
+    ensureShopConfig().then((row) => {
+      const rules = Array.isArray(row?.promo_rules) ? row.promo_rules.filter(isPromoRuleLive) : [];
+      if (active) syncPromoRules(rules);
     }).catch(() => {});
     return () => { active = false; };
   }, []);
@@ -169,7 +170,9 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
 
   const syncPromoRules = (nextRules) => {
     setPromoRules(nextRules);
-    localStorage.setItem('speedway_promo_rules', JSON.stringify(nextRules));
+    // Promo pricing in this tab uses the new rules at once; other screens get
+    // them from the saved business_config row.
+    setCatalogSource({ promoRules: nextRules });
   };
 
   const resetPromoDraft = () => {

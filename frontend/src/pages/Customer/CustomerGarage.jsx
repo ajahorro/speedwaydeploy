@@ -16,11 +16,15 @@ import {
   fetchVehicleHistory
 } from '../../services/garageService';
 import toast from 'react-hot-toast';
-import { sanitizeVehiclePlate, sanitizeVehicleText, VEHICLE_TYPE_OPTIONS } from '../../config/constants';
+import { sanitizeVehiclePlate, sanitizeVehicleText } from '../../config/constants';
+import { useConfig } from '../../context/ConfigContext';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
+import { getBayCapacity } from '../../config/shopConfig';
 
 const CustomerGarage = () => {
   const { user } = useAuth();
+  // Vehicle categories configured in the Business Hub.
+  const { settings: { VEHICLE_TYPES: vehicleTypeOptions } } = useConfig();
   const [vehicles, setVehicles] = useState([]);
   const [fleetGroups, setFleetGroups] = useState([]);
   const [newGroupName, setNewGroupName] = useState('');
@@ -134,9 +138,8 @@ const CustomerGarage = () => {
     }
     setIsCreatingFleet(true);
     try {
-      const { data: capacityConfig, error: capacityError } = await supabase.from('business_config').select('slots_per_hour').maybeSingle();
-      const maxBays = Number(capacityConfig?.slots_per_hour);
-      if (capacityError || !Number.isFinite(maxBays) || maxBays <= 0) {
+      const maxBays = await getBayCapacity().catch(() => NaN);
+      if (!Number.isFinite(maxBays) || maxBays <= 0) {
         throw new Error('Fleet capacity is unavailable. Ask an administrator to configure the number of bays.');
       }
       const selectedVehicles = vehicles.filter(vehicle => selectedFleetVehicleIds.includes(vehicle.id));
@@ -173,9 +176,8 @@ const CustomerGarage = () => {
     if (!fleetEditName.trim()) return toast.error('Enter a fleet name.');
     setIsSavingFleet(true);
     try {
-      const { data: capacityConfig, error: capacityError } = await supabase.from('business_config').select('slots_per_hour').maybeSingle();
-      const maxBays = Number(capacityConfig?.slots_per_hour);
-      if (capacityError || !Number.isFinite(maxBays) || maxBays <= 0) {
+      const maxBays = await getBayCapacity().catch(() => NaN);
+      if (!Number.isFinite(maxBays) || maxBays <= 0) {
         throw new Error('Fleet capacity is unavailable. Ask an administrator to configure the number of bays.');
       }
       const selectedVehicles = vehicles.filter(vehicle => fleetEditVehicleIds.includes(vehicle.id));
@@ -495,7 +497,7 @@ const CustomerGarage = () => {
                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                     style={{ width: '100%', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '0.85rem', color: 'var(--admin-text-primary)', fontWeight: '800', outline: 'none' }}
                   >
-                    {VEHICLE_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    {vehicleTypeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </div>
                 <div>
