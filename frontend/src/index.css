@@ -164,11 +164,17 @@
   }
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+/* Global reset sits in the `base` cascade layer (order declared in
+   styles/ui.css) so Tailwind spacing utilities on shadcn components can beat
+   it. A zero-specificity `*` rule already lost to every other selector, so
+   legacy pages are unaffected. */
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
 }
 
 html, body, #root {

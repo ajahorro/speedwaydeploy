@@ -21,10 +21,13 @@
 }
 
 /* --- Global Responsive Resets --- */
-img, video, canvas, svg {
-  max-width: 100%;
-  height: auto;
-  display: block;
+/* In the `base` layer so Tailwind size utilities (e.g. icon `size-4`) win. */
+@layer base {
+  img, video, canvas, svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
 }
 
 /* Prevent horizontal overflow on body */

@@ -67,6 +67,8 @@ export const BACKEND_URL = resolveBackendUrl();
  * this bearer token — never from a userId in the request body.
  */
 export const authHeaders = async (extra = {}) => {
+  // Lazy on purpose: lib/supabase eagerly loads every service module, and those
+  // import this file, so a static import here would create a load-order cycle.
   const { supabase } = await import('../lib/supabase');
   const { data: { session } } = await supabase.auth.getSession();
   return {

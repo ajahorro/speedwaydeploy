@@ -1,0 +1,122 @@
+/*
+ * shadcn/ui + Tailwind v4 foundation.
+ *
+ * This file is imported FIRST (see main.jsx) so the cascade-layer order below is
+ * declared before any legacy CSS. Legacy global resets live in `@layer base`,
+ * so Tailwind utilities always win over them, while every unlayered legacy rule
+ * and inline style keeps beating Tailwind — existing pages render unchanged.
+ *
+ * Isolation rules:
+ *  - No Tailwind preflight: legacy pages keep their own reset.
+ *  - Utilities are generated ONLY for classes found in the shadcn/feature
+ *    directories listed with @source, so a legacy className such as "hidden"
+ *    or "flex" never picks up Tailwind styles by accident.
+ *  - shadcn tokens are aliases of the existing --admin-* tokens, so old and new
+ *    UI share one palette and follow the same light/dark theme.
+ */
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities) source(none);
+@import 'tw-animate-css';
+
+@source '../components/ui';
+@source '../features';
+
+/* ThemeContext sets <html data-theme="light|dark">; dark is the default. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root {
+  --background: var(--admin-bg);
+  --foreground: var(--admin-text-primary);
+  --card: var(--admin-card);
+  --card-foreground: var(--admin-text-primary);
+  --popover: var(--admin-card);
+  --popover-foreground: var(--admin-text-primary);
+  --primary: var(--admin-brand);
+  --primary-foreground: var(--admin-text-on-brand);
+  --secondary: var(--admin-input-bg);
+  --secondary-foreground: var(--admin-text-primary);
+  --muted: var(--admin-input-bg);
+  --muted-foreground: var(--admin-text-secondary);
+  --accent: var(--modal-hover-bg);
+  --accent-foreground: var(--admin-text-primary);
+  --destructive: var(--status-danger);
+  --border: var(--admin-input-border);
+  --input: var(--admin-input-border);
+  --ring: var(--admin-brand);
+  --radius: var(--admin-radius);
+
+  --chart-1: var(--admin-brand);
+  --chart-2: var(--admin-info);
+  --chart-3: var(--status-success);
+  --chart-4: var(--status-warning);
+  --chart-5: var(--admin-text-secondary);
+}
+
+@theme inline {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-success: var(--status-success);
+  --color-warning: var(--status-warning);
+
+  /* The shop uses deliberately sharp corners (--admin-radius = 4px). */
+  --radius-sm: var(--admin-radius-sm);
+  --radius-md: var(--admin-radius);
+  --radius-lg: calc(var(--admin-radius) + 2px);
+  --radius-xl: calc(var(--admin-radius) + 4px);
+}
+
+/*
+ * Minimal reset for shadcn components and feature pages only. Portalled
+ * overlays (dialog, popover, select) render outside .ui-root, so the
+ * component-level [data-slot] attribute is targeted as well.
+ */
+@layer base {
+  .ui-root *,
+  [data-slot],
+  [data-slot] * {
+    border-width: 0;
+    border-style: solid;
+    border-color: var(--border);
+  }
+
+  .ui-root button,
+  [data-slot] button,
+  button[data-slot] {
+    background-color: transparent;
+    color: inherit;
+    font: inherit;
+  }
+
+  .ui-root table {
+    border-collapse: collapse;
+  }
+
+  .ui-root {
+    color: var(--foreground);
+  }
+}

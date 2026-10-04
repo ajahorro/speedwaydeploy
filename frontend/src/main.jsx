@@ -1,3 +1,5 @@
+// Must stay the first import: declares the CSS cascade-layer order (see ui.css).
+import './styles/ui.css';
 import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
