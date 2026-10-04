@@ -12,12 +12,11 @@ import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { getAuditCompliantTransactions } from '../../utils/bookingHelpers';
-import { calculateRequiredDownpayment } from '../../utils/paymentUtils';
+import { verifyPayment, rejectPayment } from '../../services/paymentVerificationService';
+import { fetchRequiredDownpayment } from '../../services/ledgerService';
 import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import OfficialReceipt from '../../components/OfficialReceipt';
-import { writeAdminAuditLog } from '../../services/auditLogService';
 import { useUI } from '../../context/UIContext';
-import { BACKEND_URL } from '../../config/api';
 
 const AdminPayments = () => {
   const navigate = useNavigate();
@@ -130,28 +129,6 @@ const AdminPayments = () => {
     });
   }, [state.payments, state.searchTerm, state.filter, state.methodFilter]);
 
-  const reconcileBookingPaymentState = async (bookingId) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(`${BACKEND_URL}/api/bookings/reconcile-payment-state`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token || ''}`
-        },
-        body: JSON.stringify({ bookingId })
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.success) throw new Error(result.error || 'Booking workflow update failed.');
-      (result.warnings || []).forEach((warning) => toast.error(warning));
-      return result;
-    } catch (error) {
-      logger.error('Booking payment workflow reconciliation failed:', error);
-      toast.error('Payment verified, but the booking status could not be synchronized.');
-      return null;
-    }
-  };
-
   const handleVerifyPayment = async (payment) => {
     const toastId = toast.loading('Verifying transaction...');
     try {
@@ -160,10 +137,9 @@ const AdminPayments = () => {
       const verificationTotal = Number(payment.ocr_evaluated_total || bookingTotal);
       const declaredAmount = Number(payment.amount || 0);
       const ocrAmount = Number(payment.detected_amount || 0);
-      const ocrReference = payment.detected_ref || '';
       const paymentType = payment.notes?.match(/(?:TYPE|PAYMENT_TYPE):([^|]+)/i)?.[1]?.toLowerCase();
       const isDownpayment = paymentType === 'downpayment' || (!paymentType && declaredAmount < verificationTotal);
-      const requiredDownpayment = calculateRequiredDownpayment(verificationTotal).amount;
+      const requiredDownpayment = await fetchRequiredDownpayment(verificationTotal);
       const verifiedAmount = ocrAmount > 0 ? ocrAmount : declaredAmount;
       const wasOverpaidDownpayment = isDownpayment && verifiedAmount > requiredDownpayment;
       const isCashPayment = String(payment.method || '').trim().toUpperCase() === 'CASH';
@@ -177,68 +153,29 @@ const AdminPayments = () => {
         toast.error(`OCR amount is below the required ₱${requiredDownpayment.toLocaleString()} downpayment. Check Override AI to continue.`, { id: toastId });
         return;
       }
-      const verificationNote = [
-        payment.notes || 'PAYMENT_DIGITAL',
-        `OCR_AMOUNT:${verifiedAmount}`,
-        `VERIFIED_TYPE:${isDownpayment ? 'Downpayment' : 'Full'}`,
-        wasOverpaidDownpayment ? 'OVERPAID_DOWNPAYMENT:TRUE' : null,
-        state.overrideAI
-          ? `[AI_OVERRIDE] Admin ID: ${verifier?.id || 'UNKNOWN'} | Required: ₱${requiredDownpayment} | Detected: ₱${ocrAmount || 'NULL'}`
-          : null
-      ].filter(Boolean).join('|');
 
-      const { error } = await supabase.rpc('admin_override_payment_to_paid', {
-        p_payment_id: payment.id,
-        p_booking_id: payment.booking_id,
-        p_verified_amount: verifiedAmount,
-        p_note: state.overrideAI
-          ? `[AI_OVERRIDE] Admin ID: ${verifier?.id || 'UNKNOWN'} | Required: ₱${requiredDownpayment} | Detected: ₱${ocrAmount || 'NULL'}`
-          : null
+      const result = await verifyPayment({
+        payment,
+        verifiedAmount,
+        override: state.overrideAI,
+        note: [
+          `OCR_AMOUNT:${verifiedAmount}`,
+          `VERIFIED_TYPE:${isDownpayment ? 'Downpayment' : 'Full'}`,
+          wasOverpaidDownpayment ? 'OVERPAID_DOWNPAYMENT:TRUE' : null,
+          state.overrideAI
+            ? `[AI_OVERRIDE] Admin ID: ${verifier?.id || 'UNKNOWN'} | Required: ₱${requiredDownpayment} | Detected: ₱${ocrAmount || 'NULL'}`
+            : null
+        ].filter(Boolean).join('|')
       });
-      let auditWriteFailed = false;
 
-      // Fallback for a database that has not yet received migration
-      // 20261018000001: preserve the old write path, but STILL stamp the override
-      // lock columns so a delayed OCR webhook cannot overwrite the human
-      // decision (Scenario 11).
-      if (error) {
-        if (!/admin_override_payment_to_paid|schema cache|does not exist/i.test(error.message || '')) throw error;
-        console.warn('[AdminPayments] Override RPC unavailable — using locked fallback write.');
-        const { error: fallbackError } = await supabase.from('payments').update({
-          amount: verifiedAmount,
-          status: 'PAID',
-          verified_by: verifier?.id,
-          verified_at: new Date().toISOString(),
-          notes: verificationNote,
-          manual_override: true,
-          ocr_locked: true,
-          overridden_by: verifier?.id,
-          overridden_at: new Date().toISOString(),
-          ...(ocrReference ? { reference_number: ocrReference } : {})
-        }).eq('id', payment.id);
-        if (fallbackError) throw fallbackError;
-        auditWriteFailed = !(await writeAdminAuditLog({
-          actionType: 'MANUAL_OVERRIDE_CONFIRM',
-          details: `Admin manually confirmed a flagged payment of ₱${verifiedAmount}.`,
-          metadata: { payment_id: payment.id, verified_amount: verifiedAmount, override_lock: true },
-        }));
-      }
-
-      // The lifecycle confirmation is the single customer email after payment
-      // verification. It attaches the official receipt only when the balance is
-      // fully settled.
-      await reconcileBookingPaymentState(payment.booking_id);
-
-      const previousPaid = (payment.booking?.payments || [])
-        .filter(existing => existing.id !== payment.id && existing.status === 'PAID')
-        .reduce((sum, existing) => sum + Number(existing.amount || 0), 0);
-      const remainingBalance = Math.max(0, bookingTotal - previousPaid - verifiedAmount);
-      if (auditWriteFailed) {
-        toast.error('Payment verified, but its audit entry could not be saved.', { id: toastId });
+      result.warnings.forEach((warning) => toast.error(warning));
+      if (result.reconcileError) {
+        logger.error('Booking payment workflow reconciliation failed:', result.reconcileError);
+        toast.error('Payment verified, but the booking status could not be synchronized.', { id: toastId });
       } else {
         toast.success(
           wasOverpaidDownpayment
-            ? `Payment verified. Remaining balance: ₱${remainingBalance.toLocaleString()}`
+            ? `Payment verified. Remaining balance: ₱${Number(result.ledger?.service_balance_due || 0).toLocaleString()}`
             : 'Payment verified',
           { id: toastId }
         );
@@ -247,7 +184,8 @@ const AdminPayments = () => {
       setState(prev => ({ ...prev, selectedItem: null, overrideAI: false }));
       setConfirmPayment(null);
     } catch (err) {
-      toast.error('Verification failed', { id: toastId });
+      logger.error('Payment verification failed:', err);
+      toast.error(err?.message || 'Verification failed', { id: toastId });
     }
   };
 
@@ -278,37 +216,29 @@ const AdminPayments = () => {
       const submittedAmount = Number(payment.detected_amount || payment.amount || 0);
       const paymentType = payment.notes?.match(/(?:TYPE|PAYMENT_TYPE):([^|]+)/i)?.[1]?.toLowerCase();
       const isDownpayment = paymentType === 'downpayment' || (!paymentType && submittedAmount < bookingTotal);
-      const requiredDownpayment = calculateRequiredDownpayment(bookingTotal).amount;
+      const requiredDownpayment = await fetchRequiredDownpayment(bookingTotal);
       const isUnderpaidDownpayment = isDownpayment && submittedAmount < requiredDownpayment;
-      const rejectionStatus = submittedAmount > 0 ? 'REFUND_PENDING' : 'REJECTED';
-      const rejectionNote = `${payment.notes || 'PAYMENT_DIGITAL'}|REJECTED_AMOUNT:${submittedAmount}|REJECTION_REASON:${reason}`;
+      const fundsReceived = submittedAmount > 0;
 
-      const { error } = await supabase.from('payments').update({
-        status: rejectionStatus,
-        rejection_reason: reason,
-        notes: rejectionNote
-      }).eq('id', payment.id);
-
-      if (error) throw error;
-
-      if (submittedAmount > 0) {
-        const { error: refundQueueError } = await supabase.from('bookings').update({
-          refund_status: 'QUEUED',
-          refund_notes: isUnderpaidDownpayment
-            ? `Rejected underpayment: ₱${submittedAmount.toLocaleString()} received; ₱${requiredDownpayment.toLocaleString()} required.`
-            : `Rejected digital payment: ${reason}`
-        }).eq('id', payment.booking_id);
-        if (refundQueueError) throw refundQueueError;
-      }
+      const result = await rejectPayment({
+        payment,
+        reason,
+        queueRefund: fundsReceived,
+        refundNote: isUnderpaidDownpayment
+          ? `Rejected underpayment: ₱${submittedAmount.toLocaleString()} received; ₱${requiredDownpayment.toLocaleString()} required.`
+          : `Rejected digital payment: ${reason}`
+      });
+      if (result.reconcileError) logger.error('Booking payment workflow reconciliation failed:', result.reconcileError);
 
       toast.error(
-        submittedAmount > 0 ? 'Payment rejected and refund queued' : 'Payment rejected',
+        fundsReceived ? 'Payment rejected and refund queued' : 'Payment rejected',
         { id: toastId }
       );
       fetchPayments();
       setState(prev => ({ ...prev, selectedItem: null }));
     } catch (err) {
-      toast.error('Rejection failed', { id: toastId });
+      logger.error('Payment rejection failed:', err);
+      toast.error(err?.message || 'Rejection failed', { id: toastId });
     }
   };
 

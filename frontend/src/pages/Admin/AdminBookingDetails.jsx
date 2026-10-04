@@ -36,6 +36,7 @@ import { rescheduleBooking } from '../../services/bookingService';
 import ValidationModal from '../../components/ValidationModal';
 import { classifyScheduleError, toCleanMessage } from '../../utils/errorRouting';
 import { BACKEND_URL } from '../../config/api';
+import { reconcilePaymentState, verifyPayment, rejectPayment } from '../../services/paymentVerificationService';
 
 const AdminBookingDetails = () => {
   const { id } = useParams();
@@ -368,17 +369,7 @@ const AdminBookingDetails = () => {
 
   const reconcileBookingPaymentState = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(`${BACKEND_URL}/api/bookings/reconcile-payment-state`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token || ''}`
-        },
-        body: JSON.stringify({ bookingId: id })
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.success) throw new Error(result.error || 'Booking workflow update failed.');
+      const result = await reconcilePaymentState(id);
       (result.warnings || []).forEach((warning) => toast.error(warning));
       return result;
     } catch (error) {
@@ -464,16 +455,18 @@ const AdminBookingDetails = () => {
   const handleVerifyPayment = async (p) => {
     const toastId = toast.loading('Verifying payment...');
     try {
-      const { data: { user: verifier } } = await supabase.auth.getUser();
-      const verifiedAmount = Number(p.detected_amount || p.amount || 0);
-      const { error } = await supabase.from('payments').update({ amount: verifiedAmount, status: 'PAID', notes: `${p.notes || 'PAYMENT_DIGITAL'} | PAYMENT_DIGITAL_VERIFIED | OCR_AMOUNT:${verifiedAmount}`, verified_by: verifier?.id, verified_at: new Date().toISOString() }).eq('id', p.id);
-      if (error) throw error;
+      const verifiedAmount = Number(p.detected_amount) > 0 ? Number(p.detected_amount) : Number(p.amount || 0);
+      const result = await verifyPayment({ payment: p, verifiedAmount, override: false, note: `OCR_AMOUNT:${verifiedAmount}` });
 
-      await notifyUser(booking.customer_id, 'Payment Verified', `Your payment of ₱${p.amount.toLocaleString()} has been approved. Thank you!`, 'PAYMENT_APPROVED', `/customer/bookings/${id}`);
+      await notifyUser(booking.customer_id, 'Payment Verified', `Your payment of ₱${verifiedAmount.toLocaleString()} has been approved. Thank you!`, 'PAYMENT_APPROVED', `/customer/bookings/${id}`);
 
-      await reconcileBookingPaymentState();
-
-      toast.success('Payment Approved & Ledger Synced', { id: toastId });
+      result.warnings.forEach((warning) => toast.error(warning));
+      if (result.reconcileError) {
+        logger.error('Booking payment workflow reconciliation failed:', result.reconcileError);
+        toast.error('Payment approved, but the booking status could not be synchronized.', { id: toastId });
+      } else {
+        toast.success('Payment Approved & Ledger Synced', { id: toastId });
+      }
       fetchPayments(); fetchAuditLogs(); fetchBookingDetails();
     } catch (err) {
       logger.error('Payment verification failed:', err);
@@ -511,43 +504,38 @@ const AdminBookingDetails = () => {
   const performRejectPayment = async (p, reason) => {
     if (!reason) return;
     try {
-      const { error } = await supabase.from('payments').update({ status: 'REJECTED', rejection_reason: reason }).eq('id', p.id);
-      if (error) throw error;
+      await rejectPayment({ payment: p, reason, queueRefund: false });
 
       await notifyUser(booking.customer_id, 'Payment Rejected', `Reason: ${reason}. Please re-submit your receipt.`, 'PAYMENT_REJECTED', `/customer/bookings/${id}`);
 
       toast.success('Receipt rejected');
       fetchPayments(); fetchBookingDetails(); fetchAuditLogs();
-    } catch (err) { toast.error('Rejection failed'); }
+    } catch (err) {
+      logger.error('Payment rejection failed:', err);
+      toast.error(err?.message || 'Rejection failed');
+    }
   };
 
   // Tier 3 / Task 15: ADMIN FORCE-CONFIRM override runner (was an inline
   // window.confirm handler). Confirmed through the styled modal instead.
   const performForceConfirmOverride = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
     const payment = bookingPayments.find(item => item.status === 'FOR_VERIFICATION');
     if (!payment) return toast.error('No pending payment found for this booking.');
-    const overrideAmount = Number(payment.detected_amount || payment.amount || 0);
-    const { error } = await supabase.from('payments').update({
-      amount: overrideAmount,
-      status: 'PAID',
-      verified_by: user?.id,
-      verified_at: new Date().toISOString(),
-      notes: `${payment.notes || 'PAYMENT_DIGITAL'} | PAYMENT_DIGITAL_VERIFIED | AI_OVERRIDE | OCR_AMOUNT:${overrideAmount}`
-    }).eq('id', payment.id);
-    if (error) return toast.error('Override failed');
-
-    await supabase.from('audit_logs').insert({
-      booking_id: id,
-      action_type: 'MANUAL_OVERRIDE_CONFIRM',
-      actor_name: user?.email,
-      actor_role: 'ADMIN',
-      details: `Admin manually confirmed flagged payment of ₱${overrideAmount}.`
-    });
-
-    toast.success('Manual Override Successful: Payment Confirmed');
-    await reconcileBookingPaymentState();
-    fetchBookingDetails();
+    const overrideAmount = Number(payment.detected_amount) > 0 ? Number(payment.detected_amount) : Number(payment.amount || 0);
+    try {
+      const result = await verifyPayment({ payment, verifiedAmount: overrideAmount, override: true, note: `AI_OVERRIDE | OCR_AMOUNT:${overrideAmount}` });
+      result.warnings.forEach((warning) => toast.error(warning));
+      if (result.reconcileError) {
+        logger.error('Booking payment workflow reconciliation failed:', result.reconcileError);
+        toast.error('Payment confirmed, but the booking status could not be synchronized.');
+      } else {
+        toast.success('Manual Override Successful: Payment Confirmed');
+      }
+      fetchBookingDetails();
+    } catch (err) {
+      logger.error('Manual override failed:', err);
+      toast.error(err?.message || 'Override failed');
+    }
   };
 
   // Tier 3 / Task 15: ADMIN manual payment rejection runner (was an inline

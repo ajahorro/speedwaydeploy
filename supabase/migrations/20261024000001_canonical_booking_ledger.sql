@@ -413,12 +413,18 @@ $$;
 
 grant execute on function public.booking_ledgers(uuid[]) to authenticated, service_role;
 
--- ── 5. Verification keeps the declared amount ────────────────────────────────
-create or replace function public.admin_override_payment_to_paid(
+-- ── 5. One verification path and one rejection path for every admin screen ─
+-- Before: Admin Payments used an RPC while Booking Details wrote payments
+-- directly from the browser, with different lock/audit behaviour.
+
+-- Approve a submitted payment. p_override marks a deliberate decision that
+-- contradicts the OCR reading (e.g. below the required downpayment).
+create or replace function public.admin_verify_payment(
   p_payment_id uuid,
   p_booking_id uuid,
   p_verified_amount numeric,
-  p_note text default null
+  p_note text default null,
+  p_override boolean default false
 )
 returns jsonb
 language plpgsql
@@ -428,13 +434,24 @@ as $$
 declare
   v_now    timestamptz := now();
   v_amount numeric := coalesce(p_verified_amount, 0);
+  v_status text;
 begin
   if not public.is_admin() then
-    raise exception 'Administrator access is required to override a payment';
+    raise exception 'Administrator access is required to verify a payment' using errcode = '42501';
   end if;
-
   if v_amount <= 0 then
     raise exception 'A verified amount greater than zero is required';
+  end if;
+
+  select upper(coalesce(status, '')) into v_status
+    from public.payments
+   where id = p_payment_id and booking_id = p_booking_id
+   for update;
+  if not found then
+    raise exception 'Payment does not belong to booking or was not found';
+  end if;
+  if v_status in ('PAID', 'REFUNDED', 'REFUND_PENDING') then
+    raise exception 'This payment has already been settled (%).', v_status using errcode = '23514';
   end if;
 
   update public.payments
@@ -444,38 +461,135 @@ begin
          status = 'PAID',
          verified_by = auth.uid(),
          verified_at = v_now,
-         manual_override = true,
+         -- A human decision always locks out delayed OCR writes.
          ocr_locked = true,
-         overridden_by = auth.uid(),
-         overridden_at = v_now,
-         notes = concat_ws('|', notes, '[MANUAL_OVERRIDE]', nullif(p_note, ''))
-   where id = p_payment_id
-     and booking_id = p_booking_id;
-
-  if not found then
-    raise exception 'Payment does not belong to booking or was not found';
-  end if;
+         manual_override = coalesce(manual_override, false) or p_override,
+         overridden_by = case when p_override then auth.uid() else overridden_by end,
+         overridden_at = case when p_override then v_now else overridden_at end,
+         notes = concat_ws('|', notes, case when p_override then '[MANUAL_OVERRIDE]' else '[VERIFIED]' end, nullif(p_note, ''))
+   where id = p_payment_id;
 
   insert into public.audit_logs (
     booking_id, action_type, details, actor_name, actor_role, actor_id, metadata
   ) values (
     p_booking_id,
-    'MANUAL_OVERRIDE_CONFIRM',
-    format('Administrator manually confirmed a flagged payment as ₱%s. Automated OCR updates are now locked out.', v_amount),
+    case when p_override then 'MANUAL_OVERRIDE_CONFIRM' else 'PAYMENT_VERIFIED' end,
+    case when p_override
+      then format('Administrator manually confirmed a flagged payment as ₱%s. Automated OCR updates are now locked out.', v_amount)
+      else format('Administrator verified a payment of ₱%s.', v_amount)
+    end,
     'Administrator', 'ADMIN', auth.uid(),
-    jsonb_build_object('payment_id', p_payment_id, 'verified_amount', v_amount, 'override_lock', true)
+    jsonb_build_object('payment_id', p_payment_id, 'verified_amount', v_amount, 'override', p_override)
   );
 
   return jsonb_build_object(
     'payment_id', p_payment_id,
     'booking_id', p_booking_id,
     'status', 'PAID',
-    'manual_override', true,
-    'ocr_locked', true,
+    'manual_override', p_override,
     'ledger', public.booking_financial_ledger(p_booking_id)
   );
 end;
 $$;
+
+-- Backward-compatible entry point for older clients: always an override.
+create or replace function public.admin_override_payment_to_paid(
+  p_payment_id uuid,
+  p_booking_id uuid,
+  p_verified_amount numeric,
+  p_note text default null
+)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  select public.admin_verify_payment(p_payment_id, p_booking_id, p_verified_amount, p_note, true);
+$$;
+
+-- Reject a submitted payment.
+--   p_queue_refund = true  : money was received; hold it as REFUND_PENDING and
+--                            queue a refund on the booking.
+--   p_queue_refund = false : the proof is invalid; mark REJECTED so the
+--                            customer re-submits.
+create or replace function public.admin_reject_payment(
+  p_payment_id uuid,
+  p_booking_id uuid,
+  p_reason text,
+  p_queue_refund boolean default false,
+  p_refund_note text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_payment public.payments%rowtype;
+  v_amount numeric;
+  v_next_status text := case when p_queue_refund then 'REFUND_PENDING' else 'REJECTED' end;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access is required to reject a payment' using errcode = '42501';
+  end if;
+  if nullif(trim(coalesce(p_reason, '')), '') is null then
+    raise exception 'A rejection reason is required';
+  end if;
+
+  select * into v_payment
+    from public.payments
+   where id = p_payment_id and booking_id = p_booking_id
+   for update;
+  if not found then
+    raise exception 'Payment does not belong to booking or was not found';
+  end if;
+  if upper(coalesce(v_payment.status, '')) in ('PAID', 'REFUNDED', 'REFUND_PENDING') then
+    raise exception 'This payment has already been settled (%).', upper(v_payment.status) using errcode = '23514';
+  end if;
+
+  v_amount := public.payment_net_received(v_payment.amount, v_payment.detected_amount, v_payment.verified_amount);
+
+  update public.payments
+     set status = v_next_status,
+         rejection_reason = p_reason,
+         ocr_locked = true,
+         notes = concat_ws('|', notes, format('REJECTED_AMOUNT:%s', v_amount), format('REJECTION_REASON:%s', p_reason))
+   where id = p_payment_id;
+
+  if p_queue_refund then
+    update public.bookings
+       set refund_status = 'QUEUED',
+           refund_notes = coalesce(nullif(p_refund_note, ''), format('Rejected payment: %s', p_reason))
+     where id = p_booking_id;
+  end if;
+
+  insert into public.audit_logs (
+    booking_id, action_type, details, actor_name, actor_role, actor_id, metadata
+  ) values (
+    p_booking_id,
+    'PAYMENT_REJECTED',
+    case when p_queue_refund
+      then format('Administrator rejected a payment of ₱%s and queued a refund. Reason: %s', v_amount, p_reason)
+      else format('Administrator rejected a payment proof of ₱%s. Reason: %s', v_amount, p_reason)
+    end,
+    'Administrator', 'ADMIN', auth.uid(),
+    jsonb_build_object('payment_id', p_payment_id, 'amount', v_amount, 'queue_refund', p_queue_refund, 'reason', p_reason)
+  );
+
+  return jsonb_build_object(
+    'payment_id', p_payment_id,
+    'booking_id', p_booking_id,
+    'status', v_next_status,
+    'refund_queued', p_queue_refund,
+    'ledger', public.booking_financial_ledger(p_booking_id)
+  );
+end;
+$$;
+
+revoke all on function public.admin_verify_payment(uuid, uuid, numeric, text, boolean) from public, anon;
+revoke all on function public.admin_reject_payment(uuid, uuid, text, boolean, text) from public, anon;
+grant execute on function public.admin_verify_payment(uuid, uuid, numeric, text, boolean) to authenticated;
+grant execute on function public.admin_reject_payment(uuid, uuid, text, boolean, text) to authenticated;
 
 -- ── 6. Reports (admin only), built on payment_ledger_v ──────────────────────
 create or replace function public.sales_report(p_from timestamptz, p_to timestamptz)
