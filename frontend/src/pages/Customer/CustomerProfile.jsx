@@ -8,6 +8,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
+import { PhoneInput, EmailInput } from '../../components/common/ContactInputs';
+import { phoneError, emailError, normalizePhPhone } from '../../utils/contactValidation';
 
 const CustomerProfile = () => {
   const { confirmThen } = useConfirmAction();
@@ -70,6 +72,12 @@ const CustomerProfile = () => {
 
   const handleSaveProfileClick = (e) => {
     e.preventDefault();
+    // Only judge the number when it was changed, so an older stored format never blocks other edits.
+    const originalPhone = profile?.phone_number || user?.user_metadata?.phone_number || '';
+    if (formData.phone !== originalPhone) {
+      const phoneProblem = phoneError(formData.phone, { required: false });
+      if (phoneProblem) { toast.error(phoneProblem); return; }
+    }
     setPendingAction('profile');
     setPasswordInputReady(false);
     setShowPassModal(true);
@@ -123,7 +131,7 @@ const CustomerProfile = () => {
         await updateProfile({
           first_name: formData.firstName,
           last_name: formData.lastName,
-          phone_number: formData.phone,
+          phone_number: formData.phone ? normalizePhPhone(formData.phone) : formData.phone,
           full_name: `${formData.firstName} ${formData.lastName}`.trim()
         });
         setIsEditing(false);
@@ -147,6 +155,8 @@ const CustomerProfile = () => {
 
   const handleEmailRequest = async (e) => {
     e.preventDefault();
+    const emailProblem = emailError(emailData.newEmail);
+    if (emailProblem) { toast.error(emailProblem); return; }
     setIsUpdating(true);
     const res = await requestEmailChange(emailData.newEmail);
     setIsUpdating(false);
@@ -299,8 +309,8 @@ const CustomerProfile = () => {
                 <label style={labelStyle}>Contact Number</label>
                 <div style={{ position: 'relative' }}>
                   <Phone size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
-                  <input
-                    type="tel"
+                  <PhoneInput
+                    required={false}
                     value={formData.phone}
                     readOnly={!isEditing}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
@@ -510,9 +520,7 @@ const CustomerProfile = () => {
                 </div>
                 <div>
                   <label style={labelStyle}>New Email Address</label>
-                  <input 
-                    type="email" 
-                    required
+                  <EmailInput
                     value={emailData.newEmail}
                     onChange={(e) => setEmailData({...emailData, newEmail: e.target.value})}
                     style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text' }} 

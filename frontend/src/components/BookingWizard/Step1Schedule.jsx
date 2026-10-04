@@ -8,6 +8,8 @@ import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { sanitizeVehicleText } from '../../config/constants';
 import DateTimePicker from './DateTimePicker';
 import { ensureShopConfig } from '../../config/shopConfig';
+import { PhoneInput } from '../common/ContactInputs';
+import { isValidPhPhone } from '../../utils/contactValidation';
 
 const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, onNext, onBack, onCancel, customerDetailsLocked = false, adminMode = false, selectedCustomerId = null }) => {
   const [availableSlots, setAvailableSlots] = useState([]);
@@ -30,7 +32,7 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
     item.type && item.brand && item.model && item.plateNumber && item.services?.length
   );
   const customerDetailsComplete = hasSelectedExistingCustomer || (
-    (bookingData.contactNumber || '').length >= 10 && (bookingData.customerName || '').trim().length > 0
+    isValidPhPhone(bookingData.contactNumber) && (bookingData.customerName || '').trim().length > 0
   );
   const isValid = Boolean(bookingData.date && bookingData.time && customerDetailsComplete && allVehiclesComplete);
 
@@ -170,16 +172,16 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
               </label>
               <div style={{ position: 'relative' }}>
                 <Phone size={18} color="var(--admin-brand)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  type="tel"
+                <PhoneInput
                   aria-label="Active contact number"
                   value={bookingData.contactNumber || ''}
                   disabled={customerDetailsLocked}
-                  onChange={(e) => setBookingData({ ...bookingData, contactNumber: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                  onChange={(e) => setBookingData({ ...bookingData, contactNumber: e.target.value })}
                   onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--admin-brand)'; }}
                   onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--admin-input-border)'; }}
                   style={{ ...inputStyle, paddingLeft: '3rem' }}
                   placeholder="e.g. 09123456789"
+                  required={false}
                 />
               </div>
             </div>

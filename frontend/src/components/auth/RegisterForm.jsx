@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Mail, Lock, User, Phone, Loader2, AlertCircle } from 'lucide-react';
 import StyledInput from './StyledInput';
 import { sanitizeByFieldType } from '../../config/constants';
+import { PhoneInput, EmailInput } from '../common/ContactInputs';
+import { emailError, phoneError } from '../../utils/contactValidation';
 
 // Task 2.5: per-field allowlist so each input keeps only its legitimate chars.
 const FIELD_TYPE = { firstName: 'text', lastName: 'text', email: 'email', phone: 'phone' };
@@ -20,6 +22,11 @@ const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '', 
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const contactProblem = emailError(formData.email) || phoneError(formData.phone);
+    if (contactProblem) {
+      setError(contactProblem);
+      return;
+    }
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match.');
       return;
@@ -75,11 +82,11 @@ const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '', 
       </div>
 
       <div style={{ position: 'relative', marginBottom: '1rem' }}>
-        <StyledInput icon={Mail} type="email" placeholder="Email Address" required value={formData.email} onChange={e => updateField('email', e.target.value)} autoComplete="email" readOnly={isPrefilled} />
+        <EmailInput as={StyledInput} icon={Mail} placeholder="Email Address" value={formData.email} onChange={e => updateField('email', e.target.value)} readOnly={isPrefilled} />
       </div>
       
       <div style={{ position: 'relative', marginBottom: '1rem' }}>
-        <StyledInput icon={Phone} type="tel" placeholder="Phone Number" required value={formData.phone} onChange={e => updateField('phone', e.target.value)} autoComplete="tel" readOnly={isPrefilled} />
+        <PhoneInput as={StyledInput} icon={Phone} placeholder="Mobile number (09123456789)" value={formData.phone} onChange={e => updateField('phone', e.target.value)} readOnly={isPrefilled} />
       </div>
 
       <div style={{ position: 'relative', marginBottom: '1.5rem' }}>

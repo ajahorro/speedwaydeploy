@@ -7,6 +7,8 @@ import { getRequiredDownpayment, requiresDownpayment } from '../../utils/payment
 import { sanitizeVehicleText, sanitizeVehiclePlate } from '../../config/constants';
 import CustomerBookAppointment from '../Customer/CustomerBookAppointment';
 import toastManager from '../../utils/toastManager';
+import { PhoneInput, EmailInput } from '../../components/common/ContactInputs';
+import { isValidEmail, isValidPhPhone } from '../../utils/contactValidation';
 
 const AdminWalkInWizard = () => {
   const { user } = useAuth();
@@ -92,8 +94,12 @@ const AdminWalkInWizard = () => {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '.75rem' }}>
             <input disabled={isCustomerDetailsLocked} style={fieldStyle} placeholder="First name" value={guest.firstName} onChange={event => { const firstName = event.target.value.replace(/[^a-zA-Z ]/g, '').replace(/\s+/g, ' '); setGuest(current => ({ ...current, firstName })); setBookingData(current => ({ ...current, customerId: null, customerName: `${firstName} ${guest.lastName}`.trim(), adminCustomerReady: Boolean(firstName.trim() && guest.lastName.trim() && guest.email.trim() && guest.phone.trim()) })); }} />
             <input disabled={isCustomerDetailsLocked} style={fieldStyle} placeholder="Last name" value={guest.lastName} onChange={event => { const lastName = event.target.value.replace(/[^a-zA-Z ]/g, '').replace(/\s+/g, ' '); setGuest(current => ({ ...current, lastName })); setBookingData(current => ({ ...current, customerId: null, customerName: `${guest.firstName} ${lastName}`.trim(), adminCustomerReady: Boolean(guest.firstName.trim() && lastName.trim() && guest.email.trim() && guest.phone.trim()) })); }} />
-            <input disabled={isCustomerDetailsLocked} style={fieldStyle} placeholder="Email" type="email" value={guest.email} onChange={event => { const email = event.target.value.replace(/[^a-zA-Z0-9@._+-]/g, ''); setGuest(current => ({ ...current, email })); setBookingData(current => ({ ...current, customerEmail: email, adminCustomerReady: Boolean(guest.firstName.trim() && guest.lastName.trim() && email.trim() && guest.phone.trim()) })); }} />
-            <input disabled={isCustomerDetailsLocked} style={fieldStyle} placeholder="Phone" inputMode="numeric" value={guest.phone} onChange={event => { const phone = event.target.value.replace(/\D/g, ''); setGuest(current => ({ ...current, phone })); setBookingData(current => ({ ...current, contactNumber: phone, adminCustomerReady: Boolean(guest.firstName.trim() && guest.lastName.trim() && guest.email.trim() && phone.trim()) })); }} />
+            <div>
+              <EmailInput disabled={isCustomerDetailsLocked} style={fieldStyle} placeholder="Email" value={guest.email} onChange={event => { const email = event.target.value; setGuest(current => ({ ...current, email })); setBookingData(current => ({ ...current, customerEmail: email, adminCustomerReady: Boolean(guest.firstName.trim() && guest.lastName.trim() && isValidEmail(email) && isValidPhPhone(guest.phone)) })); }} />
+            </div>
+            <div>
+              <PhoneInput disabled={isCustomerDetailsLocked} style={fieldStyle} placeholder="Phone (09123456789)" value={guest.phone} onChange={event => { const phone = event.target.value; setGuest(current => ({ ...current, phone })); setBookingData(current => ({ ...current, contactNumber: phone, adminCustomerReady: Boolean(guest.firstName.trim() && guest.lastName.trim() && isValidEmail(guest.email) && isValidPhPhone(phone)) })); }} />
+            </div>
           </div>
         ) : (
           <select disabled={isCustomerDetailsLocked} style={fieldStyle} value={selectedCustomer} onChange={event => { const id = event.target.value; const profile = customers.find(customer => customer.id === id); const fullName = resolveProfileName(profile); const phone = resolveProfileContact(profile); const email = profile?.email || ''; setSelectedCustomer(id); setBookingData(current => ({ ...current, customerId: id || null, customerName: fullName, customerEmail: email, contactNumber: phone, adminCustomerReady: Boolean(id) })); }}>

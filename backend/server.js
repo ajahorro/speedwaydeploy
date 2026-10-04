@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const crypto = require('crypto');
+const { isValidEmail, isValidPhPhone, normalizePhPhone, normalizeEmail } = require('./config/contactValidation');
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
 require('dotenv').config();
@@ -587,7 +588,7 @@ app.post('/admin/generate-invite', async (req, res) => {
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
   const normalizedRole = typeof role === 'string' ? role.trim().toUpperCase() : '';
 
-  if (!normalizedEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail) || !['ADMIN', 'STAFF'].includes(normalizedRole)) {
+  if (!normalizedEmail || !isValidEmail(normalizedEmail) || !['ADMIN', 'STAFF'].includes(normalizedRole)) {
     console.error(`❌ [INVITE SYSTEM] REJECTED: Invalid email (${email}) or role (${role})`);
     return res.status(400).json({ success: false, error: 'A valid email and STAFF or ADMIN role are required.' });
   }
@@ -859,8 +860,18 @@ app.post('/invite/accept', async (req, res) => {
 
 // 🚀 CUSTOMER REGISTRATION SYSTEM (RESEND INTEGRATED)
 app.post('/customer/register', async (req, res) => {
-  const { email, password, firstName, lastName, phone } = req.body;
-  console.log(`\n🏎️ [CUSTOMER REGISTRATION] STARTING FLOW FOR: ${email}`);
+  const { email: rawEmail, password, firstName, lastName, phone: rawPhone } = req.body;
+  console.log(`\n🏎️ [CUSTOMER REGISTRATION] STARTING FLOW FOR: ${rawEmail}`);
+
+  // One rule set for email and phone (see config/contactValidation.js).
+  if (!isValidEmail(rawEmail)) {
+    return res.status(400).json({ success: false, error: 'Enter a valid email address.' });
+  }
+  if (!isValidPhPhone(rawPhone)) {
+    return res.status(400).json({ success: false, error: 'Enter an 11-digit mobile number starting with 09.' });
+  }
+  const email = normalizeEmail(rawEmail);
+  const phone = normalizePhPhone(rawPhone);
 
   try {
     // 1. Use generateLink so Supabase DOES NOT send its default SMTP email
@@ -2006,7 +2017,7 @@ app.post('/api/auth/request-email-change', async (req, res) => {
   const userId = actor.user.id;
   const oldEmail = actor.user.email;
   const newEmail = String(req.body?.newEmail || '').trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+  if (!isValidEmail(newEmail)) {
     return res.status(400).json({ success: false, error: 'A valid new email is required.' });
   }
   console.log(`📧 [AUTH] EMAIL CHANGE REQUEST: ${oldEmail} -> ${newEmail}`);
@@ -2307,7 +2318,7 @@ app.post('/api/admin/invite-account', async (req, res) => {
     return res.status(403).json({ success: false, error: 'Only administrators may invite accounts.' });
   }
 
-  if (!normalizedEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail)) {
+  if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
     return res.status(400).json({ success: false, error: 'A valid email address is required.' });
   }
   if (!['STAFF', 'ADMIN'].includes(normalizedRole)) {

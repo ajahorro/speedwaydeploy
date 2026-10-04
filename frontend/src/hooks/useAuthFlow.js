@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { BACKEND_URL } from '../config/api';
+import { emailError, phoneError, normalizePhPhone } from '../utils/contactValidation';
 
 export const useAuthFlow = () => {
   const navigate = useNavigate();
@@ -53,6 +54,8 @@ export const useAuthFlow = () => {
     try {
       const email = userData.email.trim().toLowerCase();
       const fullName = `${userData.firstName.trim()} ${userData.lastName.trim()}`.trim();
+      const contactProblem = emailError(email) || phoneError(userData.phone);
+      if (contactProblem) throw new Error(contactProblem);
       if (userData.password.length < 6) {
         throw new Error('Password must be at least 6 characters long.');
       }
@@ -92,7 +95,7 @@ export const useAuthFlow = () => {
             full_name: fullName,
             first_name: userData.firstName.trim(),
             last_name: userData.lastName.trim(),
-            phone_number: userData.phone.trim(),
+            phone_number: normalizePhPhone(userData.phone),
             role: 'CUSTOMER'
           },
           emailRedirectTo: redirectTo

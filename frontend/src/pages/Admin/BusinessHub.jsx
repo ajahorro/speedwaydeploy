@@ -21,6 +21,7 @@ import SegmentedTimePicker from '../../components/AdminSchedule/SegmentedTimePic
 import { BACKEND_URL, authHeaders } from '../../config/api';
 import { writeAdminAuditLog } from '../../services/auditLogService';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
+import { EmailInput } from '../../components/common/ContactInputs';
 
 // ── TAB DEFINITIONS: THE SINGLE SOURCE OF TRUTH ────────────────────────────
 //
@@ -2203,10 +2204,10 @@ export default function BusinessHub() {
                 />
               </Field>
               <Field label="Email Address" htmlFor="business-email-address">
-                <input
+                <EmailInput
                   id="business-email-address"
                   name="email_address"
-                  type="email"
+                  required={false}
                   value={businessForm.email_address}
                   onChange={(e) => handleInputChange('email_address', e.target.value)}
                   style={inputStyle}

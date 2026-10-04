@@ -15,6 +15,8 @@ import { logger } from '../../utils/logger';
 import { useAuth } from '../../hooks/useAuth';
 import { BACKEND_URL, authHeaders } from '../../config/api';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
+import { EmailInput } from '../../components/common/ContactInputs';
+import { emailError } from '../../utils/contactValidation';
 
 const AdminAccountsManagement = () => {
   const { confirmThen } = useConfirmAction();
@@ -67,8 +69,9 @@ const AdminAccountsManagement = () => {
 
   const handleSendInvite = async (e) => {
     e.preventDefault();
-    if (!inviteForm.email) {
-      toast.error('Please provide an email address');
+    const emailProblem = emailError(inviteForm.email);
+    if (emailProblem) {
+      toast.error(emailProblem);
       return;
     }
 
@@ -416,9 +419,7 @@ const AdminAccountsManagement = () => {
                 <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Email Address</label>
                 <div style={{ position: 'relative' }}>
                   <Mail size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
-                  <input
-                    type="email"
-                    required
+                  <EmailInput
                     placeholder="e.g. name@example.com"
                     value={inviteForm.email}
                     onChange={(e) => setInviteForm({...inviteForm, email: e.target.value})}
