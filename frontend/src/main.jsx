@@ -13,14 +13,14 @@ import { UnifiedProvider } from './context/UnifiedContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ConfigProvider } from './context/ConfigContext';
 import { ChatProvider } from './context/ChatContext';
-import AdminLayout from './pages/Admin/AdminLayout';
-import AdminDashboard from './pages/Admin/AdminDashboard';
-import AdminBookings from './pages/Admin/AdminBookings';
-import AdminBookingDetails from './pages/Admin/AdminBookingDetails';
-import AdminSchedule from './pages/Admin/AdminSchedule';
-import AdminPayments from './pages/Admin/AdminPayments';
-import AdminRefunds from './pages/Admin/AdminRefunds';
-import AdminSalesReport from './pages/Admin/AdminSalesReport';
+const AdminLayout = lazy(() => import('./pages/Admin/AdminLayout'));
+const AdminDashboard = lazy(() => import('./pages/Admin/AdminDashboard'));
+const AdminBookings = lazy(() => import('./pages/Admin/AdminBookings'));
+const AdminBookingDetails = lazy(() => import('./pages/Admin/AdminBookingDetails'));
+const AdminSchedule = lazy(() => import('./pages/Admin/AdminSchedule'));
+const AdminPayments = lazy(() => import('./pages/Admin/AdminPayments'));
+const AdminRefunds = lazy(() => import('./pages/Admin/AdminRefunds'));
+const AdminSalesReport = lazy(() => import('./pages/Admin/AdminSalesReport'));
 import LoadingState from './components/LoadingState';
 
 // Lazy so the chart library only loads for admins who open the report.
@@ -30,40 +30,40 @@ const financialReports = (defaultTab) => (
     <FinancialReportsPage defaultTab={defaultTab} />
   </Suspense>
 );
-import AdminAuditLogs from './pages/Admin/AdminAuditLogs';
-import AdminAccountsManagement from './pages/Admin/AdminAccountsManagement';
-import AdminUserManagement from './pages/Admin/AdminUserManagement';
-import AdminSettings from './pages/Admin/AdminSettings';
-import BusinessHub from './pages/Admin/BusinessHub';
-import AdminNotifications from './pages/Admin/AdminNotifications';
-import AdminProfile from './pages/Admin/AdminProfile';
-import AdminAcceptInvite from './pages/Admin/AdminAcceptInvite';
-import AdminWalkInForm from './pages/Admin/AdminWalkInWizard';
-import StaffLayout from './pages/Staff/StaffLayout';
-import StaffDashboard from './pages/Staff/StaffDashboard';
-import StaffActiveJobs from './pages/Staff/StaffActiveJobs';
-import StaffWorkHistory from './pages/Staff/StaffWorkHistory';
-import StaffJobDetails from './pages/Staff/StaffJobDetails';
-import StaffProfile from './pages/Staff/StaffProfile';
-import StaffDuty from './pages/Staff/StaffDuty';
-import StaffNotifications from './pages/Staff/StaffNotifications';
-import StaffSettings from './pages/Staff/StaffSettings';
+const AdminAuditLogs = lazy(() => import('./pages/Admin/AdminAuditLogs'));
+const AdminAccountsManagement = lazy(() => import('./pages/Admin/AdminAccountsManagement'));
+const AdminUserManagement = lazy(() => import('./pages/Admin/AdminUserManagement'));
+const AdminSettings = lazy(() => import('./pages/Admin/AdminSettings'));
+const BusinessHub = lazy(() => import('./pages/Admin/BusinessHub'));
+const AdminNotifications = lazy(() => import('./pages/Admin/AdminNotifications'));
+const AdminProfile = lazy(() => import('./pages/Admin/AdminProfile'));
+const AdminAcceptInvite = lazy(() => import('./pages/Admin/AdminAcceptInvite'));
+const AdminWalkInForm = lazy(() => import('./pages/Admin/AdminWalkInWizard'));
+const StaffLayout = lazy(() => import('./pages/Staff/StaffLayout'));
+const StaffDashboard = lazy(() => import('./pages/Staff/StaffDashboard'));
+const StaffActiveJobs = lazy(() => import('./pages/Staff/StaffActiveJobs'));
+const StaffWorkHistory = lazy(() => import('./pages/Staff/StaffWorkHistory'));
+const StaffJobDetails = lazy(() => import('./pages/Staff/StaffJobDetails'));
+const StaffProfile = lazy(() => import('./pages/Staff/StaffProfile'));
+const StaffDuty = lazy(() => import('./pages/Staff/StaffDuty'));
+const StaffNotifications = lazy(() => import('./pages/Staff/StaffNotifications'));
+const StaffSettings = lazy(() => import('./pages/Staff/StaffSettings'));
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
-import CustomerLayout from './pages/Customer/CustomerLayout';
-import CustomerDashboard from './pages/Customer/CustomerDashboard';
-import CustomerBookAppointment from './pages/Customer/CustomerBookAppointment';
-import CustomerMyBookings from './pages/Customer/CustomerMyBookings';
-import CustomerBilling from './pages/Customer/CustomerBilling';
-import CustomerGarage from './pages/Customer/CustomerGarage';
-import GlobalNotifications from "./pages/GlobalNotifications";
-import CustomerSettings from './pages/Customer/CustomerSettings';
-import CustomerProfile from './pages/Customer/CustomerProfile';
-import CustomerBookingDetails from './pages/Customer/CustomerBookingDetails';
-import CustomerReceipt from './pages/Customer/CustomerReceipt';
-import PasswordConfirmation from './pages/PasswordConfirmation';
-import AuthCallback from './pages/AuthCallback';
+const CustomerLayout = lazy(() => import('./pages/Customer/CustomerLayout'));
+const CustomerDashboard = lazy(() => import('./pages/Customer/CustomerDashboard'));
+const CustomerBookAppointment = lazy(() => import('./pages/Customer/CustomerBookAppointment'));
+const CustomerMyBookings = lazy(() => import('./pages/Customer/CustomerMyBookings'));
+const CustomerBilling = lazy(() => import('./pages/Customer/CustomerBilling'));
+const CustomerGarage = lazy(() => import('./pages/Customer/CustomerGarage'));
+const GlobalNotifications = lazy(() => import('./pages/GlobalNotifications'));
+const CustomerSettings = lazy(() => import('./pages/Customer/CustomerSettings'));
+const CustomerProfile = lazy(() => import('./pages/Customer/CustomerProfile'));
+const CustomerBookingDetails = lazy(() => import('./pages/Customer/CustomerBookingDetails'));
+const CustomerReceipt = lazy(() => import('./pages/Customer/CustomerReceipt'));
+const PasswordConfirmation = lazy(() => import('./pages/PasswordConfirmation'));
+const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 import './index.css';
 
 const InputCapitalizationController = () => {
@@ -114,6 +114,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                     fail-closed, so surfacing an unreachable scheduling server
                     BEFORE the user fills in the wizard (instead of a scary
                     console refusal at submit time) is the right UX. */}
+                <Suspense fallback={<LoadingState message="Loading..." />}>
                 <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<Landing />} />
@@ -197,6 +198,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route path="receipt/:id" element={<CustomerReceipt />} />
                 </Route>
                 </Routes>
+                </Suspense>
                 {/* react-hot-toast host — the ONE toast engine for the whole app
                     after Step 7.3 consolidation. Previously no <Toaster/> was
                     mounted, so every `toast.*()` call was a silent no-op; and a

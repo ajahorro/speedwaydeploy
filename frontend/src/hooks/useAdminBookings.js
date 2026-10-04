@@ -17,8 +17,12 @@ export const useAdminBookings = () => {
   const debounceRef = useRef(null);
   const channelRef = useRef(null);
 
+  const loadedOnce = useRef(false);
+
   const refresh = useCallback(async () => {
-    setLoading(true);
+    // Only the first load shows the loading state; live refreshes swap data in
+    // place instead of flashing the whole list back to a skeleton.
+    if (!loadedOnce.current) setLoading(true);
     try {
       logger.admin('Syncing Live Booking Directory...');
 
@@ -50,6 +54,7 @@ export const useAdminBookings = () => {
       });
 
       setBookings(Array.from(uniqueMap.values()));
+      loadedOnce.current = true;
       logger.admin('Booking Directory synchronized.');
     } catch (err) {
       logger.error('Booking Fetch Error', err);
