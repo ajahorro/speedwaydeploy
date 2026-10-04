@@ -153,11 +153,12 @@ begin
 
   -- Same "not found" for a missing vehicle and for one the caller may not
   -- touch, so the RPC cannot be used to probe other bookings.
+  -- coalesce(): an unassigned booking (staff_id null) must deny, not yield NULL.
   if not found
      or not (
        public.is_admin()
        or (
-         v_staff_id = auth.uid()
+         coalesce(v_staff_id = auth.uid(), false)
          and exists (
            select 1 from public.profiles p
             where p.id = auth.uid()
