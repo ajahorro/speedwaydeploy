@@ -2,7 +2,9 @@
 // stack (127.0.0.1:56621) only. Keys below are the Supabase CLI's public local
 // demo values, not secrets.
 const crypto = require('crypto');
-const { createClient } = require('../../backend/node_modules/@supabase/supabase-js');
+const path = require('path');
+const { createClient } = require(process.env.SUPABASE_JS
+  || path.join(__dirname, '../../backend/node_modules/@supabase/supabase-js'));
 
 const URL = 'http://127.0.0.1:56621';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
@@ -86,7 +88,8 @@ const ADMIN_LIST = `*,
     const chat = await sb.from('bookings').select('customer_id').eq('id', A1).maybeSingle();
     check('custA chat booking->customer lookup', chat.data?.customer_id, USERS.custA);
     const garage = await sb.from('booking_vehicles').select('id, booking:bookings(id, start_datetime, status, total_amount)').eq('plate_number', 'BBB222');
-    check('custA garage history of another customer\'s plate hides booking', (garage.data || []).map((v) => v.booking), [null]);
+    // With 20261024000002 the vehicle row itself is hidden, not just its booking.
+    check('custA garage history of another customer\'s plate -> no rows', [garage.error, garage.data?.length], [null, 0]);
   }
 
   // --- staff S --------------------------------------------------------------
