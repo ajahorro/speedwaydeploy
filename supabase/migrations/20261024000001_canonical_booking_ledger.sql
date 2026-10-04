@@ -219,6 +219,14 @@ select
   b.customer_id,
   b.staff_id,
   b.status as booking_status,
+  b.start_datetime,
+  coalesce(
+    nullif(trim(coalesce(prof.full_name, '')), ''),
+    nullif(trim(coalesce(b.customer_name, '')), ''),
+    nullif(trim(concat_ws(' ', b.guest_first_name, b.guest_last_name)), ''),
+    nullif(trim(coalesce(b.guest_name, '')), ''),
+    'Walk-in'
+  ) as customer_name,
   round(coalesce(b.total_amount, 0), 2) as original_amount,
   round(e.expected, 2) as expected_amount,
   s.cancelled_no_fee,
@@ -263,6 +271,7 @@ select
   a.settled_count as settled_payment_count,
   a.last_settled_at
 from public.bookings b
+left join public.profiles prof on prof.id = b.customer_id
 cross join (select public.shop_downpayment_policy() as pol) policy
 cross join lateral (
   select

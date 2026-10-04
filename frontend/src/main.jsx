@@ -1,6 +1,6 @@
 // Must stay the first import: declares the CSS cascade-layer order (see ui.css).
 import './styles/ui.css';
-import React, { useEffect } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
@@ -21,6 +21,15 @@ import AdminSchedule from './pages/Admin/AdminSchedule';
 import AdminPayments from './pages/Admin/AdminPayments';
 import AdminRefunds from './pages/Admin/AdminRefunds';
 import AdminSalesReport from './pages/Admin/AdminSalesReport';
+import LoadingState from './components/LoadingState';
+
+// Lazy so the chart library only loads for admins who open the report.
+const FinancialReportsPage = lazy(() => import('./features/financial-reports/FinancialReportsPage'));
+const financialReports = (defaultTab) => (
+  <Suspense fallback={<LoadingState message="Loading financial reports..." />}>
+    <FinancialReportsPage defaultTab={defaultTab} />
+  </Suspense>
+);
 import AdminAuditLogs from './pages/Admin/AdminAuditLogs';
 import AdminAccountsManagement from './pages/Admin/AdminAccountsManagement';
 import AdminUserManagement from './pages/Admin/AdminUserManagement';
@@ -135,8 +144,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route path="schedule" element={<AdminSchedule />} />
                   <Route path="payments" element={<AdminPayments />} />
                   <Route path="refunds" element={<AdminRefunds />} />
-                  <Route path="analytics" element={<AdminSalesReport />} />
-                  <Route path="finance" element={<AdminSalesReport />} />
+                  <Route path="analytics" element={financialReports('overview')} />
+                  <Route path="finance" element={financialReports('overview')} />
+                  {/* Classic report kept for one release as an instant fallback. */}
+                  <Route path="finance/classic" element={<AdminSalesReport />} />
                   <Route path="audit-logs" element={<AdminAuditLogs />} />
                   <Route path="accounts" element={<AdminAccountsManagement />} />
                   <Route path="users" element={<AdminUserManagement />} />
