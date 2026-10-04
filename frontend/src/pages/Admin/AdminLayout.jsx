@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate, NavLink, Outlet } from 'react-router-dom';
-import { supabase, createUniqueChannel } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { subscribeTable } from '../../lib/realtimeHub';
 import {
   LayoutDashboard, Building2, ClipboardList, CheckSquare, Calendar, UserPlus,
   Bell, Undo, BarChart2, History, Users, User,
@@ -65,11 +66,7 @@ const AdminLayout = () => {
     window.addEventListener('notificationsRead', handleNotificationsRead);
 
     // Real-time subscription for instant badge updates
-    const channel = createUniqueChannel(`admin-notif-badge-${user?.id}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'notifications',
-        filter: `user_id=eq.${user?.id}`
-      }, (payload) => {
+    const stopRealtime = subscribeTable({ table: 'notifications', filter: `user_id=eq.${user?.id}` }, (payload) => {
         fetchUnreadCount();
 
         // Live toast for a NEW booking landing while the admin is on-screen.
@@ -112,12 +109,11 @@ const AdminLayout = () => {
             { duration: 6000, kind: 'default', dedupeKey: `new-booking:${bookingId}` }
           );
         }
-      })
-      .subscribe();
+    });
 
     return () => {
       window.removeEventListener('notificationsRead', handleNotificationsRead);
-      supabase.removeChannel(channel);
+      stopRealtime();
     };
   }, [user?.id, fetchUnreadCount, navigate]);
 

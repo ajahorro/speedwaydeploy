@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase, createUniqueChannel } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { subscribeTable } from '../../lib/realtimeHub';
 import {
   CheckCircle, AlertCircle, Search, RotateCw, Filter,
   CreditCard, XCircle, ArrowRight, Car,
@@ -98,11 +99,9 @@ const AdminPayments = () => {
   useEffect(() => {
     fetchPayments();
 
-    const channel = createUniqueChannel('admin-payments-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => fetchPayments())
-      .subscribe();
+    const stopRealtime = subscribeTable({ table: 'payments' }, () => fetchPayments());
 
-    return () => { supabase.removeChannel(channel); };
+    return () => { stopRealtime(); };
   }, [fetchPayments]);
 
   // MEMOIZED FILTERING

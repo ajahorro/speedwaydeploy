@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase, createUniqueChannel } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { subscribeTable } from '../../lib/realtimeHub';
 import { Calendar as CalendarIcon, ShieldAlert, Lock, Zap, CheckCircle2, RotateCw, ChevronDown, ChevronUp, ChevronRight, X, Check, Sliders } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
@@ -60,17 +61,15 @@ const AdminSchedule = () => {
   useEffect(() => {
     fetchDailyContext();
     // 🛡️ REAL-TIME SYNCHRONIZATION (REQ-ADM-02)
-    const channel = createUniqueChannel('admin-schedule-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        fetchDailyContext();
-        fetchMonthData();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'blocked_slots' }, () => {
-        fetchDailyContext();
-      })
-      .subscribe();
+    const stopBookings = subscribeTable({ table: 'bookings' }, () => {
+      fetchDailyContext();
+      fetchMonthData();
+    });
+    const stopBlocked = subscribeTable({ table: 'blocked_slots' }, () => {
+      fetchDailyContext();
+    });
 
-    return () => { supabase.removeChannel(channel); };
+    return () => { stopBookings(); stopBlocked(); };
   }, [selectedDate]);
 
   const fetchMonthData = async () => {

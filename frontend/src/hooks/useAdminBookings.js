@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, createUniqueChannel } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { subscribeTables } from '../lib/realtimeHub';
 import { logger } from '../utils/logger';
 import { calculatePaymentStatus } from '../utils/paymentUtils';
 import { fetchBookingLedgers } from '../services/ledgerService';
@@ -9,13 +10,19 @@ import toast from 'react-hot-toast';
  * useAdminBookings — REQ-NFR-05
  * Custom hook for admin booking data with Supabase Realtime.
  * Replaces inline fetch + useEffect in AdminBookings.jsx.
- * Returns: { bookings, loading, refresh }
+ * Loads the most recent PAGE_SIZE bookings first (the directory used to download
+ * every booking with every nested row). `loadAll()` fetches the rest; the page calls
+ * it when a search or filter needs the complete set.
+ * Returns: { bookings, loading, refresh, hasMore, loadAll }
  */
+const PAGE_SIZE = 150;
+
 export const useAdminBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const fetchAllRef = useRef(false);
   const debounceRef = useRef(null);
-  const channelRef = useRef(null);
 
   const loadedOnce = useRef(false);
 
@@ -31,12 +38,17 @@ export const useAdminBookings = () => {
         .select(`
           *,
           customer:profiles!bookings_customer_id_fkey(full_name, email),
-          vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*),
-          payments:payments!payments_booking_id_fkey(*)
+          vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services!booking_vehicle_id(service_name)),
+          payments:payments!payments_booking_id_fkey(id, status)
         `)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(0, fetchAllRef.current ? 9999 : PAGE_SIZE);
 
       if (error) throw error;
+      // One extra row is requested so we know whether older bookings exist.
+      const more = !fetchAllRef.current && (data || []).length > PAGE_SIZE;
+      if (more) data.pop();
+      setHasMore(more);
 
       // Payment status from the database ledger, fetched once for all bookings.
       const ledgers = await fetchBookingLedgers((data || []).map(b => b.id));
@@ -76,19 +88,22 @@ export const useAdminBookings = () => {
     refresh();
 
     // Multi-table Supabase Realtime subscription
-    const channel = createUniqueChannel('admin-bookings-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, debouncedRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, debouncedRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'booking_vehicles' }, debouncedRefresh)
-      .subscribe();
-
-    channelRef.current = channel;
+    const stopRealtime = subscribeTables(
+      [{ table: 'bookings' }, { table: 'payments' }, { table: 'booking_vehicles' }],
+      debouncedRefresh
+    );
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      if (channelRef.current) supabase.removeChannel(channelRef.current);
+      stopRealtime();
     };
   }, [refresh, debouncedRefresh]);
 
-  return { bookings, loading, refresh };
+  const loadAll = useCallback(() => {
+    if (fetchAllRef.current) return;
+    fetchAllRef.current = true;
+    refresh();
+  }, [refresh]);
+
+  return { bookings, loading, refresh, hasMore, loadAll };
 };

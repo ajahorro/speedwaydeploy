@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { fetchCustomerBookings, subscribeToCustomerBookings } from '../services/bookingService';
 import { fetchNotifications, subscribeToNotifications } from '../services/notificationService';
 import { useAuth } from '../hooks/useAuth';
-import { supabase, createUniqueChannel } from '../lib/supabase';
+import { subscribeTables } from '../lib/realtimeHub';
 import { createCoalescer } from '../lib/coalesce';
 
 const UnifiedContext = createContext();
@@ -66,11 +66,8 @@ export const UnifiedProvider = ({ children }) => {
         // Booking status is also represented by child vehicle and payment rows.
         // Subscribe to those tables as well so list/dashboard projections do not
         // wait for a master-row update or a manual refresh.
-        const childStateSub = isCustomer
-            ? createUniqueChannel(`customer-booking-state-${user.id}`)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'booking_vehicles' }, scheduleBookingRefresh)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, scheduleBookingRefresh)
-                .subscribe()
+        const stopChildState = isCustomer
+            ? subscribeTables([{ table: 'booking_vehicles' }, { table: 'payments' }], scheduleBookingRefresh)
             : null;
 
         const notificationSub = subscribeToNotifications(user.id, () => {
@@ -82,7 +79,7 @@ export const UnifiedProvider = ({ children }) => {
         return () => {
             scheduleBookingRefresh.cancel();
             if (bookingSub) bookingSub.unsubscribe();
-            if (childStateSub) supabase.removeChannel(childStateSub);
+            if (stopChildState) stopChildState();
             if (notificationSub) notificationSub.unsubscribe();
         };
     }, [user, isCustomer, loadData, refreshBookings]);

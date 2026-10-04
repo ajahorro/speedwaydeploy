@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase, createUniqueChannel } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { subscribeTables } from '../../lib/realtimeHub';
 import { useAuth } from '../../hooks/useAuth';
 import {
   ArrowLeft, Clock, Car, ShieldCheck,
@@ -271,12 +272,14 @@ const CustomerBookingDetails = () => {
 
   useEffect(() => {
     fetchAll();
-    const channel = createUniqueChannel(`customer-booking-${id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `id=eq.${id}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `booking_id=eq.${id}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'booking_vehicles', filter: `booking_id=eq.${id}` }, () => fetchAll())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    let timer = null;
+    const refetch = () => { clearTimeout(timer); timer = setTimeout(fetchAll, 350); };
+    const stopRealtime = subscribeTables([
+      { table: 'bookings', filter: `id=eq.${id}` },
+      { table: 'payments', filter: `booking_id=eq.${id}` },
+      { table: 'booking_vehicles', filter: `booking_id=eq.${id}` }
+    ], refetch);
+    return () => { clearTimeout(timer); stopRealtime(); };
   }, [id]); // eslint-disable-line
 
   // --- STYLES ---

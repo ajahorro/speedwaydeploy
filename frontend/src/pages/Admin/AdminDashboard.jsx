@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase, createUniqueChannel } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { subscribeTables } from '../../lib/realtimeHub';
 import { formatBookingDate, formatBookingTime, getStatusColor } from '../../utils/bookingHelpers';
 import {
   CreditCard, Users, AlertCircle,
@@ -334,14 +335,11 @@ const AdminDashboard = () => {
       debounceRef.current = setTimeout(fetchDashboardData, 500);
     };
 
-    const channel = createUniqueChannel('admin-dashboard-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, debouncedRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, debouncedRefresh)
-      .subscribe();
+    const stopRealtime = subscribeTables([{ table: 'bookings' }, { table: 'payments' }], debouncedRefresh);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      supabase.removeChannel(channel);
+      stopRealtime();
     };
   }, [fetchDashboardData]);
 

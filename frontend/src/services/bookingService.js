@@ -1,4 +1,5 @@
-import { supabase, createUniqueChannel } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { subscribeTable } from '../lib/realtimeHub';
 // NOTE: this module must not import eventEngine/notificationService at the top
 // level. eventEngine imports notificationService, and both are pulled back in by
 // this module's consumers, which closes a cycle that evaluates one of them in the
@@ -602,35 +603,19 @@ export const fetchBookingById = async (bookingId) => {
 
 /**
  * Subscribe to real-time changes on a specific booking.
- * Returns the channel so the caller can unsubscribe.
+ * Returns { unsubscribe } for the caller.
  */
 export const subscribeToBooking = (bookingId, callback) => {
-  const channel = createUniqueChannel(`booking-${bookingId}`)
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'bookings',
-      filter: `id=eq.${bookingId}`
-    }, callback)
-    .subscribe();
-
-  return channel;
+  const stop = subscribeTable({ table: 'bookings', filter: `id=eq.${bookingId}` }, callback);
+  return { unsubscribe: stop };
 };
 
 /**
  * Subscribe to all bookings for a customer (for dashboard live updates).
  */
 export const subscribeToCustomerBookings = (customerId, callback) => {
-  const channel = createUniqueChannel(`customer-bookings-${customerId}`)
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'bookings',
-      filter: `customer_id=eq.${customerId}`
-    }, callback)
-    .subscribe();
-
-  return channel;
+  const stop = subscribeTable({ table: 'bookings', filter: `customer_id=eq.${customerId}` }, callback);
+  return { unsubscribe: stop };
 };
 
 // --- Utility ---

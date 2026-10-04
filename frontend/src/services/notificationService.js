@@ -1,4 +1,5 @@
-import { supabase, createUniqueChannel } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { subscribeTable } from '../lib/realtimeHub';
 import { isNotificationActionable } from '../utils/notificationRouting';
 
 /**
@@ -55,18 +56,9 @@ export const clearAllNotifications = async (userId) => {
 };
 
 export const subscribeToNotifications = (userId, callback) => {
-  return createUniqueChannel(`notifications-${userId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*', // Listen to inserts, updates, deletes
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${userId}`
-      },
-      callback
-    )
-    .subscribe(); // .subscribe() MUST be at the very end!
+  // Shared channel: every screen listening to this user's notifications uses one.
+  const stop = subscribeTable({ table: 'notifications', filter: `user_id=eq.${userId}` }, callback);
+  return { unsubscribe: stop };
 };
 
 /**

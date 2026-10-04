@@ -8,7 +8,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { createUniqueChannel, supabase } from '@/lib/supabase';
+import { subscribeTable } from '@/lib/realtimeHub';
 import { fetchSalesReport, fetchSalesReportDaily } from '@/services/ledgerService';
 import { formatPeso } from '@/features/finance/money';
 import { KpiCards } from './KpiCards';
@@ -110,13 +110,11 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
   // A verified, refunded or newly submitted payment updates the report live.
   useEffect(() => {
     let timer = null;
-    const channel = createUniqueChannel('financial-reports-ledger')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
-        clearTimeout(timer);
-        timer = setTimeout(() => setRefreshKey((value) => value + 1), 800);
-      })
-      .subscribe();
-    return () => { clearTimeout(timer); supabase.removeChannel(channel); };
+    const stopRealtime = subscribeTable({ table: 'payments' }, () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => setRefreshKey((value) => value + 1), 800);
+    });
+    return () => { clearTimeout(timer); stopRealtime(); };
   }, []);
 
   const handleExport = async () => {

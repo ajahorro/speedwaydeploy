@@ -25,7 +25,7 @@ const AdminBookings = () => {
   const { openModal } = useUI();
 
   // REQ-NFR-05: Decoupled data layer via custom hook (realtime multi-table sync)
-  const { bookings, loading, refresh } = useAdminBookings();
+  const { bookings, loading, refresh, hasMore, loadAll } = useAdminBookings();
 
   // UI-only state (search, filter, view mode)
   const [state, setState] = useState({
@@ -46,6 +46,11 @@ const AdminBookings = () => {
       setState(prev => ({ ...prev, filterStatus: filter }));
     }
   }, [location.search]);
+
+  // A search or filter has to see every booking, not just the latest page.
+  useEffect(() => {
+    if (hasMore && (state.searchTerm.trim() || state.filterStatus !== 'all')) loadAll();
+  }, [hasMore, state.searchTerm, state.filterStatus, loadAll]);
 
   // MEMOIZED FILTERING: Only re-calculates when data or search changes
   const filteredBookings = useMemo(() => {
@@ -240,6 +245,13 @@ const AdminBookings = () => {
           </div>
         </div>
       </div>
+
+      {hasMore && !loading && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.75rem 1rem', marginBottom: '1rem', border: '1px solid var(--admin-border)', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800, color: 'var(--admin-text-secondary)' }}>
+          <span>Showing the {bookings.length} most recent bookings.</span>
+          <button type="button" onClick={loadAll} style={{ padding: '0.4rem 0.9rem', borderRadius: '6px', border: '1px solid var(--admin-border)', background: 'transparent', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.7rem', cursor: 'pointer', textTransform: 'uppercase' }}>Load all bookings</button>
+        </div>
+      )}
 
       {loading ? (
         <LoadingState message="Retrieving booking records..." />

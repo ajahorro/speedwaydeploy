@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { supabase, createUniqueChannel } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { subscribeTables } from '../../lib/realtimeHub';
 import { useNavigate } from 'react-router-dom';
 import {
   ClipboardList, Clock, CheckCircle2, AlertCircle,
@@ -161,22 +162,12 @@ const StaffDashboard = () => {
     fetchAssignedTasks();
 
     // REQ-SYS-05: Real-time synchronization
-    const channel = createUniqueChannel(`staff-tasks-${profile?.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'bookings',
-        filter: `staff_id=eq.${profile?.id}`
-      }, fetchAssignedTasks)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${profile?.id}`
-      }, fetchAssignedTasks)
-      .subscribe();
+    const stopRealtime = subscribeTables([
+      { table: 'bookings', filter: `staff_id=eq.${profile?.id}` },
+      { table: 'notifications', filter: `user_id=eq.${profile?.id}` }
+    ], fetchAssignedTasks);
 
-    return () => { supabase.removeChannel(channel); };
+    return () => { stopRealtime(); };
   }, [fetchAssignedTasks, profile?.id]);
 
   const handleUpdateStatus = async (task, newStatus) => {

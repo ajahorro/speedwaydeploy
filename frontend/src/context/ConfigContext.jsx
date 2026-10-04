@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { supabase, createUniqueChannel } from '../lib/supabase';
+import { subscribeTable } from '../lib/realtimeHub';
 import { SHOP_CONFIG, VEHICLE_TYPE_OPTIONS } from '../config/constants';
 import { logger } from '../utils/logger';
 import { bayCapacityOf, fetchShopConfig, getShopConfig, subscribeShopConfig } from '../config/shopConfig';
@@ -104,12 +104,10 @@ export const ConfigProvider = ({ children }) => {
 
     // Live updates when the Business Hub saves, plus a refresh when the tab
     // regains focus so a long-open booking screen never keeps old settings.
-    const channel = createUniqueChannel('public:business_config')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'business_config' }, () => {
-        logger.admin('Live configuration update detected. Synchronizing...');
-        refreshConfig();
-      })
-      .subscribe();
+    const stopRealtime = subscribeTable({ table: 'business_config' }, () => {
+      logger.admin('Live configuration update detected. Synchronizing...');
+      refreshConfig();
+    });
     const onVisible = () => {
       if (document.visibilityState === 'visible') refreshConfig();
     };
@@ -118,7 +116,7 @@ export const ConfigProvider = ({ children }) => {
     return () => {
       unsubscribe();
       document.removeEventListener('visibilitychange', onVisible);
-      supabase.removeChannel(channel);
+      stopRealtime();
     };
   }, [refreshConfig]);
 

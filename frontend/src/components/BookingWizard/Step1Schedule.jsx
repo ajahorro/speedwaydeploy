@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Phone } from 'lucide-react';
 import { getAvailableSlots } from '../../services/scheduleService';
-import { supabase, createUniqueChannel } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { subscribeTables } from '../../lib/realtimeHub';
 import { isDateBookable } from '../../domain/schedule/rules';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { sanitizeVehicleText } from '../../config/constants';
@@ -88,14 +89,13 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
       clearTimeout(debounce);
       debounce = setTimeout(() => fetchSlots(true), 600);
     };
-    const channel = createUniqueChannel(`slots:${bookingData.date}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, trigger)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'blocked_slots' }, trigger)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'business_config' }, trigger)
-      .subscribe();
+    const stopRealtime = subscribeTables(
+      [{ table: 'bookings' }, { table: 'blocked_slots' }, { table: 'business_config' }],
+      trigger
+    );
     return () => {
       clearTimeout(debounce);
-      supabase.removeChannel(channel);
+      stopRealtime();
     };
   }, [bookingData.date, fetchSlots]);
 

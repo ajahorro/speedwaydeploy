@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase, createUniqueChannel } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { subscribeTable } from '../../lib/realtimeHub';
 import {
   ArrowLeft, Clock, CreditCard, User, Car, ClipboardList,
   History, CheckCircle, XCircle, AlertCircle, MessageCircle,
@@ -117,16 +118,16 @@ const AdminBookingDetails = () => {
     fetchAuditLogs();
     fetchPayments();
 
-    const channel = createUniqueChannel(`admin-booking-detail-${id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `id=eq.${id}` }, () => fetchBookingDetails())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'booking_vehicles', filter: `booking_id=eq.${id}` }, () => fetchBookingDetails())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `booking_id=eq.${id}` }, () => {
+    const stopRealtime = [
+      subscribeTable({ table: 'bookings', filter: `id=eq.${id}` }, () => fetchBookingDetails()),
+      subscribeTable({ table: 'booking_vehicles', filter: `booking_id=eq.${id}` }, () => fetchBookingDetails()),
+      subscribeTable({ table: 'payments', filter: `booking_id=eq.${id}` }, () => {
         fetchPayments();
         fetchBookingDetails();
       })
-      .subscribe();
+    ];
 
-    return () => { supabase.removeChannel(channel); };
+    return () => { stopRealtime.forEach((stop) => stop()); };
   }, [id]);
 
   const fetchBookingDetails = async () => {
