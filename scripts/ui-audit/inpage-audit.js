@@ -1,6 +1,6 @@
 // In-page layout/theme audit used for the 1.6 polish pass.
 // Usage (browser console or the Browser pane, signed in, dev server running):
-//   1. Copy frontend/public/__audit.js alongside this file is NOT needed: paste this file into the console.
+//   1. Paste this file into the console (or serve it from frontend/public for the session).
 //   2. await window.__auditPage("/admin/bookings", "light")  // or "dark"
 // Reports horizontal overflow at the current viewport width, elements sticking out
 // of the viewport, and text with a contrast ratio under 2.6. Resize the viewport
