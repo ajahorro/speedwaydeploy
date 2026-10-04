@@ -16,6 +16,25 @@ import { getBookableSlots } from '../domain/schedule/rules';
  */
 
 /**
+ * Occupancy of every booking overlapping [startIso, endIso): times, status and
+ * per-vehicle type/status only. Customers cannot SELECT other customers'
+ * bookings under RLS, so capacity checks go through this SECURITY DEFINER RPC,
+ * which returns no booking id, customer, staff, amount or plate.
+ *
+ * Throws on failure so callers fail closed instead of treating an unreadable
+ * schedule as an empty one (which would offer slots that are already full).
+ */
+export const fetchScheduleOccupancy = async (startIso, endIso, excludedBookingId = null) => {
+  const { data, error } = await supabase.rpc('get_schedule_occupancy', {
+    p_start: startIso,
+    p_end: endIso,
+    p_exclude_booking_id: excludedBookingId,
+  });
+  if (error) throw error;
+  return data || [];
+};
+
+/**
  * Returns the bookable start slots for a date, computed by the shared rules
  * engine. Output shape is preserved for existing UI callers:
  *   [{ hour, minute, time: 'HH:MM AM', availableBays }]
@@ -67,16 +86,12 @@ export const getAvailableSlots = async (dateStr, requestedDuration = 60, request
     checkDateEnd.setUTCDate(checkDateEnd.getUTCDate() + Math.ceil(durationMinutes / 1440) + 1);
     const endOfRange = `${checkDateEnd.toISOString().split('T')[0]}T23:59:59+08:00`;
 
-    const { data: bookings } = await supabase
-      .from('bookings')
-      .select('id, start_datetime, end_datetime, status, vehicles:booking_vehicles(id, status, vehicle_type)')
-      .lte('start_datetime', endOfRange)
-      .gte('end_datetime', startOfDay);
+    //    The booking being rescheduled is excluded server-side so it never
+    //    blocks its own new slot.
+    const bookings = await fetchScheduleOccupancy(startOfDay, endOfRange, excludedBookingId);
 
-    // Preserve the historical purge of stale 'scheduled' sessions, then exclude
-    // the booking being rescheduled so it never blocks its own new slot.
-    const activeBookings = filterActiveBookings(bookings || [])
-      .filter((b) => b.id !== excludedBookingId);
+    // Preserve the historical purge of stale 'scheduled' sessions.
+    const activeBookings = filterActiveBookings(bookings);
 
     // 3. Single source of truth: the pure rules engine decides every slot.
     const slots = getBookableSlots(dateStr, config, activeBookings, {

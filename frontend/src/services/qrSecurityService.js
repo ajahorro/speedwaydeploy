@@ -50,23 +50,14 @@ export const fetchQrConfig = async () => {
  * Snapshot the CURRENT QR config onto a booking so the checkout session settles
  * against a frozen target. Call this the moment the customer opens the payment
  * step; mid-update QR changes afterwards cannot break their payment.
+ *
+ * The snapshot is built server-side from business_config by the
+ * capture_booking_qr_snapshot RPC (owner or admin only); customers cannot
+ * UPDATE bookings directly.
  */
-export const captureQrSnapshot = async (bookingId, config) => {
+export const captureQrSnapshot = async (bookingId) => {
   if (!bookingId) return null;
-  const snapshot = {
-    qr_account_name: config?.qr_account_name || '',
-    qr_account_number: config?.qr_account_number || '',
-    payment_qr_url: config?.payment_qr_url || config?.gcash_qr_url || config?.qr_photo_url || null,
-    gcash_qr_url: config?.gcash_qr_url || config?.payment_qr_url || config?.qr_photo_url || null,
-    qr_photo_url: config?.qr_photo_url || config?.payment_qr_url || config?.gcash_qr_url || null,
-    qr_config_version: config?.qr_config_version ?? 1,
-    captured_at: new Date().toISOString(),
-  };
-
-  const { error } = await supabase
-    .from('bookings')
-    .update({ active_qr_snapshot: snapshot, qr_snapshot_version: snapshot.qr_config_version })
-    .eq('id', bookingId);
+  const { data: snapshot, error } = await supabase.rpc('capture_booking_qr_snapshot', { p_booking_id: bookingId });
 
   if (error) {
     // Non-fatal for the customer (they can still pay), but log for ops.
