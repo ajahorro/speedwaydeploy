@@ -262,7 +262,7 @@ const StaffDashboard = () => {
   const handleSaveNotes = async (taskId) => {
     const toastId = toast.loading('Saving notes...');
     try {
-      const { error } = await supabase.from('booking_vehicles').update({ service_notes: localNotes[taskId] }).eq('id', taskId);
+      const { error } = await supabase.rpc('update_booking_vehicle_service_notes', { p_vehicle_id: taskId, p_notes: localNotes[taskId] ?? '' });
       if (error) throw error;
       toast.success('Notes saved!', { id: toastId });
       fetchAssignedTasks();
