@@ -505,8 +505,8 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/auth/deactivate-account`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id })
+        headers: await authHeaders(),
+        body: JSON.stringify({})
       });
       const result = await response.json();
       if (result.success) {

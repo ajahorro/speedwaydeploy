@@ -83,35 +83,46 @@ const PASSWORD_CIPHER_KEY = crypto.createHash('sha256')
   .update(process.env.SUPABASE_SERVICE_ROLE_KEY)
   .digest();
 
-const calculateNetPaid = (payments = []) => {
-  const positive = payments
-    .filter(payment => String(payment.method || '').toUpperCase() !== 'SYSTEM_REFUND'
-      && ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(String(payment.status || '').toUpperCase()))
-    .reduce((sum, payment) => {
-      const detected = Number(payment.detected_amount || 0);
-      const amount = detected > 0 ? detected : Number(payment.amount || 0);
-      return sum + Math.max(0, amount);
-    }, 0);
-  const refunds = payments
-    .filter(payment => (String(payment.method || '').toUpperCase() === 'SYSTEM_REFUND'
-      || String(payment.status || '').toUpperCase() === 'REFUNDED')
-      && Number(payment.amount) < 0)
-    .reduce((sum, payment) => sum + Math.abs(Number(payment.amount || 0)), 0);
-  return Math.max(0, positive - refunds);
+// ── Booking money ────────────────────────────────────────────────────────────
+// Every paid/balance/downpayment figure comes from the database ledger
+// (public.booking_ledger_v, migration 20261024000001). The backend never sums
+// payment rows itself, so it cannot disagree with the portal, reports or emails.
+//   net_settled          money held (includes rejected payments awaiting refund)
+//   verified_paid        money ACCEPTED toward the service (PAID only, minus refunds)
+//   downpayment_met      verified_paid >= required_downpayment (work-start gate)
+//   service_paid_in_full verified_paid >= expected_amount (completion gate)
+const LEDGER_NUMERIC_FIELDS = [
+  'original_amount', 'expected_amount', 'settled_amount', 'refunded_amount', 'net_settled',
+  'verified_paid', 'outstanding_amount', 'excess_amount', 'pending_verification',
+  'required_downpayment', 'service_balance_due'
+];
+
+const normalizeLedgerRow = (row) => {
+  const normalized = { ...row };
+  for (const field of LEDGER_NUMERIC_FIELDS) normalized[field] = Number(row?.[field] || 0);
+  return normalized;
 };
 
-const calculateVerifiedPaid = (payments = []) => {
-  const received = payments
-    .filter(payment => String(payment.status || '').toUpperCase() === 'PAID'
-      && String(payment.method || '').toUpperCase() !== 'SYSTEM_REFUND'
-      && Number(payment.amount) > 0)
-    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-  const refunds = payments
-    .filter(payment => Number(payment.amount) < 0
-      && (String(payment.method || '').toUpperCase() === 'SYSTEM_REFUND'
-        || String(payment.status || '').toUpperCase() === 'REFUNDED'))
-    .reduce((sum, payment) => sum + Math.abs(Number(payment.amount || 0)), 0);
-  return Math.max(0, received - refunds);
+const getBookingLedgers = async (bookingIds = []) => {
+  const ids = [...new Set((bookingIds || []).filter(Boolean))];
+  if (!ids.length) return new Map();
+  const { data, error } = await supabaseAdmin.from('booking_ledger_v').select('*').in('booking_id', ids);
+  if (error) throw error;
+  return new Map((data || []).map((row) => [row.booking_id, normalizeLedgerRow(row)]));
+};
+
+const getBookingLedger = async (bookingId) => {
+  const ledger = (await getBookingLedgers([bookingId])).get(bookingId);
+  if (!ledger) throw new Error(`Financial ledger unavailable for booking ${bookingId}.`);
+  return ledger;
+};
+
+// Required downpayment for a total that is not saved yet (e.g. after adding a
+// service). Uses the same configurable policy as the ledger view.
+const getRequiredDownpaymentFor = async (total) => {
+  const { data, error } = await supabaseAdmin.rpc('booking_required_downpayment', { p_total: Number(total || 0) });
+  if (error) throw error;
+  return Number(data || 0);
 };
 
 const encryptPendingPassword = (password) => {
@@ -500,11 +511,6 @@ const sendPreferenceGatedAnnouncement = ({ preferenceKey, subject, bodyHtml }) =
       console.error(`📧 [ANNOUNCE] Unexpected failure for "${subject}":`, err.message);
     }
   });
-};
-
-const getRequiredDownpayment = (total) => {
-  const amount = Number(total || 0);
-  return Math.round(amount * (amount >= 2000 ? 0.5 : 0.3) * 100) / 100;
 };
 
 const revokeStaleStaffTaskNotifications = async (bookingId, currentStaffId) => {
@@ -3891,7 +3897,15 @@ app.post('/api/staff/update-preferences', async (req, res) => {
  * Marks account as INACTIVE instead of deleting immediately.
  */
 app.post('/api/auth/deactivate-account', async (req, res) => {
-  const { userId } = req.body;
+  const actor = await getAuthenticatedActor(req);
+  if (!actor) return res.status(401).json({ success: false, error: 'Authentication required.' });
+  // Users deactivate themselves; only an administrator may target another account.
+  const requestedUserId = req.body?.userId || actor.profile.id;
+  const isAdminActor = String(actor.profile.role || '').toUpperCase() === 'ADMIN';
+  if (requestedUserId !== actor.profile.id && !isAdminActor) {
+    return res.status(403).json({ success: false, error: 'You can only deactivate your own account.' });
+  }
+  const userId = requestedUserId;
   console.log(`⚠️ [AUTH] DEACTIVATION REQUEST: ${userId}`);
 
   try {
@@ -4600,16 +4614,11 @@ app.post('/api/bookings/add-service', async (req, res) => {
     if (!vehicle) return res.status(404).json({ success: false, error: 'Vehicle does not belong to this booking.' });
     const { data: existing } = await supabaseAdmin.from('booking_vehicle_services').select('id').eq('booking_vehicle_id', vehicleId).ilike('service_name', serviceName).maybeSingle();
     if (existing) return res.status(409).json({ success: false, error: 'This service is already assigned to the vehicle.' });
-    const { data: bookingPayments, error: bookingPaymentsError } = await supabaseAdmin
-      .from('payments')
-      .select('amount, method, status, detected_amount, transfer_fee')
-      .eq('booking_id', bookingId);
-    if (bookingPaymentsError) throw bookingPaymentsError;
-    const verifiedPaid = calculateNetPaid(bookingPayments || []);
+    const { verified_paid: verifiedPaid } = await getBookingLedger(bookingId);
     const newBookingTotal = Number(booking.total_amount || 0) + servicePrice;
     const minimumDownpaymentNow = Math.min(
       servicePrice,
-      Math.max(0, getRequiredDownpayment(newBookingTotal) - verifiedPaid)
+      Math.max(0, (await getRequiredDownpaymentFor(newBookingTotal)) - verifiedPaid)
     );
     const hasPayment = paymentAmount !== null && paymentAmount !== undefined;
     if (servicePrice >= 1000 && minimumDownpaymentNow > 0
@@ -4801,16 +4810,14 @@ app.post('/api/bookings/update-master-status', async (req, res) => {
     if (bookingError) throw bookingError;
     const { data: vehicles, error: vehiclesError } = await supabaseAdmin.from('booking_vehicles').select('status').eq('booking_id', bookingId);
     if (vehiclesError) throw vehiclesError;
-    const { data: payments, error: paymentsError } = await supabaseAdmin.from('payments').select('amount, status').eq('booking_id', bookingId);
-    if (paymentsError) throw paymentsError;
+    const ledger = await getBookingLedger(bookingId);
 
     const currentStatus = String(booking.status || '').toLowerCase();
-    const totalPaid = calculateNetPaid(payments || []);
-    const requiredDownpayment = getRequiredDownpayment(booking.total_amount);
+    const requiredDownpayment = ledger.required_downpayment;
     const allCompleted = (vehicles || []).length > 0 && vehicles.every(vehicle => ['COMPLETED', 'CANCELLED'].includes(String(vehicle.status || '').toUpperCase()));
 
     if (normalizedStatus === 'confirmed') {
-      if (!['scheduled', 'pending'].includes(currentStatus) || totalPaid < requiredDownpayment) {
+      if (!['scheduled', 'pending'].includes(currentStatus) || !ledger.downpayment_met) {
         return res.status(409).json({ success: false, error: `Booking requires at least ${requiredDownpayment.toLocaleString()} in verified payment before confirmation.` });
       }
     } else if (normalizedStatus === 'in_progress') {
@@ -4819,7 +4826,7 @@ app.post('/api/bookings/update-master-status', async (req, res) => {
         return res.status(409).json({ success: false, error: 'Service can only start on the scheduled date after confirmation and staff assignment.' });
       }
     } else if (normalizedStatus === 'completed') {
-      if (currentStatus !== 'in_progress' || !allCompleted || totalPaid < Number(booking.total_amount || 0)) {
+      if (currentStatus !== 'in_progress' || !allCompleted || !ledger.service_paid_in_full) {
         return res.status(409).json({ success: false, error: 'Booking can be completed only after every vehicle is finished and fully paid.' });
       }
     } else {
@@ -4854,18 +4861,16 @@ app.post('/api/bookings/release', async (req, res) => {
       .single();
     if (fetchError) throw fetchError;
 
-    const [{ data: vehicles, error: vehiclesError }, { data: payments, error: paymentsError }] = await Promise.all([
+    const [{ data: vehicles, error: vehiclesError }, ledger] = await Promise.all([
       supabaseAdmin.from('booking_vehicles').select('status').eq('booking_id', bookingId),
-      supabaseAdmin.from('payments').select('amount, status').eq('booking_id', bookingId)
+      getBookingLedger(bookingId)
     ]);
     if (vehiclesError) throw vehiclesError;
-    if (paymentsError) throw paymentsError;
 
     const bookingStatus = booking.status?.toLowerCase();
     const allVehiclesFinished = (vehicles || []).length > 0
       && vehicles.every(vehicle => ['COMPLETED', 'CANCELLED'].includes(String(vehicle.status || '').toUpperCase()));
-    const totalPaid = calculateNetPaid(payments || []);
-    const isSettled = Number(booking.total_amount || 0) <= 0 || totalPaid >= Number(booking.total_amount || 0);
+    const isSettled = ledger.service_paid_in_full;
     if (bookingStatus !== 'completed' && !(allVehiclesFinished && isSettled)) {
       return res.status(409).json({ success: false, error: 'Only completed bookings can be released.' });
     }
@@ -5057,26 +5062,11 @@ app.get('/api/staff/tasks', async (req, res) => {
       return res.json({ success: true, bookings: [] });
     }
 
-    stage = 'payments-query';
-    const bookingIds = assignedBookings.map((booking) => booking.id);
-    const { data: payments, error: paymentError } = await supabaseAdmin
-      .from('payments')
-      .select('booking_id, amount, status, method, detected_amount')
-      .in('booking_id', bookingIds);
-    if (paymentError) throw paymentError;
-
-    const paymentsByBooking = new Map();
-    for (const payment of payments || []) {
-      const rows = paymentsByBooking.get(payment.booking_id) || [];
-      rows.push(payment);
-      paymentsByBooking.set(payment.booking_id, rows);
-    }
+    stage = 'ledger-query';
+    const ledgers = await getBookingLedgers(assignedBookings.map((booking) => booking.id));
 
     stage = 'payment-eligibility-filter';
-    const eligibleBookings = assignedBookings.filter((booking) =>
-      calculateVerifiedPaid(paymentsByBooking.get(booking.id) || [])
-        >= getRequiredDownpayment(booking.total_amount)
-    );
+    const eligibleBookings = assignedBookings.filter((booking) => ledgers.get(booking.id)?.downpayment_met);
     if (requestedBookingId && assignedBooking && !eligibleBookings.some((booking) => booking.id === assignedBooking.id)) {
       if (await returnReleasedBookingFromAssignmentNotice()) return;
       return res.status(404).json({
@@ -5128,19 +5118,13 @@ app.post('/api/bookings/reconcile-payment-state', async (req, res) => {
       .single();
     if (bookingError) throw bookingError;
 
-    const { data: payments, error: paymentError } = await supabaseAdmin
-      .from('payments')
-      .select('amount, status, method, detected_amount')
-      .eq('booking_id', bookingId);
-    if (paymentError) throw paymentError;
-    const netPaid = calculateVerifiedPaid(payments || []);
-    const totalAmount = Number(booking.total_amount || 0);
+    const ledger = await getBookingLedger(bookingId);
     const currentStatus = String(booking.status || '').toLowerCase();
     let nextStatus = currentStatus;
 
     if (['scheduled', 'pending'].includes(currentStatus)
       && booking.staff_id
-      && netPaid >= getRequiredDownpayment(totalAmount)) {
+      && ledger.downpayment_met) {
       nextStatus = 'confirmed';
     } else if (currentStatus === 'in_progress') {
       const { data: vehicles, error: vehicleError } = await supabaseAdmin
@@ -5150,12 +5134,12 @@ app.post('/api/bookings/reconcile-payment-state', async (req, res) => {
       if (vehicleError) throw vehicleError;
       const allVehiclesComplete = (vehicles || []).length > 0
         && vehicles.every((vehicle) => String(vehicle.status || '').toUpperCase() === 'COMPLETED');
-      const fullyPaid = totalAmount <= 0 || netPaid >= totalAmount;
+      const fullyPaid = ledger.service_paid_in_full;
       if (allVehiclesComplete && fullyPaid) nextStatus = 'completed';
     }
 
     const warnings = [];
-    const paymentEligible = netPaid >= getRequiredDownpayment(totalAmount);
+    const paymentEligible = ledger.downpayment_met;
     try {
       await revokeStaleStaffTaskNotifications(
         bookingId,
@@ -5273,12 +5257,7 @@ app.post('/api/bookings/update-status', async (req, res) => {
         return res.status(409).json({ success: false, error: 'Service can only start after the scheduled time, on the scheduled date, with an assigned technician.' });
       }
 
-      const { data: startPayments, error: startPaymentsError } = await supabaseAdmin
-        .from('payments')
-        .select('amount, status, method, detected_amount')
-        .eq('booking_id', bookingId);
-      if (startPaymentsError) throw startPaymentsError;
-      if (calculateVerifiedPaid(startPayments || []) < getRequiredDownpayment(masterBooking.total_amount)) {
+      if (!(await getBookingLedger(bookingId)).downpayment_met) {
         return res.status(409).json({ success: false, error: 'The required downpayment must be verified before service can start.' });
       }
 
@@ -5348,15 +5327,9 @@ app.post('/api/bookings/update-status', async (req, res) => {
     if (fetchError) throw fetchError;
 
     // 🔍 Calculate Financial Balance
-    const { data: payments, error: pError } = await supabaseAdmin
-      .from('payments')
-      .select('amount, status, method')
-      .eq('booking_id', bookingId);
-    if (pError) throw pError;
-
-    const totalPaid = calculateVerifiedPaid(payments || []);
-    const balance = Math.max(0, (masterBooking.total_amount || 0) - totalPaid);
-    const isFullySettled = balance === 0;
+    const ledger = await getBookingLedger(bookingId);
+    const balance = ledger.service_balance_due;
+    const isFullySettled = ledger.service_paid_in_full;
 
     // 🆕 Status Calculation Logic
     const anyInProgress = (allUnits || []).some(u => u.status?.toUpperCase() === 'IN_PROGRESS');
