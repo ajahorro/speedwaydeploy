@@ -8,6 +8,7 @@ import { TOASTER_DEFAULTS } from './utils/toastChrome';
 import ErrorBoundary from './components/ErrorBoundary';
 import { installGlobalErrorReporter } from './utils/globalErrorReporter';
 import { UIProvider } from './context/UIContext';
+import { ImagePreviewProvider } from './context/ImagePreviewContext';
 import { AuthProvider } from './context/AuthContext';
 import { UnifiedProvider } from './context/UnifiedContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -110,6 +111,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <UnifiedProvider>
               <BrowserRouter>
                 <UIProvider>
+                <ImagePreviewProvider>
                 {/* Proactive "backend offline" signal. Booking submission is
                     fail-closed, so surfacing an unreachable scheduling server
                     BEFORE the user fills in the wizard (instead of a scary
@@ -223,6 +225,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   }}
                   toastOptions={TOASTER_DEFAULTS}
                 />
+                </ImagePreviewProvider>
                 </UIProvider>
               </BrowserRouter>
             </UnifiedProvider>

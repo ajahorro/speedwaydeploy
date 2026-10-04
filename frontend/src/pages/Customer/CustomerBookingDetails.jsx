@@ -26,8 +26,10 @@ import { calculatePaymentSummary } from '../../utils/paymentUtils';
 import { fetchBookingLedger } from '../../services/ledgerService';
 import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import { getAvailableSlots, getBusinessHours } from '../../services/scheduleService';
+import { useImagePreview } from '../../context/ImagePreviewContext';
 
 const CustomerBookingDetails = () => {
+  const { openImage } = useImagePreview();
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -527,7 +529,7 @@ const CustomerBookingDetails = () => {
                     <div style={{ display: 'flex', gap: '1rem', padding: '1rem' }}>
                       {p.receipt_url && (
                         <div style={{ width: '70px', height: '70px', borderRadius: 'var(--admin-radius-sm)', overflow: 'hidden', flexShrink: 0, border: '1px solid var(--admin-border)' }}>
-                          <img src={p.receipt_url} alt="Receipt" style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }} onClick={() => window.open(p.receipt_url, '_blank')} />
+                          <img src={p.receipt_url} alt="Receipt" style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }} onClick={() => openImage(p.receipt_url, { alt: 'Proof of payment' })} />
                         </div>
                       )}
                       <div style={{ flex: 1 }}>
@@ -628,7 +630,7 @@ const CustomerBookingDetails = () => {
                     {p.receipt_url && ['GCASH', 'DIGITAL'].includes(String(p.method || '').toUpperCase()) && (
                       <button
                         type="button"
-                        onClick={() => window.open(p.receipt_url, '_blank')}
+                        onClick={() => openImage(p.receipt_url, { alt: 'Proof of payment' })}
                         style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', padding: '0.35rem 0.6rem', borderRadius: '4px', fontSize: '0.6rem', fontWeight: '950', cursor: 'pointer' }}
                       >
                         VIEW PROOF OF PAYMENT

@@ -41,8 +41,10 @@ import { BACKEND_URL } from '../../config/api';
 import { reconcilePaymentState, verifyPayment, rejectPayment } from '../../services/paymentVerificationService';
 import { ensureShopConfig } from '../../config/shopConfig';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
+import { useImagePreview } from '../../context/ImagePreviewContext';
 
 const AdminBookingDetails = () => {
+  const { openImage } = useImagePreview();
   const { confirmThen } = useConfirmAction();
   const { id } = useParams();
   const navigate = useNavigate();
@@ -1902,7 +1904,7 @@ const AdminBookingDetails = () => {
                 {bookingPayments.filter(p => p.receipt_url || p.evidence_url).map((p, idx) => (
                   <div key={p.id} style={{ borderBottom: idx === bookingPayments.filter(p => p.receipt_url || p.evidence_url).length - 1 ? 'none' : '1px solid var(--admin-border)', paddingBottom: idx === bookingPayments.filter(p => p.receipt_url || p.evidence_url).length - 1 ? 0 : '1.5rem' }}>
                     <div 
-                      onClick={() => window.open(p.receipt_url || p.evidence_url, '_blank')}
+                      onClick={() => openImage(p.receipt_url || p.evidence_url, { alt: 'Payment receipt' })}
                       style={{ width: '100%', height: '180px', borderRadius: '0.75rem', background: 'black', border: '1px solid var(--admin-border)', overflow: 'hidden', cursor: 'zoom-in', marginBottom: '1rem' }}
                     >
                       <img src={p.receipt_url || p.evidence_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Receipt" />

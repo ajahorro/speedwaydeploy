@@ -5,6 +5,7 @@ import { Send, Image as ImageIcon, Bot, Check, CheckCheck, Loader2, AlertCircle,
 import toast from 'react-hot-toast';
 import { emitEventToMany, EVENTS } from '../services/eventEngine';
 import { useGlobalChat } from '../context/ChatContext';
+import { useImagePreview } from '../context/ImagePreviewContext';
 
 /**
  * BookingChat — the CUSTOMER's single real-time conversation.
@@ -17,6 +18,7 @@ import { useGlobalChat } from '../context/ChatContext';
  * relate to (booking_messages.booking_id, nullable).
  */
 const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
+  const { openImage } = useImagePreview();
   const { user, profile } = useAuth();
   const { refreshUnreadCount, reportThreadUnread } = useGlobalChat();
   const [messages, setMessages] = useState([]);
@@ -460,7 +462,7 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
                     src={msg.message}
                     alt="attachment"
                     style={{ maxWidth: '200px', maxHeight: '200px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', cursor: 'zoom-in', objectFit: 'cover', opacity: msg.status === 'sending' ? 0.6 : 1 }}
-                    onClick={() => window.open(msg.message, '_blank')}
+                    onClick={() => openImage(msg.message, { alt: 'Chat attachment' })}
                   />
                 ) : msg.message_type === 'file' ? (
                   <a href={msg.message} target="_blank" rel="noreferrer" style={{ color: isMe ? '#fff' : 'var(--admin-brand)', fontWeight: '800', textDecoration: 'underline' }}>

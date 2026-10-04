@@ -6,8 +6,10 @@ import { useAuth } from '../../hooks/useAuth';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import { calculatePaymentSummary } from '../../utils/paymentUtils';
 import { fetchBookingLedgers } from '../../services/ledgerService';
+import { useImagePreview } from '../../context/ImagePreviewContext';
 
 const CustomerBilling = () => {
+  const { openImage } = useImagePreview();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -207,7 +209,7 @@ const CustomerBilling = () => {
                             {Number(p.amount) > 0 && p.receipt_url && (
                               <button
                                 type="button"
-                                onClick={(event) => { event.stopPropagation(); window.open(p.receipt_url, '_blank', 'noopener,noreferrer'); }}
+                                onClick={(event) => { event.stopPropagation(); openImage(p.receipt_url, { alt: 'Proof of payment' }); }}
                                 title="View proof of payment"
                               style={{
                                   background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)',

@@ -18,8 +18,10 @@ import { fetchRequiredDownpayment } from '../../services/ledgerService';
 import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import { useUI } from '../../context/UIContext';
+import { useImagePreview } from '../../context/ImagePreviewContext';
 
 const AdminPayments = () => {
+  const { openImage } = useImagePreview();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useMediaQuery('(max-width: 1024px)');
@@ -506,7 +508,7 @@ const AdminPayments = () => {
                   <div>
                     <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.75rem', letterSpacing: '0.5px' }}>CUSTOMER RECEIPT</div>
                     <div style={{ width: '100%', height: '240px', background: 'var(--admin-bg)', borderRadius: 'var(--admin-radius-sm)', overflow: 'hidden', border: '1px solid var(--admin-border)', position: 'relative' }}>
-                      <img src={state.selectedItem.receipt_url} alt="Receipt" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                      <img src={state.selectedItem.receipt_url} alt="Receipt" onClick={() => openImage(state.selectedItem.receipt_url, { alt: 'Customer receipt' })} style={{ width: '100%', height: '100%', objectFit: 'contain', cursor: 'zoom-in' }} />
 
                       <button
                         type="button"
@@ -607,7 +609,7 @@ const AdminPayments = () => {
               <div>
                 <div style={{ fontSize: '0.7rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Customer Receipt</div>
                 <div style={{ width: '100%', height: '250px', background: 'var(--admin-bg)', borderRadius: '1rem', overflow: 'hidden', border: '1px solid var(--admin-border)' }}>
-                  <img src={state.selectedItem.receipt_url} alt="Receipt" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  <img src={state.selectedItem.receipt_url} alt="Receipt" onClick={() => openImage(state.selectedItem.receipt_url, { alt: 'Customer receipt' })} style={{ width: '100%', height: '100%', objectFit: 'contain', cursor: 'zoom-in' }} />
                 </div>
                 <button type="button" aria-expanded={showScannedDetails} onClick={() => setShowScannedDetails(value => !value)} style={{ width: '100%', marginTop: '0.65rem', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer' }}>
                   {showScannedDetails ? 'HIDE SCANNED DETAILS' : 'SHOW SCANNED DETAILS'}
