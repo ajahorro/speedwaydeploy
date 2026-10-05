@@ -39,6 +39,7 @@ export default function PaymentProofModal({ open, onOpenChange, bookingId, amoun
   const scanCounter = useRef(0);
   const inputRef = useRef(null);
 
+  const qrUrl = settings.qr_code_url || settings.PAYMENT_QR_URL || '';
   const needsTerms = Boolean(profile?.id)
     && Number(profile.accepted_terms_version || 0) < Number(settings.TERMS?.customer?.version || 1)
     && Boolean(settings.TERMS?.customer?.text);
@@ -172,11 +173,20 @@ export default function PaymentProofModal({ open, onOpenChange, bookingId, amoun
 
           <div className="grid gap-2">
             <p className="text-sm font-semibold">1. Pay using the shop's QR</p>
-            <QRMagnifier
-              qrUrl={settings.qr_code_url || settings.PAYMENT_QR_URL}
-              accountName={settings.qr_account_name || settings.PAYMENT_ACCOUNT_NAME}
-              accountNumber={settings.qr_account_number || settings.PAYMENT_ACCOUNT_NUMBER}
-            />
+            {qrUrl ? (
+              <div className="flex flex-col items-center gap-1">
+                {/* The shop's configured QR, shown at full size; tap it to enlarge. */}
+                <QRMagnifier
+                  standalone
+                  qrUrl={qrUrl}
+                  accountName={settings.qr_account_name || settings.PAYMENT_ACCOUNT_NAME}
+                  accountNumber={settings.qr_account_number || settings.PAYMENT_ACCOUNT_NUMBER}
+                />
+                <span className="text-[11px] text-muted-foreground">Tap the QR to enlarge</span>
+              </div>
+            ) : (
+              <p role="note" className="rounded-md border px-3 py-2 text-xs text-muted-foreground">The shop's payment QR is not available right now. Use the account details below, or contact the shop.</p>
+            )}
             {(settings.qr_account_name || settings.PAYMENT_ACCOUNT_NAME || settings.qr_account_number || settings.PAYMENT_ACCOUNT_NUMBER) && (
               <p className="text-xs text-muted-foreground">
                 Account: <strong className="text-foreground">{settings.qr_account_name || settings.PAYMENT_ACCOUNT_NAME}</strong>
