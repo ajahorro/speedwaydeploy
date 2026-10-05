@@ -625,7 +625,10 @@ export const AuthProvider = ({ children }) => {
   // DEFINER RPC) and, the moment the role changes or the account is deactivated,
   // tears the session down and sends the user to login WITHOUT an error loop.
   useEffect(() => {
-    if (!user?.id) return undefined;
+    // Wait for the profile. Comparing against a profile that has not loaded yet reads its role
+    // version as 1, so any account whose role was ever changed (role_version above 1) looked
+    // "bumped", the page reloaded, and it did so again on every load: an endless reload loop.
+    if (!user?.id || !profile?.id) return undefined;
 
     let cancelled = false;
     const cachedRole = String(profile?.role || '').toUpperCase();
@@ -676,7 +679,7 @@ export const AuthProvider = ({ children }) => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onFocus);
     };
-  }, [user?.id, profile?.role, profile?.role_version, signOut]);
+  }, [user?.id, profile?.id, profile?.role, profile?.role_version, signOut]);
 
   return (
     <AuthContext.Provider value={{
