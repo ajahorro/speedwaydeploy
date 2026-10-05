@@ -1651,6 +1651,7 @@ const AdminBookingDetails = () => {
                 type="text"
                 placeholder="Digital transaction reference number"
                 aria-label="Digital transaction reference number"
+                data-no-auto-capitalize="true"
                 value={topUpReference}
                 onChange={(e) => setTopUpReference(e.target.value.replace(/\s+/g, ''))}
                 style={{ width: '100%', boxSizing: 'border-box', marginTop: '0.5rem', padding: '0.85rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '0.5rem', color: 'var(--admin-text-primary)', fontWeight: 800, outline: 'none' }}

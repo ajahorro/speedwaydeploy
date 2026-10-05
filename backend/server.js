@@ -3115,48 +3115,37 @@ app.delete('/api/admin/promos/:promoId', async (req, res) => {
 
     const existingRules = Array.isArray(config?.promo_rules) ? config.promo_rules : [];
 
-    // 🛡️ SCENARIO 4 FIX — SOFT DELETE ONLY (never hard-delete a rule).
-    // Confirmed bookings freeze their promo figures in `applied_promo_id` /
-    // `promo_name_snapshot` / `discount_amount_snapshot`, and the receipts and
-    // analytics read those snapshots. Physically removing the rule from the
-    // JSONB array was still a catastrophic defect: any retained reference to
-    // `applied_promo_id` (report joins, "which promo was this?" lookups, the
-    // admin receipt modal) becomes a dangling pointer, and — critically — the
-    // rule's historical date window / matrix is gone forever, so nothing can
-    // reconstruct what the customer actually received. We therefore TOMBSTONE
-    // the rule (is_active=false + deactivated_at) and keep it in the array. The
-    // active-promo filter below excludes it, so customers can no longer use it,
-    // while history stays intact and reversible.
+    // REAL DELETE (owner decision, master plan 4.5). Confirmed bookings keep their own frozen
+    // copy of what the customer received (promo_name_snapshot, discount_amount_snapshot,
+    // applied_promo_id as plain text), so receipts and reports never need the rule itself.
+    // The rule is removed from the list, along with any old "deactivated" leftovers.
     const target = existingRules.find(rule => rule?.id === promoId);
     if (!target) {
       return res.status(404).json({ success: false, error: 'Promo code not found.' });
     }
 
-    const deactivatedAt = new Date().toISOString();
-    const nextRules = existingRules.map(rule => (rule?.id === promoId
-      ? { ...rule, is_active: false, deleted_at: deactivatedAt, validUntil: deactivatedAt }
-      : rule));
+    const deletedAt = new Date().toISOString();
+    const nextRules = existingRules.filter(rule => rule?.id !== promoId && !rule?.deleted_at);
 
     const { error: updateError } = await supabaseAdmin
       .from('business_config')
-      .upsert({ id: config?.id || 1, promo_rules: nextRules, updated_at: deactivatedAt });
+      .upsert({ id: config?.id || 1, promo_rules: nextRules, updated_at: deletedAt });
     if (updateError) throw updateError;
     inMemoryPromoCache = nextRules;
 
-    // Audit the deactivation so the trail shows a soft delete, not a data loss.
     try {
       await supabaseAdmin.from('audit_logs').insert({
-        action_type: 'PROMO_DEACTIVATED',
+        action_type: 'PROMO_DELETED',
         actor_name: 'Administrator',
         actor_role: 'ADMIN',
-        details: `Promo "${target?.name || promoId}" deactivated (soft delete). Historical bookings retain their frozen discount snapshot.`,
-        metadata: { promo_id: promoId, promo_name: target?.name || null, deactivated_at: deactivatedAt, soft_delete: true }
+        details: `Promo "${target?.name || promoId}" deleted. Past bookings keep their own discount record.`,
+        metadata: { promo_id: promoId, promo_name: target?.name || null, deleted_at: deletedAt }
       });
     } catch (auditErr) {
-      console.warn('🏷️ [ADMIN PROMO] Deactivation audit log failed (non-fatal):', auditErr?.message);
+      console.warn('🏷️ [ADMIN PROMO] Delete audit log failed (non-fatal):', auditErr?.message);
     }
 
-    return res.json({ success: true, softDeleted: true, promoRules: nextRules });
+    return res.json({ success: true, deleted: true, promoRules: nextRules });
   } catch (error) {
     console.error('🏷️ [ADMIN PROMO] Delete failed:', error.message);
     return res.status(500).json({ success: false, error: error.message });

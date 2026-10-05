@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import PromoManager from '../../components/AdminSchedule/PromoManager';
 import { DownpaymentPolicyCard } from '../../features/business-hub/DownpaymentPolicyCard';
 import { TermsEditorCard } from '../../features/business-hub/TermsEditorCard';
+import { PromoCodesCard } from '../../features/business-hub/PromoCodesCard';
 import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
 import { validateQrRecipients } from '../../services/qrSecurityService';
 import { buildBusinessConfigUpdatePayload, stripUnsupportedBusinessConfigColumns } from '../../services/businessConfigPayload';
@@ -3372,6 +3373,7 @@ export default function BusinessHub() {
             <PromoManager isMobile={false} />
           </div>
         )}
+        {currentTab === 'promos' && <PromoCodesCard />}
 
         {/* Tab 6: Payment Policy (downpayment) */}
         {currentTab === 'payments' && <DownpaymentPolicyCard />}

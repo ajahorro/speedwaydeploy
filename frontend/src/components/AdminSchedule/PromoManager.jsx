@@ -394,8 +394,8 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
     if (!target) return;
 
     openModal({
-      title: 'Remove Promo Campaign?',
-      message: `Remove "${target.name}" from the active campaign list? If currently active, this immediately revokes its application across all uncommitted cart checkout sessions.`,
+      title: 'Delete this promo?',
+      message: `"${target.name}" will be permanently deleted. It stops applying immediately, including in carts that are still open. Past bookings keep their own discount record.`,
       confirmText: 'Delete Promo',
       cancelText: 'Cancel',
       type: 'danger',
@@ -413,11 +413,11 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
         }
         syncPromoRules(nextRules);
         await writeAdminAuditLog({
-          actionType: 'PROMO_DEACTIVATED',
-          details: `Deactivated promo "${target.name}".`,
+          actionType: 'PROMO_DELETED',
+          details: `Deleted promo "${target.name}".`,
           metadata: { promo_id: promoId }
         });
-        toast.success(`Promo "${target.name}" removed.`);
+        toast.success(`Promo "${target.name}" deleted.`);
       }
     });
   };
