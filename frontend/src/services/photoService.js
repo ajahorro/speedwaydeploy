@@ -247,17 +247,24 @@ export const resolvePhotoUrls = async (photos = []) => {
   const signedByPath = new Map();
 
   if (paths.length) {
-    const { data, error } = await supabase.storage
-      .from(PHOTO_BUCKET)
-      .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
-    if (error) {
-      logger.warn('Failed to sign service photo URLs', error);
-      throw error;
-    } else {
-      for (const result of data || []) {
-        if (result.error) logger.warn(`Failed to sign service photo ${result.path}`, result.error);
-        signedByPath.set(result.path, result.signedUrl || null);
+    // A failure to create the picture links must never hide the photos themselves:
+    // the saved records are what count (a technician who uploaded an intake photo
+    // has uploaded it, whether or not its thumbnail can be drawn right now). The
+    // photo then shows as "Unavailable" until the link can be made.
+    try {
+      const { data, error } = await supabase.storage
+        .from(PHOTO_BUCKET)
+        .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
+      if (error) {
+        logger.warn('Failed to sign service photo URLs', error);
+      } else {
+        for (const result of data || []) {
+          if (result.error) logger.warn(`Failed to sign service photo ${result.path}`, result.error);
+          signedByPath.set(result.path, result.signedUrl || null);
+        }
       }
+    } catch (signError) {
+      logger.warn('Failed to sign service photo URLs', signError);
     }
   }
 

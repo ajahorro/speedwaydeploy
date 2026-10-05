@@ -58,7 +58,12 @@ const PhotoProofUploader = ({
     try {
       const rows = await fetchVehiclePhotos(bookingVehicleId);
       const scoped = rows.filter((r) => r.phase === phase);
-      const resolved = await resolvePhotoUrls(scoped);
+      let resolved = scoped.map((row) => ({ ...row, url: null }));
+      try {
+        resolved = await resolvePhotoUrls(scoped);
+      } catch {
+        // Keep the records (and therefore the count) even without picture links.
+      }
       setPhotos(resolved);
     } catch {
       toast.error('Could not load photos.');

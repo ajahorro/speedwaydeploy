@@ -18,9 +18,10 @@ import { BACKEND_URL } from '../../config/api';
 import { loadPreferences } from '../../utils/preferenceStore';
 import { playJobAssignmentChime } from '../../utils/jobAssignmentChime';
 import { isNotificationActionable, isRedundantStaffTechnicianAssignment } from '../../utils/notificationRouting';
-import { dateKey } from '../../domain/schedule/rules';
 import { SHOW_START_SERVICE_ACTIONS } from '../../config/workflowFeatures';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
+import StartChecklist from '../../components/Photos/StartChecklist';
+import { startReadiness } from '../../utils/staffStart';
 const StaffDashboard = () => {
   const { confirmThen } = useConfirmAction();
   const { profile, toggleShift } = useAuth();
@@ -200,12 +201,11 @@ const StaffDashboard = () => {
   };
 
   const canStartTask = (task) => {
-    if (!profile?.is_clocked_in || !task.start_datetime || (photoCounts[task.id]?.before || 0) < 1) return false;
-    const scheduled = new Date(task.start_datetime);
-    const now = new Date();
-    return Number.isFinite(scheduled.getTime())
-      && scheduled.getTime() <= now.getTime()
-      && dateKey(scheduled) === dateKey(now);
+    return startReadiness({
+      clockedIn: profile?.is_clocked_in,
+      beforePhotos: photoCounts[task.id]?.before || 0,
+      startDatetime: task.start_datetime
+    }).ok;
   };
 
   const handleClockIn = async () => {
@@ -431,9 +431,12 @@ const StaffDashboard = () => {
                     {['PENDING', 'SCHEDULED', 'CONFIRMED'].includes(task.status?.toUpperCase()) && (
                       <>
                         {/* Intake evidence is a hard precondition for starting. */}
-                        {(photoCounts[task.id]?.before || 0) < 1 && (
-                          <IntakeWarningBadge tone="danger" compact>Before photo required</IntakeWarningBadge>
-                        )}
+                        <StartChecklist
+                          taskId={task.id}
+                          clockedIn={profile?.is_clocked_in}
+                          beforePhotos={photoCounts[task.id]?.before || 0}
+                          startDatetime={task.start_datetime}
+                        />
                         {SHOW_START_SERVICE_ACTIONS && <button onClick={() => requestStartTask(task)} disabled={!canStartTask(task)} title={!profile?.is_clocked_in ? 'Clock in to start service.' : (photoCounts[task.id]?.before || 0) < 1 ? 'Upload at least one before photo first.' : undefined} style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canStartTask(task) ? 'var(--admin-brand)' : 'var(--admin-border)', color: canStartTask(task) ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', cursor: canStartTask(task) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
                           <Play size={18} /> START SERVICE
                         </button>}
