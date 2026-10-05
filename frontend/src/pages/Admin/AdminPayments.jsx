@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { Button } from '../../components/ui/button';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { subscribeTable } from '../../lib/realtimeHub';
@@ -558,8 +559,8 @@ const AdminPayments = () => {
                       {!isCashPayment(state.selectedItem) && (
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
                       )}
-                      <button onClick={() => handleRejectPayment(state.selectedItem)} style={{ flex: 1, padding: '0.85rem', background: 'rgba(239,68,68,0.1)', color: 'var(--status-danger)', border: '1px solid #ef4444', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px' }}>REJECT</button>
-                      <button onClick={() => requestVerifyPayment(state.selectedItem)} style={{ flex: 2, padding: '0.85rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px' }}>VERIFY PAID</button>
+                      <Button variant="outline" className="flex-1 border-red-500 bg-red-500/10 text-red-500 hover:bg-red-500/20 font-black uppercase tracking-wider" onClick={() => handleRejectPayment(state.selectedItem)}>REJECT</Button>
+                      <Button variant="default" className="flex-[2] font-black uppercase tracking-wider" onClick={() => requestVerifyPayment(state.selectedItem)}>VERIFY PAID</Button>
                     </div>
                   )}
                   {isPaymentLocked(state.selectedItem) && (
@@ -567,10 +568,10 @@ const AdminPayments = () => {
                       Settled — this transaction is locked for audit.
                     </div>
                   )}
-                  <button onClick={() => handleViewReceipt(state.selectedItem)} style={{ width: '100%', padding: '0.85rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                  <Button variant="outline" className="w-full font-black uppercase tracking-wider gap-2" onClick={() => handleViewReceipt(state.selectedItem)}>
                     <FileText size={16} /> VIEW SYSTEM RECEIPT
-                  </button>
-                  <button onClick={() => navigate(`/admin/bookings/${state.selectedItem.booking_id}`)} style={{ width: '100%', padding: '0.85rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px' }}>VIEW BOOKING</button>
+                  </Button>
+                  <Button variant="outline" className="w-full font-black uppercase tracking-wider" onClick={() => navigate(`/admin/bookings/${state.selectedItem.booking_id}`)}>VIEW BOOKING</Button>
                 </div>
               </div>
             ) : (
@@ -636,11 +637,11 @@ const AdminPayments = () => {
             <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
               {state.selectedItem.status === 'FOR_VERIFICATION' && !isPaymentLocked(state.selectedItem) && (
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <button onClick={() => handleRejectPayment(state.selectedItem)} style={{ flex: 1, padding: '1rem', background: 'rgba(239,68,68,0.1)', color: 'var(--status-danger)', border: 'none', borderRadius: '0.75rem', fontWeight: '800', cursor: 'pointer' }}>REJECT</button>
+                  <Button variant="outline" className="flex-1 border-red-500 bg-red-500/10 text-red-500 hover:bg-red-500/20 font-black uppercase tracking-wider" onClick={() => handleRejectPayment(state.selectedItem)}>REJECT</Button>
                   {!isCashPayment(state.selectedItem) && (
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
                   )}
-                  <button onClick={() => requestVerifyPayment(state.selectedItem)} style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '0.75rem', fontWeight: '900', cursor: 'pointer' }}>VERIFY PAID</button>
+                  <Button variant="default" className="flex-[2] font-black uppercase tracking-wider" onClick={() => requestVerifyPayment(state.selectedItem)}>VERIFY PAID</Button>
                 </div>
               )}
               {isPaymentLocked(state.selectedItem) && (
@@ -648,10 +649,10 @@ const AdminPayments = () => {
                   Settled — this transaction is locked for audit.
                 </div>
               )}
-              <button onClick={() => handleViewReceipt(state.selectedItem)} style={{ width: '100%', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '0.75rem', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+              <Button variant="outline" className="w-full font-black uppercase tracking-wider gap-2" onClick={() => handleViewReceipt(state.selectedItem)}>
                 <FileText size={18} /> VIEW SYSTEM RECEIPT
-              </button>
-              <button onClick={() => navigate(`/admin/bookings/${state.selectedItem.booking_id}`)} style={{ width: '100%', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '0.75rem', fontWeight: '800', cursor: 'pointer' }}>VIEW BOOKING</button>
+              </Button>
+              <Button variant="outline" className="w-full font-black uppercase tracking-wider" onClick={() => navigate(`/admin/bookings/${state.selectedItem.booking_id}`)}>VIEW BOOKING</Button>
             </div>
           </div>
         </div>
@@ -678,8 +679,8 @@ const AdminPayments = () => {
               ))}
             </div>
             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
-              <button type="button" onClick={() => setConfirmPayment(null)} style={{ flex: 1, padding: '0.8rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: 900, cursor: 'pointer' }}>Cancel</button>
-              <button type="button" onClick={() => handleVerifyPayment(confirmPayment)} style={{ flex: 1, padding: '0.8rem', background: 'var(--admin-brand)', border: 'none', color: 'white', borderRadius: 'var(--admin-radius-sm)', fontWeight: 950, cursor: 'pointer' }}>Approve Payment</button>
+              <Button type="button" variant="outline" className="flex-1 font-black" onClick={() => setConfirmPayment(null)}>Cancel</Button>
+              <Button type="button" variant="default" className="flex-1 font-black" onClick={() => handleVerifyPayment(confirmPayment)}>Approve Payment</Button>
             </div>
           </section>
         </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { Button } from '../../components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import {
@@ -600,13 +601,9 @@ const AdminRefunds = () => {
                       Refund finalized — the financial trail is locked.
                     </div>
                   ) : (
-                    <button
-                      disabled={state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || !state.refundMethod || derivedRefund <= 0 || deductionExceedsPaid)}
-                      onClick={() => setState(prev => ({ ...prev, confirmRefundItem: state.selectedItem }))}
-                      style={{ width: '100%', padding: '0.85rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', opacity: state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || !state.refundMethod || derivedRefund <= 0 || deductionExceedsPaid) ? 0.5 : 1 }}
-                    >
+                    <Button className="w-full font-black" disabled={state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || !state.refundMethod || derivedRefund <= 0 || deductionExceedsPaid)} onClick={() => setState(prev => ({ ...prev, confirmRefundItem: state.selectedItem }))}>
                       {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'RETRY REFUND EMAIL' : state.selectedItem.refundStatus === 'PROCESSING' ? 'REFUND REMAINING' : 'PROCESS REFUND'}
-                    </button>
+                    </Button>
                   )
                 )}
               </div>
@@ -644,13 +641,10 @@ const AdminRefunds = () => {
               </div>
             )}
             <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button onClick={() => setState(prev => ({ ...prev, confirmRefundItem: null }))} style={{ flex: 1, padding: '0.85rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '800' }}>CANCEL</button>
-              <button
-                onClick={() => handleProcessRefund(state.confirmRefundItem)}
-                style={{ flex: 1, padding: '0.85rem', background: state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? 'var(--admin-brand)' : 'var(--status-danger)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900' }}
-              >
+              <Button variant="outline" className="flex-1 font-black" onClick={() => setState(prev => ({ ...prev, confirmRefundItem: null }))}>CANCEL</Button>
+              <Button variant={state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? 'default' : 'destructive'} className="flex-1 font-black" onClick={() => handleProcessRefund(state.confirmRefundItem)}>
                 {state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? 'SEND RECEIPT' : `YES, REVERT ₱${derivedRefund.toLocaleString()}`}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

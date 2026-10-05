@@ -12,46 +12,32 @@ import { useUI } from '../../context/UIContext';
 import { logger } from '../../utils/logger';
 import toast from 'react-hot-toast';
 import { BACKEND_URL } from '../../config/api';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
 import { fetchBookingLedgers, fetchSalesReport } from '../../services/ledgerService';
 
 // MEMOIZED SUB-COMPONENTS: Prevent entire dashboard from re-rendering on single metric change
 const AttentionCard = React.memo(({ count, label, icon: Icon, color, bg, onClick }) => {
   const isZero = Number(count || 0) === 0;
-  const accentBorder = isZero ? '1px solid rgba(148, 163, 184, 0.18)' : `1px solid ${color}55`;
-  const cardBackground = isZero ? 'rgba(148, 163, 184, 0.04)' : 'rgba(17, 24, 39, 0.18)';
-  const valueColor = isZero ? 'var(--admin-text-secondary)' : 'var(--admin-text-primary)';
-  const iconOpacity = isZero ? 0.65 : 1;
-
   return (
-    <div onClick={onClick} style={{
-      background: cardBackground,
-      border: accentBorder,
-      borderRadius: 'var(--admin-radius)',
-      padding: '1rem 1.1rem',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.9rem',
-      cursor: 'pointer',
-      transition: 'all 0.2s ease',
-      boxShadow: isZero ? 'none' : `0 0 0 1px ${color}18, 0 8px 18px rgba(15, 23, 42, 0.08)`
-    }} className="attention-card">
-      <div style={{
-        width: '46px', height: '46px', borderRadius: '50%',
-        background: isZero ? 'rgba(148, 163, 184, 0.08)' : bg,
-        display: 'flex', alignItems: 'center',
-        justifyContent: 'center', color: color,
-        border: `1px solid ${isZero ? 'rgba(148, 163, 184, 0.18)' : color + '55'}`,
-        opacity: iconOpacity,
-        flexShrink: 0
-      }}>
+    <Card
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
+      className="attention-card cursor-pointer flex-row items-center gap-3.5 px-4 py-4 transition-all hover:-translate-y-0.5 hover:border-[var(--admin-brand)]"
+      style={{ borderColor: isZero ? undefined : color + '55', background: 'var(--admin-card)' }}
+    >
+      <div className="flex size-11 shrink-0 items-center justify-center rounded-full border" style={{ background: isZero ? 'rgba(148,163,184,0.08)' : bg, color, opacity: isZero ? 0.65 : 1, borderColor: isZero ? 'rgba(148,163,184,0.18)' : color + '55' }}>
         <Icon size={20} />
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '1.45rem', fontWeight: '950', color: valueColor, lineHeight: 1.1 }}>{count}</div>
-        <div style={{ fontSize: '0.76rem', fontWeight: '700', color: isZero ? 'var(--admin-text-secondary)' : 'var(--admin-text-primary)', textTransform: 'capitalize', letterSpacing: '0.02em', marginTop: '0.18rem' }}>{label}</div>
+      <div className="min-w-0 flex-1">
+        <div className="text-2xl font-black leading-tight" style={{ color: isZero ? 'var(--admin-text-secondary)' : 'var(--admin-text-primary)' }}>{count}</div>
+        <div className="mt-0.5 text-xs font-bold capitalize" style={{ color: isZero ? 'var(--admin-text-secondary)' : 'var(--admin-text-primary)' }}>{label}</div>
       </div>
-      <ChevronRight size={18} color="var(--admin-text-secondary)" style={{ opacity: isZero ? 0.5 : 1 }} />
-    </div>
+      <ChevronRight size={18} style={{ color: 'var(--admin-text-secondary)', opacity: isZero ? 0.5 : 1 }} />
+    </Card>
   );
 });
 
@@ -413,44 +399,50 @@ const AdminDashboard = () => {
 
         </section>
 
-        <section className="live-queue-panel" style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: '1rem' }}>
-          <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ width: '6px', height: '6px', background: 'var(--admin-brand)', borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></div>
+        <Card className="live-queue-panel" style={{ background: 'var(--admin-card)' }}>
+          <CardHeader className="flex-row items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-xs font-black uppercase tracking-widest">
+              <span className="size-1.5 rounded-full" style={{ background: 'var(--admin-brand)', animation: 'pulse 1.5s infinite' }} />
               Live Booking Queue
-            </div>
-            <button onClick={() => navigate('/admin/bookings')} style={{ background: 'transparent', border: 'none', color: 'var(--admin-brand)', fontWeight: '800', fontSize: '0.68rem', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/admin/bookings')} className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--admin-brand)' }}>
               View all queue
-            </button>
-          </div>
-          {state.loading ? (
-            <div style={{ padding: '0.75rem 1rem', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: '700' }}>Loading live bookings...</div>
-          ) : state.activeQueue.length === 0 ? (
-            <div style={{ padding: '0.75rem 1rem', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: '700' }}>No active bookings right now.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {state.activeQueue.map(booking => {
-                const statusStyle = getQueueStatusStyle(booking.status);
-                return <div key={booking.id} onClick={() => navigate(`/admin/bookings/${booking.id}`)} style={{ background: statusStyle.background, border: `1px solid ${statusStyle.border}`, borderRadius: 'var(--admin-radius-sm)', padding: '0.7rem 0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.9rem', cursor: 'pointer' }} className="queue-row">
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: '0.82rem', fontWeight: '900', color: 'var(--admin-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{booking.customer_name || 'Walk-in Guest'}</div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>{formatBookingDate(booking.start_datetime)} at {formatBookingTime(booking.start_datetime)} · {booking.vehicles?.length || 0} vehicle{booking.vehicles?.length === 1 ? '' : 's'}</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexShrink: 0 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0.25rem 0.5rem', borderRadius: '999px', background: statusStyle.background, border: `1px solid ${statusStyle.border}`, color: statusStyle.color, fontSize: '.6rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{String(booking.status).replace('_', ' ')}</span>
-                    <ChevronRight size={14} color="var(--admin-text-secondary)" />
-                  </div>
-                </div>;
-              })}
-            </div>
-          )}
-        </section>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {state.loading ? (
+              <div className="py-3 text-xs font-bold" style={{ color: 'var(--admin-text-secondary)' }}>Loading live bookings...</div>
+            ) : state.activeQueue.length === 0 ? (
+              <div className="py-3 text-xs font-bold" style={{ color: 'var(--admin-text-secondary)' }}>No active bookings right now.</div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {state.activeQueue.map(booking => {
+                  const statusStyle = getQueueStatusStyle(booking.status);
+                  return (
+                    <div key={booking.id} role="button" tabIndex={0}
+                      onClick={() => navigate(`/admin/bookings/${booking.id}`)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/admin/bookings/${booking.id}`); }}
+                      className="queue-row flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2.5 transition-transform hover:translate-x-0.5"
+                      style={{ background: statusStyle.background, borderColor: statusStyle.border }}>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-black" style={{ color: 'var(--admin-text-primary)' }}>{booking.customer_name || 'Walk-in Guest'}</div>
+                        <div className="text-xs font-bold" style={{ color: 'var(--admin-text-secondary)' }}>{formatBookingDate(booking.start_datetime)} at {formatBookingTime(booking.start_datetime)} · {booking.vehicles?.length || 0} vehicle{booking.vehicles?.length === 1 ? '' : 's'}</div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Badge variant="outline" className="text-[0.6rem] font-black uppercase tracking-wider" style={{ background: statusStyle.background, borderColor: statusStyle.border, color: statusStyle.color }}>{String(booking.status).replace('_', ' ')}</Badge>
+                        <ChevronRight size={14} style={{ color: 'var(--admin-text-secondary)' }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <style>{`
-        .attention-card:hover { border-color: var(--admin-brand) !important; background: rgba(var(--admin-brand-rgb), 0.04) !important; transform: translateY(-2px); }
         .dashboard-columns { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.9fr); gap: 1.25rem; align-items: start; }
-        .queue-row:hover { border-color: var(--admin-brand) !important; transform: translateX(2px); }
         @media (max-width: 1000px) { .dashboard-columns { grid-template-columns: 1fr; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }

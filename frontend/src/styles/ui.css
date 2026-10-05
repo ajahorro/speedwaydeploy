@@ -25,6 +25,9 @@
 /* Files outside features/ that are written with utility classes (nothing else in their folders is). */
 @source '../pages/Admin/AdminChat.jsx';
 @source '../components/payments';
+@source '../pages/Admin/AdminDashboard.jsx';
+@source '../pages/Admin/AdminPayments.jsx';
+@source '../pages/Admin/AdminRefunds.jsx';
 
 /* ThemeContext sets <html data-theme="light|dark">; dark is the default. */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
