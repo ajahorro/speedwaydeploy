@@ -122,7 +122,7 @@ const AdminSchedulingGrid = ({ onBack }) => {
         }}
       >
         <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {booking.customer?.full_name?.toUpperCase()}
+          {(booking.customer_name || booking.customer?.full_name)?.toUpperCase()}
         </div>
         <div style={{ opacity: 0.8, fontSize: '0.6rem' }}>
           {booking.vehicles?.[0]?.plate_number || 'NO PLATE'}
@@ -197,7 +197,7 @@ const AdminSchedulingGrid = ({ onBack }) => {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.82rem', fontWeight: 900 }}>
-                    {booking.customer?.full_name || booking.customer_name || 'Customer'}
+                    {booking.customer_name || booking.customer?.full_name || 'Customer'}
                   </div>
                   <div style={{ marginTop: '0.25rem', color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: 700 }}>
                     {booking.vehicles?.[0]?.plate_number || booking.vehicles?.[0]?.vehicle_type || 'Vehicle'}

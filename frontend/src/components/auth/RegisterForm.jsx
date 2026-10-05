@@ -9,7 +9,8 @@ import { emailError, phoneError } from '../../utils/contactValidation';
 const FIELD_TYPE = { firstName: 'text', lastName: 'text', email: 'email', phone: 'phone' };
 
 const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '', initialData = null }) => {
-  const isPrefilled = Boolean(initialData);
+  // A walk-in's invite locks the email address only; name and phone can be corrected.
+  const lockEmail = Boolean(initialData?.email);
   const [formData, setFormData] = useState({
     firstName: sanitizeByFieldType(initialData?.firstName || '', FIELD_TYPE.firstName),
     lastName: sanitizeByFieldType(initialData?.lastName || '', FIELD_TYPE.lastName),
@@ -67,26 +68,26 @@ const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '', 
           <AlertCircle size={16} style={{ flexShrink: 0 }} /> {error}
         </div>
       )}
-      {isPrefilled && (
+      {lockEmail && (
         <p style={{ margin: '0 0 1rem', color: 'var(--admin-text-secondary)', fontSize: '0.78rem', lineHeight: 1.5 }}>
-          These details were provided for your booking and are locked. Set a password to create your account.
+          We filled in the details from your booking. You can correct your name and phone number; your email address is fixed so the booking links to your account. Set a password to finish.
         </p>
       )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
         <div style={{ position: 'relative' }}>
-          <StyledInput icon={User} type="text" placeholder="First Name" required value={formData.firstName} onChange={e => updateField('firstName', e.target.value)} autoComplete="given-name" readOnly={isPrefilled} />
+          <StyledInput icon={User} type="text" placeholder="First Name" required value={formData.firstName} onChange={e => updateField('firstName', e.target.value)} autoComplete="given-name" readOnly={false} />
         </div>
         <div style={{ position: 'relative' }}>
-          <StyledInput icon={User} type="text" placeholder="Last Name" required value={formData.lastName} onChange={e => updateField('lastName', e.target.value)} autoComplete="family-name" readOnly={isPrefilled} />
+          <StyledInput icon={User} type="text" placeholder="Last Name" required value={formData.lastName} onChange={e => updateField('lastName', e.target.value)} autoComplete="family-name" readOnly={false} />
         </div>
       </div>
 
       <div style={{ position: 'relative', marginBottom: '1rem' }}>
-        <EmailInput as={StyledInput} icon={Mail} placeholder="Email Address" value={formData.email} onChange={e => updateField('email', e.target.value)} readOnly={isPrefilled} />
+        <EmailInput as={StyledInput} icon={Mail} placeholder="Email Address" value={formData.email} onChange={e => updateField('email', e.target.value)} readOnly={lockEmail} />
       </div>
       
       <div style={{ position: 'relative', marginBottom: '1rem' }}>
-        <PhoneInput as={StyledInput} icon={Phone} placeholder="Mobile number (09123456789)" value={formData.phone} onChange={e => updateField('phone', e.target.value)} readOnly={isPrefilled} />
+        <PhoneInput as={StyledInput} icon={Phone} placeholder="Mobile number (09123456789)" value={formData.phone} onChange={e => updateField('phone', e.target.value)} readOnly={false} />
       </div>
 
       <div style={{ position: 'relative', marginBottom: '1.5rem' }}>

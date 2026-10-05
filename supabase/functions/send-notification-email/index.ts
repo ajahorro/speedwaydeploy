@@ -77,9 +77,18 @@ serve(async (req) => {
     const email = recipient?.email
     if (!email) return new Response(JSON.stringify({ ok: true, skipped: 'recipient has no email' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
+    // The notification stores a path inside the app (for example /customer/bookings/<id>).
+    // An email needs a full address, and the visitor may be signed out, so the link
+    // goes through sign-in and then on to that page.
+    const site = String(Deno.env.get('SITE_URL') || 'https://comargarage.com').replace(/\/+$/, '')
+    const actionPath = String(notification.action_url || '')
+    const detailsUrl = /^https?:\/\//i.test(actionPath)
+      ? actionPath
+      : (actionPath.startsWith('/') ? `${site}/login?next=${encodeURIComponent(actionPath)}` : null)
+
     const bookingRef = notification.booking_id ? `#${String(notification.booking_id).slice(0, 8).toUpperCase()}` : ''
     const subject = `${notification.title || 'Notification'}${bookingRef ? ` ${bookingRef}` : ''} - Comar Garage`
-    const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;color:#111827"><div style="background:#a91b18;padding:22px;text-align:center;color:#fff"><h1 style="margin:0;font-size:22px;letter-spacing:2px">COMAR GARAGE</h1></div><div style="padding:28px"><p>Hi ${escapeHtml(recipient?.full_name || 'Valued Customer')},</p><h2 style="color:#a91b18">${escapeHtml(notification.title)}</h2><p style="font-size:15px;line-height:1.7">${escapeHtml(notification.message)}</p>${notification.action_url ? `<p><a href="${escapeHtml(notification.action_url)}" style="display:inline-block;background:#a91b18;color:#fff;padding:12px 20px;border-radius:5px;text-decoration:none;font-weight:700">VIEW IN PORTAL</a></p>` : ''}</div><div style="background:#f8fafc;padding:16px;text-align:center;font-size:12px;color:#6b7280">Comar Garage Detail Studio</div></div>`
+    const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;color:#111827"><div style="background:#a91b18;padding:22px;text-align:center;color:#fff"><h1 style="margin:0;font-size:22px;letter-spacing:2px">COMAR GARAGE</h1></div><div style="padding:28px"><p>Hi ${escapeHtml(recipient?.full_name || 'Valued Customer')},</p><h2 style="color:#a91b18">${escapeHtml(notification.title)}</h2><p style="font-size:15px;line-height:1.7">${escapeHtml(notification.message)}</p>${detailsUrl ? `<p><a href="${escapeHtml(detailsUrl)}" style="display:inline-block;background:#a91b18;color:#fff;padding:12px 20px;border-radius:5px;text-decoration:none;font-weight:700">VIEW BOOKING DETAILS</a></p>` : ''}</div><div style="background:#f8fafc;padding:16px;text-align:center;font-size:12px;color:#6b7280">Comar Garage Detail Studio</div></div>`
     const { data, error } = await resend.emails.send({ from: resendFrom, to: [email], subject, html })
     if (error) throw error
     return new Response(JSON.stringify({ ok: true, data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })

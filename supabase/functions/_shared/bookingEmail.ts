@@ -59,6 +59,8 @@
 
 export interface BookingLike {
   id?: string
+  /** The booking-details link for this recipient (login, or registration for a walk-in). */
+  portal_url?: string | null
   customer_id?: string | null
   customer_name?: string | null
   customer_first_name?: string | null
@@ -350,32 +352,36 @@ const paymentBlock = (
     ${statusNote}`;
 };
 
+/** The public address of the website (set SITE_URL on the function to change it). */
+export const siteUrl = (): string => {
+  const configured = (globalThis as { Deno?: { env: { get(key: string): string | undefined } } })
+    .Deno?.env.get('SITE_URL')
+  return String(configured || 'https://comargarage.com').replace(/\/+$/, '')
+}
+
+/** Where a signed-out visitor lands after signing in: this booking's details. */
+export const bookingDetailsPath = (bookingId: string): string => `/customer/bookings/${bookingId}`
+
+const BOOKING_DETAILS_LABEL = 'VIEW BOOKING DETAILS'
+
 const portalUrlFor = (booking: BookingLike): { url: string; label: string } => {
-  if (booking.customer_id || !booking.customer_email) {
-    return { url: 'https://comargarage.com/customer', label: 'VIEW IN PORTAL' };
+  const next = booking.id ? bookingDetailsPath(booking.id) : '/customer'
+  // The lifecycle function decides per recipient: login for someone who has an
+  // account, registration (pre-filled from a 7-day invite) for a walk-in.
+  if (booking.portal_url) {
+    return { url: booking.portal_url, label: BOOKING_DETAILS_LABEL }
   }
-
-  const nameParts = String(booking.customer_name || '').trim().split(/\s+/).filter(Boolean);
-  const inferredFirstName = nameParts.shift() || '';
-  const inferredLastName = nameParts.join(' ');
-  const params = new URLSearchParams({
-    register: '1',
-    firstName: booking.customer_first_name || inferredFirstName,
-    lastName: booking.customer_last_name || inferredLastName,
-    email: String(booking.customer_email).trim(),
-    phone: String(booking.contact_number || '').trim(),
-  });
+  // Fallback: sign in, then land on the booking.
   return {
-    url: `https://comargarage.com/login?${params.toString()}`,
-    label: 'CREATE ACCOUNT TO VIEW BOOKING',
-  };
-};
+    url: `${siteUrl()}/login?next=${encodeURIComponent(next)}`,
+    label: BOOKING_DETAILS_LABEL,
+  }
+}
 
-const ctaButton = (booking: BookingLike, label: string): string => {
-  const portal = portalUrlFor(booking);
-  const action = portal.label === 'VIEW IN PORTAL' ? label : portal.label;
-  return `<div style="margin-top:28px;text-align:center;"><a href="${escapeHtml(portal.url)}" style="background:#a91b18;color:#ffffff;padding:13px 26px;text-decoration:none;border-radius:5px;font-weight:700;display:inline-block;">${escapeHtml(action)}</a></div>`;
-};
+const ctaButton = (booking: BookingLike, _label?: string): string => {
+  const portal = portalUrlFor(booking)
+  return `<div style="margin-top:28px;text-align:center;"><a href="${escapeHtml(portal.url)}" style="background:#a91b18;color:#ffffff;padding:13px 26px;text-decoration:none;border-radius:5px;font-weight:700;display:inline-block;">${escapeHtml(portal.label)}</a></div>`
+}
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -401,7 +407,7 @@ export const buildBookingCreatedEmail = ({ booking, payment, ledger, customerNam
     ${bookingTable(booking, appointmentDate, amounts)}
     ${paymentBlock(amounts, ocr)}
     ${renderLifecycle(booking?.status || 'SCHEDULED')}
-    ${ctaButton(booking, 'VIEW IN PORTAL')}`;
+    ${ctaButton(booking, 'VIEW BOOKING DETAILS')}`;
 
   const paymentState = amounts.paymentStatus === 'PAID' ? 'payment verified' : 'payment awaiting verification';
   const subject = amounts.hasPayment
@@ -432,7 +438,7 @@ export const buildBookingConfirmedEmail = ({ booking, payment, ledger, customerN
     ${bookingTable(booking, appointmentDate, amounts)}
     ${paymentBlock(amounts, null, { includeOcr: false, receiptAttached: hasReceipt })}
     ${renderLifecycle('CONFIRMED')}
-    ${ctaButton(booking, 'VIEW RECEIPT IN PORTAL')}`;
+    ${ctaButton(booking, 'VIEW BOOKING DETAILS')}`;
 
   return {
     subject: `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} confirmed${amounts.hasPayment ? ` — ${formatPeso(amounts.creditedToBooking)} received` : ''}`,
@@ -467,7 +473,7 @@ export const buildPaymentVerifiedEmail = ({ booking, payment, ledger, customerNa
     <p style="font-size:15px;line-height:1.6;">We have verified your payment.${attachmentsNote ? ` Attached is ${escapeHtml(attachmentsNote)}.` : ''}</p>
     ${bookingTable(booking, appointmentDate, amounts)}
     ${paymentBlock(amounts, null, { includeOcr: false, receiptAttached: Boolean(hasReceipt) })}
-    ${ctaButton(booking, 'VIEW RECEIPT IN PORTAL')}`;
+    ${ctaButton(booking, 'VIEW BOOKING DETAILS')}`;
 
   return {
     subject: `Comar Garage: Payment received for booking #${String(booking?.id || '').slice(0, 8).toUpperCase()}${amounts.fullySettled ? ' — fully paid' : ''}`,
@@ -491,7 +497,7 @@ export const buildBookingSettledEmail = ({ booking, ledger, customerName }: {
     <p style="font-size:16px;">Hi ${escapeHtml(customerName)},</p>
     <p style="font-size:15px;line-height:1.6;">Your booking is now fully paid. Your Statement of Account, listing every payment and refund, is attached.</p>
     ${bookingTable(booking, appointmentDate, amounts)}
-    ${ctaButton(booking, 'VIEW IN PORTAL')}`;
+    ${ctaButton(booking, 'VIEW BOOKING DETAILS')}`;
   return {
     subject: `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} fully paid — Statement of Account`,
     html: shell('Booking Fully Paid', body),
@@ -528,7 +534,7 @@ export const buildStatusEmail = ({ booking, payment, ledger, customerName, newSt
     ${paymentBlock(amounts, extractOcrDetails(booking, payment))}
     ${renderLifecycle(statusKey)}
     ${remarks ? `<p style="margin-top:15px;padding:10px;background:#f8fafc;border-left:4px solid #a91b18;"><strong>Note:</strong> ${escapeHtml(remarks)}</p>` : ''}
-    ${ctaButton(booking, 'VIEW IN PORTAL')}`;
+    ${ctaButton(booking, 'VIEW BOOKING DETAILS')}`;
 
   return {
     subject: `Comar Garage Update: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} is now ${statusKey}`,
@@ -552,7 +558,7 @@ export const buildReminderEmail = ({ booking, payment, ledger, customerName }: {
     <p style="font-size:15px;line-height:1.6;">This is a reminder that your confirmed appointment is scheduled for ${escapeHtml(appointmentDate)}. Please arrive on time. If service has not started within one hour after your scheduled time, the booking will be flagged as a No-Show.</p>
     ${bookingTable(booking, appointmentDate, amounts)}
     ${renderLifecycle(booking?.status || 'CONFIRMED')}
-    ${ctaButton(booking, 'VIEW IN PORTAL')}`;
+    ${ctaButton(booking, 'VIEW BOOKING DETAILS')}`;
 
   return {
     subject: 'Reminder: Your confirmed Comar Garage appointment is in 1 hour',

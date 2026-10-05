@@ -48,8 +48,8 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
   const total = selectedPayment ? paymentReceived : invoiceAmounts.totalDue;
   const totalLabel = selectedPayment ? 'Payment Received' : 'Total Amount Due';
 
-  const customerName = booking?.customer?.full_name || booking?.customer_name || user?.user_metadata?.full_name || 'Valued Customer';
-  const customerEmail = booking?.customer?.email || booking?.customer_email || user?.email || '';
+  const customerName = booking?.customer_name || booking?.customer?.full_name || user?.user_metadata?.full_name || 'Valued Customer';
+  const customerEmail = booking?.customer_email || booking?.customer?.email || user?.email || '';
   const documentTitle = title || (selectedPayment ? 'OFFICIAL RECEIPT' : 'INVOICE');
   const reference = selectedPayment
     ? getReceiptNumber(selectedPayment)

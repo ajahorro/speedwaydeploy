@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { BACKEND_URL } from '../config/api';
 import { emailError, phoneError, normalizePhPhone } from '../utils/contactValidation';
+import { safeNextPath } from '../utils/safeNextPath';
 
 export const useAuthFlow = () => {
   const navigate = useNavigate();
@@ -29,7 +30,10 @@ export const useAuthFlow = () => {
       // guard the user was bounced straight into the dashboard and never saw the
       // "check your email" screen.
       if (mode !== 'RESET' && mode !== 'AWAIT_LINK') {
-        navigate(routes[roleKey] || '/customer');
+        // An email button or a guarded page sends people here with ?next=<page>;
+        // after sign-in they continue to it (when it is theirs to open).
+        const next = safeNextPath(new URLSearchParams(window.location.search).get('next'), roleKey);
+        navigate(next || routes[roleKey] || '/customer');
       }
     }
   }, [user, profile, mode, navigate]);

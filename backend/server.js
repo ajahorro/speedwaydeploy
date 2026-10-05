@@ -3662,11 +3662,14 @@ const checkOverdueBookings = async () => {
       }
     }
 
-    // ── B. URGENT REMINDER (15 MINS) - REQ-SYS-02 ───────────────────────────
-    // Unchanged in behaviour, but now the ONLY thing this sweep does itself.
+    // ── B. ONE-HOUR REMINDER - REQ-SYS-02 ───────────────────────────────────
+    // A reminder is a separate message that arrives about an hour BEFORE the
+    // appointment. It is never sent together with the confirmation: if the
+    // booking was made, or confirmed, inside that last hour, the confirmation
+    // already told the customer the time, so no reminder follows it.
     const { data: upcoming, error } = await supabaseAdmin
       .from('bookings')
-      .select('*, customer:profiles!bookings_customer_id_fkey(email, full_name)')
+      .select('id, created_at, start_datetime, customer_email, customer:profiles!bookings_customer_id_fkey(email, full_name)')
       .in('status', ['confirmed', 'CONFIRMED'])
       .lte('start_datetime', reminderThreshold.toISOString())
       .gt('start_datetime', now.toISOString())
@@ -3675,9 +3678,25 @@ const checkOverdueBookings = async () => {
     if (error) throw error;
 
     for (const booking of (upcoming || [])) {
-      console.log(`📧 [REMINDER] Triggering one-hour reminder for ${booking.customer?.email}`);
+      const reminderDue = new Date(new Date(booking.start_datetime).getTime() - REMINDER_LEAD_MINUTES * 60000);
+      const recipient = booking.customer_email || booking.customer?.email;
 
-      if (!booking.customer?.email) continue;
+      const madeInsideLastHour = new Date(booking.created_at) > reminderDue;
+      const { data: confirmations } = await supabaseAdmin
+        .from('booking_email_deliveries')
+        .select('sent_at')
+        .eq('booking_id', booking.id)
+        .or('event.eq.booking_confirmed,event.like.payment_verified:%')
+        .not('sent_at', 'is', null);
+      const confirmedInsideLastHour = (confirmations || []).some((row) => new Date(row.sent_at) > reminderDue);
+
+      if (madeInsideLastHour || confirmedInsideLastHour || !recipient) {
+        console.log(`📧 [REMINDER] Skipped for booking ${booking.id}: ${!recipient ? 'no email address' : 'made or confirmed inside the last hour'}.`);
+        await supabaseAdmin.from('bookings').update({ reminder_sent: true }).eq('id', booking.id);
+        continue;
+      }
+
+      console.log(`📧 [REMINDER] Triggering one-hour reminder for ${recipient}`);
 
       try {
         const projectUrl = process.env.SUPABASE_URL;
@@ -3688,14 +3707,15 @@ const checkOverdueBookings = async () => {
           body: JSON.stringify({ bookingId: booking.id, newStatus: 'CONFIRMED', reminder: true })
         });
         if (!reminderResponse.ok) throw new Error(await reminderResponse.text());
+        // Only a reminder that really went out is marked as sent; a failed one is
+        // retried on the next sweep while the appointment is still ahead.
+        await supabaseAdmin
+          .from('bookings')
+          .update({ reminder_sent: true })
+          .eq('id', booking.id);
       } catch (emailErr) {
         console.warn('📧 Reminder email failed:', emailErr.message);
       }
-
-      await supabaseAdmin
-        .from('bookings')
-        .update({ reminder_sent: true })
-        .eq('id', booking.id);
     }
   } catch (err) {
     console.error('❌ No-Show Audit Error:', err.message);
@@ -4199,6 +4219,27 @@ app.post('/api/bookings/add-service', async (req, res) => {
         }
       }
       throw rpcError;
+    }
+
+    // A payment taken with the added service gets its receipt like any other
+    // verified payment (once; booking-lifecycle claims it per payment).
+    if (hasPayment) {
+      try {
+        const { data: addedPayment } = await supabaseAdmin
+          .from('payments')
+          .select('id')
+          .eq('booking_id', bookingId)
+          .eq('status', 'PAID')
+          .ilike('notes', `%ADDED_SERVICE:${serviceName}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (addedPayment?.id) {
+          await dispatchLifecycleEmail(bookingId, 'PAYMENT_VERIFIED', '', { event: 'payment_verified', paymentId: addedPayment.id });
+        }
+      } catch (receiptError) {
+        console.warn('📧 Receipt for the added-service payment could not be sent:', receiptError.message);
+      }
     }
 
     return res.json({ success: true });

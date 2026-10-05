@@ -164,7 +164,7 @@ const DetailTimeline = ({
               <div
                 key={booking.id}
                 onClick={() => onBookingClick(booking.id)}
-                title={`${booking.customer?.full_name || 'Booking'} • ${booking.status || 'SCHEDULED'}`}
+                title={`${booking.customer_name || booking.customer?.full_name || 'Booking'} • ${booking.status || 'SCHEDULED'}`}
                 style={{
                       position: 'absolute',
                       left: `calc(${overlap.left} + 4px)`,

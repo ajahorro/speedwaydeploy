@@ -213,7 +213,7 @@ const AdminRefunds = () => {
         return;
       }
 
-      const refundEmail = item.customer?.email || item.customer_email;
+      const refundEmail = item.customer_email || item.customer?.email;
       const { data: refundEmailData, error: emailError } = refundEmail
         ? await supabase.functions.invoke('send-refund-receipt', {
             body: {
@@ -390,7 +390,7 @@ const AdminRefunds = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>#{b.id.slice(0, 8).toUpperCase()}</div>
-                  <h3 style={{ margin: 0, fontWeight: '900', fontSize: isMobile ? '0.9rem' : '1rem', textTransform: 'uppercase' }}>{b.customer?.full_name || b.customer_name || 'Customer'}</h3>
+                  <h3 style={{ margin: 0, fontWeight: '900', fontSize: isMobile ? '0.9rem' : '1rem', textTransform: 'uppercase' }}>{b.customer_name || b.customer?.full_name || 'Customer'}</h3>
                 </div>
                 <span style={{
                   fontSize: '0.6rem',
@@ -437,7 +437,7 @@ const AdminRefunds = () => {
               </div>
 
               <div style={{ background: 'var(--admin-bg)', padding: '0.85rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
-                <div style={{ fontWeight: '900', fontSize: '0.9rem' }}>{state.selectedItem.customer?.full_name || state.selectedItem.customer_name || 'Customer'}</div>
+                <div style={{ fontWeight: '900', fontSize: '0.9rem' }}>{state.selectedItem.customer_name || state.selectedItem.customer?.full_name || 'Customer'}</div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>{state.selectedItem.customer?.email}</div>
               </div>
 
@@ -477,7 +477,7 @@ const AdminRefunds = () => {
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
                       <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Recipient:</span>
-                      <span style={{ fontWeight: '800' }}>{state.selectedItem.customer?.email || state.selectedItem.customer_email || 'No email registered'}</span>
+                      <span style={{ fontWeight: '800' }}>{state.selectedItem.customer_email || state.selectedItem.customer?.email || 'No email registered'}</span>
                     </div>
                   </div>
                 </div>
@@ -623,7 +623,7 @@ const AdminRefunds = () => {
             </h2>
             {state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? (
               <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.82rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
-                The refund is already recorded. Retry sending the receipt for ₱{Number(state.confirmRefundItem.refundedAmount || 0).toLocaleString()} to {state.confirmRefundItem.customer?.email || state.confirmRefundItem.customer_email || 'the customer'}?
+                The refund is already recorded. Retry sending the receipt for ₱{Number(state.confirmRefundItem.refundedAmount || 0).toLocaleString()} to {state.confirmRefundItem.customer_email || state.confirmRefundItem.customer?.email || 'the customer'}?
               </p>
             ) : (
               <div style={{ display: 'grid', gap: '0.65rem', margin: '1rem 0 1.5rem', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)' }}>

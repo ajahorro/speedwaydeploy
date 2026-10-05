@@ -95,7 +95,7 @@ const AdminSearch = () => {
         if (cancelled) return;
 
         const bookingMap = new Map();
-        const label = (b) => b.customer?.full_name || b.customer_name || b.guest_name || 'Customer';
+        const label = (b) => b.customer_name || b.customer?.full_name || b.guest_name || 'Customer';
         (recentIds.data || [])
           .filter(b => b.id.toLowerCase().startsWith(hex.toLowerCase()))
           .slice(0, 5)

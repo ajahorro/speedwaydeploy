@@ -76,7 +76,7 @@ const AdminPayments = () => {
           const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(url);
           url = publicUrl;
         }
-        const customerName = p.booking?.customer?.full_name || p.booking?.customer_name || 'Fleet Transaction';
+        const customerName = p.booking?.customer_name || p.booking?.customer?.full_name || 'Fleet Transaction';
         return {
           ...p,
           receipt_url: url,
@@ -333,7 +333,7 @@ const AdminPayments = () => {
             <div class="meta">
               <div>
                 <div class="label">Customer</div>
-                <div>${receiptBooking.customer?.full_name || receiptBooking.customer_name || 'Customer'}</div>
+                <div>${receiptBooking.customer_name || receiptBooking.customer?.full_name || 'Customer'}</div>
               </div>
               <div style="text-align:right;">
                 <div class="label">Date & Time</div>

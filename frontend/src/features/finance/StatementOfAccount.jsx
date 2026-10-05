@@ -38,8 +38,8 @@ export function StatementOfAccount({ booking, vehicles = [], ledger, transaction
   const invoice = resolveInvoiceAmounts(booking || {});
   const pending = transactions.filter((row) => row.is_pending);
   const statementNo = `SOA-${String(booking?.id || '').slice(0, 8).toUpperCase()}`;
-  const customerName = booking?.customer?.full_name || booking?.customer_name || 'Valued Customer';
-  const customerEmail = booking?.customer?.email || booking?.customer_email || '';
+  const customerName = booking?.customer_name || booking?.customer?.full_name || 'Valued Customer';
+  const customerEmail = booking?.customer_email || booking?.customer?.email || '';
 
   const serviceRows = vehicles.flatMap((vehicle) => (vehicle.services || []).map((service, index) => ({
     key: service.id || `${vehicle.id}-${index}`,

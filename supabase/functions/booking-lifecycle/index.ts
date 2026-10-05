@@ -24,6 +24,8 @@ import {
   buildBookingSettledEmail,
   buildStatusEmail,
   buildReminderEmail,
+  siteUrl,
+  bookingDetailsPath,
   notificationCopyFor,
   type BookingLike,
   type PaymentLike,
@@ -312,7 +314,7 @@ serve(async (req: Request): Promise<Response> => {
         || `${staffProfile?.first_name || ''} ${staffProfile?.last_name || ''}`.trim()
         || null
     }
-    const bookingForEmail = { ...row, technician_name: technicianName }
+    const bookingForEmail: Record<string, unknown> & typeof row = { ...row, technician_name: technicianName }
 
     const customer = row.profiles
     // Prioritize customer details entered directly on the booking (critical for walk-ins so admin details never leak)
@@ -326,9 +328,19 @@ serve(async (req: Request): Promise<Response> => {
       || (payments.length
         ? [...payments].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0]
         : null)
+    // The payment this email carries a receipt for. A payment-verified event names
+    // it. A confirmation or creation email does not (a walk-in pays on the spot,
+    // so the booking is created already paid), so the newest paid, non-refund
+    // payment is used: a customer who has paid, even only a downpayment, always
+    // gets a receipt. Each payment's receipt is claimed once, so it is never sent twice.
+    const paidTransactions = transactions.filter(
+      (item) => item.status === 'PAID' && !(item as { is_refund?: boolean }).is_refund,
+    )
     const verifiedTransaction: LedgerTransaction | null = paymentId
       ? (transactions.find((item) => item.payment_id === paymentId && item.status === 'PAID') || null)
-      : null
+      : (['booking_confirmed', 'booking_created'].includes(canonical)
+        ? (paidTransactions[paidTransactions.length - 1] || null)
+        : null)
 
     const amounts = resolveAmounts(ledger, payment)
     const bookingRef = String(bookingId).slice(0, 8).toUpperCase()
@@ -374,7 +386,7 @@ serve(async (req: Request): Promise<Response> => {
     try {
       // Transaction receipt: the verified payment this event is about.
       let hasReceipt = false
-      if (verifiedTransaction && ['payment_verified', 'booking_confirmed'].includes(canonical)) {
+      if (verifiedTransaction && ['payment_verified', 'booking_confirmed', 'booking_created'].includes(canonical)) {
         const receiptKey = `payment_verified:${verifiedTransaction.payment_id}`
         const receiptClaimed = receiptKey === lifecycleEvent || (await claim(receiptKey))?.claimed
         if (receiptClaimed) {
@@ -416,6 +428,32 @@ serve(async (req: Request): Promise<Response> => {
       }
       if (canonical === 'booking_settled' && !amounts.fullySettled) {
         throw new Error('booking_settled requested but the ledger does not report the booking as fully settled')
+      }
+
+      // ── The booking-details button ────────────────────────────────────────
+      // Someone with an account signs in and lands on this booking. A walk-in
+      // without an account is sent to registration, pre-filled with the details
+      // the admin entered (a 7-day invite; only the email is locked there).
+      {
+        const next = bookingDetailsPath(bookingId)
+        let hasAccount = Boolean(row.customer_id)
+        if (!hasAccount && email) {
+          const { data: existingAccount } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('email', String(email).trim().toLowerCase())
+            .maybeSingle()
+          hasAccount = Boolean(existingAccount)
+        }
+        if (hasAccount) {
+          bookingForEmail.portal_url = `${siteUrl()}/login?next=${encodeURIComponent(next)}`
+        } else {
+          const { data: inviteToken, error: inviteError } = await supabase.rpc('create_guest_registration_invite', { p_booking_id: bookingId })
+          if (inviteError) console.warn('Registration invite could not be created:', inviteError.message)
+          bookingForEmail.portal_url = inviteToken
+            ? `${siteUrl()}/login?register=1&invite=${inviteToken}&next=${encodeURIComponent(next)}`
+            : null
+        }
       }
 
       // ── Render the right email for this event ─────────────────────────────

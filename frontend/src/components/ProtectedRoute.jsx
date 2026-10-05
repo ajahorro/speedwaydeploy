@@ -24,7 +24,9 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 
   // 2. Authentication Check: No session? Straight to Login.
   if (!user) {
-    return <Navigate to="/" replace />;
+    // Remember the page they wanted: sign-in continues there.
+    const wanted = `${location.pathname}${location.search}`;
+    return <Navigate to={`/login?next=${encodeURIComponent(wanted)}`} replace />;
   }
 
   // 3. Optional Profile Enrichment Gate:

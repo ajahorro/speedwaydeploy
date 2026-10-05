@@ -424,7 +424,7 @@ const AdminBookingDetails = () => {
 
       // REQ-ADM-04: Determine if this is a post-service assignment
       const isPostService = booking.status === 'completed';
-      const customerName = booking.customer?.full_name || booking.customer_name || 'Customer';
+      const customerName = booking.customer_name || booking.customer?.full_name || 'Customer';
 
       const updatePayload = {
         staff_id: staffId,
@@ -1773,7 +1773,7 @@ const AdminBookingDetails = () => {
                 <User size={18} color="var(--admin-text-secondary)" />
               </div>
               <div style={{ minWidth: 0 }}>
-                <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>{booking.customer?.full_name || booking.customer_name || 'Customer'}</h3>
+                <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>{booking.customer_name || booking.customer?.full_name || 'Customer'}</h3>
                 {booking.customer_id && (
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
                     <span style={{ fontSize: '0.6rem', fontWeight: '900', color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -1796,7 +1796,7 @@ const AdminBookingDetails = () => {
               </div>
               <div>
                 <div style={{ ...labelStyle, opacity: 0.6 }}>Primary Email ID</div>
-                <div style={booking.customer?.email || booking.customer_email ? valueStyle : naStyle}>{booking.customer?.email || booking.customer_email || 'N/A'}</div>
+                <div style={booking.customer_email || booking.customer?.email ? valueStyle : naStyle}>{booking.customer_email || booking.customer?.email || 'N/A'}</div>
               </div>
             </div>
           </div>

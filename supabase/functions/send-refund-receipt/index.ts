@@ -68,7 +68,7 @@ serve(async (req) => {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
     const customerEmail = booking.customer?.email || booking.customer_email;
-    const customerName = booking.customer?.full_name || booking.customer_name || 'Customer';
+    const customerName = booking.customer_name || booking.customer?.full_name || 'Customer';
     const refundAmount = Math.abs(Number(refundPayment.amount || 0));
     const refundReason = refundPayment.refund_reason || 'Administrative refund processed';
     const bookingDate = booking.start_datetime ? new Date(booking.start_datetime).toLocaleDateString() : '';

@@ -7,6 +7,8 @@ import RecoverForm from '../components/auth/RecoverForm';
 import EmergencyRecoveryForm from '../components/auth/EmergencyRecoveryForm';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { X, Mail } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { supabase } from '../lib/supabase';
 
 const Login = ({ isModal = false, onClose }) => {
   const isMobile = useMediaQuery('(max-width: 640px)');
@@ -25,9 +27,9 @@ const Login = ({ isModal = false, onClose }) => {
     clearLoginError
   } = useAuthFlow();
 
-  const [registerPrefill] = useState(() => {
+  const [registerPrefill, setRegisterPrefill] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('register') !== '1') return null;
+    if (params.get('register') !== '1' || params.get('invite')) return null;
     return {
       firstName: params.get('firstName') || '',
       lastName: params.get('lastName') || '',
@@ -42,6 +44,31 @@ const Login = ({ isModal = false, onClose }) => {
       setMode('REGISTER');
     }
   }, [registerPrefill, setMode]);
+
+  // A walk-in's booking email links here with a 7-day invite. It pre-fills the
+  // details the admin entered; only the email is locked (see RegisterForm).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const invite = params.get('invite');
+    if (params.get('register') !== '1' || !invite) return undefined;
+    let cancelled = false;
+    supabase.rpc('get_registration_invite', { p_token: invite }).then(({ data, error }) => {
+      if (cancelled) return;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (error || !row) {
+        toast.error('This invitation link has expired. You can still create an account below.');
+        setMode('REGISTER');
+        return;
+      }
+      setRegisterPrefill({
+        firstName: row.first_name || '',
+        lastName: row.last_name || '',
+        email: row.email || '',
+        phone: row.phone || ''
+      });
+    });
+    return () => { cancelled = true; };
+  }, [setMode]);
 
   // Carried across mode switches so "Forgot Password?" does not make the user
   // retype the address they just entered on the login form.
