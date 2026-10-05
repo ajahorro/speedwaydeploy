@@ -1032,7 +1032,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // A script could previously fire unlimited scans (the client re-entrancy
     // guard is trivially bypassed) and drain OCR credits. We throttle per
     // identity: the authenticated user when present, else the client IP.
-    const identity = `ocr:${req.body.bookingId || 'unknown'}:${req.ip || req.headers['x-forwarded-for'] || 'anon'}`;
+    const identity = `ocr:${req.body.rateKey || req.body.bookingId || 'unknown'}:${req.ip || req.headers['x-forwarded-for'] || 'anon'}`;
 
     if (ocrGuard.isAutomationLocked(identity)) {
       console.warn(`⛔ [OCR] ${identity} is LOCKED after repeated failures — routing to manual review.`);

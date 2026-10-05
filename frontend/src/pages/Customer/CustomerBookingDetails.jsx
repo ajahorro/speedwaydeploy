@@ -27,6 +27,7 @@ import { fetchBookingLedger } from '../../services/ledgerService';
 import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import { getAvailableSlots, getBusinessHours } from '../../services/scheduleService';
 import { useImagePreview } from '../../context/ImagePreviewContext';
+import PaymentProofModal from '../../components/payments/PaymentProofModal';
 
 const CustomerBookingDetails = () => {
   const { openImage } = useImagePreview();
@@ -54,6 +55,7 @@ const CustomerBookingDetails = () => {
     setSearchParams(next, { replace: true });
   }, [id, searchParams, openChatForBooking, setSearchParams]);
 
+  const [payBalanceOpen, setPayBalanceOpen] = useState(false);
   const [booking, setBooking] = useState(null);
   const [vehicles, setVehicles] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -307,6 +309,11 @@ const CustomerBookingDetails = () => {
   const appliedToBooking = Math.max(0, totalPaid - Number(paymentSummary.credit || 0));
   const excessCredit = Number(paymentSummary.credit || 0);
   const balance = paymentSummary.balance;
+  // What the customer can still pay now: the balance minus anything already sent for verification.
+  const payableBalance = Math.max(0, Number(booking.ledger?.submitted_balance_due ?? balance) || 0);
+  const awaitingVerification = Math.max(0, Number(booking.ledger?.pending_net_received ?? booking.ledger?.pending_verification ?? 0) || 0);
+  const bookingIsOpenForPayment = !['cancelled', 'completed', 'released', 'flagged_noshow', 'no_show'].includes(String(booking.status || '').toLowerCase());
+  const canPayBalance = balance > 0 && payableBalance > 0 && bookingIsOpenForPayment;
   const selectedRescheduleSlot = rescheduleSlots.some(slot => slot.time === rescheduleTime);
 
   // 🚀 DERIVED STATE: Ensure UI reflects reality even if master status lags
@@ -573,6 +580,16 @@ const CustomerBookingDetails = () => {
             }}>
               {balance === 0 ? 'FULLY SETTLED' : `OUTSTANDING BALANCE: ₱${balance.toLocaleString()}`}
             </div>
+            {canPayBalance && (
+              <button type="button" onClick={() => setPayBalanceOpen(true)} style={{ width: '100%', marginTop: '0.75rem', padding: '0.9rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-md)', fontWeight: 950, fontSize: '0.8rem', letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                Pay remaining balance ({formatCurrency(payableBalance)})
+              </button>
+            )}
+            {balance > 0 && payableBalance <= 0 && awaitingVerification > 0 && (
+              <p role="status" style={{ margin: '0.75rem 0 0', textAlign: 'center', fontSize: '0.75rem', fontWeight: 800, color: 'var(--admin-text-secondary)' }}>
+                Your payment of {formatCurrency(awaitingVerification)} is waiting for the shop to verify.
+              </p>
+            )}
           </div>}
         </div>
 
@@ -673,8 +690,18 @@ const CustomerBookingDetails = () => {
             <div>
               <div style={labelStyle}>Outstanding Balance</div>
               <div style={{ fontSize: '1.8rem', fontWeight: '950', color: 'var(--admin-warning)', margin: '.35rem 0 1rem' }}>{formatCurrency(balance)}</div>
-              <div style={{ fontSize: '.75rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5, marginBottom: '.5rem' }}>Complete the remaining payment using the studio's digital payment details.</div>
-              <QRMagnifier qrUrl={settings.qr_code_url || settings.PAYMENT_QR_URL} accountName={settings.qr_account_name || settings.PAYMENT_ACCOUNT_NAME} accountNumber={settings.qr_account_number || settings.PAYMENT_ACCOUNT_NUMBER} standalone />
+              {canPayBalance ? (
+                <>
+                  <div style={{ fontSize: '.75rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5, marginBottom: '.75rem' }}>Pay the rest, then upload your receipt so the shop can verify it.</div>
+                  <button type="button" onClick={() => setPayBalanceOpen(true)} style={{ width: '100%', padding: '0.85rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-md)', fontWeight: 950, fontSize: '0.75rem', letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    Pay remaining balance
+                  </button>
+                </>
+              ) : (
+                <div style={{ fontSize: '.75rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                  {awaitingVerification > 0 ? 'Your payment is waiting for the shop to verify.' : 'This booking can no longer take payments.'}
+                </div>
+              )}
             </div>
           )}
           </div>
@@ -826,6 +853,14 @@ const CustomerBookingDetails = () => {
           setPhotoGalleryOpen(false);
           setPhotoGalleryVehicleId(null);
         }}
+      />
+
+      <PaymentProofModal
+        open={payBalanceOpen}
+        onOpenChange={setPayBalanceOpen}
+        bookingId={booking.id}
+        amountDue={payableBalance}
+        onSubmitted={() => fetchAll()}
       />
 
       <style>{`
