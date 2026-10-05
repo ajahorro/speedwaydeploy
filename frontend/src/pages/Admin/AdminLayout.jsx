@@ -18,6 +18,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../context/ThemeContext';
 import BrandLogo from '../../components/BrandLogo';
 import toastManager from '../../utils/toastManager';
+import TermsGate from '../../components/TermsGate';
 
 const AdminLayout = () => {
   const { resolvedTheme } = useTheme();
@@ -421,6 +422,7 @@ const AdminLayout = () => {
         <main style={{ flex: 1, minHeight: 0, padding: isMobile ? '1.5rem 1rem' : '2.5rem', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', background: 'var(--admin-bg)' }}>
           <Outlet />
         </main>
+        <TermsGate />
       </div>
       {/* Shortcut to the same conversations the Chat page lists. */}
       <FloatingBubbleChat />

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Building, Wrench, Tag, Save, AlertCircle, CheckCircle, Check,
-  Plus, X, Trash2, Archive, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown, Wallet
+  Plus, X, Trash2, Archive, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown, Wallet, ScrollText
 } from 'lucide-react';
 import { useConfig } from '../../context/ConfigContext';
 import { useUI } from '../../context/UIContext';
@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import PromoManager from '../../components/AdminSchedule/PromoManager';
 import { DownpaymentPolicyCard } from '../../features/business-hub/DownpaymentPolicyCard';
+import { TermsEditorCard } from '../../features/business-hub/TermsEditorCard';
 import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
 import { validateQrRecipients } from '../../services/qrSecurityService';
 import { buildBusinessConfigUpdatePayload, stripUnsupportedBusinessConfigColumns } from '../../services/businessConfigPayload';
@@ -54,6 +55,8 @@ const TAB_DEFINITIONS = [
   { id: 'promos', label: 'Promo Management' },
   // Downpayment policy (business_config.downpayment_*), enforced by the database.
   { id: 'payments', label: 'Payment Policy' },
+  // One versioned text per role, accepted on first open (master plan 1.11).
+  { id: 'terms', label: 'Terms' },
 ];
 
 // Derived, never hand-maintained. `?tab=` values are validated against this.
@@ -2066,6 +2069,7 @@ export default function BusinessHub() {
     services: Wrench,
     promos: Tag,
     payments: Wallet,
+    terms: ScrollText,
   };
 
   const tabs = TAB_DEFINITIONS.map((tab) => ({
@@ -3364,6 +3368,9 @@ export default function BusinessHub() {
 
         {/* Tab 6: Payment Policy (downpayment) */}
         {currentTab === 'payments' && <DownpaymentPolicyCard />}
+
+        {/* Tab 7: Terms and conditions (customer, staff, admin) */}
+        {currentTab === 'terms' && <TermsEditorCard />}
       </div>
 
       {/* Task B: QR change is gated behind a 6-digit email OTP. */}

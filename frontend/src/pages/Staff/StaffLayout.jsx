@@ -13,6 +13,7 @@ import { useTheme } from '../../context/ThemeContext';
 import HeaderProfileDropdown from '../../components/common/HeaderProfileDropdown';
 import { confirmLogout } from '../../utils/logoutConfirm';
 import { isNotificationActionable, isRedundantStaffTechnicianAssignment } from '../../utils/notificationRouting';
+import TermsGate from '../../components/TermsGate';
 
 const StaffLayout = () => {
   const { openModal, closeModal } = useUI(); const { user, profile, signOut, fetchProfile, setProfile, toggleShift } = useAuth();
@@ -375,6 +376,7 @@ const StaffLayout = () => {
           <Outlet />
         </div>
       </main>
+      <TermsGate />
     </div>
   );
 };

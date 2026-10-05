@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Upload, CheckCircle2, Wallet, Banknote, ShieldAlert, AlertTriangle, Package as PackageIcon, Hash, Camera } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useConfig } from '../../context/ConfigContext';
+import { useAuth } from '../../hooks/useAuth';
 import { calculateBookingDiscountSummary, validateServiceRequirements, describeServiceRequirementViolation } from '../../data/servicesCatalog';
 import { getRequiredDownpayment, requiresDownpayment } from '../../utils/paymentUtils';
 import QRMagnifier from '../QRMagnifier';
@@ -23,11 +24,18 @@ const DEFAULT_TERMS = [
 
 const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, onNext, onBack, onSubmit, isSubmitting, onCancel }) => {
   const { settings } = useConfig();
+  const { profile: signedInProfile } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [receiptDetails, setReceiptDetails] = useState(null);
   const [adminDigitalMode, setAdminDigitalMode] = useState('ocr'); // 'ocr' | 'reference'
   const [manualRefInput, setManualRefInput] = useState(bookingData.payment?.manualRefNumber || bookingData.payment?.referenceNumber || '');
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  // A customer who already accepted the current customer terms when opening their account is
+  // not asked again here (they can still open and read the text).
+  const alreadyAcceptedTerms = !adminMode && Boolean(signedInProfile?.id)
+    && Number(signedInProfile.accepted_terms_version || 0) >= Number(settings.TERMS?.customer?.version || 1);
+  const [termsChecked, setTermsChecked] = useState(false);
+  const termsAccepted = alreadyAcceptedTerms || termsChecked;
+  const setTermsAccepted = setTermsChecked;
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showHelpTips, setShowHelpTips] = useState(false);
