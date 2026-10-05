@@ -2,6 +2,7 @@ import React from 'react';
 import { Lock, Tag, ShieldAlert } from 'lucide-react';
 import { formatDisplayHour, getOccupancyColor } from '../../utils/schedulingUtils';
 import { COLORS, SHOP_CONFIG as CONFIG } from '../../config/constants';
+import { shopDateString, shopHourValue } from '../../utils/shopTime';
 
 const DetailTimeline = ({ 
   hours, 
@@ -73,14 +74,13 @@ const DetailTimeline = ({
   const closingHour = Number(config.CLOSING_HOUR || CONFIG.CLOSING_HOUR || 21);
   const totalHours = Math.max(1, closingHour - openingHour);
 
-  const currentDate = new Date(selectedDate || new Date());
-  currentDate.setHours(0, 0, 0, 0);
-  const dateStr = currentDate.toLocaleDateString('en-CA');
+  // selectedDate is a shop-calendar day ('YYYY-MM-DD'); noon keeps the header label on that day.
+  const dateStr = typeof selectedDate === 'string' ? selectedDate.slice(0, 10) : shopDateString(selectedDate || new Date());
+  const currentDate = new Date(`${dateStr}T12:00:00`);
 
   const allDayBookings = (hours.flatMap(hour => getBookingsForHour(hour))).filter((booking, index, arr) => arr.findIndex(item => item.id === booking.id) === index);
   const dayBookings = allDayBookings.filter((booking) => {
-    const dt = new Date(booking.start_datetime);
-    return dt.toLocaleDateString('en-CA') === dateStr;
+    return shopDateString(booking.start_datetime) === dateStr;
   });
   const getBookingService = (booking) => booking.vehicles?.flatMap(vehicle => vehicle.services || []).map(service => service.service_name).filter(Boolean)[0] || 'Service booking';
 
@@ -110,8 +110,7 @@ const DetailTimeline = ({
   };
 
   const getBookingTop = (booking) => {
-    const start = new Date(booking.start_datetime);
-    const startHourValue = start.getHours() + (start.getMinutes() / 60);
+    const startHourValue = shopHourValue(booking.start_datetime);
     const clampedStart = Math.max(startHourValue, openingHour);
     return ((clampedStart - openingHour) / totalHours) * 100;
   };
@@ -119,8 +118,8 @@ const DetailTimeline = ({
   const getBookingHeight = (booking) => {
     const start = new Date(booking.start_datetime);
     const end = getBookingEnd(booking);
-    const startHourValue = start.getHours() + (start.getMinutes() / 60);
-    const endHourValue = end.getHours() + (end.getMinutes() / 60);
+    const startHourValue = shopHourValue(start);
+    const endHourValue = shopHourValue(end);
     const clampedStart = Math.max(startHourValue, openingHour);
     const clampedEnd = Math.min(endHourValue, closingHour);
     const spanHours = Math.max(clampedEnd - clampedStart, 0.5);

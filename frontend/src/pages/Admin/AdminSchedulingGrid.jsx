@@ -9,6 +9,7 @@ import {
 import { logger } from '../../utils/logger';
 import toast from 'react-hot-toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { shopDateString, shopHourValue, shopWallToDate } from '../../utils/shopTime';
 
 const AdminSchedulingGrid = ({ onBack }) => {
   const navigate = useNavigate();
@@ -24,10 +25,10 @@ const AdminSchedulingGrid = ({ onBack }) => {
   const fetchGridData = useCallback(async () => {
     setLoading(true);
     try {
-      const startOfDay = new Date(selectedDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(selectedDate);
-      endOfDay.setHours(23, 59, 59, 999);
+      // the shop's day (Asia/Manila), not the viewer's
+      const dayStr = typeof selectedDate === 'string' ? selectedDate.slice(0, 10) : shopDateString(selectedDate || new Date());
+      const startOfDay = shopWallToDate(dayStr, 0);
+      const endOfDay = new Date(shopWallToDate(dayStr, 24).getTime() - 1);
 
       // Fetch Staff
       const { data: staffData } = await supabase
@@ -86,8 +87,9 @@ const AdminSchedulingGrid = ({ onBack }) => {
   );
 
   const renderBookingBlock = (booking) => {
-    const startHour = new Date(booking.start_datetime).getHours();
-    const startMinutes = new Date(booking.start_datetime).getMinutes();
+    const startWall = shopHourValue(booking.start_datetime);
+    const startHour = Math.floor(startWall);
+    const startMinutes = Math.round((startWall - startHour) * 60);
     
     // Estimate 2 hours per booking if not specified
     const duration = 2; 

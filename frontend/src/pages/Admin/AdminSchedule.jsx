@@ -26,6 +26,7 @@ import { useUI } from '../../context/UIContext';
 import { BACKEND_URL } from '../../config/api';
 import { ensureShopConfig, getShopConfig } from '../../config/shopConfig';
 import { isPromoRuleLive, setCatalogSource } from '../../data/servicesCatalog';
+import { shopDateString, shopWallToDate } from '../../utils/shopTime';
 
 const AdminSchedule = () => {
   const navigate = useNavigate();
@@ -34,10 +35,8 @@ const AdminSchedule = () => {
   const { openModal, showToast } = useUI();
 
   // State: Navigation & Context
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  });
+  // "Today" and every booking position are read on the shop's clock (Asia/Manila), not the device's.
+  const [selectedDate, setSelectedDate] = useState(() => shopDateString(new Date()));
   const [viewDate, setViewDate] = useState(new Date());
   const viewDateRef = useRef(viewDate);
   viewDateRef.current = viewDate;
@@ -96,17 +95,12 @@ const AdminSchedule = () => {
       await flagOverdueBookings();
 
       // 🛡️ 3-DAY BUFFER: Fetch yesterday, today, and tomorrow to capture any timezone shifts
-      const d = new Date(`${selectedDate}T00:00:00`);
-      const prev = new Date(d); prev.setDate(d.getDate() - 1);
-      const next = new Date(d); next.setDate(d.getDate() + 1);
 
       // Keep the day window anchored to local midnight boundaries. Using UTC
       // "Z" values here shifts a booking by the browser offset and drags it
       // into the wrong slot on the calendar.
-      const prevWindow = buildLocalDateWindow(prev);
-      const nextWindow = buildLocalDateWindow(next);
-      const fetchStart = prevWindow.startIso;
-      const fetchEnd = nextWindow.endIso;
+      const fetchStart = shopWallToDate(selectedDate, -24).toISOString();
+      const fetchEnd = shopWallToDate(selectedDate, 48).toISOString();
 
       const { data: bookingsRaw, error: bookingsError } = await supabase
         .from('bookings')
@@ -207,8 +201,8 @@ const AdminSchedule = () => {
   };
 
   const getBookingsForHour = (hour) => {
-    const hourStart = new Date(`${selectedDate}T${String(hour).padStart(2, '0')}:00:00`);
-    const hourEnd = new Date(`${selectedDate}T${String(hour + 1).padStart(2, '0')}:00:00`);
+    const hourStart = shopWallToDate(selectedDate, hour);
+    const hourEnd = shopWallToDate(selectedDate, hour + 1);
 
     return bookings.filter(b => {
       const bStart = new Date(b.start_datetime);
@@ -645,7 +639,7 @@ const AdminSchedule = () => {
       </PageHeader>
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '350px 1fr', gap: '2rem', alignItems: 'start' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', ...(isMobile ? {} : { position: 'sticky', top: '1rem', alignSelf: 'start', maxHeight: 'calc(100vh - 2rem)', overflowY: 'auto' }) }}>
           <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.25rem', borderBottom: '1px solid var(--admin-border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -674,7 +668,7 @@ const AdminSchedule = () => {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px', background: 'var(--admin-border)' }}>
               {(() => {
-                const today = new Date().toLocaleDateString('en-CA');
+                const today = shopDateString(new Date());
                 const year = viewDate.getFullYear();
                 const month = viewDate.getMonth();
                 const firstDay = new Date(year, month, 1).getDay();
@@ -688,9 +682,7 @@ const AdminSchedule = () => {
                   const isToday = dateStr === today;
                   const isSelected = dateStr === selectedDate;
                   const hasBookings = allMonthBookings.some(b => {
-                    const d = new Date(b.start_datetime);
-                    const bDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                    return bDate === dateStr;
+                    return shopDateString(b.start_datetime) === dateStr;
                   });
 
                   cells.push(
@@ -751,7 +743,7 @@ const AdminSchedule = () => {
 
         </div>
 
-        <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', ...(isMobile ? { overflow: 'hidden' } : { overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(100vh - 2rem)' }) }}>
           <div style={{ padding: '1.5rem' }}>
             <OccupancyShelf
               bookings={bookings}
