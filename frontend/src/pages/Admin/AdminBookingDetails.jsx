@@ -26,7 +26,6 @@ import { useUI } from '../../context/UIContext';
 import { useGlobalChat } from '../../context/ChatContext';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
-import FloatingBubbleChat from '../../components/FloatingBubbleChat';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
 import { logger } from '../../utils/logger';
@@ -2339,7 +2338,6 @@ const AdminBookingDetails = () => {
         }
       `}</style>
       </div>
-      {booking.customer_id && <FloatingBubbleChat />}
     </>
   );
 };

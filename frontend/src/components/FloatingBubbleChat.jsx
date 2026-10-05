@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MessageCircle, X } from 'lucide-react';
+import { MessageCircle, X, ChevronLeft } from 'lucide-react';
 import { useGlobalChat } from '../context/ChatContext';
 import { useAuth } from '../hooks/useAuth';
 import BookingChat from './BookingChat';
@@ -42,7 +42,11 @@ const FloatingBubbleChat = () => {
     threadUnread,
     closeChat,
     openChatForBooking,
-    openChatForCustomer
+    openChatForCustomer,
+    openInbox,
+    backToInbox,
+    threads,
+    threadsLoading
   } = useGlobalChat();
   const { user, profile } = useAuth();
   const [viewport, setViewport] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
@@ -148,6 +152,8 @@ const FloatingBubbleChat = () => {
         openChatForCustomer(activeCustomerId);
       } else if (String(profile?.role || '').toUpperCase() === 'CUSTOMER') {
         openChatForCustomer(user.id);
+      } else if (String(profile?.role || '').toUpperCase() === 'ADMIN') {
+        openInbox();
       }
     }
 
@@ -155,6 +161,7 @@ const FloatingBubbleChat = () => {
   };
 
   const bubble = toPixels(position, viewport.w, viewport.h);
+  const isAdminRole = String(profile?.role || '').toUpperCase() === 'ADMIN';
 
   // The open panel sits on whichever side of the bubble has room, and never
   // leaves the screen: above if there is space, otherwise below; aligned to the
@@ -180,7 +187,10 @@ const FloatingBubbleChat = () => {
       {isOpen && activeCustomerId && (
         <div ref={chatRef} style={{ ...placePanel(chatWidth, chatHeight), background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)' }}>
-            <span style={{ fontWeight: '900', fontSize: '0.8rem' }}>
+            {isAdminRole && (
+              <button onClick={backToInbox} aria-label="All conversations" style={{ background: 'none', border: 0, color: 'var(--admin-text-on-brand)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0, marginRight: '0.4rem' }}><ChevronLeft size={18} /></button>
+            )}
+            <span style={{ fontWeight: '900', fontSize: '0.8rem', flex: 1 }}>
               {activeBookingId ? `Booking #${activeBookingId.slice(0, 8).toUpperCase()}` : 'Support Chat'}
             </span>
             <button onClick={closeChat} aria-label="Close support chat" style={{ background: 'none', border: 0, color: 'var(--admin-text-on-brand)', cursor: 'pointer' }}><X size={18} /></button>
@@ -193,7 +203,65 @@ const FloatingBubbleChat = () => {
 
       {/* Keep the chat bubble as the sole affordance; no small side popup is
           shown while the thread remains closed. Users can see the unread badge on the bubble itself. */}
-      {isOpen && !activeCustomerId && (
+      {isOpen && !activeCustomerId && isAdminRole && (
+        <div ref={chatRef} style={{ ...placePanel(chatWidth, chatHeight), background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)' }}>
+            <span style={{ fontWeight: '900', fontSize: '0.8rem' }}>Customer Chats</span>
+            <button onClick={closeChat} aria-label="Close chats" style={{ background: 'none', border: 0, color: 'var(--admin-text-on-brand)', cursor: 'pointer' }}><X size={18} /></button>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+            {threadsLoading && threads.length === 0 && (
+              <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: 700 }}>Loading conversations...</div>
+            )}
+            {!threadsLoading && threads.length === 0 && (
+              <div style={{ padding: '2rem 1.5rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: 700 }}>No customer conversations yet.</div>
+            )}
+            {threads.map((thread) => {
+              const unread = Number(thread.unread_count) || 0;
+              const tags = (thread.booking_ids || []).slice(0, 2);
+              const extra = Math.max(0, (thread.booking_ids || []).length - tags.length);
+              return (
+                <button
+                  key={thread.customer_id}
+                  type="button"
+                  onClick={() => openChatForCustomer(thread.customer_id)}
+                  style={{ width: '100%', textAlign: 'left', display: 'flex', gap: '0.75rem', alignItems: 'flex-start', padding: '0.85rem 1rem', background: 'transparent', border: 0, borderBottom: '1px solid var(--admin-border)', cursor: 'pointer', color: 'var(--admin-text-primary)' }}
+                >
+                  <span style={{ width: 36, height: 36, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', fontWeight: 900, fontSize: '0.8rem' }}>
+                    {String(thread.customer_name || '?').trim().charAt(0).toUpperCase()}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                      <strong style={{ fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{thread.customer_name}</strong>
+                      <span style={{ fontSize: '0.62rem', color: 'var(--admin-text-secondary)', flexShrink: 0 }}>
+                        {thread.last_message_at ? new Date(thread.last_message_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
+                      </span>
+                    </span>
+                    <span style={{ display: 'block', fontSize: '0.74rem', color: unread ? 'var(--admin-text-primary)' : 'var(--admin-text-secondary)', fontWeight: unread ? 800 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {thread.last_message_type === 'image' ? 'Sent a photo' : thread.last_message_type === 'file' ? 'Sent a file' : (thread.last_message || '')}
+                    </span>
+                    {tags.length > 0 && (
+                      <span style={{ display: 'flex', gap: '0.3rem', marginTop: '0.3rem', flexWrap: 'wrap' }}>
+                        {tags.map((id) => (
+                          <span key={id} style={{ fontSize: '0.58rem', fontWeight: 900, padding: '0.1rem 0.4rem', borderRadius: '4px', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)' }}>
+                            #{String(id).slice(0, 8).toUpperCase()}
+                          </span>
+                        ))}
+                        {extra > 0 && <span style={{ fontSize: '0.58rem', fontWeight: 900, color: 'var(--admin-text-secondary)' }}>+{extra}</span>}
+                      </span>
+                    )}
+                  </span>
+                  {unread > 0 && (
+                    <span style={{ minWidth: 20, height: 20, padding: '0 5px', borderRadius: 999, background: 'var(--status-danger)', color: 'var(--admin-text-on-status)', display: 'grid', placeItems: 'center', fontSize: '0.62rem', fontWeight: 900, flexShrink: 0 }}>{unread > 99 ? '99+' : unread}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {isOpen && !activeCustomerId && !isAdminRole && (
         <div style={{ ...placePanel(hintWidth, 80), height: 'auto', padding: '1.25rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '700' }}>
           Open a booking to start a support conversation.
         </div>

@@ -1,5 +1,7 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { supabase, createUniqueChannel } from '../lib/supabase';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { subscribeTable } from '../lib/realtimeHub';
+import { createCoalescer } from '../lib/coalesce';
 import { useAuth } from '../hooks/useAuth';
 
 const ChatContext = createContext(null);
@@ -8,60 +10,50 @@ export const ChatProvider = ({ children }) => {
   const { user, profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const role = String(profile?.role || '').toUpperCase();
+  const isAdmin = role === 'ADMIN';
   const chatAccessAllowed = Boolean(user?.id && profile?.is_active !== false && ['ADMIN', 'CUSTOMER'].includes(role));
 
-  // ── Section 2: ONE CUSTOMER = ONE CHAT ────────────────────────────────────
+  // ── ONE CUSTOMER = ONE CHAT ───────────────────────────────────────────────
   //
-  // A conversation is now owned by a CUSTOMER, not a booking: a customer who
-  // books five times has ONE continuous thread instead of five fragmented ones.
+  // A conversation is owned by a CUSTOMER, not a booking: a customer who books
+  // five times has ONE continuous thread. `booking_messages.customer_id` is
+  // denormalized onto every message so the thread can be queried and subscribed
+  // to directly. A message may carry a booking TAG (booking_id), like a ticket
+  // reference.
   //
-  // `booking_messages.customer_id` is denormalized onto every message (see the
-  // Item 2 migration) so this thread can be queried and subscribed to directly,
-  // without joining through bookings on every message.
-  //
-  // `activeBookingId` is retained as the "booking currently in view" so a message
-  // can be TAGGED with the booking it relates to; it no longer identifies the
-  // thread. `activeCustomerId` is the thread identity and the unread key.
+  // Every chat surface — the floating bubble, the inline booking chat, and the
+  // admin Chat page — reads from this one context (thread list, unread counts,
+  // active thread). The floating bubble is only a shortcut that opens the same
+  // thread; it has no data of its own.
   const [activeCustomerId, setActiveCustomerId] = useState(null);
   const [activeBookingId, setActiveBookingId] = useState(null);
-  const [globalUnreadCount, setGlobalUnreadCount] = useState(0);
-  // Per-thread counters: { [customerId]: unreadCount }. A single global number
-  // could not tell a user WHICH conversation was waiting on them once more than
-  // one conversation existed.
+  // Per-thread unread counters: { [customerId]: unreadCount }.
   const [threadUnread, setThreadUnread] = useState({});
+  // Admin only: every conversation, newest first (admin_chat_threads()).
+  const [threads, setThreads] = useState([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
 
-  // 🛡️ SCENARIO 6 — CHAT DEEP LINK DURING ACCOUNT REVOCATION.
-  //
-  // A customer opens the chat via an email deep link (?chat=open) and, mid-
-  // conversation, an admin bans/deletes their account. The auth JWT is NOT
-  // revoked by an is_active flip, so `onAuthStateChange` may never fire — the
-  // chat widget stayed MOUNTED with a live realtime socket and kept trying to
-  // read/write, each attempt rejected by RLS, producing an endless console
-  // error loop while the user stared at a dead panel.
-  //
-  // The single source of revocation truth is the profile row. When it reports
-  // the account is gone (profile === null while a user exists) or inactive
-  // (is_active === false), we tear the whole chat down: close the panel, drop
-  // the active thread, clear counters, and (below) the effect early-returns so
-  // no channel is ever created again. The route guard in the app shell then
-  // redirects to the landing page.
+  // 🛡️ Account revocation: when the profile reports the account is gone or
+  // inactive, tear the chat down so no realtime listener is ever created.
   const accountRevoked = Boolean(user?.id) && (profile === null || profile?.is_active === false);
+
+  // The badge on the launcher counts every thread except the one being read.
+  const globalUnreadCount = useMemo(
+    () => Object.entries(threadUnread).reduce((sum, [customerId, count]) => (
+      isOpen && customerId === activeCustomerId ? sum : sum + (Number(count) || 0)
+    ), 0),
+    [threadUnread, isOpen, activeCustomerId]
+  );
 
   const refreshUnreadCount = useCallback(async () => {
     if (!chatAccessAllowed) {
-      setGlobalUnreadCount(0);
       setThreadUnread({});
       return;
     }
 
-    // Pull unread rows grouped PER CUSTOMER so one round trip feeds both the
-    // global launcher badge and every per-thread counter. Rows the user already
-    // has open are excluded from the badge but still counted on their thread.
-    //
-    // Messages with a null customer_id (legacy rows the migration could not map,
-    // or accountless walk-ins whose booking has no customer) can never belong to
-    // a real thread: booking_messages.sender_id is NOT NULL FK -> profiles, so
-    // there is no customer to converse with. They are excluded from every badge.
+    // Unread rows grouped PER CUSTOMER feed both the launcher badge and every
+    // per-thread counter. Rows with a null customer_id (legacy, unmappable) can
+    // never belong to a real thread and are excluded.
     const { data, error } = await supabase
       .from('booking_messages')
       .select('id, customer_id')
@@ -73,86 +65,101 @@ export const ChatProvider = ({ children }) => {
     if (error) return;
 
     const perThread = {};
-    let visibleCount = 0;
-    (data || []).forEach(row => {
-      const key = row.customer_id;
-      perThread[key] = (perThread[key] || 0) + 1;
-      if (key !== activeCustomerId) visibleCount += 1;
+    (data || []).forEach((row) => {
+      perThread[row.customer_id] = (perThread[row.customer_id] || 0) + 1;
     });
-
     setThreadUnread(perThread);
-    setGlobalUnreadCount(visibleCount);
-  }, [user?.id, activeCustomerId, chatAccessAllowed]);
+  }, [user?.id, chatAccessAllowed]);
+
+  const refreshThreads = useCallback(async () => {
+    if (!chatAccessAllowed || !isAdmin) {
+      setThreads([]);
+      return;
+    }
+    setThreadsLoading(true);
+    const { data, error } = await supabase.rpc('admin_chat_threads');
+    if (!error) setThreads(Array.isArray(data) ? data : []);
+    setThreadsLoading(false);
+  }, [chatAccessAllowed, isAdmin]);
 
   /**
    * Called by an open chat panel so the thread the user is literally reading
-   * never keeps a stale badge, and so the launcher can show per-thread counts
-   * for conversations that are not currently mounted.
-   *
-   * The key is now a CUSTOMER id (the thread), not a booking id.
+   * never keeps a stale badge. The key is a CUSTOMER id (the thread).
    */
   const reportThreadUnread = useCallback((customerId, count) => {
     if (!customerId) return;
     setThreadUnread(previous => ({ ...previous, [customerId]: Math.max(0, Number(count) || 0) }));
   }, []);
 
+  // Kept in refs so the realtime listener below can stay subscribed while the
+  // user opens and closes threads (it used to be torn down and rebuilt each time).
+  const refreshUnreadRef = useRef(refreshUnreadCount);
+  const refreshThreadsRef = useRef(refreshThreads);
+  refreshUnreadRef.current = refreshUnreadCount;
+  refreshThreadsRef.current = refreshThreads;
+
   useEffect(() => {
-    // Scenario 6: a revoked account must never hold a realtime socket open.
     if (!chatAccessAllowed || accountRevoked) {
-      setGlobalUnreadCount(0);
       setThreadUnread({});
+      setThreads([]);
       setActiveCustomerId(null);
       setActiveBookingId(null);
       setIsOpen(false);
       return undefined;
     }
 
-    refreshUnreadCount();
+    refreshUnreadRef.current();
+    refreshThreadsRef.current();
 
-    const channel = createUniqueChannel(`global-chat-unread-${user.id}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'booking_messages'
-      }, async (payload) => {
-        if (payload.new.message_type === 'system') return;
-        if (payload.new.sender_id === user.id || payload.new.is_read) return;
-        // Section 2: the customer id is denormalized onto the message itself, so
-        // no bookings join is needed to decide which thread this belongs to. Rows
-        // predating the migration fall back to a lookup through the booking.
-        let arrivedFor = payload.new.customer_id;
-        if (!arrivedFor && payload.new.booking_id) {
-          const { data: booking } = await supabase
-            .from('bookings')
-            .select('customer_id')
-            .eq('id', payload.new.booking_id)
-            .maybeSingle();
-          arrivedFor = booking?.customer_id;
-        }
-        if (!arrivedFor) return;
-        // Always credit the owning thread; only add to the global badge when the
-        // user is not already looking at that conversation.
-        setThreadUnread(previous => ({ ...previous, [arrivedFor]: (previous[arrivedFor] || 0) + 1 }));
-        if (arrivedFor !== activeCustomerId) setGlobalUnreadCount(previous => previous + 1);
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'booking_messages'
-      }, (payload) => {
-        if (payload.new.is_read) refreshUnreadCount();
-      })
-      .subscribe();
+    // A burst of events (message + read receipts) becomes one refetch.
+    const scheduleThreads = createCoalescer(() => refreshThreadsRef.current(), 400);
+    const scheduleUnread = createCoalescer(() => refreshUnreadRef.current(), 400);
+
+    const stopInsert = subscribeTable({ table: 'booking_messages', event: 'INSERT' }, async (payload) => {
+      // Events may have been missed (hidden tab, back/forward cache): reload.
+      if (payload?.resync) {
+        scheduleUnread();
+        scheduleThreads();
+        return;
+      }
+      const row = payload?.new;
+      if (!row || row.message_type === 'system') return;
+      scheduleThreads();
+      if (row.sender_id === user.id || row.is_read) return;
+      // The customer id is on the message itself; rows predating that column
+      // fall back to a lookup through the booking.
+      let arrivedFor = row.customer_id;
+      if (!arrivedFor && row.booking_id) {
+        const { data: booking } = await supabase
+          .from('bookings')
+          .select('customer_id')
+          .eq('id', row.booking_id)
+          .maybeSingle();
+        arrivedFor = booking?.customer_id;
+      }
+      if (!arrivedFor) return;
+      setThreadUnread(previous => ({ ...previous, [arrivedFor]: (previous[arrivedFor] || 0) + 1 }));
+    });
+
+    const stopUpdate = subscribeTable({ table: 'booking_messages', event: 'UPDATE' }, (payload) => {
+      if (payload?.resync || payload?.new?.is_read) {
+        scheduleUnread();
+        scheduleThreads();
+      }
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      scheduleThreads.cancel();
+      scheduleUnread.cancel();
+      stopInsert();
+      stopUpdate();
     };
-  }, [user?.id, activeCustomerId, refreshUnreadCount, accountRevoked, chatAccessAllowed]);
+  }, [user?.id, accountRevoked, chatAccessAllowed]);
 
   /**
-   * Open the conversation for a BOOKING. Section 2: the booking is resolved to
-   * its owning CUSTOMER, and that customer's single thread is opened. The booking
-   * is still remembered so new messages default to tagging it.
+   * Open the conversation for a BOOKING: the booking is resolved to its owning
+   * CUSTOMER and that customer's single thread is opened. The booking is kept as
+   * the default tag for new messages.
    */
   const openChatForBooking = async (bookingId) => {
     if (!bookingId || accountRevoked || !chatAccessAllowed) return;
@@ -167,15 +174,28 @@ export const ChatProvider = ({ children }) => {
     setIsOpen(true);
   };
 
-  /**
-   * Section 2: open a customer's thread directly (no booking context). Used by
-   * the admin chat launcher, which lists one entry per customer.
-   */
-  const openChatForCustomer = (customerId) => {
+  /** Open a customer's thread directly (no booking context): the admin inbox and bubble list. */
+  const openChatForCustomer = (customerId, bookingId = null) => {
     if (!customerId || accountRevoked || !chatAccessAllowed) return;
     setActiveCustomerId(customerId);
+    setActiveBookingId(bookingId);
+    setIsOpen(true);
+  };
+
+  /** Admin: open the conversation list (no thread chosen yet). */
+  const openInbox = () => {
+    if (accountRevoked || !chatAccessAllowed) return;
+    setActiveCustomerId(null);
     setActiveBookingId(null);
     setIsOpen(true);
+    refreshThreads();
+  };
+
+  /** Leave the open thread and go back to the list. */
+  const backToInbox = () => {
+    setActiveCustomerId(null);
+    setActiveBookingId(null);
+    refreshThreads();
   };
 
   const closeChat = () => {
@@ -193,14 +213,18 @@ export const ChatProvider = ({ children }) => {
       activeBookingId,
       globalUnreadCount,
       threadUnread,
+      threads,
+      threadsLoading,
       hasUnreadInThread,
-      setGlobalUnreadCount,
       refreshUnreadCount,
+      refreshThreads,
       reportThreadUnread,
       setActiveCustomerId,
       setActiveBookingId,
       openChatForBooking,
       openChatForCustomer,
+      openInbox,
+      backToInbox,
       closeChat
     }}>
       {children}

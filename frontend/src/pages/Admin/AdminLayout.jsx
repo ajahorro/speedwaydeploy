@@ -12,6 +12,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { confirmLogout } from '../../utils/logoutConfirm';
 import HeaderProfileDropdown from '../../components/common/HeaderProfileDropdown';
 import AdminSearch from '../../components/AdminSearch';
+import FloatingBubbleChat from '../../components/FloatingBubbleChat';
 import NotificationPopover from '../../components/NotificationPopover';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../context/ThemeContext';
@@ -421,6 +422,8 @@ const AdminLayout = () => {
           <Outlet />
         </main>
       </div>
+      {/* Shortcut to the same conversations the Chat page lists. */}
+      <FloatingBubbleChat />
     </div>
   );
 };

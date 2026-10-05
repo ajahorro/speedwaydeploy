@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase, createUniqueChannel } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { subscribeTable } from '../lib/realtimeHub';
 import { useAuth } from '../hooks/useAuth';
 import { Send, Image as ImageIcon, Bot, Check, CheckCheck, Loader2, AlertCircle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -119,7 +120,8 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
       return undefined;
     }
     let active = true;
-    let channel;
+    let stopInsert = null;
+    let stopUpdate = null;
     const startChat = async () => {
       // Section 2: resolve the owning CUSTOMER for this thread. Either the parent
       // passed one directly, or we read it off the booking being viewed.
@@ -154,50 +156,42 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
         fetchBookingOptions(threadCustomerId)
       ]);
 
-      // Real-time subscription is created only after the thread is confirmed to
-      // belong to a registered customer account, and is scoped to the WHOLE
-      // customer conversation — not a single booking.
-      // A unique topic is required: the bubble chat and an inline chat panel can
-      // be mounted for the same customer at once, and reusing the topic would
-      // append to an already-subscribed channel (see createUniqueChannel).
-      channel = createUniqueChannel(`chat-customer-${threadCustomerId}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'booking_messages',
-          filter: `customer_id=eq.${threadCustomerId}`
-        }, (payload) => {
-          if (payload.new.message_type === 'system') return;
-          setMessages(prev => {
-            const filtered = prev.filter(m => !(m.status === 'sending' && m.message === payload.new.message));
-            if (!filtered.some(m => m.id === payload.new.id)) return [...filtered, payload.new];
-            return filtered;
-          });
-          if (payload.new.sender_id !== user.id) {
-            supabase.from('booking_messages').update({ is_read: true, read_at: new Date().toISOString() }).eq('id', payload.new.id).then(async ({ error: readError }) => {
-              if (readError) console.error('Unable to mark incoming message as read:', readError);
-              else await refreshUnreadCount();
-            });
-          }
+      // Live updates come from the shared realtime hub (one channel per thread,
+      // shared with any other panel showing the same customer, and re-synced after
+      // a hidden tab or a back/forward-cache restore). The subscription starts only
+      // after the thread is confirmed to belong to a registered customer.
+      if (!active) return;
+      const filter = `customer_id=eq.${threadCustomerId}`;
+      stopInsert = subscribeTable({ table: 'booking_messages', event: 'INSERT', filter }, (payload) => {
+        if (payload?.resync) {
           fetchMessages(threadCustomerId);
-        })
-        .on('postgres_changes', {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'booking_messages',
-          filter: `customer_id=eq.${threadCustomerId}`
-        }, (payload) => {
-          setMessages(prev => prev.map(message => message.id === payload.new.id ? { ...message, ...payload.new } : message));
-        })
-        .subscribe((status) => {
-          if (status === 'CLOSED' || status === 'CHANNEL_ERROR') console.warn('Chat connection temporarily offline. Reconnecting...');
+          return;
+        }
+        if (payload.new.message_type === 'system') return;
+        setMessages(prev => {
+          const filtered = prev.filter(m => !(m.status === 'sending' && m.message === payload.new.message));
+          if (!filtered.some(m => m.id === payload.new.id)) return [...filtered, payload.new];
+          return filtered;
         });
+        if (payload.new.sender_id !== user.id) {
+          supabase.from('booking_messages').update({ is_read: true, read_at: new Date().toISOString() }).eq('id', payload.new.id).then(async ({ error: readError }) => {
+            if (readError) console.error('Unable to mark incoming message as read:', readError);
+            else await refreshUnreadCount();
+          });
+        }
+        fetchMessages(threadCustomerId);
+      });
+      stopUpdate = subscribeTable({ table: 'booking_messages', event: 'UPDATE', filter }, (payload) => {
+        if (payload?.resync || !payload?.new) return;
+        setMessages(prev => prev.map(message => message.id === payload.new.id ? { ...message, ...payload.new } : message));
+      });
     };
     startChat();
 
     return () => {
       active = false;
-      if (channel) supabase.removeChannel(channel);
+      if (stopInsert) stopInsert();
+      if (stopUpdate) stopUpdate();
     };
   }, [bookingId, customerIdProp, user?.id, profile, refreshUnreadCount, reportThreadUnread, fetchMessages, fetchBookingOptions]);
 
