@@ -2951,47 +2951,6 @@ export default function BusinessHub() {
                         </button>
                       ) : (
                         <>
-                          <span style={{ fontSize: '0.68rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            {selectedServiceIds.length} selected
-                          </span>
-                          <button
-                            type="button"
-                            onClick={toggleSelectAllServices}
-                            disabled={!filteredServices.length}
-                            style={{ ...ghostButton, opacity: filteredServices.length ? 1 : 0.45, cursor: filteredServices.length ? 'pointer' : 'not-allowed' }}
-                          >
-                            {allVisibleServicesSelected ? 'Clear selection' : 'Select all'}
-                          </button>
-                          {/* Archive and Restore are two separate controls with two
-                              separate outcomes. Each is disabled unless the selection
-                              actually contains a row in the state that operation applies
-                              to, so a button can never silently no-op. */}
-                          <button
-                            type="button"
-                            disabled={!archiveTargets.length}
-                            onClick={requestBatchArchive}
-                            title={archiveTargets.length ? `Archive ${archiveTargets.length} active service(s)` : 'Select at least one active service to archive'}
-                            style={{ ...buttonBase, background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', opacity: archiveTargets.length ? 1 : 0.45, cursor: archiveTargets.length ? 'pointer' : 'not-allowed' }}
-                          >
-                            <Archive size={14} /> Archive
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!restoreTargets.length}
-                            onClick={requestBatchRestore}
-                            title={restoreTargets.length ? `Restore ${restoreTargets.length} archived service(s)` : 'Select at least one archived service to restore'}
-                            style={{ ...buttonBase, background: 'var(--admin-bg)', color: 'var(--admin-brand)', border: '1px solid var(--admin-border)', opacity: restoreTargets.length ? 1 : 0.45, cursor: restoreTargets.length ? 'pointer' : 'not-allowed' }}
-                          >
-                            <ArchiveRestore size={14} /> Restore
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!selectedServiceRows.length}
-                            onClick={requestBatchDelete}
-                            style={{ ...buttonBase, background: 'rgba(239,68,68,0.1)', color: 'var(--status-danger)', border: '1px solid rgba(239,68,68,0.4)', opacity: selectedServiceRows.length ? 1 : 0.45, cursor: selectedServiceRows.length ? 'pointer' : 'not-allowed' }}
-                          >
-                            <Trash2 size={14} /> Delete
-                          </button>
                           <button
                             type="button"
                             onClick={exitServiceEditMode}
@@ -3003,6 +2962,54 @@ export default function BusinessHub() {
                       )}
                     </div>
                   </div>
+
+                  {serviceEditMode && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          {selectedServiceIds.length} selected
+                        </span>
+                        <button
+                          type="button"
+                          onClick={toggleSelectAllServices}
+                          disabled={!filteredServices.length}
+                          style={{ ...ghostButton, opacity: filteredServices.length ? 1 : 0.45, cursor: filteredServices.length ? 'pointer' : 'not-allowed' }}
+                        >
+                          {allVisibleServicesSelected ? 'Clear selection' : 'Select all'}
+                        </button>
+                        {/* Archive and Restore are two separate controls with two
+                            separate outcomes. Each is disabled unless the selection
+                            actually contains a row in the state that operation applies
+                            to, so a button can never silently no-op. */}
+                        <button
+                          type="button"
+                          disabled={!archiveTargets.length}
+                          onClick={requestBatchArchive}
+                          title={archiveTargets.length ? `Archive ${archiveTargets.length} active service(s)` : 'Select at least one active service to archive'}
+                          style={{ ...buttonBase, background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', opacity: archiveTargets.length ? 1 : 0.45, cursor: archiveTargets.length ? 'pointer' : 'not-allowed' }}
+                        >
+                          <Archive size={14} /> Archive
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!restoreTargets.length}
+                          onClick={requestBatchRestore}
+                          title={restoreTargets.length ? `Restore ${restoreTargets.length} archived service(s)` : 'Select at least one archived service to restore'}
+                          style={{ ...buttonBase, background: 'var(--admin-bg)', color: 'var(--admin-brand)', border: '1px solid var(--admin-border)', opacity: restoreTargets.length ? 1 : 0.45, cursor: restoreTargets.length ? 'pointer' : 'not-allowed' }}
+                        >
+                          <ArchiveRestore size={14} /> Restore
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!selectedServiceRows.length}
+                          onClick={requestBatchDelete}
+                          style={{ ...buttonBase, background: 'rgba(239,68,68,0.1)', color: 'var(--status-danger)', border: '1px solid rgba(239,68,68,0.4)', opacity: selectedServiceRows.length ? 1 : 0.45, cursor: selectedServiceRows.length ? 'pointer' : 'not-allowed' }}
+                        >
+                          <Trash2 size={14} /> Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '880px' }}>
