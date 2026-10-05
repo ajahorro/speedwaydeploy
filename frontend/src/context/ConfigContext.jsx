@@ -43,6 +43,9 @@ const settingsFromRow = (data) => {
   return {
     config: data || null,
     MAX_BAYS: bayCapacityOf(data),
+    TECHNICIANS: Number(data?.technicians) || null,
+    VEHICLES_PER_TECHNICIAN: Number(data?.max_vehicles_per_staff) || 4,
+    BAYS: Number(data?.slots_per_hour) || 1,
     // When the shop is open 24 hours the whole day is bookable; report 0..24 so
     // grid math spanning CLOSING_HOUR - OPENING_HOUR covers the full day.
     OPENING_HOUR: data?.is_24_7 === true ? 0 : parseHour(data?.opening_hour, SHOP_CONFIG.OPENING_HOUR),

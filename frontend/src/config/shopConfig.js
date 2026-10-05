@@ -17,9 +17,22 @@ import { setDownpaymentPolicy } from '../utils/paymentUtils';
 
 let row = null;
 let inflight = null;
+// Active staff accounts (the database's shop_capacity() figure); null until first load.
+let technicians = null;
 const listeners = new Set();
 
-const applyRow = (next) => {
+/** Bays the shop can use at once: the lower of the bays and vehicles-per-technician x technicians. */
+const withEffectiveBays = (next) => {
+  if (!next) return null;
+  const bays = Number(next.slots_per_hour);
+  const perTechnician = Number(next.max_vehicles_per_staff);
+  if (!Number.isFinite(bays) || bays <= 0) return { ...next, technicians };
+  const byStaff = Number.isFinite(perTechnician) && perTechnician > 0 && technicians ? perTechnician * technicians : Infinity;
+  return { ...next, technicians, effective_bays: Math.max(1, Math.min(bays, byStaff)) };
+};
+
+const applyRow = (incoming) => {
+  const next = withEffectiveBays(incoming);
   row = next || null;
   setCatalogSource({
     customServices: Array.isArray(row?.custom_services) ? row.custom_services : [],
@@ -51,6 +64,8 @@ export const fetchShopConfig = async ({ force = false } = {}) => {
       .limit(1)
       .maybeSingle();
     if (error) throw error;
+    const { data: capacity } = await supabase.rpc('shop_capacity');
+    if (capacity?.technicians) technicians = Number(capacity.technicians);
     applyRow(data);
     return row;
   })();
@@ -75,9 +90,9 @@ export const subscribeShopConfig = (listener) => {
   return () => listeners.delete(listener);
 };
 
-/** Bays bookable per slot. 1 matches the database capacity default. */
+/** Vehicles bookable per slot (effective capacity). 1 matches the database default. */
 export const bayCapacityOf = (config) => {
-  const value = Number(config?.slots_per_hour);
+  const value = Number(config?.effective_bays ?? config?.slots_per_hour);
   return Number.isFinite(value) && value > 0 ? value : 1;
 };
 

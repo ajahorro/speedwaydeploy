@@ -95,6 +95,22 @@ select pg_temp.check('bays', 'capacity enforcement can be switched off',
   public.slot_has_capacity(((select d from probe)::text || ' 10:00 Asia/Manila')::timestamptz, ((select d from probe)::text || ' 11:00 Asia/Manila')::timestamptz, null, 9), '');
 update business_config set enforce_capacity = true;
 
+-- technician capacity ("Vehicles per Technician", migration 20261104000001):
+-- a slot holds the lower of the bays and vehicles-per-technician x active staff accounts
+update business_config set enforce_capacity = true, slots_per_hour = 8, max_vehicles_per_staff = 1;
+select pg_temp.check('technicians', 'effective capacity is the lower of bays and per-technician x technicians',
+  (public.shop_capacity() ->> 'effective')::int = least(8, 1 * (public.shop_capacity() ->> 'technicians')::int), public.shop_capacity()::text);
+select pg_temp.check('technicians', 'a booking above the technicians'' limit is refused even with free bays',
+  not public.slot_has_capacity(((select d from probe)::text || ' 10:00 Asia/Manila')::timestamptz, ((select d from probe)::text || ' 11:00 Asia/Manila')::timestamptz, null, (public.shop_capacity() ->> 'technicians')::int + 1), '');
+select pg_temp.check('technicians', 'a booking at the technicians'' limit fits',
+  public.slot_has_capacity(((select d from probe)::text || ' 10:00 Asia/Manila')::timestamptz, ((select d from probe)::text || ' 11:00 Asia/Manila')::timestamptz, null, (public.shop_capacity() ->> 'technicians')::int), '');
+update business_config set max_vehicles_per_staff = 4;
+select pg_temp.check('technicians', 'raising vehicles per technician raises capacity (bays still cap it)',
+  (public.shop_capacity() ->> 'effective')::int = least(8, 4 * (public.shop_capacity() ->> 'technicians')::int), public.shop_capacity()::text);
+update business_config set slots_per_hour = 1;
+select pg_temp.check('technicians', 'the bay limit still caps capacity',
+  (public.shop_capacity() ->> 'effective')::int = 1, public.shop_capacity()::text);
+
 -- ── 3. Terms (Terms tab) ───────────────────────────────────────────────────
 do $terms$
 declare

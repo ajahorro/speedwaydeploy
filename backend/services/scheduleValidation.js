@@ -87,6 +87,14 @@ async function loadScheduleContext(supabaseAdmin, dateStr, opts = {}) {
     .maybeSingle();
   if (configError) throw configError;
 
+  // Effective capacity = lower of the bays and vehicles-per-technician x technicians, computed
+  // once in the database (shop_capacity) so the backend never disagrees with the trigger.
+  if (config) {
+    const { data: capacity } = await supabaseAdmin.rpc('shop_capacity');
+    const effective = Number(capacity?.effective);
+    if (Number.isFinite(effective) && effective > 0) config.slots_per_hour = effective;
+  }
+
   // How many calendar days the requested service spans. A 2-day staging job must
   // see day+2's blocks/bookings, not just the start day. Always fetch at least
   // the day after (historical behaviour) so a midnight crossing is covered.

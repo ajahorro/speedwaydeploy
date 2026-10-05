@@ -134,7 +134,8 @@ export const normalizeConfig = (config) => {
     max_advance_days: Math.max(1, int(cfg.max_advance_days, SCHEDULE_DEFAULTS.max_advance_days)),
     closed_weekdays: weekdays,
     enforce_capacity: cfg.enforce_capacity !== false, // default ON unless explicitly false
-    slots_per_hour: Math.max(1, int(cfg.slots_per_hour, SCHEDULE_DEFAULTS.slots_per_hour)),
+    // effective capacity: bays limited by vehicles-per-technician x technicians (database shop_capacity)
+    slots_per_hour: Math.max(1, int(cfg.effective_bays ?? cfg.slots_per_hour, SCHEDULE_DEFAULTS.slots_per_hour)),
     opening_hour: openingHour,
     // closing_hour may legitimately be 24 for a 24/7 shop (end of day).
     closing_hour: closingHour,
