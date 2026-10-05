@@ -131,8 +131,44 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
    */
   const scanIdRef = useRef(0);
 
+  const RECEIPT_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif';
+  const isImageFile = (file) => Boolean(file && /^image\//i.test(file.type || ''));
+
+  // Drag-and-drop onto the upload zone: images only, ignored while a scan runs.
+  const dropZoneIdle = 'rgba(var(--admin-brand-rgb), 0.02)';
+  const dropProps = {
+    onDragOver: (event) => {
+      event.preventDefault();
+      if (!isUploading) event.currentTarget.style.background = 'rgba(var(--admin-brand-rgb), 0.1)';
+    },
+    onDragLeave: (event) => { event.currentTarget.style.background = dropZoneIdle; },
+    onDrop: (event) => {
+      event.preventDefault();
+      event.currentTarget.style.background = dropZoneIdle;
+      if (isUploading) return;
+      const files = Array.from(event.dataTransfer?.files || []);
+      const image = files.find(isImageFile);
+      if (!image) {
+        toastManager.error('Only photos can be dropped here (JPG, PNG, WebP or HEIC).');
+        return;
+      }
+      handleFileUpload({ target: { files: [image], value: null } });
+    }
+  };
+
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
+    // One scan at a time: nothing can start while a receipt is being read.
+    if (file && isUploading) {
+      e.target.value = null;
+      return;
+    }
+    // Only photos: a PDF, document or other file cannot be read as a receipt.
+    if (file && !isImageFile(file)) {
+      e.target.value = null;
+      toastManager.error('Only photos can be uploaded (JPG, PNG, WebP or HEIC).');
+      return;
+    }
     if (file) {
       // 🔄 RESET: Clear the input so selecting the same file again triggers onChange
       e.target.value = null;
@@ -153,7 +189,9 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
       try {
         const paymentType = bookingData.payment?.type || 'Full';
-        const targetAmount = paymentType === 'Downpayment' ? getRequiredDownpayment(grandTotal) : grandTotal;
+        const targetAmount = paymentType === 'Downpayment'
+          ? getRequiredDownpayment(grandTotal)
+          : (paymentType === 'Manual' && Number(bookingData.payment?.manualAmount) > 0 ? Number(bookingData.payment.manualAmount) : grandTotal);
         // The shop's registered payee for THIS checkout (config.qr_account_name).
         // The backend compares the receipt's recipient against this BEFORE it
         // parses amounts, so a wrong payee aborts the scan immediately.
@@ -170,7 +208,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         formData.append('bookingId', bookingData.id || 'PENDING');
         formData.append('requiredAmount', targetAmount);
         formData.append('fullAmount', grandTotal);
-        formData.append('paymentType', paymentType);
+        // A typed amount is checked the way a downpayment is: at least that amount, never more than the total.
+        formData.append('paymentType', paymentType === 'Manual' ? 'Downpayment' : paymentType);
         // 🛡️ SCENARIO 8 — GHOST QR CODE SWAP.
         // The customer has been sitting on this checkout for minutes; the admin
         // just swapped the store QR image. The customer scanned the QR that was ON
@@ -389,6 +428,14 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   );
   const isWarningReceipt = Boolean(receiptDetails) && (!receiptVerified || receiptValidationErrors.length > 0);
   const manualAmount = Number(bookingData.payment.manualAmount || 0);
+  // Walk-in payment, simplified: Downpayment and Full are fixed amounts; Manual is
+  // typed but cannot be below the required downpayment (when one applies) or above
+  // the booking total. The screen always says what the customer still owes.
+  const manualMinimum = requiresDownpayment(grandTotal) ? downpaymentAmount : 0.01;
+  const adminChosenAmount = bookingData.payment.type === 'Full'
+    ? grandTotal
+    : bookingData.payment.type === 'Downpayment' ? downpaymentAmount : manualAmount;
+  const adminStillOwed = Math.max(0, grandTotal - (Number.isFinite(adminChosenAmount) ? adminChosenAmount : 0));
   const renderReceiptFeedback = () => {
     if (manualReviewAllowedReceipt) {
       return (
@@ -468,7 +515,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
   const adminPaymentValid = !adminMode || (
     ['Downpayment', 'Full', 'Manual'].includes(bookingData.payment.type) &&
-    (bookingData.payment.type !== 'Manual' || (manualAmount > 0 && manualAmount <= grandTotal)) &&
+    (bookingData.payment.type !== 'Manual' || (manualAmount >= manualMinimum && manualAmount <= grandTotal)) &&
     (!isGcash || (adminDigitalMode === 'reference' ? adminRefNumberValid : adminOcrProofValid))
   );
   // 🛡️ SC-22 — PREREQUISITE GATE.
@@ -505,6 +552,22 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   const canUseCash = adminMode || grandTotal < CASH_DISABLED_THRESHOLD;
   const canUseDownpayment = requiresDownpayment(grandTotal);
 
+  // Walk-in default: Cash, with the downpayment when one applies (otherwise Full).
+  // Applied once, before the admin has touched anything.
+  const adminDefaultApplied = useRef(false);
+  useEffect(() => {
+    if (!adminMode || adminDefaultApplied.current) return;
+    adminDefaultApplied.current = true;
+    // Coming back to this step must keep what the admin already chose.
+    const untouched = bookingData.payment?.method === 'GCash' && bookingData.payment?.type === 'Full'
+      && !bookingData.payment?.manualAmount && !bookingData.payment?.proofOfPayment;
+    if (!untouched) return;
+    setBookingData(prev => ({
+      ...prev,
+      payment: { ...prev.payment, method: 'Cash', type: requiresDownpayment(grandTotal) ? 'Downpayment' : 'Full' }
+    }));
+  }, []); // eslint-disable-line
+
   // Auto-switch if current selection becomes invalid
   useEffect(() => {
     if (!adminMode && grandTotal >= CASH_DISABLED_THRESHOLD && bookingData.payment.method === 'Cash') {
@@ -516,8 +579,11 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   }, [grandTotal]); // eslint-disable-line
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+    <div data-ocr-busy={isUploading ? 'true' : undefined} aria-busy={isUploading || undefined} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <style>{`
+        /* While a receipt is being read nothing else on this step can be clicked. */
+        [data-ocr-busy='true'] button, [data-ocr-busy='true'] select, [data-ocr-busy='true'] input, [data-ocr-busy='true'] textarea { pointer-events: none; opacity: .55; }
+        [data-ocr-busy='true'] label[for] { pointer-events: none; }
         .review-payment-grid {
           display: grid;
           grid-template-columns: minmax(0, 1fr);
@@ -798,6 +864,16 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                 </div>
                 {bookingData.payment.type === 'Manual' && <input type="text" inputMode="decimal" pattern="[0-9.]*" value={bookingData.payment.manualAmount || ''} onChange={event => setBookingData(prev => ({ ...prev, payment: { ...prev.payment, manualAmount: sanitizeCurrency(event.target.value) } }))} placeholder="Enter amount" aria-label="Manual payment amount" style={{ width: '100%', boxSizing: 'border-box', padding: '.85rem 1rem', background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-input-border)', borderRadius: '6px', fontWeight: '800' }} />}
                 {bookingData.payment.type === 'Manual' && manualAmount > grandTotal && <span style={{ color: 'var(--status-danger)', fontSize: '.7rem', fontWeight: '800' }}>Manual amount cannot be higher than the booking total.</span>}
+                {bookingData.payment.type === 'Manual' && manualAmount > 0 && manualAmount < manualMinimum && <span style={{ color: 'var(--status-danger)', fontSize: '.7rem', fontWeight: '800' }}>Manual amount must be at least the required downpayment of ₱{downpaymentAmount.toLocaleString()}.</span>}
+                <div role="status" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '.5rem', padding: '.7rem .9rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '6px', fontSize: '.78rem', fontWeight: 800, color: 'var(--admin-text-primary)' }}>
+                  <span>Collected now: ₱{(Number.isFinite(adminChosenAmount) ? adminChosenAmount : 0).toLocaleString()}</span>
+                  <span style={{ color: adminStillOwed > 0 ? 'var(--status-warning)' : 'var(--status-success)' }}>{adminStillOwed > 0 ? `Customer still owes ₱${adminStillOwed.toLocaleString()}` : 'Paid in full'}</span>
+                </div>
+                {isGcash && receiptDetails?.amountDetected && Number.isFinite(Number(receiptDetails.amount)) && Math.abs(Number(receiptDetails.amount) - adminChosenAmount) > 1 && (
+                  <span role="alert" style={{ color: 'var(--status-warning)', fontSize: '.72rem', fontWeight: 800 }}>
+                    The receipt shows ₱{Number(receiptDetails.amount).toLocaleString()}, but you chose ₱{adminChosenAmount.toLocaleString()}. Check which one is right before confirming.
+                  </span>
+                )}
               </div>
             )}
             </div>}
@@ -883,7 +959,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                     <input
                       type="file"
                       id="admin-receipt-upload"
-                      accept="image/*"
+                      accept={RECEIPT_ACCEPT}
+                      disabled={isUploading}
                       onChange={handleFileUpload}
                       style={{ display: 'none' }}
                     />
@@ -891,6 +968,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                     {!receiptDetails ? (
                       <label
                         htmlFor="admin-receipt-upload"
+                        {...dropProps}
                         className="admin-card-hover"
                         style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem',
@@ -914,7 +992,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                           <>
                             <Upload size={36} color="var(--admin-brand)" />
                             <div style={{ textAlign: 'center' }}>
-                              <div style={{ color: 'var(--admin-brand)', fontWeight: '950', fontSize: '1rem', letterSpacing: '1px' }}>UPLOAD PAYMENT RECEIPT</div>
+                              <div style={{ color: 'var(--admin-brand)', fontWeight: '950', fontSize: '1rem', letterSpacing: '1px' }}>UPLOAD OR DROP PAYMENT RECEIPT</div>
                               <div style={{ color: 'var(--admin-text-secondary)', fontWeight: '800', fontSize: '0.7rem', marginTop: '0.4rem', textTransform: 'uppercase' }}>Supports E-Wallet & Bank Receipts</div>
                             </div>
                           </>
@@ -1041,7 +1119,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                   <input
                     type="file"
                     id="receipt-upload"
-                    accept="image/*"
+                    accept={RECEIPT_ACCEPT}
+                    disabled={isUploading}
                     onChange={handleFileUpload}
                     style={{ display: 'none' }}
                   />
@@ -1049,6 +1128,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                   {!receiptDetails ? (
                     <label
                       htmlFor="receipt-upload"
+                      {...dropProps}
                       className="admin-card-hover"
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem',
@@ -1073,7 +1153,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                         <>
                           <Upload size={40} color="var(--admin-brand)" />
                           <div style={{ textAlign: 'center' }}>
-                            <div style={{ color: 'var(--admin-brand)', fontWeight: '950', fontSize: '1.1rem', letterSpacing: '1px' }}>UPLOAD PAYMENT RECEIPT</div>
+                            <div style={{ color: 'var(--admin-brand)', fontWeight: '950', fontSize: '1.1rem', letterSpacing: '1px' }}>UPLOAD OR DROP PAYMENT RECEIPT</div>
                             <div style={{ color: 'var(--admin-text-secondary)', fontWeight: '800', fontSize: '0.75rem', marginTop: '0.5rem', textTransform: 'uppercase' }}>Supports E-Wallet & Bank Receipts</div>
                           </div>
                         </>
@@ -1224,6 +1304,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
       <div className="review-action-footer" style={{ borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem', marginTop: '1rem' }}>
         <button
           onClick={onBack}
+          disabled={isUploading}
           style={{
             padding: '1rem 2rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-md)', fontWeight: '950', fontSize: '1rem', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px'
           }}
@@ -1235,6 +1316,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           <button
             type="button"
             onClick={onCancel}
+            disabled={isUploading}
             style={{
               background: 'transparent',
               border: '1px solid var(--status-danger)',

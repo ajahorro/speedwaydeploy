@@ -963,6 +963,16 @@ const recipientNameMatches = (receiptRecipient, expectedRecipient) => {
   return receiptText.includes(expectedText) || expectedText.includes(receiptText);
 };
 
+// A reference number is kept only for a payment that actually becomes part of a
+// booking. A receipt that failed its checks (rejected, duplicate, mismatched)
+// must leave no reference behind, otherwise failed attempts pile up in the
+// database and can wrongly block a later genuine payment. The read text goes
+// with it, since it contains the same reference.
+const withoutReference = (data) => {
+  const { referenceNo, referenceNumber, rawText, ocrText, ...rest } = data || {};
+  return rest;
+};
+
 const registerOcrScanSession = async (imageHash, ocrMetadata) => {
   if (!supabaseAdmin) throw new Error('OCR scan session storage is unavailable.');
   const { data, error } = await supabaseAdmin.rpc('register_ocr_scan_session', {
@@ -1217,6 +1227,9 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           .from('ocr_scan_sessions')
           .select('id, booking_id, payment_id')
           .eq('image_hash', imageHash)
+          // Only a photo that already belongs to a booking is "used"; a scan that
+          // was never turned into a booking (abandoned or retried) is not.
+          .not('booking_id', 'is', null)
           .limit(1);
 
         if (hashError) {
@@ -1459,14 +1472,14 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         p_booking_id: bookingId,
         p_payment_id: paymentId,
         p_detected_amount: extractedAmount,
-        p_detected_ref: referenceNo || null,
+        p_detected_ref: receiptIsTrustworthy ? (referenceNo || null) : null,
         // bookings.payment_status is the booking_payment_status enum
         // (unpaid | pending | paid | refunded). It has NO 'for_verification'
         // member — 'pending' is how the booking spells "awaiting verification".
         // The payment row separately records FOR_VERIFICATION / REJECTED.
         p_payment_status: finalBookingStatus,
         p_ocr_metadata: {
-          ...extractedData,
+          ...(receiptIsTrustworthy ? extractedData : withoutReference(extractedData)),
           // The payment-level verdict, kept inside the JSON so the rejection
           // reason survives even though the enum column only holds 'pending'.
           payment_verdict: finalPaymentStatus,
@@ -1554,7 +1567,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
           action_type: 'AI_VERIFICATION_COMPLETE',
           actor_name: 'AI_AUDITOR',
           actor_role: 'SYSTEM',
-          details: `AI extraction complete. Reference: ${referenceNo || 'N/A'}. Amount: ₱${extractedAmount}. Amount match: ${isAmountMatch}. Duplicate: ${isDuplicate}. Persisted status: ${finalStatus}.`
+          details: `AI extraction complete. Reference: ${receiptIsTrustworthy ? (referenceNo || 'N/A') : 'not kept (receipt did not pass)'}. Amount: ₱${extractedAmount}. Amount match: ${isAmountMatch}. Duplicate: ${isDuplicate}. Persisted status: ${finalStatus}.`
         });
       } catch (logErr) {
         console.warn('⚠️ Audit logging failed, but the verdict was persisted.');
