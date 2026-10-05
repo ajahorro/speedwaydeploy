@@ -130,7 +130,7 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
                 {step === 'COMPLETED' && rawStatus === 'COMPLETED' && onUnitCollected && (
                   <button
                     onClick={onUnitCollected}
-                    style={{ marginTop: '0.15rem', padding: '0.35rem 0.55rem', background: 'rgba(16, 185, 129, 0.1)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.45)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.55rem', fontWeight: '900', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    style={{ marginTop: '0.4rem', padding: '0.55rem 0.9rem', background: '#059669', color: '#fff', border: '1px solid #047857', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.65rem', fontWeight: '900', letterSpacing: '0.06em', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(5, 150, 105, 0.3)' }}
                   >
                     UNIT COLLECTED
                   </button>

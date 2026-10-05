@@ -307,7 +307,7 @@ const AdminBookings = () => {
                     }}
                     style={{ width: '100%', marginTop: '0.85rem', padding: '0.75rem', background: 'transparent', border: '1px solid var(--status-danger, #dc2626)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-danger, #dc2626)', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', textTransform: 'uppercase' }}
                   >
-                    Cancel Booking
+                    Cancel
                   </button>
                 )}
               </div>

@@ -61,6 +61,9 @@ const AdminBookingDetails = () => {
   const [loading, setLoading] = useState(true);
   const [paymentModal, setPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
+  // Top-up: how the customer paid (Cash, or Digital with a reference number).
+  const [topUpMethod, setTopUpMethod] = useState('Cash');
+  const [topUpReference, setTopUpReference] = useState('');
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);
   const [serviceModal, setServiceModal] = useState({ open: false, vehicleId: null });
@@ -755,6 +758,10 @@ const AdminBookingDetails = () => {
       });
     }
 
+    const isDigitalTopUp = topUpMethod === 'Digital';
+    const topUpRef = topUpReference.trim();
+    if (isDigitalTopUp && topUpRef.length < 4) return toast.error('Enter the digital transaction reference number.');
+
     setSubmittingPayment(true);
     const toastId = toast.loading('Recording manual payment...');
     try {
@@ -763,15 +770,19 @@ const AdminBookingDetails = () => {
       const { data: pData, error: pError } = await supabase.from('payments').insert({
         booking_id: id,
         amount: Number(paymentAmount),
-        method: 'Cash',
-        payment_type: 'Manual',
+        method: isDigitalTopUp ? 'GCash' : 'Cash',
+        payment_type: Number(paymentAmount) >= balance ? 'Full' : 'Manual',
         status: 'PAID',
         verified_by: actor?.id,
         verified_at: new Date().toISOString(),
-        notes: 'PAYMENT_CASH | Manual entry by Admin'
+        reference_number: isDigitalTopUp ? topUpRef : null,
+        notes: `PAYMENT_${isDigitalTopUp ? 'DIGITAL' : 'CASH'} | Top-up recorded by Admin${isDigitalTopUp ? ` | REF:${topUpRef}` : ''}`
       }).select().single();
 
-      if (pError) throw pError;
+      if (pError) {
+        if (pError.code === '23505') throw new Error('That reference number has already been used on another payment.');
+        throw pError;
+      }
 
       // Notify Customer
       await notifyUser(booking.customer_id, 'Payment Received', `We have recorded your manual payment of ₱${Number(paymentAmount).toLocaleString()}.`, 'PAYMENT_RECEIVED', `/customer/bookings/${id}`);
@@ -782,7 +793,7 @@ const AdminBookingDetails = () => {
         action_type: 'PAYMENT_RECORDED',
         actor_name: actor?.email || 'Admin',
         actor_role: 'ADMIN',
-        details: `Manually recorded Cash payment of ₱${Number(paymentAmount).toLocaleString()}.`
+        details: `Top-up recorded: ₱${Number(paymentAmount).toLocaleString()}, ${isDigitalTopUp ? 'Digital' : 'Cash'}${isDigitalTopUp ? `, reference ${topUpRef}` : ''}.`
       });
 
       // Passing the new payment emails its receipt once (booking-lifecycle).
@@ -790,10 +801,11 @@ const AdminBookingDetails = () => {
       toast.success('Payment Recorded & Audit Verified', { id: toastId });
       setPaymentModal(false);
       setPaymentAmount('');
+      setTopUpReference('');
       fetchPayments(); fetchBookingDetails(); fetchAuditLogs();
     } catch (err) {
       logger.error('Manual Payment Error', err);
-      toast.error('Failed to record payment', { id: toastId });
+      toast.error(err?.message && /reference number/i.test(err.message) ? err.message : 'Failed to record payment', { id: toastId });
     } finally {
       setSubmittingPayment(false);
     }
@@ -1378,6 +1390,27 @@ const AdminBookingDetails = () => {
             </button>
           </div>
         )}
+        {!['completed', 'released', 'cancelled', 'flagged_noshow'].includes(derivedStatus) && (
+          <button
+            type="button"
+            onClick={() => requestBookingStatusUpdate('cancelled')}
+            title="Cancel this booking"
+            style={{
+              background: 'transparent',
+              color: 'var(--status-danger)',
+              border: '1px solid var(--status-danger)',
+              padding: '0.75rem 1.25rem',
+              borderRadius: 'var(--admin-radius-sm)',
+              fontSize: '0.75rem',
+              fontWeight: '950',
+              cursor: 'pointer',
+              textTransform: 'uppercase',
+              letterSpacing: '1px'
+            }}
+          >
+            Cancel
+          </button>
+        )}
       </div>
 
       <BookingSummaryHeader booking={booking} showCustomer={!isMobile} onUnitCollected={derivedStatus === 'completed' ? requestReleaseBooking : undefined} paymentStatus={paymentSummary} />
@@ -1603,6 +1636,28 @@ const AdminBookingDetails = () => {
 
             {/* Re-activates if balance > 0 OR override is enabled */}
             {(balance > 0 || showManualInput) && !isLocked && (
+              <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: 'var(--admin-text-secondary)' }}>How was it paid?</span>
+                {['Cash', 'Digital'].map(method => (
+                  <button key={method} type="button" onClick={() => { setTopUpMethod(method); if (method === 'Cash') setTopUpReference(''); }} style={{ padding: '0.5rem 0.9rem', borderRadius: '6px', border: `1px solid ${topUpMethod === method ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: topUpMethod === method ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-bg)', color: topUpMethod === method ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontWeight: 900, fontSize: '0.7rem', cursor: 'pointer' }}>{method}</button>
+                ))}
+                {balance > 0 && (
+                  <button type="button" onClick={() => setPaymentAmount(String(balance))} style={{ marginLeft: 'auto', padding: '0.5rem 0.9rem', borderRadius: '6px', border: '1px solid var(--admin-border)', background: 'transparent', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.7rem', cursor: 'pointer' }}>Pay full balance ({formatCurrency(balance)})</button>
+                )}
+              </div>
+            )}
+            {(balance > 0 || showManualInput) && !isLocked && topUpMethod === 'Digital' && (
+              <input
+                type="text"
+                placeholder="Digital transaction reference number"
+                aria-label="Digital transaction reference number"
+                value={topUpReference}
+                onChange={(e) => setTopUpReference(e.target.value.replace(/\s+/g, ''))}
+                style={{ width: '100%', boxSizing: 'border-box', marginTop: '0.5rem', padding: '0.85rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '0.5rem', color: 'var(--admin-text-primary)', fontWeight: 800, outline: 'none' }}
+              />
+            )}
+
+            {(balance > 0 || showManualInput) && !isLocked && (
               <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.75rem', animation: 'fadeIn 0.3s ease' }}>
                 <div style={{ flex: 1, position: 'relative' }}>
                   <div style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-brand)', fontWeight: '950' }}>₱</div>
@@ -1616,9 +1671,10 @@ const AdminBookingDetails = () => {
                   />
                 </div>
                 <button
-                  onClick={() => confirmThen({ title: 'Record this payment?', message: 'The amount will be added to this booking’s ledger and the customer will be notified.', confirmText: 'Record payment' }, handleRecordPayment)}
-                  disabled={submittingPayment}
-                  style={{ padding: '0 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: submittingPayment ? 0.5 : 1 }}
+                  onClick={() => confirmThen({ title: 'Record this payment?', message: `${formatCurrency(Number(paymentAmount) || 0)} paid by ${topUpMethod}${topUpMethod === 'Digital' ? ` (ref ${topUpReference.trim()})` : ''} will be added to this booking’s ledger and the customer will be notified.`, confirmText: 'Record payment' }, handleRecordPayment)}
+                  disabled={submittingPayment || !(Number(paymentAmount) > 0) || (topUpMethod === 'Digital' && topUpReference.trim().length < 4)}
+                  title={!(Number(paymentAmount) > 0) ? 'Enter an amount first' : (topUpMethod === 'Digital' && topUpReference.trim().length < 4 ? 'Enter the reference number first' : undefined)}
+                  style={{ padding: '0 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: (submittingPayment || !(Number(paymentAmount) > 0) || (topUpMethod === 'Digital' && topUpReference.trim().length < 4)) ? 0.4 : 1 }}
                 >
                   {submittingPayment ? 'SAVING...' : 'RECORD PAYMENT'}
                 </button>
