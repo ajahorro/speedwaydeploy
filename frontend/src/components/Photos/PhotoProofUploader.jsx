@@ -3,12 +3,12 @@ import { Camera, ImagePlus, Loader2, Trash2, X, AlertTriangle, ChevronLeft, Chev
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
+import { useImagePreview } from '../../context/ImagePreviewContext';
 import {
   uploadServicePhotos,
   fetchVehiclePhotos,
   resolvePhotoUrls,
-  deleteServicePhoto,
-  isAbsoluteUrl
+  deleteServicePhoto
 } from '../../services/photoService';
 
 /**
@@ -41,16 +41,17 @@ const PhotoProofUploader = ({
   const [photos, setPhotos] = useState([]); // resolved rows: { ...row, url }
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState(null);
+  const { openGallery } = useImagePreview();
   const onCountChangeRef = useRef(onCountChange);
 
   const heading = label || (phase === 'before' ? 'Intake Photos (Before)' : 'Completion Photos (After)');
   const evidenceLocked = photos.length > 0;
   const interactionDisabled = disabled || evidenceLocked || loading;
   const viewablePhotos = photos.filter((photo) => photo.url);
-  const lightbox = lightboxIndex === null ? null : viewablePhotos[lightboxIndex];
-  const showPreviousPhoto = () => setLightboxIndex((index) => (index - 1 + viewablePhotos.length) % viewablePhotos.length);
-  const showNextPhoto = () => setLightboxIndex((index) => (index + 1) % viewablePhotos.length);
+  const openPreview = (photoId) => openGallery(
+    viewablePhotos.map((photo) => ({ src: photo.url, alt: photo.caption || `${phase} service photo`, caption: photo.caption || undefined })),
+    Math.max(0, viewablePhotos.findIndex((photo) => photo.id === photoId))
+  );
 
   const load = useCallback(async () => {
     if (!bookingVehicleId) return;
@@ -80,21 +81,6 @@ const PhotoProofUploader = ({
     if (typeof onCountChangeRef.current === 'function') onCountChangeRef.current(photos.length);
   }, [photos.length]);
 
-  useEffect(() => {
-    if (lightboxIndex === null) return undefined;
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setLightboxIndex(null);
-      if (viewablePhotos.length && event.key === 'ArrowLeft') {
-        setLightboxIndex((index) => (index - 1 + viewablePhotos.length) % viewablePhotos.length);
-      }
-      if (viewablePhotos.length && event.key === 'ArrowRight') {
-        setLightboxIndex((index) => (index + 1) % viewablePhotos.length);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lightboxIndex, viewablePhotos.length]);
-
   const validate = (file) => {
     if (!file.type.startsWith('image/')) return `"${file.name}" is not an image.`;
     if (file.size > MAX_BYTES) return `"${file.name}" exceeds the 10 MB limit.`;
@@ -120,6 +106,18 @@ const PhotoProofUploader = ({
       }
     }
 
+    // Submitted evidence is locked (it cannot be added to or removed afterwards),
+    // so the technician confirms before it is sent.
+    // The picked files are already in hand; clear the input so the same photo can be picked again if this is cancelled.
+    if (inputRef.current) inputRef.current.value = '';
+    confirmThen({
+      title: phase === 'before' ? 'Submit the intake photos?' : 'Submit the completion photos?',
+      message: `${files.length} photo${files.length > 1 ? 's' : ''} will be saved as the ${phase === 'before' ? 'before' : 'after'} evidence for this vehicle. Once submitted they are locked and cannot be changed.`,
+      confirmText: 'Upload photos'
+    }, () => sendFiles(files));
+  };
+
+  const sendFiles = async (files) => {
     setUploading(true);
     const toastId = toast.loading(`Uploading ${files.length} photo${files.length > 1 ? 's' : ''}...`);
     try {
@@ -233,7 +231,7 @@ const PhotoProofUploader = ({
             gap: '0.5rem',
             cursor: interactionDisabled || uploading ? 'not-allowed' : 'pointer',
             background: interactionDisabled || uploading ? 'var(--admin-border)' : 'var(--admin-brand)',
-            color: 'var(--admin-text-on-brand)',
+            color: interactionDisabled || uploading ? 'var(--admin-text-secondary)' : 'var(--admin-text-on-brand)',
             border: 'none',
             borderRadius: 'var(--admin-radius)',
             padding: '0.55rem 1rem',
@@ -293,7 +291,7 @@ const PhotoProofUploader = ({
                   alt={p.caption || `${phase} service photo`}
                   loading="lazy"
                   decoding="async"
-                  onClick={() => setLightboxIndex(viewablePhotos.findIndex((photo) => photo.id === p.id))}
+                  onClick={() => openPreview(p.id)}
                   style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in', display: 'block' }}
                 />
               ) : (
@@ -331,83 +329,6 @@ const PhotoProofUploader = ({
         </div>
       )}
 
-      {/* Lightbox */}
-      {lightbox && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={(event) => event.stopPropagation()}
-          onTouchStart={(event) => { event.currentTarget.dataset.touchStartX = String(event.touches[0]?.clientX || 0); }}
-          onTouchEnd={(event) => {
-            const startX = Number(event.currentTarget.dataset.touchStartX);
-            const deltaX = event.changedTouches[0]?.clientX - startX;
-            if (Math.abs(deltaX) > 50) {
-              if (deltaX > 0) showPreviousPhoto();
-              else showNextPhoto();
-            }
-          }}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'var(--modal-overlay)', display: 'grid', placeItems: 'center', padding: '3rem'
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setLightboxIndex(null)}
-            aria-label="Close"
-            style={{
-              position: 'absolute', top: 16, right: 16, width: 34, height: 34,
-              display: 'grid', placeItems: 'center', border: '1px solid var(--admin-border)',
-              borderRadius: 'var(--admin-radius)', background: 'var(--admin-card)',
-              color: 'var(--admin-text-primary)', cursor: 'pointer'
-            }}
-          >
-            <X size={16} />
-          </button>
-          {viewablePhotos.length > 1 && (
-            <button
-              type="button"
-              onClick={(event) => { event.stopPropagation(); showPreviousPhoto(); }}
-              aria-label="Previous photo"
-              style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', width: 42, height: 42, display: 'grid', placeItems: 'center', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', cursor: 'pointer' }}
-            >
-              <ChevronLeft size={22} />
-            </button>
-          )}
-          <img
-            src={lightbox.url}
-            alt={lightbox.caption || 'Service photo'}
-            decoding="async"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: 'min(92vw, 900px)', maxHeight: '86vh',
-              borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)',
-              objectFit: 'contain', background: 'var(--admin-card)'
-            }}
-          />
-          {viewablePhotos.length > 1 && (
-            <button
-              type="button"
-              onClick={(event) => { event.stopPropagation(); showNextPhoto(); }}
-              aria-label="Next photo"
-              style={{ position: 'absolute', right: '0.6rem', top: '50%', transform: 'translateY(-50%)', width: 42, height: 42, display: 'grid', placeItems: 'center', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', cursor: 'pointer' }}
-            >
-              <ChevronRight size={22} />
-            </button>
-          )}
-          {viewablePhotos.length > 1 && (
-            <span style={{ position: 'absolute', bottom: '1rem', color: 'var(--admin-text-on-brand)', fontSize: '0.72rem', fontWeight: 800 }}>
-              {lightboxIndex + 1} / {viewablePhotos.length}
-            </span>
-          )}
-          {lightbox.caption && (
-            <div style={{ color: 'var(--admin-text-on-brand)', fontSize: '0.75rem', marginTop: '0.5rem', textAlign: 'center' }}>
-              {lightbox.caption}
-              {isAbsoluteUrl(lightbox.storage_path) ? ' (legacy record)' : ''}
-            </div>
-          )}
-        </div>
-      )}
     </section>
   );
 };

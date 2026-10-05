@@ -248,8 +248,8 @@ const StaffProfile = () => {
               style={{ 
                 alignSelf: 'flex-start',
                 padding: '0.85rem 2rem', 
-                background: (!isFormValid || passLoading) ? 'rgba(230, 30, 42, 0.35)' : '#E61E2A', 
-                color: (!isFormValid || passLoading) ? 'rgba(255, 255, 255, 0.4)' : 'white', 
+                background: (!isFormValid || passLoading) ? 'var(--admin-border)' : '#E61E2A', 
+                color: (!isFormValid || passLoading) ? 'var(--admin-text-secondary)' : 'white', 
                 border: 'none', borderRadius: '4px', 
                 fontWeight: '950', fontSize: '0.8rem', 
                 cursor: (!isFormValid || passLoading) ? 'not-allowed' : 'pointer',

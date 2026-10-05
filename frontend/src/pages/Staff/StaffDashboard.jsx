@@ -22,6 +22,7 @@ import { SHOW_START_SERVICE_ACTIONS } from '../../config/workflowFeatures';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import StartChecklist from '../../components/Photos/StartChecklist';
 import { startReadiness } from '../../utils/staffStart';
+import CustomerContact from '../../components/Staff/CustomerContact';
 const StaffDashboard = () => {
   const { confirmThen } = useConfirmAction();
   const { profile, toggleShift } = useAuth();
@@ -113,6 +114,8 @@ const StaffDashboard = () => {
           ...v,
           booking_id: b.id,
           booking_status: b.status,
+          customer_name: b.customer_name,
+          contact_number: b.contact_number,
           start_datetime: b.start_datetime
         }))
       ).filter(v => v.status?.toUpperCase() !== 'COMPLETED');
@@ -353,6 +356,7 @@ const StaffDashboard = () => {
                         <span style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>• Plate: {task.plate_number || 'N/A'}</span>
                       </div>
                       <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{task.brand} {task.model}</h3>
+                      <CustomerContact name={task.customer_name} phone={task.contact_number} />
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>

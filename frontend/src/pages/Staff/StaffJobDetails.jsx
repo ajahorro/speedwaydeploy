@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { 
   Car, Clock, CheckCircle2, ChevronLeft, Image as ImageIcon,
-  Calendar, MapPin, Wrench, ShieldCheck, Info
+  Calendar, MapPin, Wrench, ShieldCheck, Info, User
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
 import { fetchVehiclePhotos, resolvePhotoUrls } from '../../services/photoService';
 import { fetchStaffBookings } from '../../utils/notificationRouting';
+import CustomerContact from '../../components/Staff/CustomerContact';
 
 const StaffJobDetails = () => {
   const { id } = useParams();
@@ -54,7 +55,9 @@ const StaffJobDetails = () => {
           id: booking.id,
           status: booking.status,
           start_datetime: booking.start_datetime,
-          end_datetime: booking.end_datetime
+          end_datetime: booking.end_datetime,
+          customer_name: booking.customer_name,
+          contact_number: booking.contact_number
         }
       });
     } catch (err) {
@@ -173,6 +176,17 @@ const StaffJobDetails = () => {
         </div>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          {/* Customer */}
+          {(unit.booking?.customer_name || unit.booking?.contact_number) && (
+            <section style={cardStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid var(--admin-border)', paddingBottom: '1rem' }}>
+                <User size={20} color="var(--admin-brand)" />
+                <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase' }}>Customer</h3>
+              </div>
+              <CustomerContact name={unit.booking?.customer_name} phone={unit.booking?.contact_number} />
+            </section>
+          )}
+
           {/* Operational Timestamps */}
           <section style={cardStyle}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid var(--admin-border)', paddingBottom: '1rem' }}>

@@ -4408,6 +4408,7 @@ app.get('/api/staff/tasks', async (req, res) => {
       || (isUuidPrefix && booking.id.replace(/-/g, '').toLowerCase().startsWith(compactBookingReference));
     const bookingDetailsSelect = `
       id, status, start_datetime, end_datetime, total_amount,
+      customer_name, contact_number,
       vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(
         id, booking_id, status, brand, model, plate_number, vehicle_type,
         fleet_group_id, service_notes, started_at, completed_at,

@@ -13,6 +13,7 @@ import { SHOW_START_SERVICE_ACTIONS } from '../../config/workflowFeatures';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import StartChecklist from '../../components/Photos/StartChecklist';
 import { startReadiness } from '../../utils/staffStart';
+import CustomerContact from '../../components/Staff/CustomerContact';
 
 const StaffActiveJobs = () => {
   const { confirmThen } = useConfirmAction();
@@ -51,6 +52,8 @@ const StaffActiveJobs = () => {
           ...v,
           booking_id: b.id,
           booking_status: b.status,
+          customer_name: b.customer_name,
+          contact_number: b.contact_number,
           start_datetime: b.start_datetime
         }))
       ).filter(v => v.status?.toUpperCase() !== 'COMPLETED');
@@ -149,6 +152,7 @@ const StaffActiveJobs = () => {
                   </div>
                   <div>
                     <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase' }}>{task.brand} {task.model}</h3>
+                    <CustomerContact name={task.customer_name} phone={task.contact_number} compact />
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem' }}>
                       <span style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', padding: '0.15rem 0.45rem', borderRadius: '2px', fontSize: '0.65rem', fontWeight: '950', letterSpacing: '0.5px' }}>
                         {task.plate_number}
