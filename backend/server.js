@@ -2695,6 +2695,119 @@ app.post('/api/admin/services/usage', async (req, res) => {
  * Downgrades a STAFF or ADMIN account to CUSTOMER role.
  * The Default Admin guard is enforced here too.
  */
+// ── Admin edits a staff or admin account (master plan 4.8) ───────────────────────────────
+// Editable: first name, last name, mobile number, birthday, hire date, role (STAFF <-> ADMIN) and
+// a forced password reset. The email address is not editable. Role-safety rules live in the
+// database (default admin, last admin, staff with active services), so they hold for every caller;
+// their errors come back here as 409. Every change writes an audit entry with before and after.
+const NAME_PATTERN = /^[\p{L}][\p{L} .'-]{0,59}$/u;
+const isIsoDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+const todayIsoInManila = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+
+app.patch('/api/admin/staff/:id', async (req, res) => {
+  const actor = await requireAdmin(req);
+  if (!actor) return res.status(403).json({ success: false, error: 'Administrator access required.' });
+
+  const targetId = String(req.params.id || '');
+  const body = req.body || {};
+  if ('email' in body) return res.status(400).json({ success: false, error: 'The email address cannot be changed here.' });
+
+  try {
+    const { data: before, error: loadError } = await supabaseAdmin.from('profiles').select('*').eq('id', targetId).maybeSingle();
+    if (loadError) throw loadError;
+    const currentRole = String(before?.role || '').toUpperCase();
+    if (!before || !['STAFF', 'ADMIN'].includes(currentRole)) {
+      return res.status(404).json({ success: false, error: 'Staff or administrator account not found.' });
+    }
+
+    const updates = {};
+    const fail = (error) => res.status(400).json({ success: false, error });
+
+    for (const [field, label] of [['first_name', 'First name'], ['last_name', 'Last name']]) {
+      if (body[field] === undefined) continue;
+      const value = String(body[field]).trim().replace(/\s+/g, ' ');
+      if (!NAME_PATTERN.test(value)) return fail(`${label} must be 1–60 letters (spaces, . ' - allowed).`);
+      if (value !== (before[field] || '')) updates[field] = value;
+    }
+    if (body.phone_number !== undefined) {
+      if (!isValidPhPhone(body.phone_number)) return fail('Enter an 11-digit mobile number starting with 09.');
+      const phone = normalizePhPhone(body.phone_number);
+      if (phone !== (before.phone_number || '')) updates.phone_number = phone;
+    }
+    if (body.birthday !== undefined) {
+      if (body.birthday === null || body.birthday === '') {
+        if (before.birthday) updates.birthday = null;
+      } else {
+        if (!isIsoDay(body.birthday) || body.birthday > todayIsoInManila() || body.birthday < '1900-01-01') return fail('Enter a valid birthday that is not in the future.');
+        if (body.birthday !== before.birthday) updates.birthday = body.birthday;
+      }
+    }
+    if (body.hired_at !== undefined) {
+      if (body.hired_at === null || body.hired_at === '') {
+        if (before.hired_at) updates.hired_at = null;
+      } else {
+        if (!isIsoDay(body.hired_at) || body.hired_at > todayIsoInManila() || body.hired_at < '1990-01-01') return fail('Enter a valid hire date that is not in the future.');
+        if (body.hired_at !== before.hired_at) updates.hired_at = body.hired_at;
+      }
+    }
+    if (body.role !== undefined) {
+      const nextRole = String(body.role).toUpperCase();
+      if (!['STAFF', 'ADMIN'].includes(nextRole)) return fail('The role must be STAFF or ADMIN.');
+      if (nextRole !== currentRole) {
+        if (targetId === actor.profile.id) return res.status(403).json({ success: false, error: 'You cannot change your own role. Ask another administrator.' });
+        if (targetId === DEFAULT_ADMIN_ID) return res.status(403).json({ success: false, error: 'The Default Admin account cannot be demoted.' });
+        updates.role = nextRole;
+      }
+    }
+
+    if (updates.first_name !== undefined || updates.last_name !== undefined) {
+      updates.full_name = `${updates.first_name ?? before.first_name ?? ''} ${updates.last_name ?? before.last_name ?? ''}`.trim();
+    }
+    const forceReset = body.force_password_reset === true;
+    if (forceReset) updates.must_change_password = true;
+    if (Object.keys(updates).length === 0) {
+      return res.json({ success: true, changed: [], profile: toPublicProfile(before), message: 'Nothing to change.' });
+    }
+
+    const { data: after, error: updateError } = await supabaseAdmin.from('profiles').update(updates).eq('id', targetId).select('*').single();
+    if (updateError) {
+      // database safety rules (last admin, staff with active services, ...) -> 409 with their message
+      const guarded = ['check_violation', 'insufficient_privilege', 'P0001'].includes(updateError.code) || /last remaining|active service|cannot be demoted/i.test(updateError.message || '');
+      return res.status(guarded ? 409 : 500).json({ success: false, error: guarded ? updateError.message : 'The account could not be updated.' });
+    }
+
+    let passwordResetSent = null;
+    if (forceReset && before.email) {
+      try {
+        const { data: link, error: linkError } = await supabaseAdmin.auth.admin.generateLink({ type: 'recovery', email: before.email });
+        const resetLink = link?.properties?.action_link;
+        if (linkError || !resetLink) throw linkError || new Error('No reset link');
+        await sendPasswordResetEmail({ customerEmail: before.email, resetLink });
+        passwordResetSent = true;
+      } catch (mailError) {
+        console.warn('[ADMIN] forced password reset email failed:', mailError.message);
+        passwordResetSent = false;
+      }
+    }
+
+    const changed = Object.keys(updates).filter((key) => key !== 'full_name');
+    const diff = (source) => Object.fromEntries(changed.map((key) => [key, source[key] ?? null]));
+    await writeAuditLog({
+      actionType: 'STAFF_DETAILS_UPDATED',
+      details: `Updated ${before.full_name || before.email} (${currentRole}): ${changed.join(', ')}${forceReset ? '. Password reset required.' : ''}`,
+      actorId: actor.profile.id,
+      actorName: actor.profile.full_name || actor.profile.email,
+      actorRole: 'ADMIN',
+      metadata: { target_id: targetId, before: diff(before), after: diff(after), password_reset_sent: passwordResetSent }
+    });
+
+    return res.json({ success: true, changed, profile: toPublicProfile(after), passwordResetSent });
+  } catch (error) {
+    console.error('[ADMIN] staff update failed:', error.message);
+    return res.status(500).json({ success: false, error: 'The account could not be updated.' });
+  }
+});
+
 app.post('/api/admin/revoke-access', async (req, res) => {
   const { memberId } = req.body;
   console.log(`🚫 [ADMIN] REVOKE ACCESS REQUEST for: ${memberId}`);

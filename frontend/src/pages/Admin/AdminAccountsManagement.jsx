@@ -17,6 +17,7 @@ import { BACKEND_URL, authHeaders } from '../../config/api';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { EmailInput } from '../../components/common/ContactInputs';
 import { emailError } from '../../utils/contactValidation';
+import EditStaffDialog from '../../features/accounts/EditStaffDialog';
 
 const AdminAccountsManagement = () => {
   const { confirmThen } = useConfirmAction();
@@ -32,6 +33,7 @@ const AdminAccountsManagement = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('STAFF'); // STAFF or ADMIN
+  const [editingMember, setEditingMember] = useState(null);
 
   // Invitation Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -239,6 +241,15 @@ const AdminAccountsManagement = () => {
 
   const isAdmin = currentUserProfile?.role === 'ADMIN';
 
+  const roleLockReason = (member) => {
+    if (!member) return '';
+    if (isSelf(member)) return 'You cannot change your own role. Ask another administrator.';
+    if (isDefaultAdmin(member)) return 'The Default Admin account always stays an administrator.';
+    if (isLastAdmin(member)) return 'This is the last administrator, so the role cannot be changed.';
+    if (member.role === 'STAFF' && member.hasActiveServices) return 'Reassign or complete this technician\'s active services before changing their role.';
+    return '';
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <PageHeader
@@ -342,6 +353,19 @@ const AdminAccountsManagement = () => {
                   </div>
                 </div>
 
+                <button
+                  type="button"
+                  onClick={() => setEditingMember(member)}
+                  aria-label={`Edit ${member.full_name || member.email}`}
+                  style={{
+                    padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)',
+                    background: 'transparent', color: 'var(--admin-text-primary)',
+                    fontSize: '0.65rem', fontWeight: '950', border: '1px solid var(--admin-border)',
+                    cursor: 'pointer', textTransform: 'uppercase'
+                  }}
+                >
+                  Edit
+                </button>
                 {!isDefaultAdmin(member) && !isSelf(member) && !isLastAdmin(member) && (
                   <button
                     onClick={() => handleDeactivate(member)}
@@ -500,6 +524,15 @@ const AdminAccountsManagement = () => {
         </div>,
         document.body
       )}
+
+      <EditStaffDialog
+        member={editingMember}
+        open={Boolean(editingMember)}
+        onOpenChange={(open) => { if (!open) setEditingMember(null); }}
+        onSaved={() => fetchAccounts()}
+        roleLocked={Boolean(roleLockReason(editingMember))}
+        roleLockedReason={roleLockReason(editingMember)}
+      />
 
       <style>{`
         .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
