@@ -7,6 +7,7 @@ import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { fetchScheduleOccupancy } from '../../services/scheduleService';
 import { SHOP_CONFIG, sanitizeVehiclePlate, sanitizeVehicleText } from '../../config/constants';
 import { getBayCapacity } from '../../config/shopConfig';
+import { useConfig } from '../../context/ConfigContext';
 
 const NON_OCCUPYING_BOOKING_STATUSES = ['CANCELLED', 'RELEASED', 'COMPLETED'];
 const NON_OCCUPYING_VEHICLE_STATUSES = ['COMPLETED', 'RELEASED'];
@@ -39,7 +40,8 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
   const [draftVehicle, setDraftVehicle] = React.useState(null);
   const [duplicateSourceIndex, setDuplicateSourceIndex] = React.useState(null);
   const [duplicateDetails, setDuplicateDetails] = React.useState({ brand: '', model: '', plateNumber: '' });
-  const [capacityContext, setCapacityContext] = React.useState({ maxBays: SHOP_CONFIG.MAX_BAYS, externalVehicles: [], loading: true });
+  const { settings: { MAX_BAYS: configuredMaxBays } } = useConfig();
+  const [capacityContext, setCapacityContext] = React.useState({ maxBays: configuredMaxBays, externalVehicles: [], loading: true });
 
   React.useEffect(() => {
     let active = true;

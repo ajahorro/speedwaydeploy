@@ -78,6 +78,23 @@ update business_config set is_24_7 = true;
 select pg_temp.check('hours', '24/7 mode removes the limit',
   public.booking_schedule_violation(((select d from probe)::text || ' 03:00 Asia/Manila')::timestamptz, ((select d from probe)::text || ' 04:00 Asia/Manila')::timestamptz, false) is null, '');
 
+-- bay capacity ("Total Bays Available", business_config.slots_per_hour)
+update business_config set is_24_7 = true, enforce_capacity = true, slots_per_hour = 3;
+select pg_temp.check('bays', 'a booking within the bay limit fits an empty slot',
+  public.slot_has_capacity(((select d from probe)::text || ' 10:00 Asia/Manila')::timestamptz, ((select d from probe)::text || ' 11:00 Asia/Manila')::timestamptz, null, 3), '');
+select pg_temp.check('bays', 'a booking with more vehicles than the bays is refused',
+  not public.slot_has_capacity(((select d from probe)::text || ' 10:00 Asia/Manila')::timestamptz, ((select d from probe)::text || ' 11:00 Asia/Manila')::timestamptz, null, 4), 'needs 4 bays, shop has 3');
+update business_config set slots_per_hour = 5;
+select pg_temp.check('bays', 'raising the bay limit lets the larger booking in',
+  public.slot_has_capacity(((select d from probe)::text || ' 10:00 Asia/Manila')::timestamptz, ((select d from probe)::text || ' 11:00 Asia/Manila')::timestamptz, null, 4), '');
+update business_config set slots_per_hour = 1;
+select pg_temp.check('bays', 'lowering the bay limit applies immediately',
+  not public.slot_has_capacity(((select d from probe)::text || ' 10:00 Asia/Manila')::timestamptz, ((select d from probe)::text || ' 11:00 Asia/Manila')::timestamptz, null, 2), '');
+update business_config set enforce_capacity = false;
+select pg_temp.check('bays', 'capacity enforcement can be switched off',
+  public.slot_has_capacity(((select d from probe)::text || ' 10:00 Asia/Manila')::timestamptz, ((select d from probe)::text || ' 11:00 Asia/Manila')::timestamptz, null, 9), '');
+update business_config set enforce_capacity = true;
+
 -- ── 3. Terms (Terms tab) ───────────────────────────────────────────────────
 do $terms$
 declare

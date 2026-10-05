@@ -6,8 +6,8 @@
 
 // ─── SHOP CAPACITY ───────────────────────────────────────────────
 export const SHOP_CONFIG = {
-  MAX_BAYS: 7,                          // Max simultaneous car units
-  MAX_MOTORCYCLE_BAYS: 15,              // Max simultaneous motorcycle units
+  // Bay capacity is NOT defined here. It is the Business Hub's "Total Bays Available"
+  // (business_config.slots_per_hour), read through ConfigContext / shopConfig.bayCapacityOf.
   STALE_SESSION_PURGE_MINUTES: 30,      // Auto-purge unstarted sessions
   OPENING_HOUR: 7,                      // 7 AM
   CLOSING_HOUR: 21,                     // 9 PM

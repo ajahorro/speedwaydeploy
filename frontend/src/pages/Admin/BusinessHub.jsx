@@ -2490,7 +2490,8 @@ export default function BusinessHub() {
                       style={inputStyle}
                     />
                     <small style={{ display: 'block', margin: '0.45rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '.72rem', lineHeight: 1.4 }}>
-                      Maximum bays that can be used by overlapping bookings.
+                      The most vehicles the shop can service at the same time. A single booking cannot include more vehicles than this,
+                      and a time slot is full once its bookings use all the bays.
                     </small>
                   </Field>
                 </div>

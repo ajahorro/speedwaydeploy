@@ -1,4 +1,4 @@
-import { STATUS_COLORS, BOOKING_STATUSES, SHOP_CONFIG, THRESHOLDS } from '../config/constants';
+import { STATUS_COLORS, BOOKING_STATUSES, THRESHOLDS } from '../config/constants';
 
 /**
  * bookingHelpers.js
@@ -82,20 +82,6 @@ export const isBookingOverdue = (booking, graceMins = THRESHOLDS.NOSHOW_GRACE_MI
   const diffMins = (now - start) / (1000 * 60);
   const activeStatuses = [BOOKING_STATUSES.IN_PROGRESS, BOOKING_STATUSES.COMPLETED, BOOKING_STATUSES.RELEASED, BOOKING_STATUSES.CANCELLED, BOOKING_STATUSES.FLAGGED_NOSHOW];
   return diffMins > graceMins && !activeStatuses.includes(booking.status);
-};
-
-// ─── FLEET CAPACITY ──────────────────────────────────────────────
-/**
- * Calculates the effective capacity cap for a set of bookings.
- * REQ-CST-01: Mixed Fleet Ceiling — if ANY car is present, use car cap (7).
- * Motorcycle-only sessions use the 15-unit cap.
- */
-export const calculateFleetCapacity = (vehicles = []) => {
-  const hasCar = vehicles.some(v => {
-    const type = (v.vehicle_type || '').toLowerCase();
-    return ['sedan', 'suv', 'van/l300', 'car'].includes(type);
-  });
-  return hasCar ? SHOP_CONFIG.MAX_BAYS : SHOP_CONFIG.MAX_MOTORCYCLE_BAYS;
 };
 
 // ─── STAFF AVAILABILITY ─────────────────────────────────────────

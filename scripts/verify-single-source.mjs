@@ -49,6 +49,12 @@ const RULES = [
     name: 'removed JS ledger helper',
     pattern: /\bcalculateNetPaid\b|\bcalculateVerifiedPaid\b|utils\/paymentAmounts/,
     hint: 'These were replaced by the database ledger.'
+  },
+  {
+    name: 'hard-coded bay capacity',
+    pattern: /SHOP_CONFIG.MAX_(?:MOTORCYCLE_)?BAYS|MAX_(?:MOTORCYCLE_)?BAYS:s*d/,
+    hint: 'Bay capacity is the Business Hub "Total Bays Available"; read useConfig().settings.MAX_BAYS or bayCapacityOf(config).',
+    onlyIn: 'frontend/src/'
   }
 ];
 

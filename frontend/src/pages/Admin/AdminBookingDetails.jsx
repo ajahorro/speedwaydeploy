@@ -38,7 +38,7 @@ import ValidationModal from '../../components/ValidationModal';
 import { classifyScheduleError, toCleanMessage } from '../../utils/errorRouting';
 import { BACKEND_URL } from '../../config/api';
 import { reconcilePaymentState, verifyPayment, rejectPayment } from '../../services/paymentVerificationService';
-import { ensureShopConfig } from '../../config/shopConfig';
+import { ensureShopConfig, bayCapacityOf } from '../../config/shopConfig';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { useImagePreview } from '../../context/ImagePreviewContext';
 
@@ -894,7 +894,7 @@ const AdminBookingDetails = () => {
 
       // 2. OVERBOOKING GUARD: Check if extended end_datetime causes bay conflict
       // Fix: use .not() to catch both 'cancelled' and 'CANCELLED' case variants
-      const maxBays = Number(businessConfig?.slots_per_hour || SHOP_CONFIG.MAX_BAYS);
+      const maxBays = bayCapacityOf(businessConfig);
       const { data: overlapping } = await supabase
         .from('bookings')
         .select('id, start_datetime, end_datetime, status, vehicles:booking_vehicles(id, status, vehicle_type)')

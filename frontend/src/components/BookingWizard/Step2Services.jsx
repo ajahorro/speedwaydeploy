@@ -37,7 +37,7 @@ const normalizePlate = (plate) => String(plate || '').toUpperCase().replace(/[^A
 const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext, onCancel, onCancelNewVehicle }) => {
   const { user } = useAuth();
   // Vehicle categories configured in the Business Hub.
-  const { settings: { VEHICLE_TYPES: vehicleTypeOptions } } = useConfig();
+  const { settings: { VEHICLE_TYPES: vehicleTypeOptions, MAX_BAYS: configuredMaxBays } } = useConfig();
   // useMemo so the identity is STABLE. A bare `|| []` produced a NEW array on
   // every render whenever bookingData.vehicles was unset, which made every hook
   // depending on `vehicles` (the `units` memo below) recompute constantly.
@@ -54,7 +54,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
   // shows ONLY saved cars + Add New Vehicle.
   const [additionMode, setAdditionMode] = useState('individual');
   const [activeCategories, setActiveCategories] = useState({});
-  const [maxBays, setMaxBays] = useState(SHOP_CONFIG.MAX_BAYS);
+  const [maxBays, setMaxBays] = useState(configuredMaxBays);
   const [activePromos, setActivePromos] = useState([]);
   const SERVICE_CATALOG = getServiceCatalog();
 
