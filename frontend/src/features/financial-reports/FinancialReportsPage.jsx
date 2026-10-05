@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { CalendarRange, Download, Printer } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
@@ -133,7 +133,7 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
   };
 
   return (
-    <div className="ui-root financial-report flex flex-col gap-6 pb-8">
+    <div id="printable-report" className="ui-root financial-report flex flex-col gap-6 pb-8">
       <div className="print:hidden">
         <PageHeader
           showBack
@@ -167,9 +167,6 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
           onPresetChange={setPreset}
           onCustomRange={setCustomRange}
         />
-        <Link to="/admin/finance/classic" className="text-xs text-muted-foreground underline-offset-4 hover:underline">
-          Switch to classic report
-        </Link>
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="gap-4">
@@ -249,7 +246,13 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
         @media print {
           html, body, #root, main { background: white !important; height: auto !important; overflow: visible !important; }
           nav, aside, header, .admin-search-container { display: none !important; }
-          .admin-main-wrapper { margin-left: 0 !important; }
+          /* The app-wide print rule (receipts) hides everything except #printable-receipt, which
+             printed this page blank. Show the report, and release the fixed-height app shell so
+             it can flow onto as many pages as it needs. */
+          #printable-report, #printable-report * { visibility: visible !important; }
+          #printable-report { position: absolute; left: 0; top: 0; width: 100%; }
+          .admin-theme, .admin-main-wrapper { display: block !important; position: static !important; width: auto !important; height: auto !important; overflow: visible !important; margin-left: 0 !important; }
+          .admin-theme main { height: auto !important; overflow: visible !important; padding: 0 !important; }
           .financial-report { color: black; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           @page { size: A4; margin: 12mm; }

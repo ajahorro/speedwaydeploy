@@ -23,9 +23,7 @@ const SCAN = [
 ];
 
 // Files allowed to keep legacy logic for one release (documented fallbacks).
-const ALLOWLIST = new Set([
-  'frontend/src/pages/Admin/AdminSalesReport.jsx' // classic report at /admin/finance/classic
-]);
+const ALLOWLIST = new Set([]);
 
 const RULES = [
   {

@@ -107,6 +107,8 @@ export interface StatementTotals {
   refunded: number
   netPaid: number
   balanceDue: number
+  /** Part of the balance an administrator marked "to be received" (not money received). */
+  deferredAmount: number
   creditHeld: number
 }
 
@@ -140,5 +142,6 @@ export const statementTotalsFromLedger = (ledger: Record<string, unknown> | null
   refunded: roundReceiptAmount(numberValue(ledger?.refunded_amount)),
   netPaid: roundReceiptAmount(numberValue(ledger?.net_settled)),
   balanceDue: roundReceiptAmount(numberValue(ledger?.outstanding_amount)),
+  deferredAmount: roundReceiptAmount(numberValue(ledger?.deferred_amount)),
   creditHeld: roundReceiptAmount(numberValue(ledger?.excess_amount)),
 })

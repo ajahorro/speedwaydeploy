@@ -15,6 +15,7 @@ const KPIS = [
   { key: 'refunds', label: 'Refunds', hint: 'Posted refund transactions', tone: 'text-chart-2' },
   { key: 'pending_verification', label: 'Pending verification', hint: 'Receipts awaiting an admin', tone: 'text-warning' },
   { key: 'outstanding_balance', label: 'Outstanding balance', hint: 'Owed on active bookings (today)', tone: 'text-destructive' },
+  { key: 'deferred_receivables', label: 'Deferred receivables', hint: 'Marked "to be received" by an admin; not money received (today)' },
   { key: 'customer_credit_liability', label: 'Customer credit', hint: 'Credit held for customers (today)' },
   { key: 'average_ticket', label: 'Average per booking', hint: 'Net received ÷ paying bookings' }
 ];

@@ -166,6 +166,9 @@ export function StatementOfAccount({ booking, vehicles = [], ledger, transaction
             <span>Balance due</span>
             <span className="font-mono tabular-nums text-[#E61E2A]">{formatPeso(totals.balanceDue)}</span>
           </div>
+          {totals.deferredAmount > 0 && (
+            <p className="mt-1 text-right text-xs text-neutral-500">Of this, {formatPeso(totals.deferredAmount)} is marked to be received by the shop.</p>
+          )}
         </div>
 
         <p className="mt-8 text-xs text-neutral-500">
