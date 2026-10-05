@@ -75,6 +75,16 @@ export const fetchOutstandingBookings = async ({ limit = 200 } = {}) => {
   return (data || []).map(normalizeBookingLedger);
 };
 
+/** Every booking that starts in [from, to) with its vehicles, services and money (admin only). */
+export const fetchBookingsReport = async ({ from, to }) => {
+  const { data, error } = await supabase.rpc('bookings_report', {
+    p_from: from.toISOString(),
+    p_to: to.toISOString()
+  });
+  if (error) throw error;
+  return data;
+};
+
 /** Admin KPI totals for [from, to). */
 export const fetchSalesReport = async ({ from, to }) => {
   const { data, error } = await supabase.rpc('sales_report', {

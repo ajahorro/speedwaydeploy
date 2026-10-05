@@ -16,6 +16,7 @@ import { RevenueAreaChart } from './RevenueAreaChart';
 import { MethodBreakdownChart, TopServicesChart } from './BreakdownCharts';
 import { TransactionsTable } from './TransactionsTable';
 import { OutstandingTable } from './OutstandingTable';
+import { BookingsTable } from './BookingsTable';
 import { downloadReportCsv } from './exportReport';
 import { RANGE_PRESETS, useReportRange } from './useReportRange';
 
@@ -92,6 +93,8 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  // incremented when the assistant asks for the bookings PDF
+  const [pdfRequest, setPdfRequest] = useState(0);
 
   const rangeLabel = useMemo(() => formatRangeLabel(range), [range]);
 
@@ -104,8 +107,8 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
     } catch (error) {
       console.error('Financial report load failed:', error);
       toast.error(/administrator/i.test(error?.message || '')
-        ? 'Only administrators can view financial reports.'
-        : 'Failed to load the financial report.');
+        ? 'Only administrators can view reports.'
+        : 'Failed to load the report.');
     } finally {
       setLoading(false);
     }
@@ -144,9 +147,9 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
         <PageHeader
           showBack
           onBack={() => navigate(-1)}
-          badge="FINANCIAL REPORTS"
-          title="Financial Reports"
-          subtitle="Revenue, refunds and balances from the shop's single payment ledger."
+          badge="REPORTS"
+          title="Reports"
+          subtitle="Revenue, bookings, refunds and balances from the shop's single payment ledger."
           onRefresh={() => setRefreshKey((value) => value + 1)}
         >
           <div className="flex flex-wrap gap-2">
@@ -164,7 +167,7 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
       </div>
 
       <div className="hidden print:block">
-        <h1 className="text-2xl font-bold">Comar Garage — Financial Report</h1>
+        <h1 className="text-2xl font-bold">Comar Garage — Report</h1>
         <p className="text-sm">{rangeLabel} · generated {new Date().toLocaleString('en-PH')}</p>
       </div>
 
@@ -181,6 +184,7 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
       <Tabs value={tab} onValueChange={setTab} className="gap-4">
         <TabsList className="w-full justify-start overflow-x-auto sm:w-fit print:hidden">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="bookings">Bookings</TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="refunds">Refunds &amp; credits</TabsTrigger>
           <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
@@ -199,6 +203,10 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
             <MethodBreakdownChart rows={report?.by_method || []} total={report?.net_received || 0} loading={loading} />
             <TopServicesChart rows={report?.top_services || []} loading={loading} />
           </div>
+        </TabsContent>
+
+        <TabsContent value="bookings" className="flex flex-col gap-4">
+          <BookingsTable range={range} rangeLabel={rangeLabel} refreshKey={refreshKey} pdfRequest={pdfRequest} />
         </TabsContent>
 
         <TabsContent value="transactions" className="flex flex-col gap-4">
@@ -264,6 +272,19 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
               setTab('overview');
             }}
             onExport={handleExport}
+            onShowBookings={(from, to) => {
+              const [fy, fm, fd] = from.split('-').map(Number);
+              const [ty, tm, td] = to.split('-').map(Number);
+              setCustomRange(new Date(fy, fm - 1, fd), new Date(ty, tm - 1, td));
+              setTab('bookings');
+            }}
+            onBookingsPdf={(from, to) => {
+              const [fy, fm, fd] = from.split('-').map(Number);
+              const [ty, tm, td] = to.split('-').map(Number);
+              setCustomRange(new Date(fy, fm - 1, fd), new Date(ty, tm - 1, td));
+              setTab('bookings');
+              setPdfRequest((value) => value + 1);
+            }}
           />
         </Suspense>
       )}

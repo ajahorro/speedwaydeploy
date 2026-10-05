@@ -50,6 +50,25 @@ const TOOLS = [
     input_schema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 20 } } }
   },
   {
+    name: 'get_bookings_report',
+    description: 'The bookings that START in a date range (max 93 days) with customer, vehicles, services, status, total, paid and balance, plus totals. Use it for "what were the bookings on <date>", today, tomorrow, yesterday, this week.',
+    input_schema: {
+      type: 'object',
+      properties: { from: { type: 'string', description: 'First day, YYYY-MM-DD (Asia/Manila).' }, to: { type: 'string', description: 'Last day inclusive, YYYY-MM-DD.' } },
+      required: ['from', 'to']
+    }
+  },
+  {
+    name: 'show_bookings_report',
+    description: 'Ask the Reports page to open its Bookings tab for a date range.',
+    input_schema: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' } }, required: ['from', 'to'] }
+  },
+  {
+    name: 'create_bookings_pdf',
+    description: 'Ask the Reports page to create and download a PDF of the bookings and their money for a date range.',
+    input_schema: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' } }, required: ['from', 'to'] }
+  },
+  {
     name: 'set_report_range',
     description: 'Ask the report page to show a date range (it fills the existing filters). Use when the admin asks to create, open or show a report for a period.',
     input_schema: {
@@ -125,6 +144,29 @@ const runTool = async (name, input, db, adminId) => {
       });
       return { result };
     }
+    if (name === 'get_bookings_report') {
+      const range = validateRange(input, 93);
+      if (range.error) return { result: { error: range.error } };
+      const result = await cached(`bookings:${adminId}:${range.from}:${range.to}`, async () => {
+        const { data, error } = await db.rpc('bookings_report', { p_from: dayStartIso(range.from), p_to: dayEndIso(range.to) });
+        if (error) throw error;
+        return {
+          totals: data.totals,
+          shown: Math.min(25, (data.bookings || []).length),
+          bookings: (data.bookings || []).slice(0, 25).map((b) => ({
+            ref: b.reference, start: b.start_datetime, customer: b.customer_name, status: b.status, paid_status: b.paid_status,
+            vehicles: (b.vehicles || []).map((v) => [v.brand, v.model, v.plate].filter(Boolean).join(' ') + ': ' + (v.services || []).map((s) => s.name).join(', ')),
+            total: b.total, paid: b.paid, balance: b.balance, deferred: b.deferred
+          }))
+        };
+      });
+      return { result };
+    }
+    if (name === 'show_bookings_report' || name === 'create_bookings_pdf') {
+      const range = validateRange(input, 93);
+      if (range.error) return { result: { error: range.error } };
+      return { result: { ok: true, range: `${range.from} to ${range.to}` }, action: { type: name === 'create_bookings_pdf' ? 'bookings_pdf' : 'show_bookings', from: range.from, to: range.to } };
+    }
     if (name === 'get_outstanding_bookings') {
       const limit = Math.min(20, Math.max(1, Number(input?.limit) || 10));
       const result = await cached(`outstanding:${adminId}:${limit}`, async () => {
@@ -164,7 +206,8 @@ const systemPrompt = (range) => [
   '- Money is Philippine pesos; write it as ₱1,234.50.',
   '- Net received is money that reached the shop (transfer fees are not revenue). "Deferred receivables" are balances an admin marked "to be received" and are NOT money received.',
   '- Convert phrases like "this week" or "last month" to exact YYYY-MM-DD dates before calling a tool, and say which dates you used.',
-  '- When asked to create, open or show a report, call set_report_range; when asked to download or export, call export_report_csv; then confirm in one sentence.',
+  '- For questions about bookings on a day or period, call get_bookings_report and list them briefly (time, customer, vehicle, status, balance).',
+  '- When asked to create, open or show a money report, call set_report_range; for a bookings report call show_bookings_report; for a PDF of bookings call create_bookings_pdf; to download the CSV call export_report_csv; then confirm in one sentence.',
   '- Be brief: a short answer first, then at most a few bullet points. You cannot change any data.'
 ].join('\n');
 

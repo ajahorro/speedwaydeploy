@@ -4193,9 +4193,19 @@ app.post('/api/bookings/add-service', async (req, res) => {
     if (bookingError) throw bookingError;
     if (!['scheduled', 'confirmed', 'in_progress'].includes(String(booking.status || '').toLowerCase())) return res.status(409).json({ success: false, error: 'Services can only be added while a booking is scheduled, confirmed, or in progress.' });
     if (!serviceName || !Number.isFinite(servicePrice) || servicePrice <= 0) return res.status(400).json({ success: false, error: 'A valid service and price are required.' });
-    const { data: vehicle, error: vehicleError } = await supabaseAdmin.from('booking_vehicles').select('id, booking_id').eq('id', vehicleId).eq('booking_id', bookingId).maybeSingle();
+    const { data: vehicle, error: vehicleError } = await supabaseAdmin.from('booking_vehicles').select('id, booking_id, vehicle_type').eq('id', vehicleId).eq('booking_id', bookingId).maybeSingle();
     if (vehicleError) throw vehicleError;
     if (!vehicle) return res.status(404).json({ success: false, error: 'Vehicle does not belong to this booking.' });
+    // The price is the shop's price for this service on this vehicle type, never the browser's word
+    // (same catalog the database checks new bookings against).
+    const { data: catalogPrice, error: catalogError } = await supabaseAdmin.rpc('catalog_service_price', { p_name: serviceName, p_vehicle_type: vehicle.vehicle_type });
+    if (catalogError) throw catalogError;
+    if (catalogPrice === null || catalogPrice === undefined) {
+      return res.status(409).json({ success: false, error: `"${serviceName}" is not offered for this vehicle type.` });
+    }
+    if (Math.abs(Number(catalogPrice) - servicePrice) > 0.01) {
+      return res.status(409).json({ success: false, error: `The price of "${serviceName}" is now ₱${Number(catalogPrice).toLocaleString()}. Refresh and try again.` });
+    }
     const { data: existing } = await supabaseAdmin.from('booking_vehicle_services').select('id').eq('booking_vehicle_id', vehicleId).ilike('service_name', serviceName).maybeSingle();
     if (existing) return res.status(409).json({ success: false, error: 'This service is already assigned to the vehicle.' });
     const { verified_paid: verifiedPaid } = await getBookingLedger(bookingId);

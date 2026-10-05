@@ -14,7 +14,7 @@ const PAGES = [
   { name: 'Payment Verification', path: '/admin/payments', icon: CreditCard, category: 'Pages' },
   { name: 'Schedule', path: '/admin/schedule', icon: Calendar, category: 'Pages' },
   { name: 'Refund Hub', path: '/admin/refunds', icon: ClipboardList, category: 'Pages' },
-  { name: 'Analytics', path: '/admin/analytics', icon: LayoutDashboard, category: 'Pages' },
+  { name: 'Reports', path: '/admin/reports', icon: LayoutDashboard, category: 'Pages' },
   { name: 'Audit Logs', path: '/admin/audit-logs', icon: History, category: 'Pages' },
   { name: 'Staff & Admin Accounts', path: '/admin/accounts', icon: User, category: 'Pages' },
   { name: 'Business Hub', path: '/admin/business', icon: Settings, category: 'Pages' },

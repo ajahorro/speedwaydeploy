@@ -22,12 +22,41 @@ const HELP = [
   '• "Compare this week with last week"',
   '• "Who owes us the most right now?"',
   '• "What was our best day last month?"',
+  '• "Show me today\'s bookings", "bookings tomorrow", "what were the bookings on October 5?"',
+  '• "Create a PDF of this week\'s bookings"',
   '• "Create a report for last month" or "Export this month as CSV"'
 ].join('\n');
 
 /** Reads a period out of the question; falls back to the range on screen. */
 const parsePeriod = (question, fallback, { today, isDay }) => {
   const q = question.toLowerCase();
+  const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+  const pad = (n) => String(n).padStart(2, '0');
+  const dayOf = (y, m, d) => {
+    const day = y + '-' + pad(m) + '-' + pad(d);
+    return isDay(day) && new Date(day + 'T00:00:00Z').getUTCMonth() === m - 1 ? day : null;
+  };
+  const thisYear = Number(today.slice(0, 4));
+  let hit;
+  if ((hit = q.match(/(\d{4})-(\d{1,2})-(\d{1,2})/))) { const d = dayOf(Number(hit[1]), Number(hit[2]), Number(hit[3])); if (d) return { from: d, to: d, label: d, explicit: true }; }
+  const monthPattern = MONTHS.map((m) => m.slice(0, 3)).join('|');
+  if ((hit = q.match(new RegExp('\\b(' + monthPattern + ')[a-z]*\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?'))) ) {
+    const d = dayOf(Number(hit[3] || thisYear), MONTHS.findIndex((m) => m.startsWith(hit[1])) + 1, Number(hit[2]));
+    if (d) return { from: d, to: d, label: d, explicit: true };
+  }
+  if ((hit = q.match(new RegExp('\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(' + monthPattern + ')[a-z]*(?:,?\\s+(\\d{4}))?')))) {
+    const d = dayOf(Number(hit[3] || thisYear), MONTHS.findIndex((m) => m.startsWith(hit[2])) + 1, Number(hit[1]));
+    if (d) return { from: d, to: d, label: d, explicit: true };
+  }
+  if ((hit = q.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/))) {
+    const y = hit[3] ? (hit[3].length === 2 ? 2000 + Number(hit[3]) : Number(hit[3])) : thisYear;
+    const d = dayOf(y, Number(hit[1]), Number(hit[2]));
+    if (d) return { from: d, to: d, label: d, explicit: true };
+  }
+  if (/day after tomorrow/.test(q)) { const d = shiftDay(today, 2); return { from: d, to: d, label: 'the day after tomorrow', explicit: true }; }
+  if (/\btomorrow\b/.test(q)) { const d = shiftDay(today, 1); return { from: d, to: d, label: 'tomorrow', explicit: true }; }
+  if (/next\s+week/.test(q)) { const s = shiftDay(weekStart(today), 7); return { from: s, to: shiftDay(s, 6), label: 'next week', explicit: true }; }
+  if (/next\s+month/.test(q)) { const nm = shiftDay(monthEnd(today), 1); return { from: monthStart(nm), to: monthEnd(nm), label: 'next month', explicit: true }; }
   const lastDays = q.match(/last\s+(\d{1,3})\s+days?/);
   if (lastDays) return { from: shiftDay(today, -(Number(lastDays[1]) - 1)), to: today, label: 'the last ' + lastDays[1] + ' days', explicit: true };
   if (/\btoday\b/.test(q)) return { from: today, to: today, label: 'today', explicit: true };
@@ -62,11 +91,47 @@ function createBuiltInAnswerer({ runTool, isDay, todayInManila }) {
       const wantsMoney = /(earn|revenue|sales|income|collected|made)/.test(q);
       const wantsCompare = /(compare|versus|\bvs\b|difference|than)/.test(q);
       const wantsBest = /(best|worst|busiest|highest|lowest)\s+day/.test(q);
-      const understood = wantsExport || wantsReport || wantsOwed || wantsMoney || wantsCompare || wantsBest
+      const wantsBookings = /(booking|appointment|reservation|schedule|scheduled|who.*(come|coming|booked))/.test(q);
+      const wantsPdf = /\bpdf\b/.test(q);
+      const understood = wantsBookings || wantsPdf || wantsExport || wantsReport || wantsOwed || wantsMoney || wantsCompare || wantsBest
         || /(refund|pending|verif|payment|how much|total|report|average)/.test(q);
 
       if (!understood) {
         return { status: 200, body: { success: true, answer: HELP, actions, toolsUsed, mode: 'built-in' } };
+      }
+
+      if (wantsBookings || (wantsPdf && !wantsMoney && !wantsOwed)) {
+        // schedules look ahead: a 'this week' / 'this month' bookings report covers the whole period
+        if (period.label === 'this week') period.to = shiftDay(period.from, 6);
+        if (period.label === 'this month') period.to = monthEnd(period.from);
+        const span = (Date.parse(period.to + 'T00:00:00Z') - Date.parse(period.from + 'T00:00:00Z')) / 86400000 + 1;
+        if (span > 93) {
+          lines.push('That range is too long for a bookings report (maximum 93 days). Try a month or less.');
+        } else {
+          const { result } = await run('get_bookings_report', { from: period.from, to: period.to });
+          if (result?.error) {
+            lines.push(result.error);
+          } else {
+            const list = result.bookings || [];
+            const totals = result.totals || {};
+            const timeOf = (iso) => new Date(iso).toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' });
+            const dateOf = (iso) => new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric' });
+            if (!list.length) {
+              lines.push('There are no bookings for ' + period.label + ' (' + period.from + (period.to !== period.from ? ' to ' + period.to : '') + ').');
+            } else {
+              lines.push((totals.count || list.length) + ' booking(s) for ' + period.label + ' (' + period.from + (period.to !== period.from ? ' to ' + period.to : '') + '), worth ' + peso(totals.total_value) + ': received ' + peso(totals.paid) + ', balance owed ' + peso(totals.balance) + '.');
+              list.slice(0, 15).forEach((b) => lines.push('• ' + (period.from === period.to ? timeOf(b.start) : dateOf(b.start) + ' ' + timeOf(b.start)) + ' · ' + b.customer + ' · ' + ((b.vehicles || [])[0] || 'no vehicle') + ' · ' + String(b.status).replace(/_/g, ' ') + ' · total ' + peso(b.total) + ', balance ' + peso(b.balance)));
+              if ((totals.count || 0) > 15) lines.push('…and ' + (totals.count - 15) + ' more (open the Bookings tab for the full list).');
+            }
+          }
+          const showIt = wantsPdf || wantsReport || /(show|open|display|report to me|report me)/.test(q);
+          if (showIt) {
+            const act = await run(wantsPdf ? 'create_bookings_pdf' : 'show_bookings_report', { from: period.from, to: period.to });
+            if (act.action) actions.push(act.action);
+            lines.push(wantsPdf ? 'Creating the PDF of these bookings and their payments.' : 'Showing them in the Bookings tab.');
+          }
+        }
+        return { status: 200, body: { success: true, answer: lines.join('\n'), actions, toolsUsed, mode: 'built-in' } };
       }
 
       if (wantsOwed && !wantsMoney) {

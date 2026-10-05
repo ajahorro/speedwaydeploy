@@ -158,7 +158,7 @@ const AdminLayout = () => {
       links: [
         { name: 'Payment Verification', path: '/admin/payments', icon: CheckSquare },
         { name: 'Refund Hub', path: '/admin/refunds', icon: Undo },
-        { name: 'Analytics', path: '/admin/analytics', icon: BarChart2 }
+        { name: 'Reports', path: '/admin/reports', icon: BarChart2 }
       ]
     },
     {

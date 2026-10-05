@@ -101,6 +101,28 @@ const unknown = await ask('what is the meaning of life');
 assert.match(unknown.body.answer, /I can answer questions like/);
 assert.equal(unknown.body.toolsUsed.length, 0, 'an unrecognised question runs no tools');
 assert.equal(seen.length, modelCallsBefore, 'built-in mode never calls the model');
+const day = await ask('What were the bookings on 2026-10-05?');
+assert.equal(day.body.toolsUsed[0], 'get_bookings_report');
+assert.match(day.body.answer, /booking\(s\) for 2026-10-05|no bookings for 2026-10-05/);
+
+const named = await ask('Show me the bookings on October 8, 2026');
+assert.equal(named.body.toolsUsed[0], 'get_bookings_report');
+assert.match(named.body.answer, /2026-10-08/);
+assert.deepEqual(named.body.actions.map((x) => x.type), ['show_bookings']);
+
+const slash = await ask('bookings on 10/6/2026');
+assert.match(slash.body.answer, /2026-10-06/);
+
+for (const [question, label] of [['bookings today', 'today'], ['bookings tomorrow', 'tomorrow'], ['what were the bookings yesterday', 'yesterday'], ['bookings this week', 'this week']]) {
+  const r = await ask(question);
+  assert.equal(r.body.toolsUsed[0], 'get_bookings_report', question);
+  assert.match(r.body.answer, new RegExp(label), question);
+}
+
+const pdf = await ask('Create a PDF of this week bookings');
+assert.equal(pdf.body.actions.at(-1).type, 'bookings_pdf');
+assert.match(pdf.body.actions.at(-1).from, /^\d{4}-\d{2}-\d{2}$/);
+
 process.env.ANTHROPIC_API_KEY = 'test-key';
 
 // bad input -> 400

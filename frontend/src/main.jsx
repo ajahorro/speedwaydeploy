@@ -26,7 +26,7 @@ import LoadingState from './components/LoadingState';
 // Lazy so the chart library only loads for admins who open the report.
 const FinancialReportsPage = lazy(() => import('./features/financial-reports/FinancialReportsPage'));
 const financialReports = (defaultTab) => (
-  <Suspense fallback={<LoadingState message="Loading financial reports..." />}>
+  <Suspense fallback={<LoadingState message="Loading reports..." />}>
     <FinancialReportsPage defaultTab={defaultTab} />
   </Suspense>
 );
@@ -155,10 +155,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route path="schedule" element={<AdminSchedule />} />
                   <Route path="payments" element={<AdminPayments />} />
                   <Route path="refunds" element={<AdminRefunds />} />
-                  <Route path="analytics" element={financialReports('overview')} />
-                  <Route path="finance" element={financialReports('overview')} />
+                  <Route path="reports" element={financialReports('overview')} />
+                  <Route path="analytics" element={<Navigate to="/admin/reports" replace />} />
+                  <Route path="finance" element={<Navigate to="/admin/reports" replace />} />
                   {/* Classic report kept for one release as an instant fallback. */}
-                  <Route path="finance/classic" element={<Navigate to="/admin/finance" replace />} />
+                  <Route path="finance/classic" element={<Navigate to="/admin/reports" replace />} />
                   <Route path="audit-logs" element={<AdminAuditLogs />} />
                   <Route path="accounts" element={<AdminAccountsManagement />} />
                   <Route path="users" element={<AdminUserManagement />} />

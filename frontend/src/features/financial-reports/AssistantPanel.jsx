@@ -6,10 +6,12 @@ import { supabase } from '@/lib/supabase';
 import { BACKEND_URL } from '@/config/api';
 
 const QUICK_QUESTIONS = [
+  "Show me today's bookings",
+  'What were the bookings tomorrow?',
+  'Create a PDF of this week\'s bookings',
   'How much did we earn this week?',
-  'Compare this week with last week',
   'Who owes us the most right now?',
-  'Create a report for last month'
+  'Compare this week with last week'
 ];
 
 /**
@@ -17,7 +19,7 @@ const QUICK_QUESTIONS = [
  * so nothing here weighs on first paint. It only reads reports through the backend and can ask
  * this page to change its date range or export the CSV; it cannot change any data.
  */
-export default function AssistantPanel({ open, onOpenChange, range, onSetRange, onExport }) {
+export default function AssistantPanel({ open, onOpenChange, range, onSetRange, onExport, onShowBookings, onBookingsPdf }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -45,6 +47,8 @@ export default function AssistantPanel({ open, onOpenChange, range, onSetRange, 
       (result.actions || []).forEach((action) => {
         if (action.type === 'set_range') onSetRange(action.from, action.to);
         if (action.type === 'export_csv') onExport();
+        if (action.type === 'show_bookings') onShowBookings?.(action.from, action.to);
+        if (action.type === 'bookings_pdf') onBookingsPdf?.(action.from, action.to);
       });
     } catch (error) {
       setMessages((prev) => [...prev, { role: 'assistant', content: error.message, error: true }]);
@@ -57,8 +61,8 @@ export default function AssistantPanel({ open, onOpenChange, range, onSetRange, 
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="ui-root flex w-full flex-col gap-0 sm:max-w-md">
         <SheetHeader>
-          <SheetTitle className="flex items-center gap-2"><Sparkles className="size-4" /> Ask about your finances</SheetTitle>
-          <SheetDescription>Answers come from the payment ledger. It can open a report for you, but it cannot change any data.</SheetDescription>
+          <SheetTitle className="flex items-center gap-2"><Sparkles className="size-4" /> Ask the reports assistant</SheetTitle>
+          <SheetDescription>Ask about bookings, money and balances for any day. It can open a report or create a PDF, but it cannot change any data.</SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 space-y-3 overflow-y-auto px-4 py-2" aria-live="polite">

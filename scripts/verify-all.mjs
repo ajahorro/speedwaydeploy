@@ -24,9 +24,17 @@ const run = (name, command, commandArgs, options = {}) => {
 };
 
 // ── guard scripts ──────────────────────────────────────────────────────────
-for (const script of ['verify-single-source', 'verify-email-source', 'verify-email-links', 'verify-contact-rules', 'verify-shop-time']) {
+for (const script of ['verify-single-source', 'verify-email-source', 'verify-email-links', 'verify-contact-rules', 'verify-shop-time', 'verify-statement-pdf']) {
   run(script, 'node', [`scripts/${script}.mjs`], { note: (out) => out.trim().split('\n').pop().slice(0, 70) });
 }
+
+// Catalog sync: static always; with a scratch database also the browser-vs-database property test.
+run(
+  `verify-catalog-sync${container ? ' (+db)' : ''}`,
+  'node',
+  ['scripts/verify-catalog-sync.mjs', ...(container ? ['--db', container] : [])],
+  { note: (out) => out.trim().split('\n').pop().slice(0, 80) }
+);
 
 // ── syntax of every backend file that changed shape recently ───────────────
 for (const file of ['backend/server.js', 'backend/services/analyticsAssistant.js', 'backend/services/analyticsBuiltIn.js', 'backend/services/scheduleValidation.js']) {
@@ -47,7 +55,8 @@ if (!skipBuild) {
 if (container) {
   const suites = [
     ['sql: hub propagation', 'scripts/sql/verify-hub-propagation.sql', /^\s*\S.*\|\s*FAIL\s*\|(?!.*KNOWN GAP)/m, /KNOWN GAP/],
-    ['sql: balance payment', 'scripts/sql/verify-balance-payment.sql', /\|\s*FAIL\s*\|/m, null]
+    ['sql: balance payment', 'scripts/sql/verify-balance-payment.sql', /\|\s*FAIL\s*\|/m, null],
+    ['sql: pricing guard', 'scripts/sql/verify-pricing-guard.sql', /\|\s*FAIL\s*\|/m, null]
   ];
   for (const [name, file, failPattern] of suites) {
     const result = spawnSync('docker', ['exec', '-i', container, 'psql', '-U', 'postgres'], { input: fs.readFileSync(file), encoding: 'utf8' });

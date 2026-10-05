@@ -95,6 +95,9 @@ const renderStatementPage = (
     ops.push(fillRect(summaryLeft, summaryY - 7, right - summaryLeft, 25, PALE))
     ops.push(text('BALANCE DUE', summaryLeft + 8, summaryY + 1, 8, 'F2', DARK))
     ops.push(text(currency(totals.balanceDue), right - 8, summaryY + 1, 10, 'F2', RED, 'right'))
+    if (totals.deferredAmount > 0) {
+      ops.push(text('Of this, ' + currency(totals.deferredAmount) + ' is marked to be received by the shop.', right, summaryY - 16, 7, 'F1', MUTED, 'right'))
+    }
 
     ops.push(text('STATEMENT OF ACCOUNT', left, 104, 8, 'F2', RED))
     ops.push(text('Lists every verified payment and refund on this booking. Transfer fees charged', left, 89, 7, 'F1', MUTED))
