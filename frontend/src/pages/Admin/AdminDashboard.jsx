@@ -41,6 +41,25 @@ const AttentionCard = React.memo(({ count, label, icon: Icon, color, bg, onClick
   );
 });
 
+// Open bookings that still have a vehicle without a technician (each booking once).
+const fetchBookingsWithUnassignedVehicles = async () => {
+  const { data } = await supabase
+    .from('booking_vehicles')
+    .select('booking_id, bookings!inner(id, customer_id, customer_name, start_datetime, status)')
+    .is('staff_id', null)
+    .not('bookings.status', 'ilike', 'cancelled')
+    .not('bookings.status', 'ilike', 'completed')
+    .not('bookings.status', 'ilike', 'released')
+    .not('bookings.status', 'ilike', 'in_progress')
+    .not('bookings.status', 'ilike', 'ongoing')
+    .not('bookings.status', 'ilike', 'FLAGGED_NOSHOW')
+    .not('bookings.status', 'ilike', 'NO_SHOW')
+    .limit(1000);
+  const seen = new Map();
+  for (const row of data || []) if (row.bookings && !seen.has(row.booking_id)) seen.set(row.booking_id, row.bookings);
+  return [...seen.values()].sort((a, b) => new Date(a.start_datetime) - new Date(b.start_datetime));
+};
+
 const getQueueStatusStyle = status => {
   const normalized = String(status || '').toLowerCase();
   if (normalized === 'scheduled') return { background: 'rgba(59, 130, 246, 0.1)', border: 'rgba(59, 130, 246, 0.28)', color: 'var(--status-info)' };
@@ -77,18 +96,9 @@ const AdminDashboard = () => {
   const fetchPriorityQueue = useCallback(async () => {
     try {
       const pItems = [];
-      const { data: unassignedRaw } = await supabase
-        .from('bookings')
-        .select('id, customer_id, customer_name, start_datetime')
-        .is('staff_id', null)
-        .not('status', 'ilike', 'cancelled')
-        .not('status', 'ilike', 'completed')
-        .not('status', 'ilike', 'released')
-        .not('status', 'ilike', 'in_progress')
-        .not('status', 'ilike', 'ongoing')
-        .not('status', 'ilike', 'FLAGGED_NOSHOW')
-        .not('status', 'ilike', 'NO_SHOW')
-        .limit(2);
+      // bookings with at least one vehicle that has no technician
+      const unassignedBookings = await fetchBookingsWithUnassignedVehicles();
+      const unassignedRaw = unassignedBookings.slice(0, 2);
 
       for (const item of unassignedRaw || []) {
         const { data: profile } = item.customer_id
@@ -197,17 +207,7 @@ const AdminDashboard = () => {
         .eq('status', 'FOR_VERIFICATION');
 
       // 5. Needs Attention - Unassigned Bookings
-      const { count: unassigned } = await supabase
-        .from('bookings')
-        .select('*', { count: 'exact', head: true })
-        .is('staff_id', null)
-        .not('status', 'ilike', 'cancelled')
-        .not('status', 'ilike', 'completed')
-        .not('status', 'ilike', 'released')
-        .not('status', 'ilike', 'in_progress')
-        .not('status', 'ilike', 'ongoing')
-        .not('status', 'ilike', 'FLAGGED_NOSHOW')
-        .not('status', 'ilike', 'NO_SHOW');
+      const unassigned = (await fetchBookingsWithUnassignedVehicles()).length;
 
       // 6. Needs Attention - Flagged for Review (Rejected Payments)
       const { count: flaggedCount } = await supabase

@@ -55,6 +55,8 @@ const AdminBookingDetails = () => {
   const [vehicles, setVehicles] = useState([]);
   const [staffList, setStaffList] = useState([]);
   const [hasAssignedStaffBeforeEvidence, setHasAssignedStaffBeforeEvidence] = useState(false);
+  // vehicle ids whose technician already uploaded the before photo (cannot be swapped any more)
+  const [lockedVehicleIds, setLockedVehicleIds] = useState(() => new Set());
   const [auditLogs, setAuditLogs] = useState([]);
   const [bookingPayments, setBookingPayments] = useState([]);
   // Booking money from the database ledger (booking_ledger_v); never re-summed here.
@@ -160,6 +162,7 @@ const AdminBookingDetails = () => {
       // 2. Fetch Customer and Staff Profiles individually to avoid 400 join errors
       let customer = null;
       let assigned_staff = null;
+      let vehicleTechnicianMap = {};
 
       if (bData.customer_id) {
         const { data: cData, error: customerError } = await supabase
@@ -182,24 +185,31 @@ const AdminBookingDetails = () => {
         customer = cDataByEmail;
       }
 
-      if (bData.staff_id) {
-        const { data: sData } = await supabase.from('profiles').select('full_name, email').eq('id', bData.staff_id).maybeSingle();
-        assigned_staff = sData;
+      // The technician of each vehicle (none = unassigned), and
+      // which of them already uploaded their before photo (then they cannot be swapped).
+      const { data: techVehicles } = await supabase.from('booking_vehicles').select('id, staff_id').eq('booking_id', id);
+      const techFor = (vehicleRow) => vehicleRow.staff_id || null;
+      const techIds = [...new Set((techVehicles || []).map(techFor).filter(Boolean))];
+      let techNames = {};
+      if (techIds.length) {
+        const { data: techProfiles } = await supabase.from('profiles').select('id, full_name').in('id', techIds);
+        techNames = Object.fromEntries((techProfiles || []).map((profileRow) => [profileRow.id, profileRow.full_name || 'Technician']));
       }
-
-      if (bData.staff_id) {
-        const { count, error: evidenceError } = await supabase
-          .from('service_photos')
-          .select('id', { count: 'exact', head: true })
-          .eq('booking_id', id)
-          .eq('phase', 'before')
-          .eq('uploaded_by', bData.staff_id)
-          .is('archived_at', null);
-        if (evidenceError) throw evidenceError;
-        setHasAssignedStaffBeforeEvidence((count || 0) > 0);
-      } else {
-        setHasAssignedStaffBeforeEvidence(false);
+      const { data: beforePhotos, error: evidenceError } = await supabase
+        .from('service_photos')
+        .select('booking_vehicle_id, uploaded_by')
+        .eq('booking_id', id)
+        .eq('phase', 'before')
+        .is('archived_at', null);
+      if (evidenceError) throw evidenceError;
+      const locked = new Set();
+      for (const vehicleRow of techVehicles || []) {
+        if ((beforePhotos || []).some((photo) => photo.booking_vehicle_id === vehicleRow.id && photo.uploaded_by === techFor(vehicleRow))) locked.add(vehicleRow.id);
       }
+      setLockedVehicleIds(locked);
+      setHasAssignedStaffBeforeEvidence(locked.size > 0 && (techVehicles || []).every((vehicleRow) => locked.has(vehicleRow.id)));
+      assigned_staff = assigned_staff || (techIds.length ? { full_name: techNames[techIds[0]] } : null);
+      vehicleTechnicianMap = Object.fromEntries((techVehicles || []).map((vehicleRow) => [vehicleRow.id, { id: techFor(vehicleRow), name: techFor(vehicleRow) ? techNames[techFor(vehicleRow)] || 'Technician' : null }]));
 
       // 3. Fetch Vehicles (Manual Join)
       const { data: vData, error: vError } = await supabase
@@ -242,6 +252,7 @@ const AdminBookingDetails = () => {
         ...bData,
         customer,
         assigned_staff,
+        vehicle_technicians: processedVehicles.map((vehicleRow) => ({ vehicleId: vehicleRow.id, label: `${vehicleRow.brand || ''} ${vehicleRow.model || ''}`.trim() || vehicleRow.plate_number || 'Vehicle', name: vehicleTechnicianMap[vehicleRow.id]?.name || null, staffId: vehicleTechnicianMap[vehicleRow.id]?.id || null })),
         total_amount: Number(bData.total_amount) > 0 ? Number(bData.total_amount) : calculatedTotal
       });
       setVehicles(processedVehicles);
@@ -301,24 +312,16 @@ const AdminBookingDetails = () => {
 
       if (!allStaff) return;
 
-      // Find staff assigned to ANY booking or vehicle unit currently IN_PROGRESS
-      const { data: activeBookings } = await supabase
-        .from('bookings')
-        .select('staff_id, status')
-        .not('staff_id', 'is', null)
-        .in('status', ['in_progress', 'ongoing', 'IN_PROGRESS']);
-
+      // A technician is busy while one of THEIR vehicles is in progress.
       const { data: activeVehicles } = await supabase
         .from('booking_vehicles')
-        .select('booking_id, status, bookings!inner(staff_id)')
+        .select('booking_id, status, staff_id, bookings!inner(staff_id)')
         .eq('status', 'IN_PROGRESS');
 
       const busyStaffIds = new Set();
-      (activeBookings || []).forEach(b => {
-        if (b.staff_id) busyStaffIds.add(b.staff_id);
-      });
       (activeVehicles || []).forEach(v => {
-        if (v.bookings?.staff_id) busyStaffIds.add(v.bookings.staff_id);
+        const technicianId = v.staff_id;
+        if (technicianId) busyStaffIds.add(technicianId);
       });
 
       const processedStaff = allStaff.map(s => {
@@ -415,34 +418,29 @@ const AdminBookingDetails = () => {
     return `₱${Number(payment.amount || 0).toLocaleString()} · ${payment.payment_type || 'Payment'} · ${date} · ${state}`;
   };
 
-  const handleAssignStaff = async (staffId) => {
+  const vehicleLabelOf = (vehicleId) => {
+    const item = vehicles.find((row) => row.id === vehicleId);
+    return (item && (`${item.brand || ''} ${item.model || ''}`.trim() || item.plate_number)) || 'vehicle';
+  };
+
+  const handleAssignStaff = async (staffId, vehicleId = null) => {
     const toastId = toast.loading('Assigning technician...');
     try {
       const { data: { user: admin } } = await supabase.auth.getUser();
 
-      if (booking?.staff_id && booking.staff_id !== staffId) {
-        const { count, error: evidenceError } = await supabase
-          .from('service_photos')
-          .select('id', { count: 'exact', head: true })
-          .eq('booking_id', id)
-          .eq('phase', 'before')
-          .eq('uploaded_by', booking.staff_id)
-          .is('archived_at', null);
-        if (evidenceError) throw evidenceError;
-        if ((count || 0) > 0) {
-          setHasAssignedStaffBeforeEvidence(true);
-          toast.error('The assigned technician cannot be changed after they submit a before photo.', { id: toastId });
-          return;
-        }
+      // The technician of a vehicle cannot be swapped once they uploaded the before photo for it.
+      const targetVehicles = vehicleId ? vehicles.filter((item) => item.id === vehicleId) : vehicles;
+      if (targetVehicles.some((item) => lockedVehicleIds.has(item.id) && item.staff_id !== staffId)) {
+        toast.error('The assigned technician cannot be changed after they submit a before photo.', { id: toastId });
+        return;
       }
 
       if (!staffId) {
-        const { error: clearError } = await supabase
-          .from('bookings')
-          .update({ staff_id: null, assigned_by: admin?.id, assigned_at: null })
-          .eq('id', id);
-        if (clearError) throw clearError;
-        toast.success('Technician cleared.', { id: toastId });
+        const clear = vehicleId
+          ? await supabase.from('booking_vehicles').update({ staff_id: null }).eq('id', vehicleId)
+          : await supabase.from('bookings').update({ staff_id: null, assigned_by: admin?.id, assigned_at: null }).eq('id', id);
+        if (clear.error) throw clear.error;
+        toast.success(vehicleId ? 'Technician cleared for this vehicle.' : 'Technicians cleared.', { id: toastId });
         fetchBookingDetails();
         return;
       }
@@ -451,17 +449,23 @@ const AdminBookingDetails = () => {
       const isPostService = booking.status === 'completed';
       const customerName = booking.customer_name || booking.customer?.full_name || 'Customer';
 
-      const updatePayload = {
-        staff_id: staffId,
-        assigned_by: admin?.id,
-        assigned_at: new Date().toISOString(),
-        customer_name: customerName,
-        contact_number: booking.contact_number || booking.customer?.phone_number
-      };
-
-      const { error } = await supabase.from('bookings').update(updatePayload).eq('id', id);
-
-      if (error) throw error;
+      if (vehicleId) {
+        // one vehicle gets its own technician
+        const { error } = await supabase.from('booking_vehicles').update({ staff_id: staffId }).eq('id', vehicleId);
+        if (error) throw error;
+        await supabase.from('bookings').update({ assigned_by: admin?.id, assigned_at: new Date().toISOString() }).eq('id', id);
+      } else {
+        // the booking's technician: every vehicle follows (the database does that)
+        const updatePayload = {
+          staff_id: staffId,
+          assigned_by: admin?.id,
+          assigned_at: new Date().toISOString(),
+          customer_name: customerName,
+          contact_number: booking.contact_number || booking.customer?.phone_number
+        };
+        const { error } = await supabase.from('bookings').update(updatePayload).eq('id', id);
+        if (error) throw error;
+      }
 
       const staffMember = staffList.find((staff) => staff.id === staffId);
 
@@ -470,7 +474,9 @@ const AdminBookingDetails = () => {
         await notifyUser(
           booking.customer_id,
           'Technician Assigned',
-          `Your assigned technician is ${staffMember?.full_name || 'Staff'}. Open booking #${id.slice(0, 8).toUpperCase()} for details.`,
+          vehicleId
+            ? `${staffMember?.full_name || 'A technician'} was assigned to your ${vehicleLabelOf(vehicleId)}. Open booking #${id.slice(0, 8).toUpperCase()} for details.`
+            : `Your assigned technician is ${staffMember?.full_name || 'Staff'}. Open booking #${id.slice(0, 8).toUpperCase()} for details.`,
           'STAFF_ASSIGNED',
           `/customer/bookings/${id}`
         );
@@ -481,7 +487,7 @@ const AdminBookingDetails = () => {
       fetchBookingDetails(); fetchAuditLogs();
     } catch (error) {
       logger.error('CRITICAL ASSIGNMENT FAILURE:', error);
-      const message = String(error?.message || '').includes('STAFF_REASSIGNMENT_LOCKED_AFTER_BEFORE_EVIDENCE')
+      const message = /STAFF_REASSIGNMENT_LOCKED_AFTER_BEFORE_(EVIDENCE|PHOTO)/.test(String(error?.message || ''))
         ? 'The assigned technician cannot be changed after they submit a before photo.'
         : error?.message || 'Assignment failed';
       toast.error(message, { id: toastId });
@@ -1747,6 +1753,17 @@ const AdminBookingDetails = () => {
               <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase', color: 'var(--admin-text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Car size={16} color="var(--admin-brand)" /> Fleet Units ({vehicles.length})
               </h3>
+              {vehicles.length > 1 && !isLocked && booking.status !== 'in_progress' && (
+                <select
+                  aria-label="Assign every vehicle to one technician"
+                  value=""
+                  onChange={event => { const staffId = event.target.value; if (!staffId) return; confirmThen({ title: 'Assign every vehicle?', message: 'All vehicles on this booking will go to this technician.', confirmText: 'Assign all' }, () => handleAssignStaff(staffId)); }}
+                  style={{ padding: '0.4rem', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '800', maxWidth: '12rem' }}
+                >
+                  <option value="">Assign all vehicles to…</option>
+                  {staffList.filter(staff => staff.isAvailable).map(staff => <option key={staff.id} value={staff.id}>{staff.full_name || staff.name}</option>)}
+                </select>
+              )}
               <div style={{ fontSize: '0.65rem', fontWeight: '900', color: 'var(--admin-text-secondary)', opacity: 0.6 }}>SUB-TOTAL: {formatCurrency(booking.total_amount)}</div>
             </div>
 
@@ -1836,14 +1853,14 @@ const AdminBookingDetails = () => {
                         <div style={{ minWidth: isMobile ? '100%' : '180px', width: isMobile ? '100%' : '180px' }}>
                           <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.55rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Technician</label>
                           <select
-                            value={booking.staff_id || ''}
-                            onChange={event => { const staffId = event.target.value; confirmThen({ title: 'Change technician?', message: 'The assigned technician for this booking will be changed.', confirmText: 'Change technician' }, () => handleAssignStaff(staffId)); }}
-                            disabled={isLocked || booking.status === 'in_progress' || hasAssignedStaffBeforeEvidence}
-                            title={hasAssignedStaffBeforeEvidence ? 'The assigned technician cannot be changed after submitting a before photo.' : undefined}
+                            value={v.staff_id || ''}
+                            onChange={event => { const staffId = event.target.value; confirmThen({ title: 'Change technician?', message: `The technician for this ${vehicles.length > 1 ? 'vehicle' : 'booking'} will be changed.`, confirmText: 'Change technician' }, () => handleAssignStaff(staffId, v.id)); }}
+                            disabled={isLocked || booking.status === 'in_progress' || lockedVehicleIds.has(v.id)}
+                            title={lockedVehicleIds.has(v.id) ? 'The assigned technician cannot be changed after submitting a before photo.' : undefined}
                             style={{ width: '100%', padding: '0.4rem', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '800' }}
                           >
                             <option value="">Unassigned</option>
-                            {staffList.filter(staff => staff.isAvailable || staff.id === booking.staff_id).map(staff => <option key={staff.id} value={staff.id}>{staff.full_name || staff.name}</option>)}
+                            {staffList.filter(staff => staff.isAvailable || staff.id === v.staff_id).map(staff => <option key={staff.id} value={staff.id}>{staff.full_name || staff.name}</option>)}
                           </select>
                         </div>
                         <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>

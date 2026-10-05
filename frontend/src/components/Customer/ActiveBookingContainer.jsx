@@ -75,6 +75,11 @@ const ActiveBookingContainer = ({ booking, loading }) => {
   const formattedDate = scheduleDate ? scheduleDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD';
   const formattedTime = scheduleDate ? scheduleDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
   const staffName = booking.assigned_staff ? `${booking.assigned_staff.first_name} ${booking.assigned_staff.last_name}` : 'Unassigned';
+  // with several vehicles the technicians can differ; say so instead of naming only the lead
+  const distinctTechnicianCount = new Set((booking.vehicles || []).map((v) => v.staff_id).filter(Boolean)).size;
+  const unassignedVehicleCount = (booking.vehicles || []).filter((v) => !v.staff_id).length;
+  const technicianLabel = distinctTechnicianCount > 1 ? `${staffName} +${distinctTechnicianCount - 1} more` : staffName;
+  const assignmentLabel = !booking.staff_id ? 'Pending Assignment' : unassignedVehicleCount > 0 ? 'Some vehicles pending' : 'Assigned';
 
   return (
     <div style={cardStyle}>
@@ -139,8 +144,8 @@ const ActiveBookingContainer = ({ booking, loading }) => {
                 <User size={20} color="var(--admin-brand)" />
               </div>
               <div>
-                <div style={{ fontSize: '0.95rem', fontWeight: '900', color: 'var(--admin-text-primary)' }}>{staffName}</div>
-                <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--admin-brand)' }}>{booking.staff_id ? 'Assigned' : 'Pending Assignment'}</div>
+                <div style={{ fontSize: '0.95rem', fontWeight: '900', color: 'var(--admin-text-primary)' }}>{technicianLabel}</div>
+                <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--admin-brand)' }}>{assignmentLabel}</div>
               </div>
             </div>
           </div>

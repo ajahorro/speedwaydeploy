@@ -90,8 +90,12 @@ export const isBookingOverdue = (booking, graceMins = THRESHOLDS.NOSHOW_GRACE_MI
  * any in_progress booking). Dynamic — no hardcoded staff count.
  */
 export const isStaffOccupied = (staffId, allBookings = []) => {
+  // busy while one of THEIR vehicles is in progress (a vehicle's own technician; else the booking's)
   return allBookings.some(
-    b => b.staff_id === staffId && b.status === BOOKING_STATUSES.IN_PROGRESS
+    b => b.status === BOOKING_STATUSES.IN_PROGRESS
+      && (Array.isArray(b.vehicles) && b.vehicles.length
+        ? b.vehicles.some(v => v.staff_id === staffId && ['IN_PROGRESS', 'ONGOING'].includes(String(v.status || '').toUpperCase()))
+        : b.staff_id === staffId)
   );
 };
 

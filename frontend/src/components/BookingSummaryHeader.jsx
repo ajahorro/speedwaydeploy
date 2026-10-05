@@ -29,6 +29,34 @@ const customerEmail = (booking) => {
   return String(email || '').trim();
 };
 
+/**
+ * One row per vehicle: { vehicleId, label, name }. Pages that load the per-vehicle technicians pass
+ * booking.vehicle_technicians; older callers only have the booking's single technician.
+ */
+const technicianRows = (booking) => Array.isArray(booking?.vehicle_technicians) ? booking.vehicle_technicians : [];
+
+/**
+ * A booking whose vehicles all have the same technician shows that name. With different technicians (or
+ * an unassigned vehicle) it shows a dropdown, "Technician - Vehicle", one line per vehicle.
+ */
+const TechnicianSummary = ({ booking }) => {
+  const rows = technicianRows(booking);
+  if (rows.length === 0) return <>{booking?.assigned_staff?.full_name || 'Unassigned'}</>;
+  const names = [...new Set(rows.map((row) => row.name).filter(Boolean))];
+  const allAssigned = rows.every((row) => row.name);
+  if (rows.length === 1 || (allAssigned && names.length === 1)) return <>{names[0] || 'Unassigned'}</>;
+  return (
+    <select
+      aria-label="Technician for each vehicle"
+      defaultValue=""
+      style={{ maxWidth: '100%', padding: '0.3rem 0.4rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700 }}
+    >
+      <option value="" disabled>{allAssigned ? `${names.length} technicians` : 'Some vehicles unassigned'}</option>
+      {rows.map((row) => <option key={row.vehicleId} value={row.vehicleId} disabled>{`${row.name || 'Unassigned'} - ${row.label}`}</option>)}
+    </select>
+  );
+};
+
 const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, showTechnician = true, paymentStatus }) => {
   const rawStatus = booking?.status?.toUpperCase() || 'PENDING';
   const normalizedStatus = rawStatus === 'PENDING' ? 'SCHEDULED' : rawStatus;
@@ -52,8 +80,8 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
           {booking?.start_datetime ? `${formatBookingDate(booking.start_datetime)} at ${formatBookingTime(booking.start_datetime)}` : 'Unscheduled'}
         </SummaryItem>
         {showTechnician && (
-          <SummaryItem icon={Wrench} label="Assigned Technician">
-            {booking?.assigned_staff?.full_name || 'Unassigned'}
+          <SummaryItem icon={Wrench} label={technicianRows(booking).length > 1 ? 'Technicians' : 'Assigned Technician'}>
+            <TechnicianSummary booking={booking} />
           </SummaryItem>
         )}
         {/* Customer identity, placed between the technician and the payment status.

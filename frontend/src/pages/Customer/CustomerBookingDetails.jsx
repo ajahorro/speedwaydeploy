@@ -213,15 +213,14 @@ const CustomerBookingDetails = () => {
       if (bErr) throw bErr;
       if (!bData) return navigate('/customer/bookings');
 
-      // 2. Staff profile
-      let staff = null;
-      if (bData.staff_id) {
-          const { data: technicianName, error: technicianError } = await supabase.rpc('get_customer_booking_technician', {
-            p_booking_id: actualBookingId,
-          });
-          if (technicianError) throw technicianError;
-          staff = technicianName ? { full_name: technicianName } : null;
-      }
+      // 2. Technicians: one per vehicle (the customer can read their names through this function only)
+      const { data: technicianRows, error: technicianError } = await supabase.rpc('get_customer_booking_technicians', {
+        p_booking_id: actualBookingId,
+      });
+      if (technicianError) throw technicianError;
+      const technicianByVehicle = Object.fromEntries((technicianRows || []).map((row) => [row.vehicle_id, row.technician_name || null]));
+      const distinctTechnicians = [...new Set(Object.values(technicianByVehicle).filter(Boolean))];
+      const staff = distinctTechnicians.length ? { full_name: distinctTechnicians.join(', ') } : null;
 
       // 3. Fetch Vehicles (Manual Join)
       const { data: vData, error: vError } = await supabase
@@ -265,7 +264,12 @@ const CustomerBookingDetails = () => {
         return null;
       });
 
-      setBooking({ ...bData, assigned_staff: staff, ledger, totalPaid: Number(ledger?.net_settled || 0) });
+      const vehicleTechnicians = vehiclesWithServices.map((vehicleRow) => ({
+        vehicleId: vehicleRow.id,
+        label: `${vehicleRow.brand || ''} ${vehicleRow.model || ''}`.trim() || vehicleRow.plate_number || 'Vehicle',
+        name: technicianByVehicle[vehicleRow.id] || null
+      }));
+      setBooking({ ...bData, assigned_staff: staff, vehicle_technicians: vehicleTechnicians, ledger, totalPaid: Number(ledger?.net_settled || 0) });
       setVehicles(vehiclesWithServices);
       setPayments(processedPayments);
     } catch (err) {

@@ -223,12 +223,12 @@ const AdminSchedulingGrid = ({ onBack }) => {
           <div style={{ minWidth: '1200px' }}>
             {renderTimeMarkers()}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {renderRow('Unassigned Bay', bookings.filter(b => !b.staff_id), true)}
+              {renderRow('Unassigned Bay', bookings.filter(b => !b.staff_id || (b.vehicles || []).some(v => !v.staff_id)), true)}
               {staff.map(member => (
                 <React.Fragment key={member.id}>
                   {renderRow(
                     member.full_name?.split(' ')[0] || 'Staff',
-                    bookings.filter(b => b.staff_id === member.id)
+                    bookings.filter(b => (b.vehicles || []).some(v => v.staff_id === member.id) || (!(b.vehicles || []).length && b.staff_id === member.id))
                   )}
                 </React.Fragment>
               ))}

@@ -69,7 +69,8 @@ const AdminBookings = () => {
         const bookingStatus = String(b.status || '').toLowerCase();
         const isNotAssignable = b.was_flagged_no_show
           || ['cancelled', 'completed', 'released', 'in_progress', 'ongoing', 'flagged_noshow', 'no_show'].includes(bookingStatus);
-        matchesStatus = !b.staff_id && !isNotAssignable;
+        // a booking needs attention when any of its vehicles has no technician
+        matchesStatus = (!b.staff_id || (b.vehicles || []).some(v => !v.staff_id)) && !isNotAssignable;
       } else if (state.filterStatus === 'FLAGGED_NOSHOW') {
         matchesStatus = b.status?.toUpperCase() === 'FLAGGED_NOSHOW';
       } else if (state.filterStatus === 'ongoing') {

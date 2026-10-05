@@ -514,7 +514,20 @@ const sendPreferenceGatedAnnouncement = ({ preferenceKey, subject, bodyHtml }) =
   });
 };
 
+// Every technician on a booking: each vehicle has its own technician (none = unassigned).
+const getBookingTechnicians = async (bookingId) => {
+  const { data: booking, error: bookingError } = await supabaseAdmin.from('bookings').select('staff_id').eq('id', bookingId).single();
+  if (bookingError) throw bookingError;
+  const { data: vehicles, error: vehiclesError } = await supabaseAdmin.from('booking_vehicles').select('id, staff_id, status').eq('booking_id', bookingId);
+  if (vehiclesError) throw vehiclesError;
+  const techFor = (vehicle) => vehicle.staff_id || null;
+  const ids = [...new Set((vehicles || []).map(techFor).filter(Boolean))];
+  return { ids, vehicles: vehicles || [], techFor, allAssigned: (vehicles || []).length > 0 && (vehicles || []).every((vehicle) => Boolean(techFor(vehicle))), lead: booking.staff_id };
+};
+
 const revokeStaleStaffTaskNotifications = async (bookingId, currentStaffId) => {
+  // currentStaffId may be one id, a list of ids, or empty (nobody is current)
+  const currentStaffIds = new Set([].concat(currentStaffId || []).filter(Boolean));
   const { data: taskNotifications, error: notificationError } = await supabaseAdmin
     .from('notifications')
     .select('id, user_id')
@@ -523,7 +536,7 @@ const revokeStaleStaffTaskNotifications = async (bookingId, currentStaffId) => {
   if (notificationError) throw notificationError;
 
   const staleNotifications = (taskNotifications || []).filter((notification) =>
-    !currentStaffId || notification.user_id !== currentStaffId
+    !currentStaffIds.has(notification.user_id)
   );
   for (const notification of staleNotifications) {
     const { error } = await supabaseAdmin
@@ -2193,8 +2206,7 @@ app.get('/api/admin/profiles', async (req, res) => {
     if (staffIds.length) {
       const { data: assignments, error: assignmentsError } = await supabaseAdmin
         .from('bookings')
-        .select('id, staff_id, status, vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(status)')
-        .in('staff_id', staffIds);
+        .select('id, staff_id, status, vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(status, staff_id)');
       if (assignmentsError) throw assignmentsError;
 
       const activeBookingStatuses = new Set([
@@ -2205,14 +2217,16 @@ app.get('/api/admin/profiles', async (req, res) => {
       for (const booking of assignments || []) {
         const bookingStatus = String(booking.status || '').toLowerCase();
         const terminal = ['cancelled', 'completed', 'released', 'flagged_noshow', 'no_show'].includes(bookingStatus);
-        const hasActiveUnit = !terminal && (booking.vehicles || []).some((vehicle) =>
-          ['IN_PROGRESS', 'ONGOING'].includes(String(vehicle.status || '').toUpperCase())
-        );
-        if (activeBookingStatuses.has(bookingStatus) || hasActiveUnit) {
-          activeServicesByStaff.set(
-            booking.staff_id,
-            (activeServicesByStaff.get(booking.staff_id) || 0) + 1
+        // a booking counts once for each technician who has a vehicle on it
+        const techs = new Set((booking.vehicles || []).map((vehicle) => vehicle.staff_id).filter(Boolean));
+        for (const techId of techs) {
+          if (!activeServicesByStaff.has(techId)) continue;
+          const hasActiveUnit = !terminal && (booking.vehicles || []).some((vehicle) =>
+            vehicle.staff_id === techId && ['IN_PROGRESS', 'ONGOING'].includes(String(vehicle.status || '').toUpperCase())
           );
+          if (activeBookingStatuses.has(bookingStatus) || hasActiveUnit) {
+            activeServicesByStaff.set(techId, (activeServicesByStaff.get(techId) || 0) + 1);
+          }
         }
       }
     }
@@ -4423,8 +4437,9 @@ app.post('/api/bookings/update-master-status', async (req, res) => {
       }
     } else if (normalizedStatus === 'in_progress') {
       const scheduledDate = new Date(booking.start_datetime);
-      if (currentStatus !== 'confirmed' || !booking.staff_id || scheduledDate.toDateString() !== new Date().toDateString()) {
-        return res.status(409).json({ success: false, error: 'Service can only start on the scheduled date after confirmation and staff assignment.' });
+      const technicians = await getBookingTechnicians(bookingId);
+      if (currentStatus !== 'confirmed' || !technicians.allAssigned || scheduledDate.toDateString() !== new Date().toDateString()) {
+        return res.status(409).json({ success: false, error: 'Service can only start on the scheduled date after confirmation and with a technician on every vehicle.' });
       }
     } else if (normalizedStatus === 'completed') {
       if (currentStatus !== 'in_progress' || !allCompleted || !ledger.service_paid_in_full) {
@@ -4542,10 +4557,10 @@ app.get('/api/staff/tasks', async (req, res) => {
       || booking.id === requestedBookingId
       || (isUuidPrefix && booking.id.replace(/-/g, '').toLowerCase().startsWith(compactBookingReference));
     const bookingDetailsSelect = `
-      id, status, start_datetime, end_datetime, total_amount,
+      id, status, staff_id, start_datetime, end_datetime, total_amount,
       customer_name, contact_number,
       vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(
-        id, booking_id, status, brand, model, plate_number, vehicle_type,
+        id, booking_id, staff_id, status, brand, model, plate_number, vehicle_type,
         fleet_group_id, service_notes, started_at, completed_at,
         services:booking_vehicle_services(service_name)
       )
@@ -4622,17 +4637,33 @@ app.get('/api/staff/tasks', async (req, res) => {
         .eq('id', requestedBookingId)
         .maybeSingle();
       if (bookingError) throw bookingError;
-      if (!booking || booking.staff_id === actor.profile.id) return false;
+      if (!booking) return false;
+      const technicians = await getBookingTechnicians(booking.id);
+      if (technicians.ids.includes(actor.profile.id)) return false;
 
-      await revokeStaleStaffTaskNotifications(booking.id, booking.staff_id);
+      await revokeStaleStaffTaskNotifications(booking.id, technicians.ids);
       return true;
     };
 
-    const { data: bookings, error: bookingError } = await supabaseAdmin
-      .from('bookings')
-      .select(bookingDetailsSelect)
+    // Bookings where I am the lead or have a vehicle of my own, trimmed to MY vehicles.
+    const { data: myVehicleRows, error: myVehicleError } = await supabaseAdmin
+      .from('booking_vehicles')
+      .select('booking_id')
       .eq('staff_id', actor.profile.id);
+    if (myVehicleError) throw myVehicleError;
+    const myBookingIds = [...new Set((myVehicleRows || []).map((row) => row.booking_id))];
+    let myBookingsQuery = supabaseAdmin.from('bookings').select(bookingDetailsSelect);
+    myBookingsQuery = myBookingIds.length
+      ? myBookingsQuery.or(`staff_id.eq.${actor.profile.id},id.in.(${myBookingIds.join(',')})`)
+      : myBookingsQuery.eq('staff_id', actor.profile.id);
+    const { data: rawBookings, error: bookingError } = await myBookingsQuery;
     if (bookingError) throw bookingError;
+    const bookings = (rawBookings || [])
+      .map((booking) => ({
+        ...booking,
+        vehicles: (booking.vehicles || []).filter((vehicle) => vehicle.staff_id === actor.profile.id)
+      }))
+      .filter((booking) => booking.vehicles.length > 0);
 
     const assignedBooking = (bookings || []).find(matchesRequestedBooking);
     if (requestedBookingId && !assignedBooking) {
@@ -4723,11 +4754,12 @@ app.post('/api/bookings/reconcile-payment-state', async (req, res) => {
     if (bookingError) throw bookingError;
 
     const ledger = await getBookingLedger(bookingId);
+    const technicians = await getBookingTechnicians(bookingId);
     const currentStatus = String(booking.status || '').toLowerCase();
     let nextStatus = currentStatus;
 
     if (['scheduled', 'pending'].includes(currentStatus)
-      && booking.staff_id
+      && technicians.allAssigned
       && ledger.downpayment_met) {
       nextStatus = 'confirmed';
     } else if (currentStatus === 'in_progress') {
@@ -4747,7 +4779,7 @@ app.post('/api/bookings/reconcile-payment-state', async (req, res) => {
     try {
       await revokeStaleStaffTaskNotifications(
         bookingId,
-        paymentEligible ? booking.staff_id : null
+        paymentEligible ? technicians.ids : null
       );
     } catch (notificationError) {
       console.error(`[payment-state] Stale staff task notification cleanup failed for booking ${bookingId}:`, notificationError.message);
@@ -4795,11 +4827,11 @@ app.post('/api/bookings/reconcile-payment-state', async (req, res) => {
       warnings.push('The payment was recorded, but its receipt email could not be sent.');
     }
 
-    if (booking.staff_id && paymentEligible) {
+    for (const technicianId of paymentEligible ? technicians.ids : []) {
       const { data: existingNotice, error: noticeReadError } = await supabaseAdmin
         .from('notifications')
         .select('id')
-        .eq('user_id', booking.staff_id)
+        .eq('user_id', technicianId)
         .eq('booking_id', bookingId)
         .eq('notification_type', 'TASK_ASSIGNED')
         .limit(1);
@@ -4808,7 +4840,7 @@ app.post('/api/bookings/reconcile-payment-state', async (req, res) => {
         warnings.push('Payment state was updated, but the staff in-app notification could not be checked.');
       } else if (!(existingNotice || []).length) {
         const { error: noticeInsertError } = await supabaseAdmin.from('notifications').insert({
-          user_id: booking.staff_id,
+          user_id: technicianId,
           title: 'New Vehicle Assigned',
           message: 'A new vehicle booking is ready for your assigned service work.',
           notification_type: 'TASK_ASSIGNED',
@@ -4859,18 +4891,18 @@ app.post('/api/bookings/update-status', async (req, res) => {
     if (['completed', 'released', 'cancelled', 'flagged_noshow', 'no_show'].includes(currentMaster)) {
       return res.status(409).json({ success: false, error: 'This booking is finalized and cannot accept service updates.' });
     }
-    if (String(actor.profile.role).toUpperCase() === 'STAFF' && actor.profile.id !== masterBooking.staff_id) {
-      return res.status(403).json({ success: false, error: 'Only the assigned technician may update this booking.' });
-    }
-
     const { data: vehicle, error: vehicleFetchError } = await supabaseAdmin
       .from('booking_vehicles')
-      .select('id, booking_id, status')
+      .select('id, booking_id, status, staff_id')
       .eq('id', unitId)
       .eq('booking_id', bookingId)
       .maybeSingle();
     if (vehicleFetchError) throw vehicleFetchError;
     if (!vehicle) return res.status(404).json({ success: false, error: 'Vehicle does not belong to this booking.' });
+    const vehicleTechnicianId = vehicle.staff_id || null;
+    if (String(actor.profile.role).toUpperCase() === 'STAFF' && actor.profile.id !== vehicleTechnicianId) {
+      return res.status(403).json({ success: false, error: 'Only the technician assigned to this vehicle may update it.' });
+    }
     const currentUnitStatus = String(vehicle.status || '').toUpperCase();
 
     if (requestedStatus === 'IN_PROGRESS') {
@@ -4881,7 +4913,7 @@ app.post('/api/bookings/update-status', async (req, res) => {
       const nowDate = new Date();
       const isScheduledDate = singaporeDateKey(scheduledDate) === singaporeDateKey(nowDate);
       if (!['scheduled', 'confirmed', 'in_progress'].includes(currentMaster)
-        || !masterBooking.staff_id
+        || !vehicleTechnicianId
         || !isScheduledDate
         || scheduledDate.getTime() > nowDate.getTime()) {
         return res.status(409).json({ success: false, error: 'Service can only start after the scheduled time, on the scheduled date, with an assigned technician.' });

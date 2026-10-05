@@ -170,6 +170,7 @@ const StaffDashboard = () => {
     // REQ-SYS-05: Real-time synchronization
     const stopRealtime = subscribeTables([
       { table: 'bookings', filter: `staff_id=eq.${profile?.id}` },
+      { table: 'booking_vehicles', filter: `staff_id=eq.${profile?.id}` },
       { table: 'notifications', filter: `user_id=eq.${profile?.id}` }
     ], fetchAssignedTasks);
 
