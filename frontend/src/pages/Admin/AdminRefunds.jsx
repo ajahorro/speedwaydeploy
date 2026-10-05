@@ -138,7 +138,10 @@ const AdminRefunds = () => {
   // `totalPaid - deduction`, clamped into [0, totalPaid] so it can never go
   // negative or exceed what was collected.
   const selectedRefundTotal = Number(state.selectedItem?.refundLimit ?? state.selectedItem?.totalPaid ?? 0);
-  const deductionValue = Math.max(0, Number(state.deduction) || 0);
+  // An excess-payment refund returns money the customer overpaid, so no cancellation or
+  // preparation fee can apply: the deduction input is hidden and the deduction is always 0.
+  const isExcessRefund = state.refundReason === 'Excess payment' || Number(state.selectedItem?.overpaymentRefundRemaining || 0) > 0;
+  const deductionValue = isExcessRefund ? 0 : Math.max(0, Number(state.deduction) || 0);
   const derivedRefund = Math.max(0, Math.min(selectedRefundTotal - deductionValue, selectedRefundTotal));
   const deductionExceedsPaid = deductionValue > selectedRefundTotal;
   const isRefundLocked = ['PROCESSED', 'COMPLETED'].includes(
@@ -194,7 +197,7 @@ const AdminRefunds = () => {
           p_refund_amount: refundAmount,
           p_refund_reason: state.refundReason,
           p_refund_reference: refundRef,
-          ...(item.overpaymentRefundRemaining > 0 ? {} : { p_refund_deduction: deductionValue }),
+          ...(item.overpaymentRefundRemaining > 0 ? {} : { p_refund_deduction: isExcessRefund ? 0 : deductionValue }),
           p_refund_method: state.refundMethod,
           p_actor_id: user?.id || null
         });
@@ -491,6 +494,7 @@ const AdminRefunds = () => {
                       style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '700', marginBottom: '1rem', appearance: 'none' }}
                     >
                       <option value="" disabled>Select Reason</option>
+                      <option value="Excess payment">Excess payment</option>
                       <option value="No-Show">No-Show</option>
                       <option value="Schedule Conflict">Schedule Conflict</option>
                       <option value="Customer Request">Customer Request</option>
@@ -498,6 +502,7 @@ const AdminRefunds = () => {
                   </div>
 
                   {/* Section 5: the admin edits the DEDUCTION; the refund is derived. */}
+                  {!isExcessRefund && (
                   <div>
                     <label htmlFor="refund-deduction" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
                       <span>Cancellation/Prep Fee Deduction (₱)</span>
@@ -520,6 +525,7 @@ const AdminRefunds = () => {
                       </div>
                     )}
                   </div>
+                  )}
 
                   <div>
                       <label htmlFor="refund-method" style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Refund Paid Via</label>
@@ -541,7 +547,7 @@ const AdminRefunds = () => {
                       style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px dashed var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-secondary)', fontSize: '1rem', fontWeight: '950', cursor: 'not-allowed' }}
                     />
                     <div style={{ marginTop: '0.4rem', fontSize: '0.6rem', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>
-                      {state.selectedItem.overpaymentRefundRemaining > 0 ? 'Queued booking excess' : 'Total Paid'} − Deduction = ₱{selectedRefundTotal.toLocaleString()} − ₱{Math.min(deductionValue, selectedRefundTotal).toLocaleString()}
+                      {state.selectedItem.overpaymentRefundRemaining > 0 ? 'Queued booking excess' : 'Total Paid'}{isExcessRefund ? ' (no deduction applies)' : ' − Deduction'} = ₱{selectedRefundTotal.toLocaleString()} − ₱{Math.min(deductionValue, selectedRefundTotal).toLocaleString()}
                     </div>
                   </div>
                 </>
@@ -630,7 +636,7 @@ const AdminRefunds = () => {
                 {[
                   ['Refund returned', `₱${derivedRefund.toLocaleString()}`],
                   ['Reason', state.refundReason || 'Not selected'],
-                  ['Cancellation deduction', `₱${deductionValue.toLocaleString()}`],
+                  ...(isExcessRefund ? [] : [['Cancellation deduction', `₱${deductionValue.toLocaleString()}`]]),
                   ['Refund method', state.refundMethod],
                   ['Remaining to refund after this', `₱${Math.max(0, selectedRefundTotal - deductionValue - derivedRefund).toLocaleString()}`],
                 ].map(([label, value]) => <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', textAlign: 'left', fontSize: '0.74rem' }}><span style={{ color: 'var(--admin-text-secondary)' }}>{label}</span><strong style={{ textAlign: 'right', overflowWrap: 'anywhere' }}>{value}</strong></div>)}
