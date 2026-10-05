@@ -61,9 +61,9 @@ services:
       - key: SUPABASE_URL
         sync: false
 
-      # OPTIONAL: powers the admin analytics assistant (Claude Haiku 4.5). Without it the
-      # assistant answers "not configured yet"; nothing else is affected. Create a key at
-      # console.anthropic.com and paste it in the Render dashboard (never commit it).
+      # OPTIONAL and not needed. The admin analytics assistant works without it in a free built-in
+      # mode (rule-based, no paid service). Setting a key switches it to Claude Haiku 4.5 for
+      # free-form questions, which is billed by Anthropic. Never commit the key.
       - key: ANTHROPIC_API_KEY
         sync: false
 

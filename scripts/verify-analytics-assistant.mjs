@@ -71,10 +71,39 @@ assert.equal(seen[0].model, 'claude-haiku-4-5-20251001');
 assert.ok(seen[0].max_tokens <= 700);
 assert.match(seen[0].system, /Never invent/);
 
-// no key -> clear 503, bad input -> 400
+// ── free built-in mode: no key, no model call ──
 delete process.env.ANTHROPIC_API_KEY;
-assert.equal((await askAnalyticsAssistant({ question: 'x', db, adminId: 'a' })).status, 503);
+const modelCallsBefore = seen.length;
+const ask = (question, extra = {}) => askAnalyticsAssistant({ question, range: { from: '2026-10-01', to: '2026-10-05' }, db, adminId: 'builtin-' + Math.random(), ...extra });
+
+const earn = await ask('How much did we earn last month?');
+assert.equal(earn.status, 200);
+assert.equal(earn.body.mode, 'built-in');
+assert.match(earn.body.answer, /Net revenue: ₱/);
+assert.match(earn.body.answer, /last month/);
+
+const owed = await ask('Who owes us the most right now?');
+assert.equal(owed.body.toolsUsed[0], 'get_outstanding_bookings');
+assert.match(owed.body.answer, /unpaid balance|Largest unpaid balances/);
+
+const compare = await ask('Compare this week with last week');
+assert.equal(compare.body.toolsUsed.filter((n) => n === 'get_sales_report').length, 2);
+assert.match(compare.body.answer, /Change:/);
+
+const report = await ask('Create a report for last month');
+assert.equal(report.body.actions[0].type, 'set_range');
+assert.match(report.body.actions[0].from, /^\d{4}-\d{2}-01$/);
+
+const exported = await ask('Export this month as csv');
+assert.deepEqual(exported.body.actions.map((a) => a.type), ['set_range', 'export_csv']);
+
+const unknown = await ask('what is the meaning of life');
+assert.match(unknown.body.answer, /I can answer questions like/);
+assert.equal(unknown.body.toolsUsed.length, 0, 'an unrecognised question runs no tools');
+assert.equal(seen.length, modelCallsBefore, 'built-in mode never calls the model');
 process.env.ANTHROPIC_API_KEY = 'test-key';
+
+// bad input -> 400
 assert.equal((await askAnalyticsAssistant({ question: '   ', db, adminId: 'a' })).status, 400);
 
 // per-admin rate limit

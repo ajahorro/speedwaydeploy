@@ -1,10 +1,13 @@
 'use strict';
 
+const { createBuiltInAnswerer } = require('./analyticsBuiltIn');
+
 /**
  * Admin analytics assistant (master plan 4.6).
  *
- * Claude Haiku 4.5 is called from the backend with a plain fetch (no SDK). The key lives only in
- * ANTHROPIC_API_KEY on the server. The model never gets SQL or write access: it can only call the
+ * Two modes. WITHOUT an API key it runs the free built-in mode (analyticsBuiltIn.js: rule-based, no
+ * paid service). WITH ANTHROPIC_API_KEY it uses Claude Haiku 4.5 over a plain fetch (no SDK) for
+ * free-form questions; the key lives only on the server. The model never gets SQL or write access: it can only call the
  * small fixed set of read-only tools below, each of which runs as the signed-in ADMIN (their own
  * JWT, so the database's own admin checks and RLS still apply), plus two "action" tools that just
  * ask the page to change its date range or export the CSV.
@@ -191,11 +194,13 @@ const callModel = async (apiKey, body) => {
  */
 async function askAnalyticsAssistant({ question, range, history = [], db, adminId }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return { status: 503, body: { success: false, error: 'The assistant is not configured yet. Add ANTHROPIC_API_KEY to the server.' } };
 
   const text = String(question || '').trim().slice(0, MAX_QUESTION_CHARS);
   if (!text) return { status: 400, body: { success: false, error: 'Ask a question first.' } };
   if (!allowRequest(adminId)) return { status: 429, body: { success: false, error: 'Too many questions. Wait a moment and try again.' } };
+
+  // No key = free built-in mode (no paid service). The model is optional.
+  if (!apiKey) return answerWithBuiltInRules({ question: text, range, db, adminId });
 
   const messages = [
     ...history
@@ -242,5 +247,7 @@ async function askAnalyticsAssistant({ question, range, history = [], db, adminI
     return { status, body: { success: false, error: 'The assistant is unavailable right now. Try again shortly.' } };
   }
 }
+
+const answerWithBuiltInRules = createBuiltInAnswerer({ runTool, isDay, todayInManila });
 
 module.exports = { askAnalyticsAssistant, TOOLS, validateRange, dayStartIso, dayEndIso };
