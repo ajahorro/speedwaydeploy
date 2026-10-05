@@ -244,7 +244,7 @@ export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
 
   return {
     statusKey: 'PARTIALLY_PAID',
-    text: `Partially Paid \u2014 \u20b1${balance.toLocaleString()} remaining`,
+    text: 'Partially Paid',
     shortText: 'Partial',
     color: 'var(--status-warning)',
     balance,

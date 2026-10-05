@@ -37,21 +37,28 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
   // was never charged and which existed nowhere in the database. Both models are
   // now removed rather than reconciled. A tax figure computed in more than one
   // place is a tax figure that will eventually disagree with itself.
-  const paymentAmounts = selectedPayment
+  // A refund is stored as a negative SYSTEM_REFUND payment row; it gets its own receipt.
+  const isRefund = Boolean(selectedPayment)
+    && String(selectedPayment.method || '').toUpperCase() === 'SYSTEM_REFUND'
+    && Number(selectedPayment.amount) < 0;
+  const refundAmount = isRefund ? Math.abs(Number(selectedPayment.amount) || 0) : 0;
+  const paymentAmounts = selectedPayment && !isRefund
     ? resolveTransactionReceiptAmounts(selectedPayment)
     : null;
-  const paymentReceived = paymentAmounts?.grossPaid || 0;
+  const paymentReceived = isRefund ? refundAmount : (paymentAmounts?.grossPaid || 0);
   const invoiceAmounts = resolveInvoiceAmounts(booking || {});
   const gross = selectedPayment ? paymentReceived : invoiceAmounts.subtotal;
   const discount = selectedPayment ? 0 : invoiceAmounts.discount;
   const promoName = booking?.promo_name_snapshot || null;
   const total = selectedPayment ? paymentReceived : invoiceAmounts.totalDue;
-  const totalLabel = selectedPayment ? 'Payment Received' : 'Total Amount Due';
+  const totalLabel = isRefund ? 'Amount Refunded' : (selectedPayment ? 'Payment Received' : 'Total Amount Due');
 
   const customerName = booking?.customer_name || booking?.customer?.full_name || user?.user_metadata?.full_name || 'Valued Customer';
   const customerEmail = booking?.customer_email || booking?.customer?.email || user?.email || '';
-  const documentTitle = title || (selectedPayment ? 'OFFICIAL RECEIPT' : 'INVOICE');
-  const reference = selectedPayment
+  const documentTitle = title || (isRefund ? 'REFUND RECEIPT' : (selectedPayment ? 'OFFICIAL RECEIPT' : 'INVOICE'));
+  const reference = isRefund
+    ? (selectedPayment.reference_number || `RFD-${String(selectedPayment.id || '').toUpperCase()}`)
+    : selectedPayment
     ? getReceiptNumber(selectedPayment)
     : `INV-${String(booking?.id || 'RECEIPT').slice(0, 8).toUpperCase()}`;
   const transactionReference = selectedPayment?.reference_number || selectedPayment?.detected_ref || null;
@@ -67,7 +74,7 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
   };
 
   const rows = selectedPayment
-    ? [{ description: 'Payment for Booking', price: paymentReceived }]
+    ? [{ description: isRefund ? 'Refund for Booking' : 'Payment for Booking', price: paymentReceived }]
     : effectiveVehicles.flatMap((vehicle) => (vehicle.services || []).map((service, index) => ({
       key: service.id || `${vehicle.id}-${index}`,
       description: `${vehicle.brand || ''} ${vehicle.model || ''} - ${service.service_name || service.service_name_snapshot || 'Service'}`,
@@ -79,7 +86,7 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
     <div ref={receiptRef} id="printable-receipt" style={{ background: '#fff', color: '#111827', padding: '2rem', fontFamily: 'Inter, system-ui, sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '2rem', borderBottom: '2px solid #111827', paddingBottom: '1.25rem' }}>
         <div><div style={{ fontSize: '1.8rem', fontWeight: 900, fontStyle: 'italic' }}>COMAR GARAGE</div><div style={{ color: '#6B7280', fontSize: '0.75rem', letterSpacing: '1px', textTransform: 'uppercase' }}>Auto Detailing Studio</div><div style={{ color: '#6B7280', fontSize: '0.75rem', marginTop: '0.75rem' }}>123 Comar Garage Drive, Quezon City, Metro Manila</div></div>
-        <div style={{ textAlign: 'right' }}><div style={{ color: '#E61E2A', fontWeight: 900, fontSize: '0.75rem' }}>{documentTitle}</div><div style={{ marginTop: '0.5rem' }}><strong>{selectedPayment ? 'Receipt No.' : 'Invoice No.'}</strong> {reference}</div>{selectedPayment && <div style={{ color: '#6B7280', fontSize: '0.72rem', marginTop: '0.25rem' }}><strong>Transaction/Reference ID:</strong> {transactionReference || 'Not provided'}</div>}<div style={{ color: '#6B7280', fontSize: '0.75rem', marginTop: '0.35rem' }}>{dateValue(selectedPayment?.created_at || booking?.created_at)}</div></div>
+        <div style={{ textAlign: 'right' }}><div style={{ color: '#E61E2A', fontWeight: 900, fontSize: '0.75rem' }}>{documentTitle}</div><div style={{ marginTop: '0.5rem' }}><strong>{isRefund ? 'Refund Ref.' : (selectedPayment ? 'Receipt No.' : 'Invoice No.')}</strong> {reference}</div>{selectedPayment && <div style={{ color: '#6B7280', fontSize: '0.72rem', marginTop: '0.25rem' }}><strong>Transaction/Reference ID:</strong> {transactionReference || 'Not provided'}</div>}<div style={{ color: '#6B7280', fontSize: '0.75rem', marginTop: '0.35rem' }}>{dateValue(selectedPayment?.created_at || booking?.created_at)}</div></div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', margin: '1.5rem 0' }}>
         <div><strong style={{ display: 'block', fontSize: '0.65rem', color: '#9CA3AF', textTransform: 'uppercase' }}>Billed To</strong><div style={{ marginTop: '0.35rem', fontWeight: 700 }}>{customerName}</div><div style={{ color: '#6B7280', fontSize: '0.8rem' }}>{customerEmail}</div></div>
@@ -87,7 +94,9 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}><thead><tr>{['Description', 'Qty', 'Unit Price', 'Total'].map((heading, index) => <th key={heading} style={{ textAlign: index ? 'right' : 'left', padding: '0.65rem 0.4rem', borderBottom: '2px solid #E5E7EB', color: '#6B7280', textTransform: 'uppercase', fontSize: '0.65rem' }}>{heading}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={row.key || index}><td style={{ padding: '0.8rem 0.4rem', borderBottom: '1px solid #F3F4F6' }}>{row.description}</td><td style={{ textAlign: 'right' }}>1</td><td style={{ textAlign: 'right' }}>{currency(row.price)}</td><td style={{ textAlign: 'right', fontWeight: 700 }}>{currency(row.price)}</td></tr>)}</tbody></table>
       <div style={{ width: '280px', margin: '1.5rem 0 0 auto', borderTop: '2px solid #111827', paddingTop: '0.75rem' }}>
-        {selectedPayment ? (
+        {isRefund ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '1.1rem' }}><span>Amount Refunded</span><span>{currency(refundAmount)}</span></div>
+        ) : selectedPayment ? (
           <>
             <div style={{ display: 'grid', gap: '0.45rem', fontSize: '0.82rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Gross Paid</span><span>{currency(paymentAmounts.grossPaid)}</span></div>

@@ -9,7 +9,7 @@ import {
   Hash, Calendar, Phone, Shield, Activity, Play, CheckCircle2,
   Package, Truck, Trash2, Banknote, Loader2, Eye, ArrowRight, X, UserX, Box,
   Send, ShieldCheck, ShieldAlert, Image as ImageIcon, Plus, Zap, TrendingUp,
-  FileText, Printer, CalendarClock
+  FileText, Printer, CalendarClock, ImagePlus
 } from 'lucide-react';
 import { SERVICES_DATA, resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import { calculateBayUsage, calculateOccupancy, filterActiveBookings } from '../../utils/schedulingUtils';
@@ -65,6 +65,9 @@ const AdminBookingDetails = () => {
   const [topUpMethod, setTopUpMethod] = useState('Cash');
   const [topUpReference, setTopUpReference] = useState('');
   const [submittingPayment, setSubmittingPayment] = useState(false);
+  const [topUpScan, setTopUpScan] = useState(null);
+  const [evidenceId, setEvidenceId] = useState(null);
+  const topUpFileRef = React.useRef(null);
   const [showManualInput, setShowManualInput] = useState(false);
   const [serviceModal, setServiceModal] = useState({ open: false, vehicleId: null });
   const [pendingService, setPendingService] = useState(null);
@@ -396,6 +399,18 @@ const AdminBookingDetails = () => {
   // The payment verification audit and the receipt archive share one container.
   const hasPaymentAudit = Boolean(booking?.ocr_metadata && Object.keys(booking.ocr_metadata).length > 0);
   const hasPaymentEvidence = (bookingPayments || []).some((payment) => payment.receipt_url || payment.evidence_url);
+  // One receipt is shown at a time; with several payments (downpayment, balance, added services) a
+  // dropdown picks which one. Anything waiting for verification is shown first.
+  const evidencePayments = (bookingPayments || []).filter((payment) => payment.receipt_url || payment.evidence_url);
+  const activeEvidence = evidencePayments.find((payment) => payment.id === evidenceId)
+    || evidencePayments.find((payment) => payment.status === 'FOR_VERIFICATION')
+    || evidencePayments[evidencePayments.length - 1]
+    || null;
+  const evidenceLabel = (payment) => {
+    const state = payment.status === 'PAID' ? 'Verified' : payment.status === 'FOR_VERIFICATION' ? 'Needs review' : 'Rejected';
+    const date = new Date(payment.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `₱${Number(payment.amount || 0).toLocaleString()} · ${payment.payment_type || 'Payment'} · ${date} · ${state}`;
+  };
 
   const handleAssignStaff = async (staffId) => {
     const toastId = toast.loading('Assigning technician...');
@@ -811,6 +826,80 @@ const AdminBookingDetails = () => {
     }
   };
 
+  // Digital top-up: the receipt is read by the same OCR the customer flow uses. The amount, reference
+  // and receipt image come from that scan (never typed), so the stored payment matches the receipt.
+  const scanTopUpReceipt = async (file) => {
+    if (!file || topUpScan?.state === 'scanning') return;
+    if (!/^image\//i.test(file.type || '')) return toast.error('Only photos can be uploaded (JPG, PNG, WebP or HEIC).');
+    setTopUpScan({ state: 'scanning' });
+    try {
+      const form = new FormData();
+      form.append('receipt', file);
+      form.append('requiredAmount', '1');
+      form.append('fullAmount', String(balance));
+      form.append('paymentType', 'Downpayment');
+      form.append('rateKey', String(id));
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 140000);
+      let response;
+      try {
+        response = await fetch(`${BACKEND_URL}/api/ocr/verify-receipt`, { method: 'POST', body: form, signal: controller.signal });
+      } finally {
+        window.clearTimeout(timer);
+      }
+      const body = await response.json().catch(() => ({}));
+      if (response.status === 429) return setTopUpScan({ state: 'blocked', message: `Too many scans. Wait ${Number(body.retryAfterSeconds || 30)} seconds and try again.` });
+      if (!response.ok || !body.success) throw new Error(body.error || 'The receipt service is unavailable.');
+      const data = body.data || {};
+      const net = Number(data.amount);
+      if (body.isDuplicate) return setTopUpScan({ state: 'blocked', message: 'This receipt or its reference number was already used on another payment.' });
+      if (body.manualReviewAllowed || !(net > 0) || data.amountDetected === false) {
+        return setTopUpScan({ state: 'blocked', message: 'The receipt could not be read. Ask for a clearer photo, or record it as cash if cash was handed over.' });
+      }
+      if (body.valid !== true) {
+        const reasons = (Array.isArray(body.validationErrors) ? body.validationErrors : data.validationErrors || []).map((item) => item.message).filter(Boolean);
+        return setTopUpScan({ state: 'blocked', message: reasons.length ? reasons.slice(0, 2).join(' ') : 'This receipt could not be accepted.' });
+      }
+      if (net > balance + 0.01) return setTopUpScan({ state: 'blocked', message: `The receipt shows ${formatCurrency(net)}, more than the ${formatCurrency(balance)} still owed.` });
+      if (data.referenceNo) setTopUpReference(String(data.referenceNo).replace(/\s+/g, ''));
+      setTopUpScan({ state: 'ready', ocrScanId: body.ocrScanId, net, fee: Number(data.transferFee) || 0 });
+    } catch (error) {
+      setTopUpScan({ state: 'blocked', message: error.name === 'AbortError' ? 'Reading the receipt took too long. Please try again.' : (error.message || 'The receipt could not be read.') });
+    }
+  };
+
+  const handleRecordScannedPayment = async () => {
+    if (topUpScan?.state !== 'ready') return;
+    const topUpRef = topUpReference.trim();
+    if (topUpRef.length < 4) return toast.error('Enter the digital transaction reference number.');
+    setSubmittingPayment(true);
+    const toastId = toast.loading('Recording payment...');
+    try {
+      const { data: { user: actor } } = await supabase.auth.getUser();
+      const { data: result, error } = await supabase.rpc('admin_record_scanned_payment', { p_booking_id: id, p_ocr_scan_id: topUpScan.ocrScanId, p_reference: topUpRef });
+      if (error) throw error;
+      const paid = Number(result?.amount || topUpScan.net);
+      await notifyUser(booking.customer_id, 'Payment Received', `We have recorded your payment of ₱${paid.toLocaleString()}.`, 'PAYMENT_RECEIVED', `/customer/bookings/${id}`);
+      await supabase.from('audit_logs').insert({
+        booking_id: id,
+        action_type: 'PAYMENT_RECORDED',
+        actor_name: actor?.email || 'Admin',
+        actor_role: 'ADMIN',
+        details: `Digital payment recorded from the receipt: ₱${paid.toLocaleString()}, reference ${topUpRef}.`
+      });
+      await reconcileBookingPaymentState(result?.payment_id || null);
+      toast.success('Payment recorded', { id: toastId });
+      setTopUpScan(null);
+      setTopUpReference('');
+      fetchPayments(); fetchBookingDetails(); fetchAuditLogs();
+    } catch (err) {
+      logger.error('Scanned Payment Error', err);
+      toast.error(err?.message || 'Failed to record payment', { id: toastId });
+    } finally {
+      setSubmittingPayment(false);
+    }
+  };
+
   const handleAddService = async (vehicleId, service, paymentAmountOverride, paymentType = 'Downpayment', paymentMethod = 'Cash', referenceNumber = '', allowOvernight = false) => {
     setIsUpdatingDuration(true);
     const toastId = toast.loading('Validating schedule integrity...');
@@ -1196,7 +1285,7 @@ const AdminBookingDetails = () => {
   };
   const registeredCustomerPhone = String(booking?.customer?.phone_number || '').trim();
   const bookingContactPhone = String(booking?.contact_number || booking?.customer_phone || '').trim();
-  const customerPhone = registeredCustomerPhone || bookingContactPhone;
+  const customerPhone = bookingContactPhone || registeredCustomerPhone;
 
   if (loading || !booking) return <LoadingState message="Synchronizing fleet records..." />;
 
@@ -1293,14 +1382,14 @@ const AdminBookingDetails = () => {
             onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
             onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
           >
-            <ArrowLeft size={14} /> ADMINISTRATIVE CONSOLE
+            <ArrowLeft size={14} /> Back
           </button>
 
           <h1 style={{ margin: 0, fontSize: '2.8rem', fontWeight: '950', color: 'var(--admin-text-primary)', letterSpacing: '-2px', textTransform: 'uppercase', lineHeight: 1 }}>
-            {booking.booking_id || `SW-BKG-${id.slice(0, 8).toUpperCase()}`}
+            {booking.booking_id || `#${id.slice(0, 8).toUpperCase()}`}
           </h1>
           <p style={{ margin: '0.5rem 0 0 0', color: 'var(--admin-text-secondary)', fontWeight: '600', fontSize: '0.95rem', opacity: 0.8 }}>
-            Detailed operational record for session initialized on {new Date(booking.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
+            Booked on {new Date(booking.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
           </p>
         </div>
 
@@ -1315,6 +1404,7 @@ const AdminBookingDetails = () => {
             missed the slot and needs a new one — so the status is no longer
             excluded. Only TERMINAL states hide it: a completed, released or
             cancelled booking has nothing left to reschedule. */}
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
         {!['completed', 'released', 'cancelled', 'in_progress', 'ongoing'].includes(derivedStatus) && !anyUnitStarted && (
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <button
@@ -1323,9 +1413,9 @@ const AdminBookingDetails = () => {
                 background: 'var(--admin-brand)',
                 color: 'var(--admin-text-on-brand)',
                 border: 'none',
-                padding: '0.75rem 1.25rem',
+                padding: '0.55rem 0.9rem',
                 borderRadius: 'var(--admin-radius-sm)',
-                fontSize: '0.75rem',
+                fontSize: '0.7rem',
                 fontWeight: '950',
                 cursor: 'pointer',
                 display: 'flex',
@@ -1337,7 +1427,7 @@ const AdminBookingDetails = () => {
                 transition: 'all 0.2s ease'
               }}
             >
-              <Calendar size={15} /> RESCHEDULE BOOKING
+              <Calendar size={15} /> RESCHEDULE
             </button>
           </div>
         )}
@@ -1350,9 +1440,9 @@ const AdminBookingDetails = () => {
               background: 'transparent',
               color: 'var(--status-danger)',
               border: '1px solid var(--status-danger)',
-              padding: '0.75rem 1.25rem',
+              padding: '0.55rem 0.9rem',
               borderRadius: 'var(--admin-radius-sm)',
-              fontSize: '0.75rem',
+              fontSize: '0.7rem',
               fontWeight: '950',
               cursor: 'pointer',
               textTransform: 'uppercase',
@@ -1362,6 +1452,7 @@ const AdminBookingDetails = () => {
             Cancel
           </button>
         )}
+        </div>
       </div>
 
       <BookingSummaryHeader booking={booking} showCustomer={!isMobile} onUnitCollected={derivedStatus === 'completed' ? requestReleaseBooking : undefined} paymentStatus={paymentSummary} />
@@ -1520,7 +1611,7 @@ const AdminBookingDetails = () => {
                             CANCEL
                           </button>
                         )}
-                        {p.status === 'PAID' && (
+                        {(p.status === 'PAID' || (String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(p.amount) < 0)) && (
                           <button
                             onClick={() => { setSelectedPayment(p); setReceiptModal(true); }}
                             style={{ background: 'transparent', border: '1px solid var(--admin-brand)', color: 'var(--admin-brand)', cursor: 'pointer', padding: '0.6rem 0.75rem', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', fontSize: '0.68rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}
@@ -1568,11 +1659,11 @@ const AdminBookingDetails = () => {
                 ) : totalPaid >= (booking?.total_amount || 0) && (booking?.total_amount || 0) > 0 ? (
                   <><CheckCircle2 size={16} /> ACCOUNT SETTLED • FULLY PAID</>
                 ) : totalPaid > 0 ? (
-                  <><ShieldAlert size={16} /> PARTIALLY PAID • OUTSTANDING BALANCE {formatCurrency(balance)}</>
+                  <><ShieldAlert size={16} /> PARTIALLY PAID</>
                 ) : (booking?.billing_type === 'FLEET' || booking?.billing_type === 'CORPORATE' || booking?.fleet_group_id || (booking?.vehicles || []).some(v => v.fleet_group_id)) ? (
                   <><CreditCard size={16} /> BILLED TO CORPORATE ACCOUNT • INVOICE PENDING</>
                 ) : (
-                  <><ShieldAlert size={16} /> UNPAID • OUTSTANDING BALANCE {formatCurrency(booking?.total_amount || balance)}</>
+                  <><ShieldAlert size={16} /> UNPAID</>
                 )}
               </div>
               {balance <= 0 && !isLocked && (
@@ -1587,50 +1678,83 @@ const AdminBookingDetails = () => {
 
             {/* Re-activates if balance > 0 OR override is enabled */}
             {(balance > 0 || showManualInput) && !isLocked && (
-              <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: 'var(--admin-text-secondary)' }}>How was it paid?</span>
-                {['Cash', 'Digital'].map(method => (
-                  <button key={method} type="button" onClick={() => { setTopUpMethod(method); if (method === 'Cash') setTopUpReference(''); }} style={{ padding: '0.5rem 0.9rem', borderRadius: '6px', border: `1px solid ${topUpMethod === method ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: topUpMethod === method ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-bg)', color: topUpMethod === method ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontWeight: 900, fontSize: '0.7rem', cursor: 'pointer' }}>{method}</button>
-                ))}
-                {balance > 0 && (
-                  <button type="button" onClick={() => setPaymentAmount(String(balance))} style={{ marginLeft: 'auto', padding: '0.5rem 0.9rem', borderRadius: '6px', border: '1px solid var(--admin-border)', background: 'transparent', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.7rem', cursor: 'pointer' }}>Pay full balance ({formatCurrency(balance)})</button>
-                )}
-              </div>
-            )}
-            {(balance > 0 || showManualInput) && !isLocked && topUpMethod === 'Digital' && (
-              <input
-                type="text"
-                placeholder="Digital transaction reference number"
-                aria-label="Digital transaction reference number"
-                data-no-auto-capitalize="true"
-                value={topUpReference}
-                onChange={(e) => setTopUpReference(e.target.value.replace(/\s+/g, ''))}
-                style={{ width: '100%', boxSizing: 'border-box', marginTop: '0.5rem', padding: '0.85rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '0.5rem', color: 'var(--admin-text-primary)', fontWeight: 800, outline: 'none' }}
-              />
-            )}
-
-            {(balance > 0 || showManualInput) && !isLocked && (
-              <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.75rem', animation: 'fadeIn 0.3s ease' }}>
-                <div style={{ flex: 1, position: 'relative' }}>
-                  <div style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-brand)', fontWeight: '950' }}>₱</div>
-                  <input
-                    type="number"
-                    className="no-spinner"
-                    placeholder={balance > 0 ? "Record Top-up Payment..." : "Record Manual Override..."}
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                    style={{ width: '100%', padding: '0.85rem 0.85rem 0.85rem 2rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '0.5rem', color: 'var(--admin-text-primary)', fontWeight: '900', outline: 'none' }}
-                  />
+              <>
+                <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: 'var(--admin-text-secondary)' }}>How was it paid?</span>
+                  {['Cash', 'Digital'].map(method => (
+                    <button key={method} type="button" onClick={() => { setTopUpMethod(method); setTopUpScan(null); if (method === 'Cash') setTopUpReference(''); }} style={{ padding: '0.5rem 0.9rem', borderRadius: '6px', border: `1px solid ${topUpMethod === method ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: topUpMethod === method ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-bg)', color: topUpMethod === method ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontWeight: 900, fontSize: '0.7rem', cursor: 'pointer' }}>{method}</button>
+                  ))}
+                  {balance > 0 && topUpMethod === 'Cash' && (
+                    <button type="button" onClick={() => setPaymentAmount(String(balance))} style={{ marginLeft: 'auto', padding: '0.5rem 0.9rem', borderRadius: '6px', border: '1px solid var(--admin-border)', background: 'transparent', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.7rem', cursor: 'pointer' }}>Pay full balance ({formatCurrency(balance)})</button>
+                  )}
                 </div>
-                <button
-                  onClick={() => confirmThen({ title: 'Record this payment?', message: `${formatCurrency(Number(paymentAmount) || 0)} paid by ${topUpMethod}${topUpMethod === 'Digital' ? ` (ref ${topUpReference.trim()})` : ''} will be added to this booking’s ledger and the customer will be notified.`, confirmText: 'Record payment' }, handleRecordPayment)}
-                  disabled={submittingPayment || !(Number(paymentAmount) > 0) || (topUpMethod === 'Digital' && topUpReference.trim().length < 4)}
-                  title={!(Number(paymentAmount) > 0) ? 'Enter an amount first' : (topUpMethod === 'Digital' && topUpReference.trim().length < 4 ? 'Enter the reference number first' : undefined)}
-                  style={{ padding: '0 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: (submittingPayment || !(Number(paymentAmount) > 0) || (topUpMethod === 'Digital' && topUpReference.trim().length < 4)) ? 0.4 : 1 }}
-                >
-                  {submittingPayment ? 'SAVING...' : 'RECORD PAYMENT'}
-                </button>
-              </div>
+
+                {topUpMethod === 'Digital' ? (
+                  <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <input
+                        type="text"
+                        placeholder="Reference number (filled in from the receipt, or type it)"
+                        aria-label="Digital transaction reference number"
+                        data-no-auto-capitalize="true"
+                        value={topUpReference}
+                        onChange={(e) => setTopUpReference(e.target.value.replace(/\s+/g, ''))}
+                        style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '0.85rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '0.5rem', color: 'var(--admin-text-primary)', fontWeight: 800, outline: 'none' }}
+                      />
+                      <input ref={topUpFileRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style={{ display: 'none' }} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; scanTopUpReceipt(file); }} />
+                      <button
+                        type="button"
+                        onClick={() => topUpFileRef.current?.click()}
+                        disabled={topUpScan?.state === 'scanning'}
+                        title="Upload the payment receipt. It is read automatically."
+                        style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0 0.9rem', borderRadius: '0.5rem', border: '1px solid var(--admin-brand)', background: 'rgba(var(--admin-brand-rgb), 0.08)', color: 'var(--admin-brand)', fontWeight: 900, fontSize: '0.7rem', cursor: topUpScan?.state === 'scanning' ? 'wait' : 'pointer', textTransform: 'uppercase' }}
+                      >
+                        <ImagePlus size={15} /> {topUpScan?.state === 'scanning' ? 'Reading...' : (topUpScan?.state === 'ready' ? 'Change' : 'Receipt')}
+                      </button>
+                    </div>
+                    {topUpScan?.state === 'blocked' && (
+                      <div role="alert" style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--status-danger)' }}>{topUpScan.message}</div>
+                    )}
+                    {topUpScan?.state === 'ready' && (
+                      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', animation: 'fadeIn 0.3s ease' }}>
+                        <div style={{ flex: 1, minWidth: 0, fontSize: '0.75rem', fontWeight: 800, color: 'var(--admin-text-primary)' }}>
+                          Read from the receipt: <span style={{ color: 'var(--status-success)' }}>{formatCurrency(topUpScan.net)}</span>
+                          {topUpScan.fee > 0 ? <span style={{ color: 'var(--admin-text-secondary)' }}> (transfer fee {formatCurrency(topUpScan.fee)})</span> : null}
+                        </div>
+                        <button
+                          onClick={() => confirmThen({ title: 'Record this payment?', message: `${formatCurrency(topUpScan.net)} paid digitally (ref ${topUpReference.trim()}) will be added to this booking’s ledger and the customer will be notified.`, confirmText: 'Record payment' }, handleRecordScannedPayment)}
+                          disabled={submittingPayment || topUpReference.trim().length < 4}
+                          style={{ padding: '0.85rem 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: (submittingPayment || topUpReference.trim().length < 4) ? 0.4 : 1 }}
+                        >
+                          {submittingPayment ? 'SAVING...' : 'RECORD PAYMENT'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.75rem', animation: 'fadeIn 0.3s ease' }}>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <div style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-brand)', fontWeight: '950' }}>₱</div>
+                      <input
+                        type="number"
+                        className="no-spinner"
+                        placeholder={balance > 0 ? "Cash amount received..." : "Record Manual Override..."}
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        style={{ width: '100%', padding: '0.85rem 0.85rem 0.85rem 2rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '0.5rem', color: 'var(--admin-text-primary)', fontWeight: '900', outline: 'none' }}
+                      />
+                    </div>
+                    <button
+                      onClick={() => confirmThen({ title: 'Record this payment?', message: `${formatCurrency(Number(paymentAmount) || 0)} paid in cash will be added to this booking’s ledger and the customer will be notified.`, confirmText: 'Record payment' }, handleRecordPayment)}
+                      disabled={submittingPayment || !(Number(paymentAmount) > 0)}
+                      title={!(Number(paymentAmount) > 0) ? 'Enter an amount first' : undefined}
+                      style={{ padding: '0 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: (submittingPayment || !(Number(paymentAmount) > 0)) ? 0.4 : 1 }}
+                    >
+                      {submittingPayment ? 'SAVING...' : 'RECORD PAYMENT'}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -1815,14 +1939,14 @@ const AdminBookingDetails = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div>
                 <div style={{ ...labelStyle, opacity: 0.6 }}>
-                  {registeredCustomerPhone ? 'Registered Phone' : 'Booking Contact'}
+                  Phone number
                 </div>
                 <div style={customerPhone ? valueStyle : naStyle}>
                   {customerPhone || 'N/A'}
                 </div>
               </div>
               <div>
-                <div style={{ ...labelStyle, opacity: 0.6 }}>Primary Email ID</div>
+                <div style={{ ...labelStyle, opacity: 0.6 }}>Email</div>
                 <div style={booking.customer_email || booking.customer?.email ? valueStyle : naStyle}>{booking.customer_email || booking.customer?.email || 'N/A'}</div>
               </div>
             </div>
@@ -1840,14 +1964,14 @@ const AdminBookingDetails = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <ShieldCheck size={18} color={booking.payment_status === 'Flagged for Review' ? '#ef4444' : 'var(--admin-brand)'} />
-                  <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: '950', textTransform: 'uppercase', color: 'var(--admin-text-primary)', letterSpacing: '1px' }}>Payment Verification</h3>
+                  <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: '950', textTransform: 'uppercase', color: 'var(--admin-text-primary)', letterSpacing: '1px' }}>Payment</h3>
                 </div>
-                {hasPaymentAudit && <div style={{ fontSize: '0.55rem', fontWeight: '950', color: 'var(--admin-text-secondary)', opacity: 0.6 }}>AUTOMATED VERIFICATION</div>}
+                {hasPaymentAudit && <div style={{ fontSize: '0.55rem', fontWeight: '950', color: 'var(--admin-text-secondary)', opacity: 0.6 }}>READ FROM RECEIPT</div>}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <div>
-                  <div style={labelStyle}>Audit Status</div>
+                  <div style={labelStyle}>Payment status</div>
                   <div style={{ 
                     fontSize: '0.85rem', fontWeight: '950', 
                     color: totalPaid === 0 ? '#ef4444' : (balance <= 0 ? '#10b981' : '#f59e0b'),
@@ -1857,16 +1981,16 @@ const AdminBookingDetails = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'space-between', gap: '1rem' }}>
                   <div>
-                    <div style={labelStyle}>Verified Ledger</div>
-                    <div style={{ ...valueStyle, color: totalPaid > 0 ? 'var(--admin-text-primary)' : '#ef4444' }}>
+                    <div style={labelStyle}>Paid so far</div>
+                    <div style={{ ...valueStyle, whiteSpace: 'nowrap', color: totalPaid > 0 ? 'var(--admin-text-primary)' : '#ef4444' }}>
                       {formatCurrency(totalPaid)}
                     </div>
                   </div>
                   <div>
-                    <div style={labelStyle}>Required Total</div>
-                    <div style={{ ...valueStyle, color: 'var(--admin-brand)' }}>
+                    <div style={labelStyle}>Total</div>
+                    <div style={{ ...valueStyle, whiteSpace: 'nowrap', color: 'var(--admin-brand)' }}>
                       {formatCurrency(booking.total_amount)}
                     </div>
                   </div>
@@ -1918,11 +2042,21 @@ const AdminBookingDetails = () => {
               {hasPaymentEvidence && (
                 <div style={{ marginTop: '1.75rem', paddingTop: '1.5rem', borderTop: '1px solid var(--admin-border)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                    <h4 style={{ margin: 0, fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Payment Evidence</h4>
+                    <h4 style={{ margin: 0, fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Payment receipt</h4>
                     <ImageIcon size={18} color="var(--admin-brand)" />
                   </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                {bookingPayments.filter(p => p.receipt_url || p.evidence_url).map((p, idx) => (
+                {evidencePayments.length > 1 && (
+                  <select
+                    aria-label="Choose which payment receipt to show"
+                    value={activeEvidence?.id || ''}
+                    onChange={(event) => setEvidenceId(event.target.value)}
+                    style={{ width: '100%', padding: '0.6rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800 }}
+                  >
+                    {evidencePayments.map((payment) => <option key={payment.id} value={payment.id}>{evidenceLabel(payment)}</option>)}
+                  </select>
+                )}
+                {evidencePayments.filter(p => p.id === activeEvidence?.id).map((p, idx) => (
                   <div key={p.id} style={{ borderBottom: idx === bookingPayments.filter(p => p.receipt_url || p.evidence_url).length - 1 ? 'none' : '1px solid var(--admin-border)', paddingBottom: idx === bookingPayments.filter(p => p.receipt_url || p.evidence_url).length - 1 ? 0 : '1.5rem' }}>
                     <div 
                       onClick={() => openImage(p.receipt_url || p.evidence_url, { alt: 'Payment receipt' })}
@@ -1943,11 +2077,11 @@ const AdminBookingDetails = () => {
                         borderRadius: '4px', textAlign: 'center', color: p.status === 'PAID' ? '#10b981' : '#ef4444', 
                         fontSize: '0.65rem', fontWeight: '950', textTransform: 'uppercase'
                       }}>
-                        {p.status === 'PAID' ? '✓ Verified Receipt Archive' : '✗ Rejected Receipt Archive'}
+                        {p.status === 'PAID' ? '✓ Verified' : '✗ Rejected'}
                       </div>
                     )}
                     <div style={{ marginTop: '0.5rem', fontSize: '0.6rem', color: 'var(--admin-text-secondary)', fontWeight: '700', textAlign: 'center' }}>
-                      PROCESSED ON {new Date(p.created_at).toLocaleDateString()}
+                      Paid on {new Date(p.created_at).toLocaleDateString()}
                     </div>
                   </div>
                 ))}

@@ -148,9 +148,8 @@ const CustomerBilling = () => {
                     return bookingPayments.map((p) => {
                       const paymentStatus = String(p.status || '').toUpperCase();
                       const isRefund = String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(p.amount) < 0;
-                      const canIssueReceipt = Number(p.amount) > 0
-                        && ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(paymentStatus)
-                        && !isRefund;
+                      const canIssueReceipt = isRefund || (Number(p.amount) > 0
+                        && ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(paymentStatus));
                       const receiptNumber = `RCP-${p.id.toUpperCase()}`;
                       const paymentRecordNumber = `PAY-${p.id.toUpperCase()}`;
                       const statusLabel = isRefund
