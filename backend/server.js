@@ -2750,6 +2750,10 @@ app.patch('/api/admin/staff/:id', async (req, res) => {
         if (body.hired_at !== before.hired_at) updates.hired_at = body.hired_at;
       }
     }
+    if (body.can_view_reports !== undefined) {
+      if (typeof body.can_view_reports !== 'boolean') return fail('can_view_reports must be true or false.');
+      if (body.can_view_reports !== Boolean(before.can_view_reports)) updates.can_view_reports = body.can_view_reports;
+    }
     if (body.role !== undefined) {
       const nextRole = String(body.role).toUpperCase();
       if (!['STAFF', 'ADMIN'].includes(nextRole)) return fail('The role must be STAFF or ADMIN.');

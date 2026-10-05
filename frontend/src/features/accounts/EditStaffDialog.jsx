@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { BACKEND_URL, authHeaders } from '@/config/api';
 import { PhoneInput } from '@/components/common/ContactInputs';
 import { isValidPhPhone, normalizePhPhone } from '@/utils/contactValidation';
@@ -19,6 +20,7 @@ const toForm = (member) => ({
   birthday: member?.birthday || '',
   hired_at: member?.hired_at || '',
   role: String(member?.role || 'STAFF').toUpperCase(),
+  can_view_reports: Boolean(member?.can_view_reports),
   force_password_reset: false
 });
 
@@ -28,10 +30,11 @@ const LABELS = {
   phone_number: 'Mobile number',
   birthday: 'Birthday',
   hired_at: 'Hire date',
-  role: 'Role'
+  role: 'Role',
+  can_view_reports: 'Can view reports'
 };
 
-const show = (value) => (value === '' || value == null ? '—' : String(value));
+const show = (value) => (value === true ? 'Yes' : value === false ? 'No' : value === '' || value == null ? '—' : String(value));
 
 /**
  * Edit a staff or administrator account (master plan 4.8) in a pop-up, so the admin never leaves
@@ -70,6 +73,7 @@ export default function EditStaffDialog({ member, open, onOpenChange, onSaved, r
   const changes = useMemo(() => {
     const list = [];
     for (const key of Object.keys(LABELS)) {
+      if (key === 'can_view_reports' && form.role !== 'STAFF') continue; // administrators already see reports
       const before = key === 'phone_number' ? normalizePhPhone(original[key]) : String(original[key] ?? '').trim();
       const after = key === 'phone_number' ? normalizePhPhone(form[key]) : String(form[key] ?? '').trim();
       if (before !== after) list.push({ key, label: LABELS[key], before: original[key], after: form[key] });
@@ -85,7 +89,10 @@ export default function EditStaffDialog({ member, open, onOpenChange, onSaved, r
     setServerError('');
     try {
       const payload = { force_password_reset: form.force_password_reset };
-      changes.forEach(({ key }) => { payload[key] = key === 'phone_number' ? normalizePhPhone(form[key]) : String(form[key]).trim() || null; });
+      changes.forEach(({ key }) => {
+        if (key === 'can_view_reports') payload[key] = Boolean(form[key]);
+        else payload[key] = key === 'phone_number' ? normalizePhPhone(form[key]) : String(form[key]).trim() || null;
+      });
       const response = await fetch(`${BACKEND_URL}/api/admin/staff/${member.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
@@ -176,6 +183,16 @@ export default function EditStaffDialog({ member, open, onOpenChange, onSaved, r
                 {roleLocked ? roleLockedReason : 'Changing the role changes what this person can see and do the next time they sign in.'}
               </p>
             </div>
+
+            {form.role === 'STAFF' && (
+              <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+                <div className="grid gap-0.5">
+                  <Label htmlFor="es-reports" className="text-sm font-semibold">Allow viewing reports</Label>
+                  <p className="text-xs text-muted-foreground">Off by default. When on, this technician may view the shop's reports. Saved now; what they can see will be configured later.</p>
+                </div>
+                <Switch id="es-reports" checked={form.can_view_reports} onCheckedChange={(checked) => setForm((prev) => ({ ...prev, can_view_reports: checked }))} aria-label="Allow this staff member to view reports" />
+              </div>
+            )}
 
             <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
               <input type="checkbox" className="mt-0.5" checked={form.force_password_reset} onChange={(event) => setForm((prev) => ({ ...prev, force_password_reset: event.target.checked }))} />

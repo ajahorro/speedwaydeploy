@@ -1045,54 +1045,6 @@ const AdminBookingDetails = () => {
     handleAddService(pendingService.vehicleId, pendingService.service, finalAmount, servicePaymentType, servicePaymentMethod, serviceReferenceNumber);
   };
 
-  const updateVehicleStatus = async (vehicleId, status) => {
-    // 🛡️ LOCK GUARD: Prevent changes to finished bookings
-    if (isLocked) {
-      return toast.error('Booking is finalized. No further changes allowed.');
-    }
-
-    const v = vehicles.find(item => item.id === vehicleId);
-    const toastId = toast.loading(`Updating ${v?.brand || 'unit'} status...`);
-
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/bookings/update-status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}` },
-        body: JSON.stringify({
-          bookingId: id,
-          unitId: vehicleId,
-          newStatus: status,
-          notes: v?.service_notes,
-          actorName: 'Admin',
-          actorRole: 'ADMIN'
-        })
-      });
-
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Lifecycle service unavailable. No status change was made.');
-      }
-      toast.success(`Unit marked as ${status.toUpperCase()}`, { id: toastId });
-      fetchBookingDetails();
-      fetchAuditLogs();
-    } catch (err) {
-      toast.error(err.message || 'Vehicle update failed', { id: toastId });
-    }
-  };
-
-  const requestVehicleStatus = (vehicle, status) => {
-    openModal({
-      title: status === 'COMPLETED' ? 'Finish Service?' : 'Start Service?',
-      message: status === 'COMPLETED'
-        ? `Confirm completion for ${vehicle.brand} ${vehicle.model}. This will notify the customer.`
-        : `Start service for ${vehicle.brand} ${vehicle.model}?`,
-      confirmText: status === 'COMPLETED' ? 'Finish Service' : 'Start Service',
-      cancelText: 'Cancel',
-      type: status === 'COMPLETED' ? 'success' : 'info',
-      onConfirm: () => updateVehicleStatus(vehicle.id, status)
-    });
-  };
-
   const handleViewReceipt = async () => {
     const toastId = toast.loading('Verifying security clearance...');
     try {
@@ -1281,7 +1233,6 @@ const AdminBookingDetails = () => {
 
   const isLocked = ['completed', 'released', 'cancelled', 'flagged_noshow'].includes(derivedStatus);
   const isNoShowBooking = ['FLAGGED_NOSHOW', 'NO_SHOW'].includes(String(booking?.status || '').toUpperCase());
-  const canCompleteService = derivedStatus === 'in_progress' && !isLocked;
 
   const requestReleaseBooking = () => {
     openModal({
@@ -1725,28 +1676,13 @@ const AdminBookingDetails = () => {
                             >
                               <Plus size={12} /> ADD
                             </button>
-                            {(v.status?.toUpperCase() === 'IN_PROGRESS'
-                              || v.status?.toUpperCase() === 'COMPLETED') && <button
-                              onClick={() => {
-                                const currentStatus = v.status?.toUpperCase();
-                                if (currentStatus === 'SCHEDULED' || !currentStatus) {
-                                  requestVehicleStatus(v, 'IN_PROGRESS');
-                                } else if (currentStatus === 'IN_PROGRESS') {
-                                  requestVehicleStatus(v, 'COMPLETED');
-                                }
-                              }}
-                              disabled={isLocked || v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' && !canCompleteService)}
-                              style={{
-                                background: v.status?.toUpperCase() === 'COMPLETED' ? 'rgba(255, 255, 255, 0.05)' : (v.status?.toUpperCase() === 'IN_PROGRESS' ? (canCompleteService ? '#10b981' : 'var(--admin-border)') : 'var(--admin-border)'),
-                                border: v.status?.toUpperCase() === 'COMPLETED' ? '1px solid var(--admin-border)' : 'none',
-                                padding: '0.45rem 1rem', borderRadius: '4px', color: (v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' && !canCompleteService)) ? 'var(--admin-text-secondary)' : 'white', flex: isMobile ? '1 1 150px' : '0 0 auto', minWidth: 0,
-                                cursor: (isLocked || v.status?.toUpperCase() === 'COMPLETED' || (v.status?.toUpperCase() === 'IN_PROGRESS' && !canCompleteService)) ? 'not-allowed' : 'pointer', fontSize: '0.65rem', fontWeight: '950', display: 'flex', alignItems: 'center', gap: '0.4rem',
-                                boxShadow: v.status?.toUpperCase() === 'COMPLETED' ? 'none' : '0 4px 10px rgba(0,0,0,0.3)', transition: 'all 0.2s ease',
-                                opacity: isLocked ? 0.5 : 1
-                              }}
-                            >
-                              {v.status?.toUpperCase() === 'COMPLETED' ? <><CheckCircle2 size={12} /> SERVICE FINISHED</> : <>{v.status?.toUpperCase() === 'IN_PROGRESS' ? <><CheckCircle2 size={12} /> FINISH SERVICE</> : <><Play size={12} /> START SERVICE</>}</>}
-                            </button>}
+                            {/* Finishing a service needs the technician's completion photos, so it is done from
+                                the staff account only. The admin just sees that the unit is finished. */}
+                            {v.status?.toUpperCase() === 'COMPLETED' && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.9rem', border: '1px solid var(--admin-border)', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: 950 }}>
+                                <CheckCircle2 size={12} /> SERVICE FINISHED
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
