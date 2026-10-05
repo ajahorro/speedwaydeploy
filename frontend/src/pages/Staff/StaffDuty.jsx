@@ -116,7 +116,7 @@ const StaffDuty = () => {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.85rem', background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)', borderRadius: '999px' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isClockedIn ? 'var(--status-success)' : 'var(--status-danger)' }} />
-            <span style={{ fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', color: isClockedIn ? 'var(--status-success)' : 'var(--status-danger)' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', color: isClockedIn ? 'var(--status-success)' : 'var(--status-danger)' }}>
               {isClockedIn ? 'ON DUTY' : 'OFF DUTY'}
             </span>
           </div>
@@ -125,7 +125,7 @@ const StaffDuty = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '10px' }}>
           <Timer size={18} color="var(--admin-text-secondary)" />
           <div>
-            <div style={{ fontSize: '0.6rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-secondary)' }}>Current Shift Duration</div>
+            <div style={{ fontSize: '0.72rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-secondary)' }}>Current Shift Duration</div>
             <div style={{ fontSize: '1.4rem', fontWeight: '900', fontVariantNumeric: 'tabular-nums' }}>
               {isClockedIn ? formatDuration(elapsed) : '00:00:00'}
             </div>

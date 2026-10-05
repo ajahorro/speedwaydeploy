@@ -22,7 +22,7 @@ const PageHeader = ({ badge, title, subtitle, onRefresh, showBack, onBack, actio
           </button>
         )}
         {badge && (
-          <span style={{ fontSize: '0.65rem', fontWeight: '950', letterSpacing: '2px', color: 'var(--admin-brand)', background: 'rgba(230, 30, 42, 0.1)', padding: '0.25rem 0.75rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid rgba(230, 30, 42, 0.2)', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: '950', letterSpacing: '2px', color: 'var(--admin-brand)', background: 'rgba(230, 30, 42, 0.1)', padding: '0.25rem 0.75rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid rgba(230, 30, 42, 0.2)', whiteSpace: 'nowrap' }}>
             {badge}
           </span>
         )}

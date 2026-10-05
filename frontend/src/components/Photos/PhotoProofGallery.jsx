@@ -56,7 +56,7 @@ const PhotoProofGallery = ({ bookingId, bookingVehicleId = null, open, onClose }
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: '0.5rem',
-        fontSize: '0.68rem', fontWeight: 950, textTransform: 'uppercase',
+        fontSize: '0.72rem', fontWeight: 950, textTransform: 'uppercase',
         letterSpacing: '0.08em', color: 'var(--admin-text-secondary)'
       }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: tone, display: 'inline-block' }} />

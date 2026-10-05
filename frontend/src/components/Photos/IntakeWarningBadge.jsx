@@ -27,7 +27,7 @@ const IntakeWarningBadge = ({ tone = 'warning', children, compact = false }) => 
         display: 'inline-flex',
         alignItems: 'center',
         gap: '0.3rem',
-        fontSize: compact ? '0.6rem' : '0.66rem',
+        fontSize: compact ? '0.72rem' : '0.75rem',
         fontWeight: 900,
         textTransform: 'uppercase',
         letterSpacing: '0.04em',

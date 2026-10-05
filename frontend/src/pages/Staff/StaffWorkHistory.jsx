@@ -92,7 +92,7 @@ const StaffWorkHistory = () => {
 
   const tableHeaderStyle = {
     padding: '1rem 1.5rem',
-    fontSize: '0.65rem',
+    fontSize: '0.72rem',
     fontWeight: '950',
     color: 'var(--admin-text-secondary)',
     textTransform: 'uppercase',
@@ -139,7 +139,7 @@ const StaffWorkHistory = () => {
               style={{ width: '100%', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '0.75rem 1rem 0.75rem 2.5rem', color: 'var(--admin-text-primary)', fontSize: '0.85rem', outline: 'none' }}
             />
           </div>
-          <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
             Total Records: {filteredHistory.length}
           </div>
         </div>
@@ -166,17 +166,17 @@ const StaffWorkHistory = () => {
                       <div>
                         <div style={{ fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase' }}>{item.brand} {item.model}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
-                          <span style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', padding: '0.1rem 0.4rem', borderRadius: '2px', fontSize: '0.65rem', fontWeight: '950' }}>
+                          <span style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', padding: '0.1rem 0.4rem', borderRadius: '2px', fontSize: '0.72rem', fontWeight: '950' }}>
                             {item.plate_number}
                           </span>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>
                             {new Date(item.finalized_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} | {new Date(item.finalized_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                       </div>
                     </div>
                     <div style={{
-                      fontSize: '0.55rem', fontWeight: '950', padding: '0.2rem 0.5rem',
+                      fontSize: '0.72rem', fontWeight: '950', padding: '0.2rem 0.5rem',
                       borderRadius: '2px', background: item.booking_status === 'completed' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                       color: item.booking_status === 'completed' ? '#10b981' : '#ef4444', border: '1px solid currentColor', textTransform: 'uppercase'
                     }}>
@@ -185,9 +185,9 @@ const StaffWorkHistory = () => {
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                     {item.services?.slice(0, 3).map((s, i) => (
-                      <span key={i} style={{ fontSize: '0.6rem', color: 'var(--admin-text-secondary)', background: 'rgba(255,255,255,0.03)', padding: '0.2rem 0.5rem', borderRadius: '2px' }}>{s.service_name}</span>
+                      <span key={i} style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', background: 'rgba(255,255,255,0.03)', padding: '0.2rem 0.5rem', borderRadius: '2px' }}>{s.service_name}</span>
                     ))}
-                    {item.services?.length > 3 && <span style={{ fontSize: '0.6rem', color: 'var(--admin-text-secondary)' }}>+{item.services.length - 3} more</span>}
+                    {item.services?.length > 3 && <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)' }}>+{item.services.length - 3} more</span>}
                   </div>
                 </div>
               ))
@@ -226,7 +226,7 @@ const StaffWorkHistory = () => {
                         </div>
                         <div>
                           <div style={{ fontSize: '0.9rem', textTransform: 'uppercase' }}>{item.brand} {item.model}</div>
-                          <div style={{ fontSize: '0.6rem', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Unit ID: {item.id.slice(0, 8)}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Unit ID: {item.id.slice(0, 8)}</div>
                         </div>
                       </div>
                     </td>
@@ -244,7 +244,7 @@ const StaffWorkHistory = () => {
                     <td style={tableRowStyle}>
                       <div style={{ 
                         display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                        fontSize: '0.6rem', fontWeight: '950', padding: '0.3rem 0.6rem',
+                        fontSize: '0.72rem', fontWeight: '950', padding: '0.3rem 0.6rem',
                         borderRadius: '2px', border: '1px solid currentColor',
                         color: item.booking_status === 'completed' ? '#10b981' : '#ef4444',
                         background: item.booking_status === 'completed' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
@@ -258,7 +258,7 @@ const StaffWorkHistory = () => {
                       <button
                         type="button"
                         onClick={(event) => { event.stopPropagation(); navigate(`/staff/job/${item.id}`); }}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-brand)', padding: '0.4rem 0.6rem', fontSize: '0.68rem', fontWeight: 800, cursor: 'pointer' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-brand)', padding: '0.4rem 0.6rem', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer' }}
                       >
                         <FileText size={13} /> View Evidence
                       </button>

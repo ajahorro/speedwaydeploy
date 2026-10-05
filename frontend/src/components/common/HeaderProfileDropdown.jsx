@@ -156,6 +156,9 @@ const HeaderProfileDropdown = ({
           border: 'none',
           cursor: 'pointer',
           padding: '0.25rem',
+          minWidth: 44,
+          minHeight: 44,
+          justifyContent: 'center',
         }}
       >
         {/* 375px guard: the text identity collapses below md; only the avatar stays. */}
@@ -174,7 +177,7 @@ const HeaderProfileDropdown = ({
             }}>
               {fullName}
             </span>
-            <span style={{ display: 'block', fontSize: '0.6rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>
+            <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>
               {roleTitle}
             </span>
           </span>

@@ -22,7 +22,7 @@ const StartChecklist = ({ taskId, clockedIn, beforePhotos, startDatetime, photoU
           key={step.key}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.3rem 0.6rem',
-            borderRadius: '999px', fontSize: '0.68rem', fontWeight: 800,
+            borderRadius: '999px', fontSize: '0.72rem', fontWeight: 800,
             border: `1px solid ${step.ok ? 'var(--status-success-border)' : 'var(--status-warning)'}`,
             color: step.ok ? 'var(--status-success)' : 'var(--status-warning)',
             background: step.ok ? 'var(--status-success-soft)' : 'transparent'

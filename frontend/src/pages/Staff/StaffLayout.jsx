@@ -187,12 +187,12 @@ const StaffLayout = () => {
               COMAR GARAGE <span style={{ color: 'var(--admin-brand)' }}>STAFF</span>
             </h1>
             {isMobile && (
-              <button onClick={() => setIsSidebarOpen(false)} style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+              <button onClick={() => setIsSidebarOpen(false)} aria-label="Close menu" style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Menu size={20} />
               </button>
             )}
           </div>
-          <p style={{ fontSize: '0.6rem', color: 'var(--admin-text-secondary)', fontWeight: '900', marginTop: '0.4rem', textTransform: 'uppercase', letterSpacing: '2px', opacity: 0.8 }}>
+          <p style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '900', marginTop: '0.4rem', textTransform: 'uppercase', letterSpacing: '2px', opacity: 0.8 }}>
             Operational Detailing Portal
           </p>
         </div>
@@ -225,7 +225,7 @@ const StaffLayout = () => {
               <item.icon size={16} strokeWidth={2.25} />
               {item.label}
               {item.path === '/staff/notifications' && unreadCount > 0 && (
-                <span style={{ marginLeft: 'auto', minWidth: '18px', padding: '0.1rem 0.35rem', borderRadius: '9px', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', fontSize: '0.65rem', textAlign: 'center' }}>
+                <span style={{ marginLeft: 'auto', minWidth: '18px', padding: '0.1rem 0.35rem', borderRadius: '9px', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', fontSize: '0.72rem', textAlign: 'center' }}>
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
@@ -234,7 +234,7 @@ const StaffLayout = () => {
         </nav>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', padding: '1rem 0.5rem', borderTop: '1px solid var(--admin-border)' }}>
-          <div style={{ padding: '0 1rem 0.5rem', fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', opacity: 0.55 }}>System</div>
+          <div style={{ padding: '0 1rem 0.5rem', fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', opacity: 0.55 }}>System</div>
 
           <NavLink
             to="/staff/settings"
@@ -289,7 +289,7 @@ const StaffLayout = () => {
           </button>
 
           <div style={{ padding: '1rem 1rem 0', borderTop: '1px solid var(--admin-border)', marginTop: '0.5rem' }}>
-            <div style={{ fontSize: '0.6rem', fontWeight: '800', color: 'var(--admin-text-secondary)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--admin-text-secondary)', letterSpacing: '1px', textTransform: 'uppercase' }}>
               Signed in as
             </div>
             <div style={{ fontSize: '0.8rem', fontWeight: '900', color: 'var(--admin-text-primary)', marginTop: '0.35rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -311,7 +311,7 @@ const StaffLayout = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '0.75rem', minWidth: 0, flexShrink: 1 }}>
             {isMobile && (
-              <button onClick={() => setIsSidebarOpen(true)} style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0 }}>
+              <button onClick={() => setIsSidebarOpen(true)} aria-label="Open menu" style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0, minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginLeft: '-0.5rem' }}>
                 <Menu size={20} />
               </button>
             )}
@@ -335,7 +335,7 @@ const StaffLayout = () => {
                 boxShadow: profile?.is_clocked_in ? '0 0 10px var(--status-success)' : 'none'
               }}></div>
               {!isMobile && (
-                <span style={{ fontSize: '0.65rem', fontWeight: '950', color: profile?.is_clocked_in ? 'var(--status-success)' : 'var(--status-danger)', textTransform: 'uppercase', letterSpacing: '1px', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: '950', color: profile?.is_clocked_in ? 'var(--status-success)' : 'var(--status-danger)', textTransform: 'uppercase', letterSpacing: '1px', whiteSpace: 'nowrap' }}>
                   {profile?.is_clocked_in ? 'ON DUTY' : 'OFF DUTY'}
                 </span>
               )}
@@ -343,7 +343,8 @@ const StaffLayout = () => {
 
             <button
               onClick={() => navigate('/staff/notifications')}
-              style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', padding: '0.5rem', borderRadius: '4px', cursor: 'pointer', position: 'relative', opacity: unreadCount > 0 ? 1 : 0.6, transition: 'all 0.2s' }}
+              aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+              style={{ minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', padding: '0.5rem', borderRadius: '4px', cursor: 'pointer', position: 'relative', opacity: unreadCount > 0 ? 1 : 0.6, transition: 'all 0.2s' }}
               onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
               onMouseLeave={(e) => { if (unreadCount <= 0) e.currentTarget.style.opacity = '0.6'; }}
             >
@@ -352,7 +353,7 @@ const StaffLayout = () => {
                 <span style={{
                   position: 'absolute', top: '-4px', right: '-4px',
                   background: 'var(--admin-brand)', color: 'var(--admin-text-primary)',
-                  fontSize: '0.5rem', fontWeight: '950',
+                  fontSize: '0.72rem', fontWeight: '950',
                   minWidth: '16px', height: '16px', padding: '0 3px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   borderRadius: '2px', border: '1.5px solid var(--admin-card)'

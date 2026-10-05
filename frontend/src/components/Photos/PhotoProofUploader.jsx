@@ -184,7 +184,7 @@ const PhotoProofUploader = ({
         <h4 style={{ margin: 0, fontSize: '0.72rem', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '1px' }}>
           {heading}
         </h4>
-        <span style={{ marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--admin-text-secondary)', fontWeight: 700 }}>
+        <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: 700 }}>
           {photos.length} photo{photos.length === 1 ? '' : 's'}
         </span>
       </header>
@@ -246,7 +246,7 @@ const PhotoProofUploader = ({
           {uploading ? <Loader2 size={14} className="spin" /> : <ImagePlus size={14} />}
           {uploading ? 'Uploading…' : 'Add Photos'}
         </label>
-        <div style={{ marginTop: '0.4rem', fontSize: '0.62rem', color: 'var(--admin-text-secondary)' }}>
+        <div style={{ marginTop: '0.4rem', fontSize: '0.72rem', color: 'var(--admin-text-secondary)' }}>
           JPEG / PNG / WebP / HEIC · up to 10 MB each · max {MAX_PHOTOS_PER_PHASE}
         </div>
       </div>}
@@ -295,7 +295,7 @@ const PhotoProofUploader = ({
                   style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in', display: 'block' }}
                 />
               ) : (
-                <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', fontSize: '0.6rem', color: 'var(--admin-text-secondary)' }}>
+                <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', fontSize: '0.72rem', color: 'var(--admin-text-secondary)' }}>
                   Unavailable
                 </div>
               )}
@@ -303,7 +303,7 @@ const PhotoProofUploader = ({
                 <span
                   title="Imported from legacy records"
                   style={{
-                    position: 'absolute', top: 4, left: 4, fontSize: '0.5rem', fontWeight: 900,
+                    position: 'absolute', top: 4, left: 4, fontSize: '0.72rem', fontWeight: 900,
                     background: 'rgba(0,0,0,0.65)', color: 'var(--admin-text-on-brand)', padding: '0.1rem 0.3rem',
                     borderRadius: 'var(--admin-radius-sm)', letterSpacing: '0.05em'
                   }}

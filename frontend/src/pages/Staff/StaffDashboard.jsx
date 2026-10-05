@@ -272,7 +272,7 @@ const StaffDashboard = () => {
   const badgeStyle = (status) => {
     const s = status?.toUpperCase();
     return {
-      fontSize: '0.6rem',
+      fontSize: '0.72rem',
       fontWeight: '950',
       padding: '0.35rem 0.75rem',
       borderRadius: '4px',
@@ -297,7 +297,7 @@ const StaffDashboard = () => {
         />
 
         <div style={{ background: 'var(--admin-card)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--admin-border)', minWidth: isMobile ? 0 : '320px', width: isMobile ? '100%' : undefined, maxWidth: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.5rem' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <TrendingUp size={14} color="var(--status-success)" /> Shift Tracker
             </div>
@@ -307,14 +307,14 @@ const StaffDashboard = () => {
               <div style={{ fontSize: '1.1rem', fontWeight: '950', color: stats.active > 0 ? 'var(--status-warning)' : 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>
                 {stats.active > 0 ? `${stats.active} In Progress` : 'No active job'}
               </div>
-              <div style={{ fontSize: '0.55rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>Active Job</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>Active Job</div>
             </div>
             <div style={{ width: '1px', height: '30px', background: 'var(--admin-border)' }}></div>
             <div style={{ textAlign: 'center', flex: 1 }}>
               <div style={{ fontSize: '1.1rem', fontWeight: '950', color: profile?.is_clocked_in ? 'var(--status-success)' : 'var(--admin-brand)', textTransform: 'uppercase' }}>
                 {shiftTimer}
               </div>
-              <div style={{ fontSize: '0.55rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>Current Shift</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>Current Shift</div>
             </div>
           </div>
           {!profile?.is_clocked_in && (
@@ -342,34 +342,34 @@ const StaffDashboard = () => {
           {tasks.length > 0 ? (
             tasks.map((task) => (
               <div key={task.id} style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.2s', opacity: task.status === 'COMPLETED' ? 0.7 : 1 }}>
-                <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--admin-bg)' }}>
+                <div style={{ padding: isMobile ? '1rem' : '1.5rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.9rem', background: 'var(--admin-bg)' }}>
                   <div
                     onClick={() => navigate(`/staff/job/${task.id}`)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.85rem' : '1.25rem', cursor: 'pointer', flex: '1 1 260px', minWidth: 0 }}
                   >
                     <div style={{ width: '56px', height: '56px', borderRadius: '8px', background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)', border: '1px solid var(--admin-border)' }}>
                       <Car size={28} />
                     </div>
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <span style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-brand)', background: 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.1)', padding: '0.2rem 0.5rem', borderRadius: '2px', letterSpacing: '1px' }}>JOB #{task.id.slice(0, 8).toUpperCase()}</span>
-                        <span style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>• Plate: {task.plate_number || 'N/A'}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem 0.5rem', marginBottom: '0.25rem' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-brand)', background: 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.1)', padding: '0.2rem 0.5rem', borderRadius: '2px', letterSpacing: '1px' }}>JOB #{task.id.slice(0, 8).toUpperCase()}</span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>• Plate: {task.plate_number || 'N/A'}</span>
                       </div>
-                      <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{task.brand} {task.model}</h3>
+                      <h3 style={{ margin: 0, fontSize: isMobile ? '1.05rem' : '1.2rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '0.5px', overflowWrap: 'anywhere' }}>{task.brand} {task.model}</h3>
                       <CustomerContact name={task.customer_name} phone={task.contact_number} />
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={badgeStyle(task.status)}>{task.status?.toUpperCase()}</div>
-                    <div style={{ fontSize: '0.6rem', color: 'var(--admin-text-secondary)', fontWeight: '900', marginTop: '0.5rem', textTransform: 'uppercase' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', ...(isMobile ? { width: '100%' } : { flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }) }}>
+                    <div style={badgeStyle(task.status)}>{task.status?.replace(/_/g, ' ').toUpperCase()}</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--admin-text-secondary)', fontWeight: '900', textTransform: 'uppercase' }}>
                       Sch: {new Date(task.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ padding: isMobile ? '1rem' : '1.5rem', display: 'flex', flexDirection: 'column', gap: isMobile ? '1.1rem' : '1.5rem' }}>
                   <div style={{ background: 'var(--admin-bg)', borderRadius: '6px', padding: '1.25rem', border: '1px solid var(--admin-border)' }}>
-                    <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.75rem' }}>Service Breakdown</div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.75rem' }}>Service Breakdown</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
                       {task.services?.map((s, idx) => (
                         <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--admin-card)', padding: '0.4rem 0.8rem', borderRadius: '4px', border: '1px solid var(--admin-border)' }}>
@@ -384,7 +384,7 @@ const StaffDashboard = () => {
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile || task.status?.toUpperCase() !== 'IN_PROGRESS' ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '1.5rem' }}>
                       {task.status?.toUpperCase() !== 'PENDING' && (
                       <div style={{ position: 'relative' }}>
-                        <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Detailing Observations</div>
+                        <div style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Detailing Observations</div>
                         <textarea
                           placeholder="Document service steps or vehicle conditions..."
                           autoCapitalize="off"
@@ -396,15 +396,15 @@ const StaffDashboard = () => {
                           disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'}
                           style={{ width: '100%', minHeight: '100px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '1rem', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '600', outline: 'none', resize: 'none' }}
                         />
-                        <button onClick={() => confirmThen({ title: 'Save notes?', message: 'The notes are saved to this job for the admin and customer record.', confirmText: 'Save notes' }, () => handleSaveNotes(task.id))} disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'} style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer' }}>
+                        <button onClick={() => confirmThen({ title: 'Save notes?', message: 'The notes are saved to this job for the admin and customer record.', confirmText: 'Save notes' }, () => handleSaveNotes(task.id))} disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'} aria-label="Save notes" style={{ minWidth: 44, minHeight: 44,  position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer' }}>
                           <Save size={16} />
                         </button>
                       </div>
                       )}
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Service Evidence</div>
-                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.62rem', color: 'var(--admin-text-secondary)', fontWeight: '700', lineHeight: 1.5 }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Service Evidence</div>
+                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '700', lineHeight: 1.5 }}>
                           {task.status?.toUpperCase() === 'IN_PROGRESS'
                             ? 'Service started. Add at least one completion photo to finish the job.'
                             : 'Add at least one before photo, then start the service.'}
@@ -503,7 +503,7 @@ const StaffDashboard = () => {
                   <div key={b.id} style={{ padding: '1.25rem', borderBottom: '1px solid var(--admin-border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', alignItems: 'center' }}>
                       <div style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--admin-text-primary)' }}>{b.title || 'Announcement'}</div>
-                      <div style={{ fontSize: '0.55rem', fontWeight: '900', color: 'var(--admin-text-secondary)' }}>
+                      <div style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--admin-text-secondary)' }}>
                         {b.created_at ? new Date(b.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''}
                       </div>
                     </div>
@@ -522,7 +522,7 @@ const StaffDashboard = () => {
             <div style={{ padding: '1.25rem', background: 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.05)', border: '1px solid rgba(var(--admin-brand-rgb, 169, 27, 24), 0.15)', borderRadius: '8px', textAlign: 'center' }}>
               <Clock size={24} color="var(--admin-brand)" style={{ margin: '0 auto 0.75rem' }} />
               <div style={{ fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Not Clocked In</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Open Duty &amp; Shift to clock in and enable service controls.</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Open Duty &amp; Shift to clock in and enable service controls.</div>
             </div>
           )}
         </div>

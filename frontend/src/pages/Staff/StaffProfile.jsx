@@ -82,7 +82,7 @@ const StaffProfile = () => {
   };
 
   const labelStyle = {
-    fontSize: '0.65rem',
+    fontSize: '0.72rem',
     fontWeight: '950',
     color: 'var(--admin-text-secondary)',
     textTransform: 'uppercase',
@@ -236,7 +236,7 @@ const StaffProfile = () => {
                 <button
                   type="button"
                   onClick={handleResendPasswordEmail}
-                  style={{ padding: '0.5rem 0.9rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '900', cursor: 'pointer', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
+                  style={{ padding: '0.5rem 0.9rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '4px', fontSize: '0.72rem', fontWeight: '900', cursor: 'pointer', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
                 >
                   Resend confirmation email
                 </button>
