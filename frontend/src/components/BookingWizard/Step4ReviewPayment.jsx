@@ -1247,7 +1247,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
               letterSpacing: '1px'
             }}
           >
-            Cancel Booking
+            Cancel
           </button>
         )}
         <button

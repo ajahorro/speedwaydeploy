@@ -25,7 +25,11 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
     (vehicle.services || []).reduce((sum, service) => sum + Number(service.durationMinutes || 60), 0)
   ), 0) || 60) + 60;
   const hasSelectedExistingCustomer = adminMode && Boolean(selectedCustomerId || bookingData.customerId);
-  const showEditableCustomerDetails = !hasSelectedExistingCustomer;
+  // The customer's details are entered (or come from their account) earlier in the
+  // wizard and are locked by this step, so repeating them here only added noise.
+  // The fields reappear only when a rebooking starts here with details missing.
+  const detailsMissing = !isValidPhPhone(bookingData.contactNumber) || !(bookingData.customerName || '').trim();
+  const showEditableCustomerDetails = !adminMode && !customerDetailsLocked && !hasSelectedExistingCustomer && detailsMissing;
 
   // Basic validation
   const allVehiclesComplete = (bookingData.vehicles || []).length > 0 && (bookingData.vehicles || []).every((item) =>
@@ -263,7 +267,7 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
               textAlign: 'center'
             }}
           >
-            Cancel Booking
+            Cancel
           </button>
         )}
 

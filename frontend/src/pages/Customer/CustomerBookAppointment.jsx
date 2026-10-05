@@ -16,6 +16,8 @@ import { calculateBayUsage, calculateTotalDuration } from '../../utils/schedulin
 import { SERVICES_DATA } from '../../data/servicesCatalog';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
+import { useConfirmAction } from '../../hooks/useConfirmAction';
+import { loadDraft, saveServerDraft, writeLocalDraft, deleteDraft, toDraftData, hasMeaningfulDraft } from '../../services/bookingDraftService';
 
 // Utility for Data Integrity: Find service in catalog by name and get current price
 const getCatalogServiceByName = (name, type) => {
@@ -42,7 +44,11 @@ const hasMeaningfulBookingInput = (data) => {
   );
 };
 
-const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = null, renderAdminPanel, onAdminSubmit }) => {
+const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = null, renderAdminPanel, onAdminSubmit, draftExtras = null, onDraftRestore = null }) => {
+  const { confirmThen } = useConfirmAction();
+  const draftKind = adminMode ? 'admin_walkin' : 'customer';
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
@@ -62,7 +68,9 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
 
   // Section 3.1: shared unsaved-changes guard. Covers in-app navigation and the
   // browser refresh/tab-close prompt in one place, matching Business Hub.
-  const leaveGuard = useUnsavedChangesGuard(hasDraftChanges && !isSubmitted, {
+  // Unfinished bookings are kept as a draft (below), so leaving the page loses
+  // nothing and no longer needs a warning; only Cancel discards a draft.
+  const leaveGuard = useUnsavedChangesGuard(false, {
     message: 'You have unsaved changes. Are you sure you want to leave? Your changes will be lost.'
   });
 
@@ -120,6 +128,51 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
     setHasDraftChanges(true);
     setBookingData(updater);
   };
+
+  // ── Drafts ────────────────────────────────────────────────────────────────
+  // Restore the unfinished booking (if any) once, before anything is saved, so a
+  // blank wizard can never overwrite a draft.
+  React.useEffect(() => {
+    if (!user?.id) return undefined;
+    if (isRebooking || isRescheduling) { setDraftReady(true); return undefined; }
+    let cancelled = false;
+    loadDraft(user.id, draftKind).then((draft) => {
+      if (cancelled) return;
+      if (draft) {
+        const saved = draft.data || {};
+        const today = new Date().toISOString().slice(0, 10);
+        const stale = saved.date && saved.date < today; // a past date can no longer be booked
+        setBookingData((current) => ({
+          ...current,
+          ...saved,
+          date: stale ? '' : saved.date || '',
+          time: stale ? '' : saved.time || '',
+          payment: { ...current.payment, ...(saved.payment || {}), proofOfPayment: null, ocrData: null },
+          isRebooking: current.isRebooking
+        }));
+        const step = Math.min(Math.max(Number(draft.step) || 1, 1), 4);
+        setCurrentStep(step);
+        if (step > 1) setCustomerDetailsLocked(true);
+        if (onDraftRestore && draft.extras) onDraftRestore(draft.extras);
+        setHasDraftChanges(true);
+        setDraftRestored(true);
+      }
+      setDraftReady(true);
+    });
+    return () => { cancelled = true; };
+  }, [user?.id, draftKind, isRebooking, isRescheduling]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Autosave: the browser copy on every change, the server copy a moment later.
+  const draftExtrasKey = JSON.stringify(draftExtras || null);
+  React.useEffect(() => {
+    if (!draftReady || isSubmitted || isRebooking || isRescheduling || !user?.id) return undefined;
+    const data = toDraftData(bookingData);
+    if (!hasMeaningfulDraft(data)) return undefined;
+    const payload = { data, step: currentStep, extras: draftExtras };
+    writeLocalDraft(user.id, draftKind, payload);
+    const timer = setTimeout(() => saveServerDraft(user.id, draftKind, payload), 1500);
+    return () => clearTimeout(timer);
+  }, [bookingData, currentStep, draftExtrasKey, draftReady, isSubmitted, user?.id, draftKind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const requestLeave = action => {
     // Section 3.1: delegate to the shared unsaved-changes guard so the walk-in
@@ -254,6 +307,7 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
         });
       }
       setHasDraftChanges(false);
+      if (user?.id) deleteDraft(user.id, draftKind);
       toastManager.success('Booking submitted successfully!');
       setIsSubmitted(true);
     } catch (err) {
@@ -314,12 +368,30 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
     
   };
 
+  const discardAndLeave = async () => {
+    if (user?.id) await deleteDraft(user.id, draftKind);
+    resetBookingData();
+    setCurrentStep(1);
+    setCustomerDetailsLocked(false);
+    setDraftRestored(false);
+    setHasDraftChanges(false);
+    navigate(adminMode ? '/admin' : '/customer');
+  };
+
+  // Cancel throws away everything entered, including the saved draft. Nothing
+  // entered yet means nothing to lose, so it leaves straight away.
   const handleCancelBooking = () => {
-    requestLeave(() => {
-      resetBookingData();
-      setHasDraftChanges(false);
-      navigate(adminMode ? '/admin' : '/customer/dashboard');
-    });
+    if (!hasMeaningfulBookingInput(bookingData)) {
+      discardAndLeave();
+      return;
+    }
+    confirmThen({
+      title: 'Cancel this booking?',
+      message: 'Everything you have entered so far will be deleted. This cannot be undone.',
+      confirmText: 'Yes, delete it',
+      cancelText: 'Keep editing',
+      type: 'danger'
+    }, discardAndLeave);
   };
 
   // Batch 6: ValidationModal actions. Both route the user back to the schedule
@@ -433,6 +505,13 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
         ))}
       </div>
       </div>
+
+      {draftRestored && (
+        <div role="status" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.75rem 1rem', marginBottom: '1rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderLeft: '3px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: 700 }}>
+          <span>We restored the booking you were working on.</span>
+          <button type="button" onClick={handleCancelBooking} style={{ background: 'transparent', border: '1px solid var(--status-danger)', color: 'var(--status-danger)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontWeight: 900, fontSize: '0.7rem', cursor: 'pointer', textTransform: 'uppercase' }}>Start over</button>
+        </div>
+      )}
 
       {/* Step Content */}
       {adminMode && renderAdminPanel?.({ bookingData, setBookingData: updateBookingData, isCustomerDetailsLocked: customerDetailsLocked })}

@@ -146,6 +146,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
     updateVehicles((current) => current.length === 1 && isUntouchedUnit(current[0])
       ? [garageVehicleToBookingVehicle(savedVehicle)]
       : [...current, garageVehicleToBookingVehicle(savedVehicle)]);
+    toast.success('Vehicle added successfully', { id: 'vehicle-added' });
   };
   const toggleGarageVehicle = (savedVehicle) => {
     if (isGarageVehicleSelected(savedVehicle)) {
@@ -170,6 +171,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
     // unit set, so mixing a manual unit into it is an inconsistent state.
     setBookingData((current) => (current.fleetGroupId ? { ...current, fleetGroupId: null } : current));
     updateVehicles((current) => current.length === 1 && isUntouchedUnit(current[0]) ? [emptyVehicle(true)] : [...current, emptyVehicle(true)]);
+    toast.success('Vehicle added successfully', { id: 'vehicle-added' });
   };
   const isGarageVehicleSelected = (savedVehicle) => vehicles.some((vehicle) => vehicle.garageVehicleId === savedVehicle.id);
 
@@ -521,7 +523,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
                 </button>
               );
             })}
-            <button
+            {!showServiceConfiguration && <button
               type="button"
               tabIndex={vehicleAdditionLocked ? -1 : undefined}
               onClick={addManualVehicle}
@@ -529,7 +531,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
               style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'transparent', color: 'var(--admin-brand)', border: '1px dashed var(--admin-brand)', borderRadius: '6px', fontWeight: '900', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer', transition: 'transform .2s ease, border-color .2s ease, box-shadow .2s ease' }}
             >
               <Plus size={16} /> ADD NEW VEHICLE
-            </button>
+            </button>}
             {onCancelNewVehicle && (
               <button type="button" onClick={onCancelNewVehicle} title="Cancel adding this vehicle" style={{ padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem', background: 'transparent', color: 'var(--status-danger)', border: '1px dashed var(--status-danger)', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}>
                 <X size={16} /> CANCEL ADD NEW VEHICLE
@@ -769,8 +771,17 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
           </div>{!complete && <p style={{ margin: 0, padding: '.75rem 1.25rem', color: 'var(--admin-text-secondary)', fontSize: '.75rem', background: 'var(--admin-bg)' }}>Complete this vehicle's details to unlock its services.</p>}
         </article>;
       })}
+      <button
+        type="button"
+        onClick={addManualVehicle}
+        disabled={vehicleAdditionLocked}
+        className="booking-addable-card"
+        style={{ alignSelf: 'stretch', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem', background: 'transparent', color: 'var(--admin-brand)', border: '1px dashed var(--admin-brand)', borderRadius: '6px', fontWeight: '900', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer', opacity: vehicleAdditionLocked ? 0.5 : 1 }}
+      >
+        <Plus size={16} /> ADD ANOTHER VEHICLE
+      </button>
     </section>}
-    <footer style={{ padding: '1.25rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', background: 'var(--admin-sidebar)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)' }}><div><span style={{ color: 'var(--admin-text-secondary)', fontWeight: '800', fontSize: '.72rem', textTransform: 'uppercase' }}>Booking estimate · {vehicles.length} vehicle{vehicles.length === 1 ? '' : 's'} in {units.length} unit{units.length === 1 ? '' : 's'}</span><strong style={{ display: 'block', color: 'var(--admin-brand)', fontSize: '1.6rem' }}>₱{grandTotal.toLocaleString()}</strong></div><div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>{onCancel && <button type="button" onClick={onCancel} style={{ padding: '.9rem 1.25rem', background: 'transparent', color: 'var(--status-danger)', border: '1px solid #ef4444', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}>CANCEL BOOKING</button>}<button type="button" disabled={!validUnits} title={!validUnits ? 'Complete every vehicle unit and select at least one service for each.' : ''} onClick={onNext} style={{ padding: '.9rem 1.25rem', background: validUnits ? 'var(--admin-brand)' : 'var(--admin-bg)', color: validUnits ? '#fff' : 'var(--admin-text-secondary)', border: `1px solid ${validUnits ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '6px', fontWeight: '900', cursor: validUnits ? 'pointer' : 'not-allowed', opacity: validUnits ? 1 : .5 }}>PROCEED TO SCHEDULE</button></div></footer>
+    <footer style={{ padding: '1.25rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', background: 'var(--admin-sidebar)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)' }}><div><span style={{ color: 'var(--admin-text-secondary)', fontWeight: '800', fontSize: '.72rem', textTransform: 'uppercase' }}>Booking estimate · {vehicles.length} vehicle{vehicles.length === 1 ? '' : 's'} in {units.length} unit{units.length === 1 ? '' : 's'}</span><strong style={{ display: 'block', color: 'var(--admin-brand)', fontSize: '1.6rem' }}>₱{grandTotal.toLocaleString()}</strong></div><div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>{onCancel && <button type="button" onClick={onCancel} style={{ padding: '.9rem 1.25rem', background: 'transparent', color: 'var(--status-danger)', border: '1px solid #ef4444', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}>CANCEL</button>}<button type="button" disabled={!validUnits} title={!validUnits ? 'Complete every vehicle unit and select at least one service for each.' : ''} onClick={onNext} style={{ padding: '.9rem 1.25rem', background: validUnits ? 'var(--admin-brand)' : 'var(--admin-bg)', color: validUnits ? '#fff' : 'var(--admin-text-secondary)', border: `1px solid ${validUnits ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '6px', fontWeight: '900', cursor: validUnits ? 'pointer' : 'not-allowed', opacity: validUnits ? 1 : .5 }}>PROCEED TO SCHEDULE</button></div></footer>
   </div>;
 };
 

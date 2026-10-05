@@ -239,7 +239,17 @@ const AdminWalkInWizard = () => {
     setGuestAsGuest(false);
   };
 
-  return <CustomerBookAppointment adminMode adminSelectedCustomerId={selectedCustomer} renderAdminPanel={renderAdminPanel} onAdminSubmit={submitAdminBooking} onAdminReset={handleAdminReset} />;
+  // The customer panel keeps its own state, so it travels with the draft.
+  const draftExtras = { isNewGuest, selectedCustomer, guest, guestAsGuest };
+  const restorePanel = (extras) => {
+    if (!extras) return;
+    setIsNewGuest(extras.isNewGuest !== false);
+    setSelectedCustomer(extras.selectedCustomer || '');
+    setGuest({ firstName: '', lastName: '', email: '', phone: '', ...(extras.guest || {}) });
+    setGuestAsGuest(Boolean(extras.guestAsGuest));
+  };
+
+  return <CustomerBookAppointment adminMode adminSelectedCustomerId={selectedCustomer} renderAdminPanel={renderAdminPanel} onAdminSubmit={submitAdminBooking} onAdminReset={handleAdminReset} draftExtras={draftExtras} onDraftRestore={restorePanel} />;
 };
 
 export default AdminWalkInWizard;

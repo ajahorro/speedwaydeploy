@@ -388,7 +388,7 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
               letterSpacing: '1px'
             }}
           >
-            Cancel Booking
+            Cancel
           </button>
         )}
         <div style={{ position: 'relative' }}>
