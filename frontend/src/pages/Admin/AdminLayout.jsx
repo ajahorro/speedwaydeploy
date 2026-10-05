@@ -150,7 +150,7 @@ const AdminLayout = () => {
         { name: 'Booking Management', path: '/admin/bookings', icon: ClipboardList },
         { name: 'Calendar', path: '/admin/schedule', icon: Calendar },
         { name: 'New Walk-In', path: '/admin/walk-in', icon: UserPlus },
-        { name: 'Chat', path: '/admin/chat', icon: MessageCircle, badge: true }
+        { name: 'Message Inquiries', path: '/admin/chat', icon: MessageCircle, badge: true }
       ]
     },
     {
