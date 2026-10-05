@@ -4,10 +4,11 @@ import { supabase } from '../../lib/supabase';
 import { subscribeTable } from '../../lib/realtimeHub';
 import {
   LayoutDashboard, Building2, ClipboardList, CheckSquare, Calendar, UserPlus,
-  Bell, Undo, BarChart2, History, Users, User,
+  Bell, Undo, BarChart2, History, Users, User, MessageCircle,
   Settings, LogOut, Menu, X
 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
+import { useGlobalChat } from '../../context/ChatContext';
 import { useAuth } from '../../hooks/useAuth';
 import { confirmLogout } from '../../utils/logoutConfirm';
 import HeaderProfileDropdown from '../../components/common/HeaderProfileDropdown';
@@ -23,6 +24,7 @@ import TermsGate from '../../components/TermsGate';
 const AdminLayout = () => {
   const { resolvedTheme } = useTheme();
   const { user, profile, signOut } = useAuth();
+  const { globalUnreadCount } = useGlobalChat();
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -147,7 +149,8 @@ const AdminLayout = () => {
         { name: 'Business Hub', path: '/admin/business', icon: Building2 },
         { name: 'Booking Management', path: '/admin/bookings', icon: ClipboardList },
         { name: 'Calendar', path: '/admin/schedule', icon: Calendar },
-        { name: 'New Walk-In', path: '/admin/walk-in', icon: UserPlus }
+        { name: 'New Walk-In', path: '/admin/walk-in', icon: UserPlus },
+        { name: 'Chat', path: '/admin/chat', icon: MessageCircle, badge: true }
       ]
     },
     {
@@ -273,6 +276,11 @@ const AdminLayout = () => {
                   >
                     <Icon size={16} strokeWidth={2.25} />
                     {link.name}
+                    {link.badge && globalUnreadCount > 0 && (
+                      <span aria-label={`${globalUnreadCount} unread messages`} style={{ marginLeft: 'auto', minWidth: '1.25rem', padding: '0.1rem 0.4rem', borderRadius: '999px', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', fontSize: '0.65rem', fontWeight: 900, textAlign: 'center' }}>
+                        {globalUnreadCount > 99 ? '99+' : globalUnreadCount}
+                      </span>
+                    )}
                   </NavLink>
                 );
               })}
@@ -425,7 +433,7 @@ const AdminLayout = () => {
         <TermsGate />
       </div>
       {/* Shortcut to the same conversations the Chat page lists. */}
-      <FloatingBubbleChat />
+      {location.pathname !== '/admin/chat' && <FloatingBubbleChat />}
     </div>
   );
 };

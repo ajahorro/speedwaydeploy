@@ -36,6 +36,7 @@ const AdminUserManagement = lazy(() => import('./pages/Admin/AdminUserManagement
 const AdminSettings = lazy(() => import('./pages/Admin/AdminSettings'));
 const BusinessHub = lazy(() => import('./pages/Admin/BusinessHub'));
 const AdminNotifications = lazy(() => import('./pages/Admin/AdminNotifications'));
+const AdminChat = lazy(() => import('./pages/Admin/AdminChat'));
 const AdminProfile = lazy(() => import('./pages/Admin/AdminProfile'));
 const AdminAcceptInvite = lazy(() => import('./pages/Admin/AdminAcceptInvite'));
 const AdminWalkInForm = lazy(() => import('./pages/Admin/AdminWalkInWizard'));
@@ -154,6 +155,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route path="accounts" element={<AdminAccountsManagement />} />
                   <Route path="users" element={<AdminUserManagement />} />
                   <Route path="settings" element={<AdminSettings />} />
+                  <Route path="chat" element={<AdminChat />} />
                   <Route path="notifications" element={<AdminNotifications />} />
                   <Route path="profile" element={<AdminProfile />} />
                   <Route path="*" element={<div style={{ padding: '2rem' }}>Module under development</div>} />
