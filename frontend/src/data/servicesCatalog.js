@@ -435,7 +435,18 @@ export const isPromoRuleLive = (rule) => Boolean(rule)
   && rule.is_active !== false
   && !rule.deleted_at;
 
-export const getPromoRules = () => catalogSource.promoRules.filter(isPromoRuleLive);
+// The promotion unlocked by the promo code the customer redeemed on the last
+// booking page (see services/promoCodeService.js). Codes are not part of the
+// public configuration, so a coded promotion exists here only after redemption;
+// every pricing path below (per-service, package, discount summary) then sees it
+// like any other live rule.
+let redeemedPromoRule = null;
+export const setRedeemedPromoRule = (rule) => { redeemedPromoRule = rule && typeof rule === 'object' ? rule : null; };
+
+export const getPromoRules = () => {
+  const live = catalogSource.promoRules.filter(isPromoRuleLive);
+  return redeemedPromoRule && isPromoRuleLive(redeemedPromoRule) ? [...live, redeemedPromoRule] : live;
+};
 
 /**
  * Kept for existing callers. Promo rules arrive with the business_config row

@@ -11,6 +11,15 @@ import { sanitizeCurrency } from '../../config/constants';
 import { logger } from '../../utils/logger';
 import toastManager from '../../utils/toastManager';
 import { BACKEND_URL } from '../../config/api';
+import PromoCodeBox from './PromoCodeBox';
+
+const DEFAULT_TERMS = [
+  '1. Customer information provided during booking is collected solely for scheduling, service communication, and payment verification.',
+  '2. All bookings are subject to vehicle condition, available staff capacity, and service timing confirmation by the studio.',
+  '3. Deposits and payments remain subject to the studio’s refund and cancellation policy as disclosed in the booking confirmation.',
+  '4. Customers agree to provide truthful vehicle details and to keep the contact information current for appointment updates.',
+  '5. By submitting this booking, the customer authorizes the studio to process personal data required for service delivery, account management, and operational communications.'
+].join('\n');
 
 const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, onNext, onBack, onSubmit, isSubmitting, onCancel }) => {
   const { settings } = useConfig();
@@ -1238,6 +1247,16 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
             </div>
           )}
 
+          {!adminMode && (
+            <PromoCodeBox
+              promoCode={bookingData.promoCode}
+              promoRule={bookingData.promoRule}
+              disabled={isUploading}
+              onApplied={(rule) => setBookingData(prev => ({ ...prev, promoCode: rule.code, promoRule: rule }))}
+              onRemoved={() => setBookingData(prev => ({ ...prev, promoCode: null, promoRule: null }))}
+            />
+          )}
+
           {!adminMode && <div style={{ padding: '1rem', background: termsAccepted ? 'rgba(var(--admin-brand-rgb), 0.05)' : 'transparent', borderRadius: 'var(--admin-radius-md)', border: `1px solid ${termsAccepted ? 'var(--admin-brand)' : 'var(--admin-border)'}`, transition: 'all 0.2s' }}>
             <label style={{ display: 'flex', gap: '1rem', cursor: 'pointer', alignItems: 'flex-start' }}>
               <input
@@ -1260,12 +1279,11 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                   <button type="button" onClick={() => setShowTermsModal(false)} style={{ border: 'none', background: 'transparent', color: 'var(--admin-text-secondary)', fontSize: '1.25rem', cursor: 'pointer' }}>×</button>
                 </div>
                 <div style={{ padding: '1.25rem', maxHeight: '70vh', overflowY: 'auto', color: 'var(--admin-text-primary)', fontSize: '0.9rem', lineHeight: 1.7 }}>
-                  <p>1. Customer information provided during booking is collected solely for scheduling, service communication, and payment verification.</p>
-                  <p>2. All bookings are subject to vehicle condition, available staff capacity, and service timing confirmation by the studio.</p>
-                  <p>3. Deposits and payments remain subject to the studio’s refund and cancellation policy as disclosed in the booking confirmation.</p>
-                  <p>4. Customers agree to provide truthful vehicle details and to keep the contact information current for appointment updates.</p>
-                  <p>5. By submitting this booking, the customer authorizes the studio to process personal data required for service delivery, account management, and operational communications.</p>
-                  <p>6. This placeholder agreement is subject to future legal review and may be updated without notice.</p>
+                  {(String(settings.TERMS_AND_CONDITIONS || '').trim() || DEFAULT_TERMS)
+                    .split(/\n+/)
+                    .map((line) => line.trim())
+                    .filter(Boolean)
+                    .map((line, index) => <p key={index}>{line}</p>)}
                 </div>
                 <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid var(--admin-border)', display: 'flex', justifyContent: 'flex-end' }}>
                   <button type="button" onClick={() => setShowTermsModal(false)} style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-on-brand)', fontWeight: 900, cursor: 'pointer' }}>Close</button>

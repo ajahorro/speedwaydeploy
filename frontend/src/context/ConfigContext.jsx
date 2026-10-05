@@ -65,6 +65,8 @@ const settingsFromRow = (data) => {
     BUSINESS_EMAIL: data?.email_address || '',
     BUSINESS_ADDRESS: data?.business_address || '',
     FAQS: Array.isArray(data?.faqs) ? data.faqs : [],
+    // One text for the whole site, edited in the Business Hub (Payment Policy).
+    TERMS_AND_CONDITIONS: String(data?.terms_and_conditions || ''),
     // Task B: the mandated QR recipients; legacy payment_account_* / gcash_*
     // keys remain as fallbacks for older rows.
     qr_code_url: qrCodeUrl,

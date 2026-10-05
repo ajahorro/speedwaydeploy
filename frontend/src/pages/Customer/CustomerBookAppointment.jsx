@@ -18,6 +18,7 @@ import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { loadDraft, saveServerDraft, writeLocalDraft, deleteDraft, toDraftData, hasMeaningfulDraft } from '../../services/bookingDraftService';
+import { setRedeemedPromoRule } from '../../data/servicesCatalog';
 
 // Utility for Data Integrity: Find service in catalog by name and get current price
 const getCatalogServiceByName = (name, type) => {
@@ -123,6 +124,12 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
     if (!hasDraftChanges && !hasMeaningfulBookingInput(bookingData)) return;
     if (!isSubmitted) setHasDraftChanges(true);
   }, [bookingData, hasDraftChanges, isSubmitted]);
+
+  // The redeemed promo code's promotion feeds every price shown and saved in this
+  // wizard; it is cleared when the wizard closes so it can never leak into another
+  // booking. (Admin walk-ins do not use customer promo codes.)
+  setRedeemedPromoRule(adminMode ? null : (bookingData.promoRule || null));
+  React.useEffect(() => () => setRedeemedPromoRule(null), []);
 
   const updateBookingData = updater => {
     setHasDraftChanges(true);

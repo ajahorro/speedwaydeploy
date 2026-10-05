@@ -163,6 +163,7 @@ const CustomerGarage = () => {
   };
 
   const handleOpenGroup = () => {
+    if (vehicles.length === 0) return;
     setNewGroupName('');
     setSelectedFleetVehicleIds([]);
     setIsGroupModalOpen(true);
@@ -271,9 +272,9 @@ const CustomerGarage = () => {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
           <div>
             <h2 style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase' }}>Fleet Groups</h2>
-            <p style={{ margin: '0.3rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '0.78rem' }}>Select a fleet to view its assigned vehicles.</p>
+            <p style={{ margin: '0.3rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '0.78rem' }}>{vehicles.length === 0 ? 'Add at least one vehicle to your garage before creating a fleet.' : 'Select a fleet to view its assigned vehicles.'}</p>
           </div>
-          <button onClick={handleOpenGroup} className="admin-card-hover" style={{ padding: '0.7rem 1rem', background: 'transparent', color: 'var(--admin-brand)', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '.8px', display: 'flex', alignItems: 'center', gap: '.45rem', fontSize: '.72rem' }}>
+          <button onClick={handleOpenGroup} disabled={vehicles.length === 0} title={vehicles.length === 0 ? 'Add a vehicle first' : undefined} className="admin-card-hover" style={{ opacity: vehicles.length === 0 ? 0.45 : 1, padding: '0.7rem 1rem', background: 'transparent', color: 'var(--admin-brand)', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: vehicles.length === 0 ? 'not-allowed' : 'pointer', textTransform: 'uppercase', letterSpacing: '.8px', display: 'flex', alignItems: 'center', gap: '.45rem', fontSize: '.72rem' }}>
             <Plus size={16} /> Create Fleet
           </button>
         </div>

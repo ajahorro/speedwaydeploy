@@ -411,6 +411,7 @@ export const createBooking = async (customerId, bookingData) => {
         vehicle_type: vehicles[0]?.type || null,
         applied_promo_id: appliedPromoId || null,
         promo_name_snapshot: promoNameSnapshot || null,
+        promo_code: bookingData.promoCode || null,
         discount_amount_snapshot: discountAmountSnapshot,
         active_qr_snapshot: qrSnapshot,
         qr_snapshot_version: qrSnapshot?.qr_config_version ?? null,
