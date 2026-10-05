@@ -186,14 +186,15 @@ const StaffActiveJobs = () => {
                   compact
                   onCountChange={(count) => setPhotoCounts(prev => ({ ...prev, [task.id]: { ...(prev[task.id] || {}), before: count } }))}
                 />
-                <PhotoProofUploader
-                  bookingId={task.booking_id}
-                  bookingVehicleId={task.id}
-                  phase="after"
-                  compact
-                  disabled={task.status?.toUpperCase() !== 'IN_PROGRESS' || (photoCounts[task.id]?.before || 0) < 1}
-                  onCountChange={(count) => setPhotoCounts(prev => ({ ...prev, [task.id]: { ...(prev[task.id] || {}), after: count } }))}
-                />
+                {task.status?.toUpperCase() === 'IN_PROGRESS' && (
+                  <PhotoProofUploader
+                    bookingId={task.booking_id}
+                    bookingVehicleId={task.id}
+                    phase="after"
+                    compact
+                    onCountChange={(count) => setPhotoCounts(prev => ({ ...prev, [task.id]: { ...(prev[task.id] || {}), after: count } }))}
+                  />
+                )}
               </div>
 
               <div style={{ position: 'relative' }}>

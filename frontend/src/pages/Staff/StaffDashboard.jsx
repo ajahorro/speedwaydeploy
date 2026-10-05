@@ -381,7 +381,7 @@ const StaffDashboard = () => {
                   </div>
 
                   {(
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobile || ['PENDING', 'SCHEDULED'].includes(task.status?.toUpperCase()) ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '1.5rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile || task.status?.toUpperCase() !== 'IN_PROGRESS' ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '1.5rem' }}>
                       {task.status?.toUpperCase() !== 'PENDING' && (
                       <div style={{ position: 'relative' }}>
                         <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Detailing Observations</div>
@@ -405,7 +405,9 @@ const StaffDashboard = () => {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <div style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Service Evidence</div>
                         <p style={{ margin: '0 0 0.5rem', fontSize: '0.62rem', color: 'var(--admin-text-secondary)', fontWeight: '700', lineHeight: 1.5 }}>
-                          Upload at least one before photo before starting service and one after photo before finishing service.
+                          {task.status?.toUpperCase() === 'IN_PROGRESS'
+                            ? 'Service started. Add at least one completion photo to finish the job.'
+                            : 'Add at least one before photo, then start the service.'}
                         </p>
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
                           <PhotoProofUploader
@@ -417,15 +419,16 @@ const StaffDashboard = () => {
                             helperText="Capture the vehicle condition before work begins."
                             onCountChange={setPhotoCount(task.id, 'before')}
                           />
-                          <PhotoProofUploader
-                            bookingId={task.booking_id}
-                            bookingVehicleId={task.id}
-                            phase="after"
-                            compact
-                            disabled={task.status?.toUpperCase() !== 'IN_PROGRESS' || (photoCounts[task.id]?.before || 0) < 1}
-                            helperText="Required: at least one QA photo before marking finished."
-                            onCountChange={setPhotoCount(task.id, 'after')}
-                          />
+                          {task.status?.toUpperCase() === 'IN_PROGRESS' && (
+                            <PhotoProofUploader
+                              bookingId={task.booking_id}
+                              bookingVehicleId={task.id}
+                              phase="after"
+                              compact
+                              helperText="Required: at least one QA photo before marking finished."
+                              onCountChange={setPhotoCount(task.id, 'after')}
+                            />
+                          )}
                         </div>
                       </div>
                     </div>
