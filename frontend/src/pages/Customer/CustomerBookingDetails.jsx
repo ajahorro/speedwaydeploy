@@ -28,6 +28,7 @@ import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import { getAvailableSlots, getBusinessHours } from '../../services/scheduleService';
 import { useImagePreview } from '../../context/ImagePreviewContext';
 import PaymentProofModal from '../../components/payments/PaymentProofModal';
+import AddServiceDialog from '../../components/payments/AddServiceDialog';
 
 const CustomerBookingDetails = () => {
   const { openImage } = useImagePreview();
@@ -56,6 +57,7 @@ const CustomerBookingDetails = () => {
   }, [id, searchParams, openChatForBooking, setSearchParams]);
 
   const [payBalanceOpen, setPayBalanceOpen] = useState(false);
+  const [addServiceOpen, setAddServiceOpen] = useState(false);
   const [booking, setBooking] = useState(null);
   const [vehicles, setVehicles] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -424,6 +426,18 @@ const CustomerBookingDetails = () => {
 
         {/* LEFT COLUMN */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+          {canCancelBooking && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setAddServiceOpen(true)}
+                style={{ padding: '0.65rem 1rem', background: 'transparent', color: 'var(--admin-brand)', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', fontWeight: 900, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', minHeight: '44px' }}
+              >
+                + Add a service
+              </button>
+            </div>
+          )}
 
           {/* ===== E. SERVICE BREAKDOWN ===== */}
           {vehicles.map((v, vIdx) => (
@@ -853,6 +867,15 @@ const CustomerBookingDetails = () => {
           setPhotoGalleryOpen(false);
           setPhotoGalleryVehicleId(null);
         }}
+      />
+
+      <AddServiceDialog
+        open={addServiceOpen}
+        onOpenChange={setAddServiceOpen}
+        booking={booking}
+        vehicles={vehicles}
+        ledger={booking.ledger}
+        onAdded={() => fetchAll()}
       />
 
       <PaymentProofModal

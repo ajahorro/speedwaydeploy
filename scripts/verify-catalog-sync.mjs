@@ -11,12 +11,16 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { SERVICES_DATA, setCatalogSource, getServiceCatalog, priceVehicleServices } from '../frontend/src/data/servicesCatalog.js';
-import { catalogInsertSql, catalogRows } from './gen-catalog-seed.mjs';
+import { catalogInsertSql, catalogRows, catalogDurationSql } from './gen-catalog-seed.mjs';
 
 const MIGRATION = 'supabase/migrations/20261109000001_catalog_pricing_guard.sql';
 const sql = fs.readFileSync(MIGRATION, 'utf8').replace(/\r\n/g, '\n');
 assert.ok(sql.includes(catalogInsertSql()), 'the migration\'s built-in catalog differs from frontend/src/data/servicesCatalog.js. Regenerate it with scripts/gen-catalog-seed.mjs');
 console.log(`static OK: migration catalog matches servicesCatalog.js (${catalogRows().length} service/vehicle prices)`);
+
+const durationSql = fs.readFileSync('supabase/migrations/20261111000001_add_service_with_payment.sql', 'utf8').replace(/\r\n/g, '\n');
+assert.ok(durationSql.includes(catalogDurationSql()), 'the add-service migration service durations differ from servicesCatalog.js. Regenerate them with scripts/gen-catalog-seed.mjs');
+console.log('static OK: migration service durations match servicesCatalog.js');
 
 const dbIndex = process.argv.indexOf('--db');
 if (dbIndex < 0) process.exit(0);

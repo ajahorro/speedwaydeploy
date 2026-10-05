@@ -224,11 +224,11 @@ export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
   if (totalAmount === 0 || totalPaid === 0) {
     return {
       statusKey: 'UNPAID',
-      text: `Unpaid \u2014 \u20b1${totalAmount.toLocaleString()} outstanding`,
+      text: 'Unpaid',
       shortText: 'Unpaid',
       color: 'var(--status-danger)',
       balance: totalAmount,
-      subtext: `Full amount \u20b1${totalAmount.toLocaleString()} outstanding`,
+      subtext: `\u20b1${totalAmount.toLocaleString()} outstanding`,
     };
   }
 

@@ -4175,29 +4175,54 @@ app.post('/api/bookings/undo-no-show', async (req, res) => {
 });
 
 
+// Adds a service to an open booking. Used by the admin (cash, a scanned digital receipt, a hand-typed
+// digital payment, or "to be received") and by the booking's own customer (scanned receipt only; the
+// payment then waits for admin verification like any other customer payment).
+//
+// The server decides everything that matters: the price and duration come from the shop catalog,
+// the amount of a scanned receipt comes from the scan session, the payment minimum is recomputed from
+// the ledger, and for a customer the longer booking must still fit the schedule.
 app.post('/api/bookings/add-service', async (req, res) => {
-  const { bookingId, vehicleId, serviceName, price, durationMinutes = 60, paymentAmount, paymentMethod = 'Cash', referenceNumber = '' } = req.body;
+  const { bookingId, vehicleId, serviceName, price, paymentAmount, paymentMethod = 'Cash', referenceNumber = '', ocrScanId = null } = req.body || {};
   // payments.payment_type is an enum (Full | Downpayment | Manual); accept any casing.
-  const paymentType = { full: 'Full', downpayment: 'Downpayment', manual: 'Manual' }[String(req.body.paymentType || 'Downpayment').trim().toLowerCase()] || 'Downpayment';
-  const actor = await getLifecycleActor(req);
-  if (!actor) return res.status(403).json({ success: false, error: 'Authorized admin or staff account required.' });
+  const paymentType = { full: 'Full', downpayment: 'Downpayment', manual: 'Manual' }[String(req.body?.paymentType || 'Downpayment').trim().toLowerCase()] || 'Downpayment';
+  const actor = await getAuthenticatedActor(req);
+  if (!actor) return res.status(403).json({ success: false, error: 'Sign in to add a service.' });
+  const role = String(actor.profile.role || '').toUpperCase();
+  const isCustomer = role === 'CUSTOMER';
+  if (!isCustomer && !['ADMIN', 'STAFF'].includes(role)) return res.status(403).json({ success: false, error: 'This account cannot add services.' });
   // "To be received": admin-only. No payment is taken now; the client then records the
   // derived balance through admin_record_receivable, which re-checks the admin role.
-  const deferToReceive = String(req.body.paymentType || '').trim().toLowerCase() === 'receivable';
-  if (deferToReceive && String(actor.profile.role || '').toUpperCase() !== 'ADMIN') {
+  const deferToReceive = String(req.body?.paymentType || '').trim().toLowerCase() === 'receivable';
+  if (deferToReceive && role !== 'ADMIN') {
     return res.status(403).json({ success: false, error: 'Only an administrator can defer a payment.' });
   }
   try {
     const servicePrice = Number(price);
-    const { data: booking, error: bookingError } = await supabaseAdmin.from('bookings').select('id, status, total_amount, end_datetime').eq('id', bookingId).single();
+    const { data: booking, error: bookingError } = await supabaseAdmin
+      .from('bookings')
+      .select('id, status, total_amount, start_datetime, end_datetime, customer_id')
+      .eq('id', bookingId)
+      .single();
     if (bookingError) throw bookingError;
-    if (!['scheduled', 'confirmed', 'in_progress'].includes(String(booking.status || '').toLowerCase())) return res.status(409).json({ success: false, error: 'Services can only be added while a booking is scheduled, confirmed, or in progress.' });
+    if (isCustomer && booking.customer_id !== actor.user.id) {
+      return res.status(404).json({ success: false, error: 'Booking not found.' });
+    }
+    const status = String(booking.status || '').toLowerCase();
+    const allowedStatuses = isCustomer ? ['scheduled', 'confirmed'] : ['scheduled', 'confirmed', 'in_progress'];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(409).json({ success: false, error: isCustomer ? 'Services can only be added before the work starts.' : 'Services can only be added while the booking is scheduled, confirmed, or in progress.' });
+    }
     if (!serviceName || !Number.isFinite(servicePrice) || servicePrice <= 0) return res.status(400).json({ success: false, error: 'A valid service and price are required.' });
-    const { data: vehicle, error: vehicleError } = await supabaseAdmin.from('booking_vehicles').select('id, booking_id, vehicle_type').eq('id', vehicleId).eq('booking_id', bookingId).maybeSingle();
+    const { data: vehicle, error: vehicleError } = await supabaseAdmin.from('booking_vehicles').select('id, booking_id, vehicle_type, status').eq('id', vehicleId).eq('booking_id', bookingId).maybeSingle();
     if (vehicleError) throw vehicleError;
     if (!vehicle) return res.status(404).json({ success: false, error: 'Vehicle does not belong to this booking.' });
+    if (isCustomer && ['IN_PROGRESS', 'ONGOING', 'COMPLETED', 'RELEASED'].includes(String(vehicle.status || '').toUpperCase())) {
+      return res.status(409).json({ success: false, error: 'Work on this vehicle has already started, so a service cannot be added.' });
+    }
+
     // The price is the shop's price for this service on this vehicle type, never the browser's word
-    // (same catalog the database checks new bookings against).
+    // (same catalog the database checks new bookings against). The duration is the shop's, too.
     const { data: catalogPrice, error: catalogError } = await supabaseAdmin.rpc('catalog_service_price', { p_name: serviceName, p_vehicle_type: vehicle.vehicle_type });
     if (catalogError) throw catalogError;
     if (catalogPrice === null || catalogPrice === undefined) {
@@ -4206,192 +4231,153 @@ app.post('/api/bookings/add-service', async (req, res) => {
     if (Math.abs(Number(catalogPrice) - servicePrice) > 0.01) {
       return res.status(409).json({ success: false, error: `The price of "${serviceName}" is now ₱${Number(catalogPrice).toLocaleString()}. Refresh and try again.` });
     }
+    const { data: catalogDuration, error: durationError } = await supabaseAdmin.rpc('catalog_service_duration', { p_name: serviceName });
+    if (durationError) throw durationError;
+    const durationMinutes = Math.max(1, Number(catalogDuration) || 60);
+
     const { data: existing } = await supabaseAdmin.from('booking_vehicle_services').select('id').eq('booking_vehicle_id', vehicleId).ilike('service_name', serviceName).maybeSingle();
     if (existing) return res.status(409).json({ success: false, error: 'This service is already assigned to the vehicle.' });
-    const { verified_paid: verifiedPaid } = await getBookingLedger(bookingId);
+
+    // A customer's longer booking must still fit the shop's hours and bays (the admin screen checks
+    // this in the browser and may override it after an explicit confirmation).
+    if (isCustomer) {
+      const start = new Date(booking.start_datetime);
+      const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        .formatToParts(start).filter((p) => p.type !== 'literal').map((p) => [p.type, p.value]));
+      const currentMinutes = Math.max(1, Math.round((new Date(booking.end_datetime) - start) / 60000));
+      const { count: vehicleCount } = await supabaseAdmin.from('booking_vehicles').select('id', { count: 'exact', head: true }).eq('booking_id', bookingId);
+      const check = await validateBookingRequest(supabaseAdmin, {
+        date: `${parts.year}-${parts.month}-${parts.day}`,
+        time: `${parts.hour}:${parts.minute}`,
+        durationMinutes: currentMinutes + durationMinutes,
+        requestedBays: Math.max(1, vehicleCount || 1),
+        excludeBookingId: bookingId,
+        skipLeadTime: true
+      });
+      if (!check.valid) {
+        return res.status(409).json({ success: false, code: check.code, error: `This service makes the booking longer than the shop can fit that day. ${check.message || ''}`.trim() });
+      }
+    }
+
+    const ledger = await getBookingLedger(bookingId);
     const newBookingTotal = Number(booking.total_amount || 0) + servicePrice;
+    const alreadyCovered = Number(ledger.verified_paid || 0) + (isCustomer ? Number(ledger.pending_verification || 0) : 0);
     const minimumDownpaymentNow = Math.min(
       servicePrice,
-      Math.max(0, (await getRequiredDownpaymentFor(newBookingTotal)) - verifiedPaid)
+      Math.max(0, (await getRequiredDownpaymentFor(newBookingTotal)) - alreadyCovered)
     );
-    const hasPayment = !deferToReceive && paymentAmount !== null && paymentAmount !== undefined;
-    if (!deferToReceive && servicePrice >= 1000 && minimumDownpaymentNow > 0
-      && (!hasPayment || Number(paymentAmount) < minimumDownpaymentNow || Number(paymentAmount) > servicePrice)) {
+
+    // ── the payment ───────────────────────────────────────────────────────
+    let payment = null;
+    let scanId = null;
+    const hasScan = Boolean(ocrScanId) && !deferToReceive;
+    const hasManualAmount = !hasScan && !deferToReceive && paymentAmount !== null && paymentAmount !== undefined;
+    const needsPaymentNow = !deferToReceive && servicePrice >= 1000 && minimumDownpaymentNow > 0;
+
+    if (isCustomer && needsPaymentNow && !hasScan) {
+      return res.status(409).json({ success: false, error: `Pay at least ₱${minimumDownpaymentNow.toLocaleString()} and upload the receipt to add this service.` });
+    }
+    if (isCustomer && hasManualAmount) {
+      return res.status(403).json({ success: false, error: 'Customers add a payment by uploading the receipt.' });
+    }
+
+    if (hasScan) {
+      const { data: scan } = await supabaseAdmin.from('ocr_scan_sessions').select('*').eq('id', ocrScanId).eq('active', true).gt('expires_at', new Date().toISOString()).maybeSingle();
+      if (!scan || String(scan.payment_verdict || '').toUpperCase() !== 'FOR_VERIFICATION') {
+        return res.status(409).json({ success: false, error: 'The receipt scan is missing, expired, or already used. Upload the receipt again.' });
+      }
+      const meta = scan.ocr_metadata || {};
+      const unreadable = meta.extraction_unavailable === true;
+      const net = Number(meta.amount);
+      const gross = Number(meta.grossAmount) > 0 ? Number(meta.grossAmount) : net;
+      const reference = String(referenceNumber || meta.referenceNumber || meta.referenceNo || '').trim();
+      if (unreadable && !isCustomer) {
+        return res.status(409).json({ success: false, error: 'The receipt could not be read, so no amount is available. Ask for a clearer photo, or enter the payment by hand.' });
+      }
+      // A customer's unreadable receipt goes to the shop for manual verification at the amount due.
+      const amountPaid = unreadable ? minimumDownpaymentNow : net;
+      if (!(amountPaid > 0)) return res.status(409).json({ success: false, error: 'The amount could not be read from the receipt.' });
+      if (amountPaid > servicePrice + 0.01) return res.status(409).json({ success: false, error: `The receipt shows ₱${amountPaid.toLocaleString()}, more than this service's ₱${servicePrice.toLocaleString()}.` });
+      if (needsPaymentNow && amountPaid < minimumDownpaymentNow - 1) {
+        return res.status(409).json({ success: false, error: `The receipt shows ₱${amountPaid.toLocaleString()}, but at least ₱${minimumDownpaymentNow.toLocaleString()} is due now.` });
+      }
+      if (!unreadable && reference.length < 4) return res.status(409).json({ success: false, error: 'A reference number is needed.' });
+      scanId = scan.id;
+      payment = {
+        amount: unreadable ? amountPaid : gross,
+        method: 'GCash',
+        payment_type: amountPaid >= servicePrice - 0.01 ? 'Full' : 'Downpayment',
+        status: isCustomer ? 'FOR_VERIFICATION' : 'PAID',
+        reference_number: reference || null,
+        receipt_url: meta.receipt_url || null,
+        detected_ref: String(meta.referenceNumber || meta.referenceNo || '').trim() || null,
+        detected_amount: unreadable ? null : net,
+        transfer_fee: Number(meta.transferFee) || 0,
+        net_credit: unreadable ? null : net,
+        verified_by: isCustomer ? null : actor.user.id,
+        verified_at: isCustomer ? null : new Date().toISOString(),
+        notes: `PAYMENT_GCASH | ADDED_SERVICE:${serviceName} | ${isCustomer ? 'CUSTOMER_SUBMITTED' : 'RECORDED_BY_ADMIN'}${unreadable ? ' | MANUAL_REVIEW' : ''}`
+      };
+    } else if (hasManualAmount) {
+      const amount = Number(paymentAmount);
+      if (!Number.isFinite(amount) || amount <= 0 || amount > servicePrice) return res.status(400).json({ success: false, error: 'Invalid payment amount.' });
+      if (needsPaymentNow && amount < minimumDownpaymentNow) {
+        return res.status(409).json({ success: false, error: `Payment must be at least ${minimumDownpaymentNow.toLocaleString()} and no more than the service price.` });
+      }
+      const digital = String(paymentMethod).toLowerCase() === 'digital';
+      if (digital && String(referenceNumber).trim().length < 4) return res.status(400).json({ success: false, error: 'A reference number is needed for a digital payment.' });
+      payment = {
+        amount,
+        method: digital ? 'GCash' : 'Cash',
+        payment_type: paymentType,
+        status: 'PAID',
+        reference_number: digital ? String(referenceNumber).trim() : null,
+        verified_by: actor.user.id,
+        verified_at: new Date().toISOString(),
+        notes: `PAYMENT_${digital ? 'DIGITAL' : 'CASH'} | ADDED_SERVICE:${serviceName} | TYPE:${paymentType}${digital ? ' | MANUAL_ENTRY' : ''}`
+      };
+    } else if (needsPaymentNow) {
       return res.status(409).json({ success: false, error: `Payment must be at least ${minimumDownpaymentNow.toLocaleString()} and no more than the service price.` });
     }
-    if (hasPayment && (!Number.isFinite(Number(paymentAmount)) || Number(paymentAmount) <= 0 || Number(paymentAmount) > servicePrice)) return res.status(400).json({ success: false, error: 'Invalid service payment amount.' });
 
-    // 🛡️ SCENARIOS 19 & 20 — ATOMIC, ROW-LOCKED MUTATION.
-    //
-    // The old sequence (check status -> insert service -> update total) had no
-    // row lock, so a concurrent completion/cancellation could interleave: an
-    // admin could inject a $500 service into a booking that had just been
-    // released, or a cancel and an upsell could both pass their status checks.
-    // We now route the whole mutation through `mutate_booking_locked()`, which
-    // locks the booking row, re-checks the terminal guard UNDER the lock, and
-    // applies the service line, the payment, and the total delta in ONE
-    // transaction. The loser of a race fails with a clean check_violation.
-    const serviceSchema = await getBookingVehicleServiceColumns();
-    const serviceRow = {
-      booking_vehicle_id: vehicleId,
-      service_name: serviceName,
-      price: servicePrice,
-      ...(serviceSchema.hasDurationMinutes ? { duration_minutes: Number(durationMinutes || 60) } : {}),
-      ...(serviceSchema.hasServiceSnapshot ? {
-        service_snapshot: {
-          name: serviceName,
-          price: servicePrice,
-          duration_minutes: Number(durationMinutes || 60),
-          source: 'admin_add_service'
-        }
-      } : {})
-    };
-    const paymentRow = hasPayment ? {
-      amount: Number(paymentAmount),
-      method: paymentMethod,
-      payment_type: paymentType,
-      status: 'PAID',
-      reference_number: paymentMethod === 'Digital' ? referenceNumber.trim() : null,
-      verified_by: actor.user.id,
-      verified_at: new Date().toISOString(),
-      notes: `PAYMENT_${String(paymentMethod).toUpperCase()} | ADDED_SERVICE:${serviceName} | TYPE:${paymentType}`
-    } : null;
-
-    const { error: rpcError } = await supabaseAdmin.rpc('mutate_booking_locked', {
+    // ONE locked step: service line, payment, scan, new total and end time, audit entry.
+    const { data: paymentId, error: rpcError } = await supabaseAdmin.rpc('apply_added_service', {
       p_booking_id: bookingId,
-      p_total_delta: servicePrice,
-      p_end_delta_minutes: Number(durationMinutes || 60),
-      p_service: serviceRow,
-      p_payment: paymentRow,
+      p_vehicle_id: vehicleId,
+      p_service_name: serviceName,
+      p_price: servicePrice,
+      p_duration: durationMinutes,
+      p_vehicle_type: vehicle.vehicle_type,
+      p_payment: payment,
+      p_scan_id: scanId,
       p_actor_id: actor.user.id,
-      p_actor_name: actor.user.email || actor.profile.full_name || 'Admin',
-      p_actor_role: String(actor.profile.role).toUpperCase(),
-      p_note: `Added ${serviceName}; ${hasPayment ? `recorded payment of ${paymentAmount}` : 'downpayment not required'}.`
+      p_actor_name: actor.user.email || actor.profile.full_name || (isCustomer ? 'Customer' : 'Admin'),
+      p_actor_role: role,
+      p_note: `Added ${serviceName}; ${payment ? `recorded payment of ${payment.amount}` : 'no payment taken now'}.`
     });
-
     if (rpcError) {
-      const rpcMissing = /could not find the function|schema cache|does not exist/i.test(rpcError.message || '');
-      if (/check_violation|closed|terminal/i.test(rpcError.message || '')) {
-        // Scenario 19/20 loser: the booking became terminal under us.
+      if (/closed|terminal/i.test(rpcError.message || '')) {
         return res.status(409).json({ success: false, error: 'This booking was just closed (completed or cancelled) and can no longer be modified.' });
       }
-      if (rpcMissing) {
-        try {
-          const { data: liveBooking, error: liveBookingError } = await supabaseAdmin
-            .from('bookings')
-            .select('id, status, total_amount, start_datetime, end_datetime')
-            .eq('id', bookingId)
-            .single();
-
-          if (liveBookingError) throw liveBookingError;
-
-          if (['released', 'completed', 'cancelled', 'flagged_noshow'].includes(String(liveBooking.status || '').toLowerCase())) {
-            return res.status(409).json({ success: false, error: 'This booking was just closed (completed or cancelled) and can no longer be modified.' });
-          }
-
-          const serviceSchema = await getBookingVehicleServiceColumns();
-          const fallbackService = {
-            booking_vehicle_id: vehicleId,
-            service_name: serviceName,
-            price: servicePrice,
-            ...(serviceSchema.hasDurationMinutes ? { duration_minutes: Number(durationMinutes || 60) } : {}),
-            ...(serviceSchema.hasServiceSnapshot ? {
-              service_snapshot: {
-                name: serviceName,
-                price: servicePrice,
-                duration_minutes: Number(durationMinutes || 60),
-                source: 'admin_add_service_fallback'
-              }
-            } : {})
-          };
-
-          const paymentPayload = hasPayment ? {
-            booking_id: bookingId,
-            amount: Number(paymentAmount),
-            method: paymentMethod,
-            payment_type: paymentType,
-            status: 'PAID',
-            reference_number: paymentMethod === 'Digital' ? referenceNumber.trim() : null,
-            verified_by: actor.user.id,
-            verified_at: new Date().toISOString(),
-            notes: `PAYMENT_${String(paymentMethod).toUpperCase()} | ADDED_SERVICE:${serviceName} | TYPE:${paymentType}`
-          } : null;
-
-          const { error: serviceInsertError } = await supabaseAdmin
-            .from('booking_vehicle_services')
-            .insert(fallbackService);
-          if (serviceInsertError) throw serviceInsertError;
-
-          if (paymentPayload) {
-            const { error: paymentInsertError } = await supabaseAdmin
-              .from('payments')
-              .insert(paymentPayload);
-            if (paymentInsertError) throw paymentInsertError;
-          }
-
-          const nextTotal = Number(liveBooking.total_amount || 0) + servicePrice;
-          const baseEnd = liveBooking.end_datetime || liveBooking.start_datetime || new Date().toISOString();
-          const nextEnd = new Date(new Date(baseEnd).getTime() + Number(durationMinutes || 0) * 60000).toISOString();
-
-          const { error: bookingUpdateError } = await supabaseAdmin
-            .from('bookings')
-            .update({ total_amount: nextTotal, end_datetime: nextEnd, updated_at: new Date().toISOString() })
-            .eq('id', bookingId);
-
-          if (bookingUpdateError) throw bookingUpdateError;
-
-          await supabaseAdmin.from('audit_logs').insert({
-            booking_id: bookingId,
-            action_type: 'BOOKING_UPDATED',
-            actor_name: actor.user.email || actor.profile.full_name || 'Admin',
-            actor_role: String(actor.profile.role).toUpperCase(),
-            actor_id: actor.user.id,
-            details: `Compatibility fallback updated booking ${bookingId} by adding service ${serviceName}.`,
-            metadata: {
-              service_name: serviceName,
-              total_delta: servicePrice,
-              mode: 'compatibility_fallback'
-            }
-          });
-
-          return res.json({
-            success: true,
-            fallback: true,
-            message: 'Service was added using the compatibility fallback while the booking lock migration is syncing.'
-          });
-        } catch (fallbackError) {
-          console.error('Add service compatibility fallback failed:', fallbackError.message);
-          return res.status(500).json({
-            success: false,
-            error: fallbackError.message || 'Unable to add service right now.'
-          });
-        }
+      if (rpcError.code === '23505' || /already been used/i.test(rpcError.message || '')) {
+        return res.status(409).json({ success: false, error: 'That payment reference has already been used on another payment.' });
+      }
+      if (rpcError.code === '23514' || /already assigned/i.test(rpcError.message || '')) {
+        return res.status(409).json({ success: false, error: rpcError.message });
       }
       throw rpcError;
     }
 
-    // A payment taken with the added service gets its receipt like any other
-    // verified payment (once; booking-lifecycle claims it per payment).
-    if (hasPayment) {
+    // A verified payment taken with the added service gets its receipt like any other (once).
+    if (payment && payment.status === 'PAID' && paymentId) {
       try {
-        const { data: addedPayment } = await supabaseAdmin
-          .from('payments')
-          .select('id')
-          .eq('booking_id', bookingId)
-          .eq('status', 'PAID')
-          .ilike('notes', `%ADDED_SERVICE:${serviceName}%`)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (addedPayment?.id) {
-          await dispatchLifecycleEmail(bookingId, 'PAYMENT_VERIFIED', '', { event: 'payment_verified', paymentId: addedPayment.id });
-        }
+        await dispatchLifecycleEmail(bookingId, 'PAYMENT_VERIFIED', '', { event: 'payment_verified', paymentId });
       } catch (receiptError) {
         console.warn('📧 Receipt for the added-service payment could not be sent:', receiptError.message);
       }
     }
 
-    return res.json({ success: true });
+    return res.json({ success: true, paymentId: paymentId || null, awaitingVerification: Boolean(payment && payment.status === 'FOR_VERIFICATION') });
   } catch (error) {
     console.error('Add service failed:', error.message);
     return res.status(500).json({ success: false, error: error.message });

@@ -221,7 +221,7 @@ const extractAmounts = (text) => {
   return found;
 };
 
-const REFERENCE_LABEL = /(reference\s*(?:no|number|#)?|ref\s*(?:no|number|#)?|trace\s*(?:no|number)?|transaction\s*(?:id|no|number)|transac(?:tion)?\s*id)/i;
+const REFERENCE_LABEL = /(reference\s*(?:no|number|id|#)?|ref\s*(?:no|number|id|#)?|trace\s*(?:no|number)?|transaction\s*(?:id|no|number)|transac(?:tion)?\s*id)/i;
 
 /**
  * Reference / trace number.
@@ -233,7 +233,7 @@ const REFERENCE_LABEL = /(reference\s*(?:no|number|#)?|ref\s*(?:no|number|#)?|tr
  * must not be corrupted into "A8C123456789".
  *
  * Repair applies only when BOTH hold:
- *   • at least 50% of the characters are already digits, AND
+ *   • at least 70% of the characters are already digits, AND
  *   • there is no run of 2+ consecutive letters.
  * Real alphanumeric references carry letter PREFIXES; OCR noise interleaves
  * single letters among digits ("9O2L33488722L").
@@ -263,7 +263,7 @@ const extractReferenceNumber = (text) => {
       const chars = cleaned.replace(/[^A-Za-z0-9]/g, '');
       const digitRatio = chars.length ? (chars.match(/\d/g) || []).length / chars.length : 0;
       const hasLetterRun = /[A-Za-z]{2,}/.test(cleaned);
-      const repaired = digitRatio >= 0.5 && !hasLetterRun
+      const repaired = digitRatio >= 0.7 && !hasLetterRun
         ? cleaned.replace(/[OoQDlI|!SsBZzg]/g, (ch) => DIGIT_CONFUSIONS[ch] ?? ch)
         : cleaned;
       return repaired.toUpperCase();
@@ -362,7 +362,13 @@ const parseReceiptText = (rawText) => {
   const amounts = extractAmounts(text);
 
   const fee = amounts.fee !== null && amounts.fee > 0 ? amounts.fee : 0;
-  const gross = amounts.gross ?? amounts.net ?? amounts.generic ?? null;
+  let gross = amounts.gross ?? amounts.net ?? amounts.generic ?? null;
+  // "Amount 500 + Transfer fee 5 = Total Amount Sent 505": the customer sent the total, and the shop
+  // receives the amount without the fee. Without this the plain "Amount" line was taken as the gross
+  // and the fee was subtracted a second time (net 495).
+  if (fee > 0 && amounts.net !== null && amounts.gross !== null && Math.abs(amounts.gross + fee - amounts.net) < 0.015) {
+    gross = amounts.net;
+  }
   const net = gross !== null ? Math.max(0, Math.round((gross - fee) * 100) / 100) : null;
 
   return {

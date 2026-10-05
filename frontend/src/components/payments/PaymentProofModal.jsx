@@ -29,7 +29,13 @@ const TIPS = [
  * submit_balance_payment re-derives the balance, checks the scan and creates the payment awaiting
  * admin verification. Closing the pop-up discards an unsent upload.
  */
-export default function PaymentProofModal({ open, onOpenChange, bookingId, amountDue, onSubmitted }) {
+export default function PaymentProofModal({
+  open, onOpenChange, bookingId, amountDue, onSubmitted,
+  // Other payments reuse this pop-up (for example adding a service): a different title, wording and
+  // submit step. submitFn(scan) must resolve when the payment was sent, or throw.
+  title = 'Pay remaining balance', description = 'Send the payment, then upload the receipt so the shop can verify it.',
+  amountLabel = 'Amount due', noun = 'balance', showExcess = true, submitFn = null, successMessage = 'Payment sent. The shop will verify it and you will be notified.'
+}) {
   const { settings } = useConfig();
   const { profile } = useAuth();
   const [scan, setScan] = useState(null); // { state: 'scanning' | 'ready' | 'blocked', ... }
@@ -107,7 +113,7 @@ export default function PaymentProofModal({ open, onOpenChange, bookingId, amoun
         return;
       }
       if (amountKnown && net < amountDue - 1) {
-        setScan({ state: 'blocked', message: `The receipt shows ${formatPeso(net)}, but your balance is ${formatPeso(amountDue)}. Pay the full balance and upload the new receipt.` });
+        setScan({ state: 'blocked', message: `The receipt shows ${formatPeso(net)}, but your ${noun} is ${formatPeso(amountDue)}. Pay the full amount and upload the new receipt.` });
         return;
       }
       if (body.valid !== true) {
@@ -141,9 +147,13 @@ export default function PaymentProofModal({ open, onOpenChange, bookingId, amoun
     if (scan?.state !== 'ready') return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.rpc('submit_balance_payment', { p_booking_id: bookingId, p_ocr_scan_id: scan.ocrScanId });
-      if (error) throw error;
-      toast.success('Payment sent. The shop will verify it and you will be notified.');
+      if (submitFn) {
+        await submitFn(scan);
+      } else {
+        const { error } = await supabase.rpc('submit_balance_payment', { p_booking_id: bookingId, p_ocr_scan_id: scan.ocrScanId });
+        if (error) throw error;
+      }
+      toast.success(successMessage);
       onSubmitted?.();
       onOpenChange(false);
     } catch (error) {
@@ -161,13 +171,13 @@ export default function PaymentProofModal({ open, onOpenChange, bookingId, amoun
     <Dialog open={open} onOpenChange={(next) => { if (!submitting) onOpenChange(next); }}>
       <DialogContent className="ui-root max-h-[92dvh] gap-0 overflow-hidden p-0 sm:max-w-lg" aria-busy={scanning}>
         <DialogHeader className="border-b px-6 py-5">
-          <DialogTitle>Pay remaining balance</DialogTitle>
-          <DialogDescription>Send the payment, then upload the receipt so the shop can verify it.</DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="grid max-h-[62dvh] gap-5 overflow-y-auto px-6 py-5">
           <div className="flex items-center justify-between rounded-md border bg-muted/40 px-4 py-3">
-            <span className="text-xs font-semibold uppercase text-muted-foreground">Amount due</span>
+            <span className="text-xs font-semibold uppercase text-muted-foreground">{amountLabel}</span>
             <span className="text-2xl font-bold tabular-nums">{formatPeso(amountDue)}</span>
           </div>
 
@@ -232,9 +242,9 @@ export default function PaymentProofModal({ open, onOpenChange, bookingId, amoun
                   <>
                     <p>
                       Receipt shows {formatPeso(scan.gross)}
-                      {scan.fee > 0 ? `, ${formatPeso(scan.net)} after fees counts toward your balance` : ' and counts toward your balance'}.
+                      {scan.fee > 0 ? `, ${formatPeso(scan.net)} after fees counts toward your ${noun}` : ` and counts toward your ${noun}`}.
                     </p>
-                    {scan.excess > 0 && <p className="text-muted-foreground">{formatPeso(scan.excess)} more than your balance is kept as credit on your account.</p>}
+                    {showExcess && scan.excess > 0 && <p className="text-muted-foreground">{formatPeso(scan.excess)} more than your {noun} is kept as credit on your account.</p>}
                   </>
                 )}
               </div>

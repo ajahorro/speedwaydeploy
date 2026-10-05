@@ -24,7 +24,7 @@ const run = (name, command, commandArgs, options = {}) => {
 };
 
 // ── guard scripts ──────────────────────────────────────────────────────────
-for (const script of ['verify-single-source', 'verify-email-source', 'verify-email-links', 'verify-contact-rules', 'verify-shop-time', 'verify-statement-pdf']) {
+for (const script of ['verify-single-source', 'verify-email-source', 'verify-email-links', 'verify-contact-rules', 'verify-shop-time', 'verify-statement-pdf', 'verify-ocr-parser']) {
   run(script, 'node', [`scripts/${script}.mjs`], { note: (out) => out.trim().split('\n').pop().slice(0, 70) });
 }
 

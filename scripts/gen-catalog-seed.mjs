@@ -27,6 +27,20 @@ export const catalogInsertSql = () => {
     .join(',\n')};`;
 };
 
+// Durations (minutes) per built-in service, loaded by the add-service migration.
+export const catalogDurationSql = () => {
+  const rows = [];
+  for (const services of Object.values(SERVICES_DATA)) {
+    for (const service of services) rows.push({ id: service.id, minutes: Math.max(1, Math.round(Number(service.durationMinutes) || 60)) });
+  }
+  const values = rows.map((r) => `  (${q(r.id)}, ${r.minutes})`).join(',\n');
+  return `update public.catalog_builtin_services as c set duration_minutes = v.minutes
+from (values
+${values}
+) as v(service_id, minutes)
+where c.service_id = v.service_id;`;
+};
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   console.log(catalogInsertSql());
 }

@@ -9,7 +9,7 @@ import {
   Hash, Calendar, Phone, Shield, Activity, Play, CheckCircle2,
   Package, Truck, Trash2, Banknote, Loader2, Eye, ArrowRight, X, UserX, Box,
   Send, ShieldCheck, ShieldAlert, Image as ImageIcon, Plus, Zap, TrendingUp,
-  FileText, Printer, CalendarClock, ImagePlus
+  FileText, Printer, CalendarClock
 } from 'lucide-react';
 import { SERVICES_DATA, resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import { calculateBayUsage, calculateOccupancy, filterActiveBookings } from '../../utils/schedulingUtils';
@@ -35,6 +35,7 @@ import { sendStatusEmail } from '../../services/notificationService';
 import { getAvailableSlots } from '../../services/scheduleService';
 import { rescheduleBooking } from '../../services/bookingService';
 import ValidationModal from '../../components/ValidationModal';
+import DigitalReceiptField from '../../components/payments/DigitalReceiptField';
 import { classifyScheduleError, toCleanMessage } from '../../utils/errorRouting';
 import { BACKEND_URL } from '../../config/api';
 import { reconcilePaymentState, verifyPayment, rejectPayment } from '../../services/paymentVerificationService';
@@ -67,7 +68,9 @@ const AdminBookingDetails = () => {
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [topUpScan, setTopUpScan] = useState(null);
   const [evidenceId, setEvidenceId] = useState(null);
-  const topUpFileRef = React.useRef(null);
+  const [topUpManual, setTopUpManual] = useState(false);
+  const [serviceScan, setServiceScan] = useState(null);
+  const [serviceManual, setServiceManual] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);
   const [serviceModal, setServiceModal] = useState({ open: false, vehicleId: null });
   const [pendingService, setPendingService] = useState(null);
@@ -826,48 +829,6 @@ const AdminBookingDetails = () => {
     }
   };
 
-  // Digital top-up: the receipt is read by the same OCR the customer flow uses. The amount, reference
-  // and receipt image come from that scan (never typed), so the stored payment matches the receipt.
-  const scanTopUpReceipt = async (file) => {
-    if (!file || topUpScan?.state === 'scanning') return;
-    if (!/^image\//i.test(file.type || '')) return toast.error('Only photos can be uploaded (JPG, PNG, WebP or HEIC).');
-    setTopUpScan({ state: 'scanning' });
-    try {
-      const form = new FormData();
-      form.append('receipt', file);
-      form.append('requiredAmount', '1');
-      form.append('fullAmount', String(balance));
-      form.append('paymentType', 'Downpayment');
-      form.append('rateKey', String(id));
-      const controller = new AbortController();
-      const timer = window.setTimeout(() => controller.abort(), 140000);
-      let response;
-      try {
-        response = await fetch(`${BACKEND_URL}/api/ocr/verify-receipt`, { method: 'POST', body: form, signal: controller.signal });
-      } finally {
-        window.clearTimeout(timer);
-      }
-      const body = await response.json().catch(() => ({}));
-      if (response.status === 429) return setTopUpScan({ state: 'blocked', message: `Too many scans. Wait ${Number(body.retryAfterSeconds || 30)} seconds and try again.` });
-      if (!response.ok || !body.success) throw new Error(body.error || 'The receipt service is unavailable.');
-      const data = body.data || {};
-      const net = Number(data.amount);
-      if (body.isDuplicate) return setTopUpScan({ state: 'blocked', message: 'This receipt or its reference number was already used on another payment.' });
-      if (body.manualReviewAllowed || !(net > 0) || data.amountDetected === false) {
-        return setTopUpScan({ state: 'blocked', message: 'The receipt could not be read. Ask for a clearer photo, or record it as cash if cash was handed over.' });
-      }
-      if (body.valid !== true) {
-        const reasons = (Array.isArray(body.validationErrors) ? body.validationErrors : data.validationErrors || []).map((item) => item.message).filter(Boolean);
-        return setTopUpScan({ state: 'blocked', message: reasons.length ? reasons.slice(0, 2).join(' ') : 'This receipt could not be accepted.' });
-      }
-      if (net > balance + 0.01) return setTopUpScan({ state: 'blocked', message: `The receipt shows ${formatCurrency(net)}, more than the ${formatCurrency(balance)} still owed.` });
-      if (data.referenceNo) setTopUpReference(String(data.referenceNo).replace(/\s+/g, ''));
-      setTopUpScan({ state: 'ready', ocrScanId: body.ocrScanId, net, fee: Number(data.transferFee) || 0 });
-    } catch (error) {
-      setTopUpScan({ state: 'blocked', message: error.name === 'AbortError' ? 'Reading the receipt took too long. Please try again.' : (error.message || 'The receipt could not be read.') });
-    }
-  };
-
   const handleRecordScannedPayment = async () => {
     if (topUpScan?.state !== 'ready') return;
     const topUpRef = topUpReference.trim();
@@ -900,7 +861,11 @@ const AdminBookingDetails = () => {
     }
   };
 
-  const handleAddService = async (vehicleId, service, paymentAmountOverride, paymentType = 'Downpayment', paymentMethod = 'Cash', referenceNumber = '', allowOvernight = false) => {
+  // Digital payments for an added service are read from the receipt unless the admin enters them by hand.
+  const serviceUsesReceipt = Boolean(pendingService) && servicePaymentMethod === 'Digital' && !serviceManual && servicePaymentType !== 'Receivable' && Number(pendingService.requiredNow) > 0;
+  const serviceNeedsPaymentFields = Boolean(pendingService) && servicePaymentType !== 'Receivable' && Number(pendingService.requiredNow) > 0;
+
+  const handleAddService = async (vehicleId, service, paymentAmountOverride, paymentType = 'Downpayment', paymentMethod = 'Cash', referenceNumber = '', allowOvernight = false, ocrScanId = null) => {
     setIsUpdatingDuration(true);
     const toastId = toast.loading('Validating schedule integrity...');
     try {
@@ -1010,7 +975,7 @@ const AdminBookingDetails = () => {
       const serviceResponse = await fetch(`${BACKEND_URL}/api/bookings/add-service`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
-        body: JSON.stringify({ bookingId: id, vehicleId, serviceName: service.name, price, durationMinutes: extraMinutes, paymentAmount: paymentAmountOverride ?? null, paymentType, paymentMethod, referenceNumber })
+        body: JSON.stringify({ bookingId: id, vehicleId, serviceName: service.name, price, durationMinutes: extraMinutes, paymentAmount: paymentAmountOverride ?? null, paymentType, paymentMethod, referenceNumber, ocrScanId })
       });
       const serviceResult = await serviceResponse.json().catch(() => ({}));
       if (!serviceResponse.ok || !serviceResult.success) throw new Error(serviceResult.error || 'Service addition was rejected by lifecycle validation.');
@@ -1029,6 +994,8 @@ const AdminBookingDetails = () => {
       setServicePaymentAmount('');
       setServicePaymentMethod('Cash');
       setServiceReferenceNumber('');
+      setServiceScan(null);
+      setServiceManual(false);
     } catch (err) {
       logger.error('Added service payment failed:', err);
       toast.error(err.message || 'Validation failed', { id: toastId });
@@ -1082,6 +1049,8 @@ const AdminBookingDetails = () => {
     setServicePaymentAmount(String(shouldRequirePayment ? requiredNow : price));
     setServicePaymentMethod('Cash');
     setServiceReferenceNumber('');
+    setServiceScan(null);
+    setServiceManual(false);
   };
 
   const handleCancelReceivable = async (paymentId) => {
@@ -1107,6 +1076,15 @@ const AdminBookingDetails = () => {
     const amount = Number(servicePaymentAmount || 0);
     const minimumDue = Number(pendingService.requiredNow || 0);
 
+    if (serviceUsesReceipt) {
+      if (serviceScan?.state !== 'ready') {
+        toast.error('Upload the receipt first, or enter the payment by hand.');
+        return;
+      }
+      handleAddService(pendingService.vehicleId, pendingService.service, null, servicePaymentType, 'Digital', serviceReferenceNumber, false, serviceScan.ocrScanId);
+      return;
+    }
+
     if (minimumDue > 0) {
       if (!Number.isFinite(amount) || amount <= 0) {
         toast.error('Enter a valid payment amount.');
@@ -1125,6 +1103,14 @@ const AdminBookingDetails = () => {
       return;
     }
 
+    if (servicePaymentMethod === 'Digital' && minimumDue > 0 && !serviceManual) {
+      if (serviceScan?.state !== 'ready') {
+        toast.error('Upload the receipt first, or enter the payment by hand.');
+        return;
+      }
+      handleAddService(pendingService.vehicleId, pendingService.service, null, servicePaymentType, 'Digital', serviceReferenceNumber, false, serviceScan.ocrScanId);
+      return;
+    }
     if (servicePaymentMethod === 'Digital' && minimumDue > 0 && !serviceReferenceNumber.trim()) {
       toast.error('Enter the digital transaction reference number.');
       return;
@@ -1682,7 +1668,7 @@ const AdminBookingDetails = () => {
                 <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
                   <span style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: 'var(--admin-text-secondary)' }}>How was it paid?</span>
                   {['Cash', 'Digital'].map(method => (
-                    <button key={method} type="button" onClick={() => { setTopUpMethod(method); setTopUpScan(null); if (method === 'Cash') setTopUpReference(''); }} style={{ padding: '0.5rem 0.9rem', borderRadius: '6px', border: `1px solid ${topUpMethod === method ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: topUpMethod === method ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-bg)', color: topUpMethod === method ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontWeight: 900, fontSize: '0.7rem', cursor: 'pointer' }}>{method}</button>
+                    <button key={method} type="button" onClick={() => { setTopUpMethod(method); setTopUpScan(null); setTopUpManual(false); if (method === 'Cash') setTopUpReference(''); }} style={{ padding: '0.5rem 0.9rem', borderRadius: '6px', border: `1px solid ${topUpMethod === method ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: topUpMethod === method ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-bg)', color: topUpMethod === method ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontWeight: 900, fontSize: '0.7rem', cursor: 'pointer' }}>{method}</button>
                   ))}
                   {balance > 0 && topUpMethod === 'Cash' && (
                     <button type="button" onClick={() => setPaymentAmount(String(balance))} style={{ marginLeft: 'auto', padding: '0.5rem 0.9rem', borderRadius: '6px', border: '1px solid var(--admin-border)', background: 'transparent', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.7rem', cursor: 'pointer' }}>Pay full balance ({formatCurrency(balance)})</button>
@@ -1691,44 +1677,42 @@ const AdminBookingDetails = () => {
 
                 {topUpMethod === 'Digital' ? (
                   <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <input
-                        type="text"
-                        placeholder="Reference number (filled in from the receipt, or type it)"
-                        aria-label="Digital transaction reference number"
-                        data-no-auto-capitalize="true"
-                        value={topUpReference}
-                        onChange={(e) => setTopUpReference(e.target.value.replace(/\s+/g, ''))}
-                        style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '0.85rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '0.5rem', color: 'var(--admin-text-primary)', fontWeight: 800, outline: 'none' }}
-                      />
-                      <input ref={topUpFileRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style={{ display: 'none' }} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; scanTopUpReceipt(file); }} />
-                      <button
-                        type="button"
-                        onClick={() => topUpFileRef.current?.click()}
-                        disabled={topUpScan?.state === 'scanning'}
-                        title="Upload the payment receipt. It is read automatically."
-                        style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0 0.9rem', borderRadius: '0.5rem', border: '1px solid var(--admin-brand)', background: 'rgba(var(--admin-brand-rgb), 0.08)', color: 'var(--admin-brand)', fontWeight: 900, fontSize: '0.7rem', cursor: topUpScan?.state === 'scanning' ? 'wait' : 'pointer', textTransform: 'uppercase' }}
-                      >
-                        <ImagePlus size={15} /> {topUpScan?.state === 'scanning' ? 'Reading...' : (topUpScan?.state === 'ready' ? 'Change' : 'Receipt')}
-                      </button>
-                    </div>
-                    {topUpScan?.state === 'blocked' && (
-                      <div role="alert" style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--status-danger)' }}>{topUpScan.message}</div>
-                    )}
-                    {topUpScan?.state === 'ready' && (
-                      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', animation: 'fadeIn 0.3s ease' }}>
-                        <div style={{ flex: 1, minWidth: 0, fontSize: '0.75rem', fontWeight: 800, color: 'var(--admin-text-primary)' }}>
-                          Read from the receipt: <span style={{ color: 'var(--status-success)' }}>{formatCurrency(topUpScan.net)}</span>
-                          {topUpScan.fee > 0 ? <span style={{ color: 'var(--admin-text-secondary)' }}> (transfer fee {formatCurrency(topUpScan.fee)})</span> : null}
+                    <DigitalReceiptField
+                      rateKey={id}
+                      maxAmount={balance}
+                      reference={topUpReference}
+                      onReference={setTopUpReference}
+                      scan={topUpScan}
+                      onScan={setTopUpScan}
+                      manual={topUpManual}
+                      onManual={setTopUpManual}
+                      disabled={submittingPayment}
+                      formatMoney={formatCurrency}
+                    />
+                    {topUpManual && (
+                      <div style={{ display: 'flex', gap: '0.75rem' }}>
+                        <div style={{ flex: 1, position: 'relative' }}>
+                          <div style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-brand)', fontWeight: '950' }}>₱</div>
+                          <input type="number" className="no-spinner" placeholder="Amount the customer sent" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)}
+                            style={{ width: '100%', boxSizing: 'border-box', padding: '0.85rem 0.85rem 0.85rem 2rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '0.5rem', color: 'var(--admin-text-primary)', fontWeight: '900', outline: 'none' }} />
                         </div>
                         <button
-                          onClick={() => confirmThen({ title: 'Record this payment?', message: `${formatCurrency(topUpScan.net)} paid digitally (ref ${topUpReference.trim()}) will be added to this booking’s ledger and the customer will be notified.`, confirmText: 'Record payment' }, handleRecordScannedPayment)}
-                          disabled={submittingPayment || topUpReference.trim().length < 4}
-                          style={{ padding: '0.85rem 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: (submittingPayment || topUpReference.trim().length < 4) ? 0.4 : 1 }}
+                          onClick={() => confirmThen({ title: 'Record this payment?', message: `${formatCurrency(Number(paymentAmount) || 0)} paid digitally (ref ${topUpReference.trim()}), typed in by hand, will be added to this booking’s ledger and the customer will be notified.`, confirmText: 'Record payment' }, handleRecordPayment)}
+                          disabled={submittingPayment || !(Number(paymentAmount) > 0) || topUpReference.trim().length < 4}
+                          style={{ padding: '0 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: (submittingPayment || !(Number(paymentAmount) > 0) || topUpReference.trim().length < 4) ? 0.4 : 1 }}
                         >
                           {submittingPayment ? 'SAVING...' : 'RECORD PAYMENT'}
                         </button>
                       </div>
+                    )}
+                    {!topUpManual && topUpScan?.state === 'ready' && (
+                      <button
+                        onClick={() => confirmThen({ title: 'Record this payment?', message: `${formatCurrency(topUpScan.net)} paid digitally (ref ${topUpReference.trim()}) will be added to this booking’s ledger and the customer will be notified.`, confirmText: 'Record payment' }, handleRecordScannedPayment)}
+                        disabled={submittingPayment || topUpReference.trim().length < 4}
+                        style={{ padding: '0.85rem 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: (submittingPayment || topUpReference.trim().length < 4) ? 0.4 : 1 }}
+                      >
+                        {submittingPayment ? 'SAVING...' : 'RECORD PAYMENT'}
+                      </button>
                     )}
                   </div>
                 ) : (
@@ -2207,7 +2191,7 @@ const AdminBookingDetails = () => {
                       <div style={{ fontSize: '0.62rem', color: 'var(--admin-brand)', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1px' }}>Service Confirmation</div>
                       <h3 style={{ margin: '0.25rem 0 0', fontSize: isMobile ? '1.1rem' : '1.3rem', fontWeight: '950' }}>{pendingService.service.name}</h3>
                     </div>
-                    <button type="button" onClick={() => { setPendingService(null); setServicePaymentAmount(''); setServicePaymentMethod('Cash'); setServiceReferenceNumber(''); }} style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <button type="button" onClick={() => { setPendingService(null); setServicePaymentAmount(''); setServicePaymentMethod('Cash'); setServiceReferenceNumber(''); setServiceScan(null); setServiceManual(false); }} style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <X size={18} />
                     </button>
                   </div>
@@ -2238,7 +2222,7 @@ const AdminBookingDetails = () => {
                       ))}
                     </div>
 
-                    <div>
+                    {!serviceUsesReceipt && (<div>
                       <label style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.4rem' }}>{pendingService.requiredNow > 0 ? 'Amount Received' : 'Payment Method'}</label>
                       <div style={{ position: 'relative' }}>
                         {pendingService.requiredNow > 0 && <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-brand)', fontWeight: '950' }}>₱</span>}
@@ -2253,7 +2237,7 @@ const AdminBookingDetails = () => {
                           style={{ width: '100%', padding: pendingService.requiredNow > 0 ? '0.8rem 0.75rem 0.8rem 1.75rem' : '0.8rem 0.75rem', background: pendingService.requiredNow === 0 ? 'rgba(255,255,255,0.03)' : 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '6px', fontWeight: '900', opacity: pendingService.requiredNow === 0 ? 0.8 : 1 }}
                         />
                       </div>
-                    </div>
+                    </div>)}
 
                     <div>
                       <label style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Customer Mode Of Payment</label>
@@ -2264,10 +2248,21 @@ const AdminBookingDetails = () => {
                       </div>
                     </div>
 
-                    {servicePaymentMethod === 'Digital' && (
+                    {servicePaymentMethod === 'Digital' && serviceNeedsPaymentFields && (
                       <div>
-                        <label style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Digital Transaction Reference</label>
-                        <input type="text" value={serviceReferenceNumber} onChange={event => setServiceReferenceNumber(event.target.value)} placeholder="Enter reference number" style={{ width: '100%', padding: '0.8rem 0.75rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '6px', fontWeight: '900' }} />
+                        <label style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Digital payment</label>
+                        <DigitalReceiptField
+                          rateKey={id}
+                          maxAmount={pendingService.price}
+                          reference={serviceReferenceNumber}
+                          onReference={setServiceReferenceNumber}
+                          scan={serviceScan}
+                          onScan={setServiceScan}
+                          manual={serviceManual}
+                          onManual={setServiceManual}
+                          disabled={isUpdatingDuration}
+                          formatMoney={formatCurrency}
+                        />
                       </div>
                     )}
 
