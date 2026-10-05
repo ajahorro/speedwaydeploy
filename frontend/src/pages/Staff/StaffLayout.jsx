@@ -21,9 +21,17 @@ const StaffLayout = () => {
   const location = useLocation();
 
   const isMobile = useMediaQuery('(max-width: 1024px)');
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(!isMobile);
+  // The screen-size check reports false on the very first render, so starting the
+  // menu open on desktop (`!isMobile`) left it open over the page on phones and
+  // tablets. It starts closed; on desktop the menu is always shown regardless.
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const userId = user?.id || profile?.id;
+
+  // Close the menu whenever the page changes (small screens).
+  React.useEffect(() => {
+    if (isMobile) setIsSidebarOpen(false);
+  }, [location, isMobile]);
 
   const fetchUnreadCount = useCallback(async () => {
     if (!userId) return;

@@ -23,10 +23,6 @@ const StaffJobDetails = () => {
   const [evidencePhotos, setEvidencePhotos] = useState([]);
 
   useEffect(() => {
-    fetchJobDetails();
-  }, [fetchJobDetails]);
-
-  useEffect(() => {
     if (!unit?.id) return;
     let cancelled = false;
     const loadEvidence = async () => {
@@ -69,6 +65,12 @@ const StaffJobDetails = () => {
       setLoading(false);
     }
   }, [id, navigate]);
+
+  // Declared after fetchJobDetails: referring to it above its definition crashed
+  // the page on every visit ("Cannot access 'fetchJobDetails' before initialization").
+  useEffect(() => {
+    fetchJobDetails();
+  }, [fetchJobDetails]);
 
   if (loading) return <LoadingState message="Retrieving service logs..." />;
   if (!unit) return null;
