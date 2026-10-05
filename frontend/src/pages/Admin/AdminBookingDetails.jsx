@@ -913,6 +913,10 @@ const AdminBookingDetails = () => {
       });
       const serviceResult = await serviceResponse.json().catch(() => ({}));
       if (!serviceResponse.ok || !serviceResult.success) throw new Error(serviceResult.error || 'Service addition was rejected by lifecycle validation.');
+      if (paymentType === 'Receivable') {
+        const { error: receivableError } = await supabase.rpc('admin_record_receivable', { p_booking_id: id, p_note: `Added service: ${service.name}` });
+        if (receivableError) throw new Error(`The service was added, but the amount to be received could not be recorded: ${receivableError.message}`);
+      }
 
       toast.success(`Service Added: ${service.name}. Total updated.`, { id: toastId });
       // Keep the picker open so the admin can add another service without
@@ -979,8 +983,26 @@ const AdminBookingDetails = () => {
     setServiceReferenceNumber('');
   };
 
+  const handleCancelReceivable = async (paymentId) => {
+    const toastId = toast.loading('Cancelling...');
+    try {
+      const { error } = await supabase.rpc('admin_cancel_receivable', { p_payment_id: paymentId });
+      if (error) throw error;
+      toast.success('Amount to be received cancelled.', { id: toastId });
+      await fetchBookingDetails();
+      await fetchPayments();
+    } catch (err) {
+      toast.error(err.message || 'Could not cancel it.', { id: toastId });
+    }
+  };
+
   const submitServicePayment = () => {
     if (!pendingService) return;
+    // "To be received": nothing is collected; the balance is recorded after the service is added.
+    if (servicePaymentType === 'Receivable') {
+      handleAddService(pendingService.vehicleId, pendingService.service, null, 'Receivable', 'Cash', '');
+      return;
+    }
     const amount = Number(servicePaymentAmount || 0);
     const minimumDue = Number(pendingService.requiredNow || 0);
 
@@ -1501,11 +1523,19 @@ const AdminBookingDetails = () => {
                           color: p.status === 'PAID' ? '#10b981' : '#f59e0b',
                           border: `1px solid ${p.status === 'PAID' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`
                         }}>
-                          {p.status.toUpperCase()}
+                          {p.method === 'RECEIVABLE' ? (p.status === 'PENDING' ? 'TO BE RECEIVED' : 'CANCELLED') : p.status.toUpperCase()}
                         </span>
                       </td>
                       <td style={{ padding: '1.25rem 0.75rem', verticalAlign: 'middle', textAlign: 'right', fontWeight: '950' }}>₱{p.amount?.toLocaleString()}</td>
                       <td style={{ padding: '1.25rem 0.75rem', verticalAlign: 'middle', textAlign: 'center' }}>
+                        {p.method === 'RECEIVABLE' && p.status === 'PENDING' && (
+                          <button
+                            onClick={() => confirmThen({ title: 'Cancel the amount to be received?', message: `The ${formatCurrency(p.amount)} deferred balance will be removed. The customer still owes it unless it is recorded again, and work that relied on it may be blocked.`, confirmText: 'Cancel it' }, () => handleCancelReceivable(p.id))}
+                            style={{ background: 'transparent', border: '1px solid var(--status-danger)', color: 'var(--status-danger)', cursor: 'pointer', padding: '0.6rem 0.75rem', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', fontSize: '0.7rem' }}
+                          >
+                            CANCEL
+                          </button>
+                        )}
                         {p.status === 'PAID' && (
                           <button
                             onClick={() => { setSelectedPayment(p); setReceiptModal(true); }}
@@ -2075,9 +2105,9 @@ const AdminBookingDetails = () => {
                       )}
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                      {['Downpayment', 'Full'].map(type => (
-                        <button key={type} type="button" onClick={() => { setServicePaymentType(type); setServicePaymentAmount(String(type === 'Full' ? pendingService.price : pendingService.requiredNow)); }} style={{ padding: '0.7rem 0.4rem', borderRadius: '6px', border: `1px solid ${servicePaymentType === type ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: servicePaymentType === type ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-bg)', color: servicePaymentType === type ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontWeight: '900', cursor: 'pointer' }}>{type}</button>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.5rem' }}>
+                      {['Downpayment', 'Full', 'Receivable'].map(type => (
+                        <button key={type} type="button" onClick={() => { setServicePaymentType(type); setServicePaymentAmount(String(type === 'Full' ? pendingService.price : type === 'Receivable' ? 0 : pendingService.requiredNow)); }} style={{ padding: '0.7rem 0.4rem', borderRadius: '6px', border: `1px solid ${servicePaymentType === type ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: servicePaymentType === type ? 'rgba(var(--admin-brand-rgb), 0.12)' : 'var(--admin-bg)', color: servicePaymentType === type ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontWeight: '900', cursor: 'pointer' }}>{type === 'Receivable' ? 'To be received' : type}</button>
                       ))}
                     </div>
 

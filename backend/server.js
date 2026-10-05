@@ -4048,6 +4048,12 @@ app.post('/api/bookings/add-service', async (req, res) => {
   const paymentType = { full: 'Full', downpayment: 'Downpayment', manual: 'Manual' }[String(req.body.paymentType || 'Downpayment').trim().toLowerCase()] || 'Downpayment';
   const actor = await getLifecycleActor(req);
   if (!actor) return res.status(403).json({ success: false, error: 'Authorized admin or staff account required.' });
+  // "To be received": admin-only. No payment is taken now; the client then records the
+  // derived balance through admin_record_receivable, which re-checks the admin role.
+  const deferToReceive = String(req.body.paymentType || '').trim().toLowerCase() === 'receivable';
+  if (deferToReceive && String(actor.profile.role || '').toUpperCase() !== 'ADMIN') {
+    return res.status(403).json({ success: false, error: 'Only an administrator can defer a payment.' });
+  }
   try {
     const servicePrice = Number(price);
     const { data: booking, error: bookingError } = await supabaseAdmin.from('bookings').select('id, status, total_amount, end_datetime').eq('id', bookingId).single();
@@ -4065,8 +4071,8 @@ app.post('/api/bookings/add-service', async (req, res) => {
       servicePrice,
       Math.max(0, (await getRequiredDownpaymentFor(newBookingTotal)) - verifiedPaid)
     );
-    const hasPayment = paymentAmount !== null && paymentAmount !== undefined;
-    if (servicePrice >= 1000 && minimumDownpaymentNow > 0
+    const hasPayment = !deferToReceive && paymentAmount !== null && paymentAmount !== undefined;
+    if (!deferToReceive && servicePrice >= 1000 && minimumDownpaymentNow > 0
       && (!hasPayment || Number(paymentAmount) < minimumDownpaymentNow || Number(paymentAmount) > servicePrice)) {
       return res.status(409).json({ success: false, error: `Payment must be at least ${minimumDownpaymentNow.toLocaleString()} and no more than the service price.` });
     }

@@ -244,7 +244,7 @@ const CustomerBookingDetails = () => {
 
       // 4. Payments
       const { data: pData } = await supabase
-        .from('payments').select('*').eq('booking_id', actualBookingId).order('created_at', { ascending: true });
+        .from('payments').select('*').eq('booking_id', actualBookingId).neq('method', 'RECEIVABLE').order('created_at', { ascending: true });
 
       const processedPayments = (pData || []).map(p => {
         let url = p.receipt_url;

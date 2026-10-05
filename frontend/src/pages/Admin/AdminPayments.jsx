@@ -66,6 +66,7 @@ const AdminPayments = () => {
           )
         `)
         .neq('method', 'Cash')
+        .neq('method', 'RECEIVABLE')
         .order('created_at', { ascending: false });
 
       if (paymentError) throw paymentError;

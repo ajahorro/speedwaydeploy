@@ -283,7 +283,13 @@ export const createBooking = async (customerId, bookingData) => {
     return null;
   })();
 
-  if (isAdminWalkIn) {
+  const isReceivableWalkIn = isAdminWalkIn && bookingData.payment?.type === 'Receivable';
+
+  if (isReceivableWalkIn) {
+    // "To be received": no money changes hands now. The booking is created without a
+    // payment and the database records the derived balance (admin_record_receivable).
+    rpcPayment = null;
+  } else if (isAdminWalkIn) {
     // Admin bookings are confirmed on-site by the admin themselves.
     // Payment is marked as PAID immediately and does not enter the verification queue.
     const paymentAmount = bookingData.payment?.type === 'Manual'
@@ -444,6 +450,13 @@ export const createBooking = async (customerId, bookingData) => {
   const booking = rpcResult?.booking;
   if (!booking?.id) {
     throw new Error('Master Booking Error: atomic creation returned no booking record.');
+  }
+
+  if (isReceivableWalkIn) {
+    const { error: receivableError } = await supabase.rpc('admin_record_receivable', { p_booking_id: booking.id, p_note: 'Walk-in: to be received' });
+    if (receivableError) {
+      throw new Error(`The booking was created, but the amount to be received could not be recorded: ${receivableError.message}`);
+    }
   }
 
   // Populate the customer's garage (non-fatal, per vehicle).

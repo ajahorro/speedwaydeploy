@@ -441,7 +441,9 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   // typed but cannot be below the required downpayment (when one applies) or above
   // the booking total. The screen always says what the customer still owes.
   const manualMinimum = requiresDownpayment(grandTotal) ? downpaymentAmount : 0.01;
-  const adminChosenAmount = bookingData.payment.type === 'Full'
+  // "To be received" collects nothing now: the whole total stays an unpaid balance.
+  const isReceivable = adminMode && bookingData.payment.type === 'Receivable';
+  const adminChosenAmount = isReceivable ? 0 : bookingData.payment.type === 'Full'
     ? grandTotal
     : bookingData.payment.type === 'Downpayment' ? downpaymentAmount : manualAmount;
   const adminStillOwed = Math.max(0, grandTotal - (Number.isFinite(adminChosenAmount) ? adminChosenAmount : 0));
@@ -522,7 +524,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   const adminRefNumberValid = adminDigitalMode === 'reference' ? Boolean(manualRefInput.trim().length >= 4) : true;
   const adminOcrProofValid = adminDigitalMode === 'ocr' ? Boolean(bookingData.payment?.proofOfPayment !== null && !isUploading) : true;
 
-  const adminPaymentValid = !adminMode || (
+  const adminPaymentValid = !adminMode || isReceivable || (
     ['Downpayment', 'Full', 'Manual'].includes(bookingData.payment.type) &&
     (bookingData.payment.type !== 'Manual' || (manualAmount >= manualMinimum && manualAmount <= grandTotal)) &&
     (!isGcash || (adminDigitalMode === 'reference' ? adminRefNumberValid : adminOcrProofValid))
@@ -864,13 +866,15 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
             {adminMode && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.65rem' }}>
                 <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Payment Amount</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '.5rem' }}>
                   {[
                     ['Downpayment', `Downpayment (₱${downpaymentAmount.toLocaleString()})`],
                     ['Full', `Full Payment (₱${grandTotal.toLocaleString()})`],
-                    ['Manual', 'Manual Amount']
+                    ['Manual', 'Manual Amount'],
+                    ['Receivable', `To be received (₱${grandTotal.toLocaleString()})`]
                   ].map(([value, label]) => <button key={value} type="button" disabled={value === 'Downpayment' && !canUseDownpayment} onClick={() => setBookingData(prev => ({ ...prev, payment: { ...prev.payment, type: value } }))} style={{ minHeight: '3rem', padding: '.65rem', background: bookingData.payment.type === value ? 'var(--admin-brand)' : 'var(--admin-card)', color: bookingData.payment.type === value ? '#fff' : 'var(--admin-text-primary)', border: `1px solid ${bookingData.payment.type === value ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', fontSize: '.72rem', cursor: value === 'Downpayment' && !canUseDownpayment ? 'not-allowed' : 'pointer', opacity: value === 'Downpayment' && !canUseDownpayment ? .4 : 1 }}>{label}</button>)}
                 </div>
+                {isReceivable && <span role="note" style={{ color: 'var(--admin-text-secondary)', fontSize: '.72rem', fontWeight: 700, lineHeight: 1.5 }}>Nothing is collected now. The full amount is recorded as an unpaid balance the customer still owes, and work may start. It is not editable afterwards; cancel it on the booking and record the correct one.</span>}
                 {bookingData.payment.type === 'Manual' && <input type="text" inputMode="decimal" pattern="[0-9.]*" value={bookingData.payment.manualAmount || ''} onChange={event => setBookingData(prev => ({ ...prev, payment: { ...prev.payment, manualAmount: sanitizeCurrency(event.target.value) } }))} placeholder="Enter amount" aria-label="Manual payment amount" style={{ width: '100%', boxSizing: 'border-box', padding: '.85rem 1rem', background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-input-border)', borderRadius: '6px', fontWeight: '800' }} />}
                 {bookingData.payment.type === 'Manual' && manualAmount > grandTotal && <span style={{ color: 'var(--status-danger)', fontSize: '.7rem', fontWeight: '800' }}>Manual amount cannot be higher than the booking total.</span>}
                 {bookingData.payment.type === 'Manual' && manualAmount > 0 && manualAmount < manualMinimum && <span style={{ color: 'var(--status-danger)', fontSize: '.7rem', fontWeight: '800' }}>Manual amount must be at least the required downpayment of ₱{downpaymentAmount.toLocaleString()}.</span>}
@@ -889,7 +893,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
 
             {/* Admin GCash: toggle OCR vs Reference Number */}
-            {isGcash && adminMode && (
+            {isGcash && adminMode && !isReceivable && (
               <div style={{ background: 'var(--admin-bg)', padding: '1.5rem', borderRadius: 'var(--admin-radius-md)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', marginBottom: '0.75rem', textTransform: 'uppercase' }}>
@@ -1221,7 +1225,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
             )}
 
             {/* Cash Flow */}
-            {!isGcash && (
+            {!isGcash && !isReceivable && (
               <div style={{ background: adminMode ? 'rgba(16, 185, 129, 0.1)' : 'rgba(var(--admin-warning-rgb), 0.1)', border: `1px solid ${adminMode ? 'rgba(16, 185, 129, 0.35)' : 'rgba(var(--admin-warning-rgb), 0.3)'}`, padding: '1.5rem', borderRadius: 'var(--admin-radius-md)', color: adminMode ? '#10b981' : 'var(--admin-warning)', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
                 <ShieldAlert size={24} style={{ flexShrink: 0, color: adminMode ? '#10b981' : 'var(--status-warning)' }} />
                 <div>
