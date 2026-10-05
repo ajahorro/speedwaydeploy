@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CalendarRange, Download, Printer } from 'lucide-react';
+import { CalendarRange, Download, Printer, Sparkles } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -18,6 +18,11 @@ import { TransactionsTable } from './TransactionsTable';
 import { OutstandingTable } from './OutstandingTable';
 import { downloadReportCsv } from './exportReport';
 import { RANGE_PRESETS, useReportRange } from './useReportRange';
+
+// The assistant is fetched only when an admin opens it, so the report's first paint is unchanged.
+const AssistantPanel = lazy(() => import('./AssistantPanel'));
+
+const toDayString = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 const formatRangeLabel = ({ from, to }) => {
   const last = new Date(to.getTime() - 1);
@@ -86,6 +91,7 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   const rangeLabel = useMemo(() => formatRangeLabel(range), [range]);
 
@@ -146,6 +152,9 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={handleExport} disabled={exporting || loading}>
               <Download /> {exporting ? 'Exporting…' : 'Export CSV'}
+            </Button>
+            <Button variant="outline" onClick={() => setAssistantOpen(true)}>
+              <Sparkles /> Ask AI
             </Button>
             <Button onClick={() => window.print()} disabled={loading}>
               <Printer /> Print
@@ -241,6 +250,23 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
           <OutstandingTable refreshKey={refreshKey} />
         </TabsContent>
       </Tabs>
+
+      {assistantOpen && (
+        <Suspense fallback={null}>
+          <AssistantPanel
+            open={assistantOpen}
+            onOpenChange={setAssistantOpen}
+            range={{ from: toDayString(range.from), to: toDayString(new Date(range.to.getTime() - 1)) }}
+            onSetRange={(from, to) => {
+              const [fy, fm, fd] = from.split('-').map(Number);
+              const [ty, tm, td] = to.split('-').map(Number);
+              setCustomRange(new Date(fy, fm - 1, fd), new Date(ty, tm - 1, td));
+              setTab('overview');
+            }}
+            onExport={handleExport}
+          />
+        </Suspense>
+      )}
 
       <style>{`
         @media print {

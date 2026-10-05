@@ -61,6 +61,12 @@ services:
       - key: SUPABASE_URL
         sync: false
 
+      # OPTIONAL: powers the admin analytics assistant (Claude Haiku 4.5). Without it the
+      # assistant answers "not configured yet"; nothing else is affected. Create a key at
+      # console.anthropic.com and paste it in the Render dashboard (never commit it).
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
       # The SERVICE ROLE key — not the anon key. This bypasses Row Level
       # Security, which is why it must live only on the server and never in the
       # frontend bundle. It also derives the password-confirmation cipher key.

@@ -22,6 +22,7 @@ const { DELIVERY, assertDelivery } = require('./config/emailPolicy');
 const { parseReceiptText, normalizeAmountValue, isValidReferenceNumber } = require('./services/receiptTextParser');
 const { recognizeReceipt, warmReceiptOcr } = require('./services/receiptOcr');
 const ocrGuard = require('./services/ocrGuard');
+const { askAnalyticsAssistant } = require('./services/analyticsAssistant');
 // ONE resolver for the public frontend URL. Five call sites previously fell back
 // to localhost:5173 silently, so a missing FRONTEND_URL emailed customers a link
 // to their own machine.
@@ -3099,6 +3100,32 @@ app.post('/api/admin/promos', async (req, res) => {
   } catch (err) {
     console.error('🏷️ [ADMIN PROMO] Error persisting promo:', err);
     return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin analytics assistant (master plan 4.6): Claude Haiku 4.5, read-only report tools, admin only.
+app.post('/api/admin/analytics-assistant', async (req, res) => {
+  const admin = await requireAdmin(req);
+  if (!admin) return res.status(403).json({ success: false, error: 'Authorized administrator required.' });
+  try {
+    // Tools run as the signed-in admin: the service key only passes the API gateway, while the
+    // admin's own JWT decides the database role, so is_admin() and RLS still apply.
+    const token = String(req.headers.authorization || '').replace(/^bearer\s+/i, '');
+    const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+    const { status, body } = await askAnalyticsAssistant({
+      question: req.body?.question,
+      range: req.body?.range,
+      history: Array.isArray(req.body?.history) ? req.body.history : [],
+      db,
+      adminId: admin.user.id
+    });
+    return res.status(status).json(body);
+  } catch (error) {
+    console.error('[analytics-assistant] failed:', error.message);
+    return res.status(500).json({ success: false, error: 'The assistant is unavailable right now.' });
   }
 });
 
