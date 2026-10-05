@@ -2,6 +2,12 @@
 --   docker exec -i <db-container> psql -U postgres -v ON_ERROR_STOP=0 < scripts/sql/verify-balance-payment.sql
 -- Uses the scratch customer ...c1 and its confirmed bookings ...010 (balance ₱50), ...011 (₱900) and ...004 (₱30).
 begin;
+-- make the suite independent of whatever earlier manual testing left in the scratch database
+set local session_replication_role = replica;
+update bookings set customer_id = '00000000-0000-0000-0000-0000000000c1', status = 'confirmed' where id in ('10000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000010','10000000-0000-0000-0000-000000000011');
+delete from payments where booking_id in ('10000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000010','10000000-0000-0000-0000-000000000011') and notes like '%BALANCE_PAYMENT%';
+set local session_replication_role = origin;
+
 create temp table t_results (name text, ok boolean, detail text) on commit drop;
 grant all on t_results to authenticated;
 
