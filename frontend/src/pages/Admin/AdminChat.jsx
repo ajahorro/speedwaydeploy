@@ -80,7 +80,7 @@ export default function AdminChat() {
   // and let it fill the whole scrolling area (its height is the area plus the padding it cancels).
   const bleed = isMobile ? '-1.5rem -1rem' : '-2.5rem';
   const filterButton = (active) =>
-    `h-8 rounded-full border px-3 text-xs font-semibold transition-colors ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-transparent text-muted-foreground hover:bg-muted'}`;
+    `h-9 rounded-full border px-4 text-xs font-semibold transition-colors ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-transparent text-muted-foreground hover:bg-muted'}`;
 
   return (
     <div
@@ -95,8 +95,8 @@ export default function AdminChat() {
           style={{ width: isMobile ? '100%' : 'clamp(280px, 28vw, 360px)' }}
           aria-label="Conversations"
         >
-          <div className="flex flex-col gap-3 border-b p-3">
-            <label className="flex h-10 items-center gap-2 rounded-md border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
+          <div className="flex flex-col gap-4 border-b px-4 py-5">
+            <label className="flex h-11 items-center gap-3 rounded-lg border bg-background px-4 focus-within:ring-2 focus-within:ring-ring">
               <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               <input
                 value={query}
@@ -108,7 +108,7 @@ export default function AdminChat() {
                 style={{ boxShadow: 'none' }}
               />
             </label>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <button type="button" className={filterButton(!unreadOnly)} aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>All</button>
               <button type="button" className={filterButton(unreadOnly)} aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>
                 Unread{totalUnread > 0 ? ` (${totalUnread})` : ''}
@@ -133,20 +133,20 @@ export default function AdminChat() {
                     type="button"
                     onClick={() => select(thread.customer_id)}
                     aria-current={active ? 'true' : undefined}
-                    className={`flex w-full items-start gap-3 border-b border-l-[3px] px-3 py-3 text-left transition-colors hover:bg-muted/60 ${active ? 'border-l-primary bg-muted' : 'border-l-transparent'}`}
+                    className={`flex w-full items-start gap-4 border-b border-l-[3px] px-4 py-4 text-left transition-colors hover:bg-muted/60 ${active ? 'border-l-primary bg-muted' : 'border-l-transparent'}`}
                   >
                     <Avatar name={thread.customer_name} />
-                    <span className="flex min-w-0 flex-1 flex-col gap-1">
-                      <span className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 flex-1 flex-col gap-2">
+                      <span className="flex items-center justify-between gap-3">
                         <span className={`truncate text-sm ${unread ? 'font-bold' : 'font-semibold'}`}>{thread.customer_name}</span>
                         <span className="shrink-0 text-[11px] text-muted-foreground">{timeLabel(thread.last_message_at)}</span>
                       </span>
-                      <span className="flex items-center justify-between gap-2">
+                      <span className="flex items-center justify-between gap-3">
                         <span className={`truncate text-xs ${unread ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>{previewOf(thread)}</span>
                         {unread > 0 && <Badge className="h-5 min-w-5 shrink-0 justify-center rounded-full px-1.5">{unread}</Badge>}
                       </span>
                       {tags.length > 0 && (
-                        <span className="flex flex-wrap gap-1">
+                        <span className="flex flex-wrap gap-1.5">
                           {tags.slice(0, 2).map((id) => <Badge key={id} variant="outline" className="font-mono text-[10px]">{shortRef(id)}</Badge>)}
                           {tags.length > 2 && <Badge variant="outline" className="text-[10px]">+{tags.length - 2}</Badge>}
                         </span>
@@ -164,21 +164,23 @@ export default function AdminChat() {
         <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="Conversation">
           {selected ? (
             <>
-              <header className="flex shrink-0 items-center gap-3 border-b px-4 py-2.5">
+              <header className="flex shrink-0 items-center gap-4 border-b px-5 py-4">
                 {isMobile && (
                   <button type="button" aria-label="Back to conversations" onClick={() => select(null)}
                     className="-ml-1 flex size-9 shrink-0 items-center justify-center rounded-md hover:bg-muted">
                     <ArrowLeft className="size-5" />
                   </button>
                 )}
-                <Avatar name={selected.customer_name} size={36} />
+                <Avatar name={selected.customer_name} size={44} />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-bold leading-tight">{selected.customer_name}</p>
-                  {selected.customer_email && <p className="truncate text-xs text-muted-foreground">{selected.customer_email}</p>}
+                  <p className="truncate text-base font-bold leading-tight">{selected.customer_name}</p>
+                  {selected.customer_email && <p className="mt-1 truncate text-xs text-muted-foreground">{selected.customer_email}</p>}
                 </div>
               </header>
-              <div className="min-h-0 flex-1 overflow-hidden">
-                <BookingChat key={selected.customer_id} customerId={selected.customer_id} bookingId={bookingTag} />
+              <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-5">
+                <div className="h-full overflow-hidden rounded-xl border">
+                  <BookingChat key={selected.customer_id} customerId={selected.customer_id} bookingId={bookingTag} />
+                </div>
               </div>
             </>
           ) : (
