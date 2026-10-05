@@ -39,3 +39,4 @@ node_modules/.package-lock.jsonnode_modules/
 # Supabase CLI local scratch state (never deployment content)
 supabase/.temp/
 backend/supabase/.temp/
+.staging-secrets/

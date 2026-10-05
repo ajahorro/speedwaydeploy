@@ -1,0 +1,41 @@
+# ============================================================================
+# render.staging.yaml — Render Blueprint for the STAGING backend (alpha testing)
+# ============================================================================
+# A second, separate backend that builds from the `staging` branch and talks to the STAGING Supabase
+# project, so alpha testers never touch production data. Create it in Render with:
+#   New + > Blueprint > pick this repository > set "Blueprint file path" to render.staging.yaml.
+# Full steps: docs/STAGING.md. Secrets are entered in the dashboard (sync: false), never committed.
+# ============================================================================
+services:
+  - type: web
+    name: comar-backend-staging
+    runtime: node
+    plan: starter            # the free plan sleeps after 15 minutes and wakes slowly; starter keeps it awake
+    region: singapore
+    rootDir: backend
+    branch: staging
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # The STAGING project, never production.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # The staging frontend's address (a Vercel preview/branch URL), used in emailed links.
+      - key: FRONTEND_URL
+        sync: false
+      # Email: use a Resend key and a sender you control. Emails from staging are REAL emails.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        sync: false
+      - key: RESEND_SENDER_EMAIL
+        sync: false
+      # Optional (not needed): the reports assistant works without it.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: NODE_ENV
+        value: production
