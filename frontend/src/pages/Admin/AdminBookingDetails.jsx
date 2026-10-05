@@ -390,6 +390,10 @@ const AdminBookingDetails = () => {
     }
   };
 
+  // The payment verification audit and the receipt archive share one container.
+  const hasPaymentAudit = Boolean(booking?.ocr_metadata && Object.keys(booking.ocr_metadata).length > 0);
+  const hasPaymentEvidence = (bookingPayments || []).some((payment) => payment.receipt_url || payment.evidence_url);
+
   const handleAssignStaff = async (staffId) => {
     const toastId = toast.loading('Assigning technician...');
     try {
@@ -1801,22 +1805,21 @@ const AdminBookingDetails = () => {
             </div>
           </div>
 
-          {/* AI VISION AUDIT PANEL (REQ-SYS-01) */}
-          {/* 🛡️ FINANCIAL CONFLICT RESOLUTION (REQ-SYS-01) */}
-          {booking.ocr_metadata && Object.keys(booking.ocr_metadata).length > 0 && (
-            <div style={{ 
-              ...cardStyle, 
-              border: booking.payment_status === 'Flagged for Review' ? '2px solid #ef4444' : (booking.ocr_metadata.isMatch ? '1px solid var(--admin-success)' : '1px solid var(--admin-border)'),
+          {/* PAYMENT: one container for the verification audit and the receipts behind it */}
+          {(hasPaymentAudit || hasPaymentEvidence) && (
+            <div style={{
+              ...cardStyle,
+              border: booking.payment_status === 'Flagged for Review' ? '2px solid #ef4444' : (booking.ocr_metadata?.isMatch ? '1px solid var(--admin-success)' : '1px solid var(--admin-border)'),
               boxShadow: booking.payment_status === 'Flagged for Review' ? '0 0 25px rgba(239, 68, 68, 0.2)' : 'none',
               transition: 'all 0.3s ease'
             }}>
-              
+
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <ShieldCheck size={18} color={booking.payment_status === 'Flagged for Review' ? '#ef4444' : 'var(--admin-brand)'} />
-                  <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: '950', textTransform: 'uppercase', color: 'var(--admin-text-primary)', letterSpacing: '1px' }}>Payment Verification Audit</h3>
+                  <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: '950', textTransform: 'uppercase', color: 'var(--admin-text-primary)', letterSpacing: '1px' }}>Payment Verification</h3>
                 </div>
-                <div style={{ fontSize: '0.55rem', fontWeight: '950', color: 'var(--admin-text-secondary)', opacity: 0.6 }}>AUTOMATED VERIFICATION</div>
+                {hasPaymentAudit && <div style={{ fontSize: '0.55rem', fontWeight: '950', color: 'var(--admin-text-secondary)', opacity: 0.6 }}>AUTOMATED VERIFICATION</div>}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -1834,7 +1837,7 @@ const AdminBookingDetails = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
                     <div style={labelStyle}>Verified Ledger</div>
-                    <div style={{ ...valueStyle, color: totalPaid > 0 ? '#fff' : '#ef4444' }}>
+                    <div style={{ ...valueStyle, color: totalPaid > 0 ? 'var(--admin-text-primary)' : '#ef4444' }}>
                       {formatCurrency(totalPaid)}
                     </div>
                   </div>
@@ -1888,17 +1891,13 @@ const AdminBookingDetails = () => {
                   </div>
                 )}
               </div>
-            </div>
-          )}
 
-          {/* D. DIGITAL VERIFICATION ARCHIVE - REQ-ADM-05 */}
-          {bookingPayments.filter(p => p.receipt_url || p.evidence_url).length > 0 && (
-            <div style={{ ...cardStyle, border: '1px solid var(--admin-border)', background: 'rgba(255, 255, 255, 0.01)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                <h3 style={{ margin: 0, fontSize: '0.8rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>Payment Evidence</h3>
-                <ImageIcon size={18} color="var(--admin-brand)" />
-              </div>
-
+              {hasPaymentEvidence && (
+                <div style={{ marginTop: '1.75rem', paddingTop: '1.5rem', borderTop: '1px solid var(--admin-border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Payment Evidence</h4>
+                    <ImageIcon size={18} color="var(--admin-brand)" />
+                  </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 {bookingPayments.filter(p => p.receipt_url || p.evidence_url).map((p, idx) => (
                   <div key={p.id} style={{ borderBottom: idx === bookingPayments.filter(p => p.receipt_url || p.evidence_url).length - 1 ? 'none' : '1px solid var(--admin-border)', paddingBottom: idx === bookingPayments.filter(p => p.receipt_url || p.evidence_url).length - 1 ? 0 : '1.5rem' }}>
@@ -1930,6 +1929,8 @@ const AdminBookingDetails = () => {
                   </div>
                 ))}
               </div>
+                </div>
+              )}
             </div>
           )}
 
