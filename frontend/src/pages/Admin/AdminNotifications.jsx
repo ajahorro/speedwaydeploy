@@ -327,7 +327,7 @@ const AdminNotifications = () => {
       />
 
       <PageHeader badge="SYSTEM SIGNALS" title="NOTIFICATIONS" subtitle="Operational alerts and system activity logs." onRefresh={fetchNotifications}>
-        <button onClick={handleMarkAllAsRead} style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.7rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>mark all as read</button>
+        <button onClick={() => confirmThen({ title: 'Mark all as read?', message: 'Every unread notification will be marked as read.', confirmText: 'Mark all as read' }, handleMarkAllAsRead)} disabled={!notifications.some((n) => !n.is_read)} title={notifications.some((n) => !n.is_read) ? undefined : 'Nothing unread'} style={{ opacity: notifications.some((n) => !n.is_read) ? 1 : 0.45, cursor: notifications.some((n) => !n.is_read) ? 'pointer' : 'not-allowed', padding: '0.75rem 1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.7rem', fontWeight: '950',  textTransform: 'uppercase' }}>mark all as read</button>
       </PageHeader>
 
       {/* GLOBAL BROADCAST COMPOSER (REQ-ADM-13) */}
@@ -382,7 +382,7 @@ const AdminNotifications = () => {
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--admin-bg)', padding: '0.25rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
           {['ALL', 'UNREAD', 'READ'].map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{ padding: '0.5rem 1rem', borderRadius: 'var(--admin-radius-sm)', border: 'none', background: filter === f ? 'var(--admin-brand)' : 'transparent', color: filter === f ? 'white' : 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '950', cursor: 'pointer' }}>{f}</button>
+            <button key={f} onClick={() => setFilter(f)} style={{ padding: '0.5rem 1rem', borderRadius: 'var(--admin-radius-sm)', border: 'none', background: filter === f ? 'var(--admin-brand)' : 'transparent', color: filter === f ? 'white' : 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '950',  }}>{f}</button>
           ))}
         </div>
       </div>

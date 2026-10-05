@@ -18,6 +18,7 @@ import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { EmailInput } from '../../components/common/ContactInputs';
 import { emailError } from '../../utils/contactValidation';
 import EditStaffDialog from '../../features/accounts/EditStaffDialog';
+import { matchesSearchText } from '../../utils/searchMatch';
 
 const AdminAccountsManagement = () => {
   const { confirmThen } = useConfirmAction();
@@ -225,10 +226,8 @@ const AdminAccountsManagement = () => {
   };
 
   const filteredAccounts = useMemo(() => {
-    return accounts.filter(a => a.role === activeTab && (
-      a.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    ));
+    return accounts.filter(a => a.role === activeTab
+      && matchesSearchText(searchQuery, a.full_name, a.first_name, a.last_name, a.email, a.phone_number));
   }, [accounts, activeTab, searchQuery]);
 
   const cardStyle = {

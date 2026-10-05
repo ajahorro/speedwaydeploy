@@ -78,7 +78,15 @@ const InputCapitalizationController = () => {
       const match = target.value.match(/^(\s*)([a-z])/);
       if (!match) return;
 
-      target.value = `${match[1]}${match[2].toUpperCase()}${target.value.slice(match[0].length)}`;
+      const next = `${match[1]}${match[2].toUpperCase()}${target.value.slice(match[0].length)}`;
+      // Assign through the PROTOTYPE setter, not target.value. React tracks each field's value on
+      // the element itself; setting target.value here updated that tracker, so React then saw "no
+      // change" and never called onChange for the first letter of a typed, pasted or single-event
+      // entry (search boxes silently stayed unfiltered). The prototype setter leaves the tracker
+      // alone, so onChange fires with the capitalised text.
+      const proto = isTextArea ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setValue = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      if (setValue) setValue.call(target, next); else target.value = next;
     };
 
     document.addEventListener('input', capitalizeFirstLetter, true);
