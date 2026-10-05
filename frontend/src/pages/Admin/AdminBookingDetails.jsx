@@ -1447,7 +1447,7 @@ const AdminBookingDetails = () => {
         </div>
       </div>
 
-      <BookingSummaryHeader booking={booking} showCustomer={!isMobile} onUnitCollected={derivedStatus === 'completed' ? requestReleaseBooking : undefined} paymentStatus={paymentSummary} />
+      <BookingSummaryHeader booking={booking} showCustomer onUnitCollected={derivedStatus === 'completed' ? requestReleaseBooking : undefined} paymentStatus={paymentSummary} />
 
       {isNoShowBooking && (
         <div
@@ -1919,39 +1919,6 @@ const AdminBookingDetails = () => {
         {/* === SIDEBAR COLUMN === */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: 0 }}>
           
-          <div style={cardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', minWidth: 0 }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--admin-border)', flexShrink: 0 }}>
-                <User size={18} color="var(--admin-text-secondary)" />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>{booking.customer_name || booking.customer?.full_name || 'Customer'}</h3>
-                {booking.customer_id && (
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
-                    <span style={{ fontSize: '0.6rem', fontWeight: '900', color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      {booking.customer?.role === 'FLEET' || booking.fleet_group_id || (booking.vehicles || []).some(v => v.fleet_group_id)
-                        ? 'Fleet Account Holder'
-                        : 'Customer Account'}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div>
-                <div style={{ ...labelStyle, opacity: 0.6 }}>
-                  Phone number
-                </div>
-                <div style={customerPhone ? valueStyle : naStyle}>
-                  {customerPhone || 'N/A'}
-                </div>
-              </div>
-              <div>
-                <div style={{ ...labelStyle, opacity: 0.6 }}>Email</div>
-                <div style={booking.customer_email || booking.customer?.email ? valueStyle : naStyle}>{booking.customer_email || booking.customer?.email || 'N/A'}</div>
-              </div>
-            </div>
-          </div>
 
           {/* PAYMENT: one container for the verification audit and the receipts behind it */}
           {(hasPaymentAudit || hasPaymentEvidence) && (

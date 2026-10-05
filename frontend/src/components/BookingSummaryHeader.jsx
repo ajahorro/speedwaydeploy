@@ -57,6 +57,9 @@ const TechnicianSummary = ({ booking }) => {
   );
 };
 
+/** The number given at booking first, then the account's phone, or ''. */
+const customerPhone = (booking) => String(booking?.contact_number || booking?.customer_phone || booking?.guest_phone || booking?.customer?.phone_number || '').trim();
+
 const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, showTechnician = true, paymentStatus }) => {
   const rawStatus = booking?.status?.toUpperCase() || 'PENDING';
   const normalizedStatus = rawStatus === 'PENDING' ? 'SCHEDULED' : rawStatus;
@@ -97,6 +100,11 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
             {customerEmail(booking) && (
               <span style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.72rem', fontWeight: '600', color: 'var(--admin-text-secondary)' }}>
                 {customerEmail(booking)}
+              </span>
+            )}
+            {customerPhone(booking) && (
+              <span style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.72rem', fontWeight: '600', color: 'var(--admin-text-secondary)' }}>
+                {customerPhone(booking)}
               </span>
             )}
             <span style={{ display: 'block', marginTop: '0.2rem', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase' }}>

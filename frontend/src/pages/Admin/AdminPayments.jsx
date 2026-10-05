@@ -38,7 +38,6 @@ const AdminPayments = () => {
     filter: 'PENDING',
     methodFilter: 'ALL',
     selectedItem: null,
-    overrideAI: false
   });
 
   const [receiptBooking, setReceiptBooking] = useState(null);
@@ -147,27 +146,24 @@ const AdminPayments = () => {
       const wasOverpaidDownpayment = isDownpayment && verifiedAmount > requiredDownpayment;
       const isCashPayment = String(payment.method || '').trim().toUpperCase() === 'CASH';
       const hasValidOCRAmount = Number.isFinite(ocrAmount) && ocrAmount > 0;
-      if (!isCashPayment && !hasValidOCRAmount && !state.overrideAI) {
-        toast.error('This digital payment has no valid OCR amount. Re-scan the receipt or enable Override AI for manual review.', { id: toastId });
+      if (!isCashPayment && !hasValidOCRAmount) {
+        toast.error('This digital payment has no valid OCR amount. Reject it so the customer can send a clearer receipt.', { id: toastId });
         return;
       }
       const isUnderpaidDownpayment = ocrAmount > 0 && isDownpayment && verifiedAmount < requiredDownpayment;
-      if (isUnderpaidDownpayment && !state.overrideAI) {
-        toast.error(`OCR amount is below the required ₱${requiredDownpayment.toLocaleString()} downpayment. Check Override AI to continue.`, { id: toastId });
+      if (isUnderpaidDownpayment) {
+        toast.error(`OCR amount is below the required ₱${requiredDownpayment.toLocaleString()} downpayment. Reject it so the customer can pay the full downpayment.`, { id: toastId });
         return;
       }
 
       const result = await verifyPayment({
         payment,
         verifiedAmount,
-        override: state.overrideAI,
+        override: false,
         note: [
           `OCR_AMOUNT:${verifiedAmount}`,
           `VERIFIED_TYPE:${isDownpayment ? 'Downpayment' : 'Full'}`,
           wasOverpaidDownpayment ? 'OVERPAID_DOWNPAYMENT:TRUE' : null,
-          state.overrideAI
-            ? `[AI_OVERRIDE] Admin ID: ${verifier?.id || 'UNKNOWN'} | Required: ₱${requiredDownpayment} | Detected: ₱${ocrAmount || 'NULL'}`
-            : null
         ].filter(Boolean).join('|')
       });
 
@@ -184,7 +180,7 @@ const AdminPayments = () => {
         );
       }
       fetchPayments();
-      setState(prev => ({ ...prev, selectedItem: null, overrideAI: false }));
+      setState(prev => ({ ...prev, selectedItem: null }));
       setConfirmPayment(null);
     } catch (err) {
       logger.error('Payment verification failed:', err);
@@ -556,9 +552,6 @@ const AdminPayments = () => {
                 <div style={{ marginTop: 'auto', display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
                   {state.selectedItem.status === 'FOR_VERIFICATION' && !isPaymentLocked(state.selectedItem) && (
                     <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                      {!isCashPayment(state.selectedItem) && (
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
-                      )}
                       <Button variant="outline" className="flex-1 border-red-500 bg-red-500/10 text-red-500 hover:bg-red-500/20 font-black uppercase tracking-wider" onClick={() => handleRejectPayment(state.selectedItem)}>REJECT</Button>
                       <Button variant="default" className="flex-[2] font-black uppercase tracking-wider" onClick={() => requestVerifyPayment(state.selectedItem)}>VERIFY PAID</Button>
                     </div>
@@ -638,9 +631,6 @@ const AdminPayments = () => {
               {state.selectedItem.status === 'FOR_VERIFICATION' && !isPaymentLocked(state.selectedItem) && (
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   <Button variant="outline" className="flex-1 border-red-500 bg-red-500/10 text-red-500 hover:bg-red-500/20 font-black uppercase tracking-wider" onClick={() => handleRejectPayment(state.selectedItem)}>REJECT</Button>
-                  {!isCashPayment(state.selectedItem) && (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--status-warning)', fontWeight: '800' }}><input type="checkbox" checked={state.overrideAI} onChange={(e) => setState(prev => ({ ...prev, overrideAI: e.target.checked }))} /> Override AI</label>
-                  )}
                   <Button variant="default" className="flex-[2] font-black uppercase tracking-wider" onClick={() => requestVerifyPayment(state.selectedItem)}>VERIFY PAID</Button>
                 </div>
               )}
@@ -670,7 +660,7 @@ const AdminPayments = () => {
                 ['Method', confirmPayment.method || 'Digital'],
                 ['Reference', confirmPayment.detected_ref || confirmPayment.reference_number || 'Not detected'],
                 ['Receipt recipient', confirmPayment.booking?.ocr_metadata?.recipient || 'Not detected'],
-                ['Decision', state.overrideAI ? 'Manual AI override' : 'OCR-assisted verification'],
+                ['Decision', 'OCR-assisted verification'],
               ].map(([label, value]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', fontSize: '0.75rem' }}>
                   <span style={{ color: 'var(--admin-text-secondary)' }}>{label}</span>
