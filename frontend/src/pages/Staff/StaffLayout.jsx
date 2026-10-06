@@ -2,7 +2,7 @@ import React, { useCallback, useEffect } from 'react';
 import { Outlet, useNavigate, NavLink, useLocation } from 'react-router-dom';
 import {
   ClipboardList,
-  Menu, Bell, History, Clock, Settings, LogOut
+  Menu, Bell, History, Clock, Settings, LogOut, BarChart2
 } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { supabase } from '../../lib/supabase';
@@ -77,6 +77,8 @@ const StaffLayout = () => {
   const menuItems = [
     { icon: ClipboardList, label: 'My Jobs', path: '/staff' },
     { icon: History, label: 'Work History', path: '/staff/history' },
+    // shown only when an administrator turned reports on for this account
+    ...(profile?.can_view_reports ? [{ icon: BarChart2, label: 'Reports', path: '/staff/reports' }] : []),
     { icon: Clock, label: 'Duty & Shift', path: '/staff/duty' },
     { icon: Bell, label: 'Notifications', path: '/staff/notifications' },
   ];

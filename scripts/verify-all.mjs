@@ -57,7 +57,8 @@ if (container) {
     ['sql: hub propagation', 'scripts/sql/verify-hub-propagation.sql', /^\s*\S.*\|\s*FAIL\s*\|(?!.*KNOWN GAP)/m, /KNOWN GAP/],
     ['sql: balance payment', 'scripts/sql/verify-balance-payment.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: pricing guard', 'scripts/sql/verify-pricing-guard.sql', /\|\s*FAIL\s*\|/m, null],
-    ['sql: per-vehicle technicians', 'scripts/sql/verify-per-vehicle-technicians.sql', /\|\s*FAIL\s*\|/m, null]
+    ['sql: per-vehicle technicians', 'scripts/sql/verify-per-vehicle-technicians.sql', /\|\s*FAIL\s*\|/m, null],
+    ['sql: staff reports', 'scripts/sql/verify-staff-report.sql', /\|\s*FAIL\s*\|/m, null]
   ];
   for (const [name, file, failPattern] of suites) {
     const result = spawnSync('docker', ['exec', '-i', container, 'psql', '-U', 'postgres'], { input: fs.readFileSync(file), encoding: 'utf8' });

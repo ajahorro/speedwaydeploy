@@ -44,6 +44,7 @@ const StaffLayout = lazy(() => import('./pages/Staff/StaffLayout'));
 const StaffDashboard = lazy(() => import('./pages/Staff/StaffDashboard'));
 const StaffActiveJobs = lazy(() => import('./pages/Staff/StaffActiveJobs'));
 const StaffWorkHistory = lazy(() => import('./pages/Staff/StaffWorkHistory'));
+const StaffReports = lazy(() => import('./pages/Staff/StaffReports'));
 const StaffJobDetails = lazy(() => import('./pages/Staff/StaffJobDetails'));
 const StaffProfile = lazy(() => import('./pages/Staff/StaffProfile'));
 const StaffDuty = lazy(() => import('./pages/Staff/StaffDuty'));
@@ -182,6 +183,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route index element={<StaffDashboard />} />
                   <Route path="tasks" element={<StaffActiveJobs />} />
                   <Route path="history" element={<StaffWorkHistory />} />
+                  <Route path="reports" element={<StaffReports />} />
                   <Route path="duty" element={<StaffDuty />} />
                   <Route path="job/:id" element={<StaffJobDetails />} />
                   <Route path="profile" element={<StaffProfile />} />
