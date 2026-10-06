@@ -41,12 +41,25 @@ const AdminBookings = () => {
     const filter = params.get('filter');
     if (filter === 'unassigned') {
       setState(prev => ({ ...prev, filterStatus: 'unassigned' }));
+    } else if (filter === 'flagged') {
+      setState(prev => ({ ...prev, filterStatus: 'flagged' }));
     } else if (filter === 'overdue' || filter === 'FLAGGED_NOSHOW') {
       setState(prev => ({ ...prev, filterStatus: 'FLAGGED_NOSHOW' }));
     } else if (['ongoing', 'pending_payment', 'pending_refund', 'completed'].includes(filter)) {
       setState(prev => ({ ...prev, filterStatus: filter }));
     }
   }, [location.search]);
+
+  // "Flagged": the bookings the database lists as needing review (same list as the dashboard card).
+  const [flagged, setFlagged] = useState(() => new Map());
+  useEffect(() => {
+    if (state.filterStatus !== 'flagged') return undefined;
+    let alive = true;
+    supabase.rpc('flagged_bookings_for_review').then(({ data }) => {
+      if (alive) setFlagged(new Map((data || []).map((row) => [row.booking_id, row.reason])));
+    });
+    return () => { alive = false; };
+  }, [state.filterStatus, bookings]);
 
   // A search or filter has to see every booking, not just the latest page.
   useEffect(() => {
@@ -71,6 +84,8 @@ const AdminBookings = () => {
           || ['cancelled', 'completed', 'released', 'in_progress', 'ongoing', 'flagged_noshow', 'no_show'].includes(bookingStatus);
         // a booking needs attention when any of its vehicles has no technician
         matchesStatus = (!b.staff_id || (b.vehicles || []).some(v => !v.staff_id)) && !isNotAssignable;
+      } else if (state.filterStatus === 'flagged') {
+        matchesStatus = flagged.has(b.id);
       } else if (state.filterStatus === 'FLAGGED_NOSHOW') {
         matchesStatus = b.status?.toUpperCase() === 'FLAGGED_NOSHOW';
       } else if (state.filterStatus === 'ongoing') {
@@ -78,12 +93,15 @@ const AdminBookings = () => {
       } else if (state.filterStatus === 'pending_payment') {
         matchesStatus = (b.payments || []).some(payment => payment.status === 'FOR_VERIFICATION');
       } else if (state.filterStatus === 'pending_refund') {
-        matchesStatus = ['PENDING', 'PROCESSING', 'REFUND_PENDING'].includes(b.refund_status) || (b.payments || []).some(payment => payment.status === 'REFUND_PENDING');
+        // a new booking's refund status starts as PENDING, which means "no refund yet": only a cancelled or no-show
+        // booking, or a payment waiting to be refunded, is a pending refund
+        const closed = ['cancelled', 'flagged_noshow', 'no_show'].includes(String(b.status || '').toLowerCase());
+        matchesStatus = (closed && ['PENDING', 'PROCESSING', 'REFUND_PENDING'].includes(b.refund_status)) || (b.payments || []).some(payment => payment.status === 'REFUND_PENDING');
       }
       
       return matchesSearch && matchesStatus;
     });
-  }, [bookings, state.searchTerm, state.filterStatus]);
+  }, [bookings, state.searchTerm, state.filterStatus, flagged]);
 
   const getPaymentStatus = (booking) => {
     return getPaymentStatusUI(booking.calculatedPaymentStatus);
@@ -226,7 +244,7 @@ const AdminBookings = () => {
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--admin-bg)', padding: '0.4rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', overflowX: 'auto' }}>
-            {['all', 'unassigned', 'FLAGGED_NOSHOW', 'scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled'].map(f => (
+            {['all', 'unassigned', 'flagged', 'FLAGGED_NOSHOW', 'scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled'].map(f => (
               <button 
                 key={f}
                 onClick={() => setState(prev => ({ ...prev, filterStatus: f }))}

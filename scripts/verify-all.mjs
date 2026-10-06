@@ -59,6 +59,7 @@ if (container) {
     ['sql: pricing guard', 'scripts/sql/verify-pricing-guard.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: per-vehicle technicians', 'scripts/sql/verify-per-vehicle-technicians.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: staff reports', 'scripts/sql/verify-staff-report.sql', /\|\s*FAIL\s*\|/m, null],
+    ['sql: flagged for review', 'scripts/sql/verify-flagged-review.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: add several services', 'scripts/sql/verify-add-several-services.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: staff bookings report', 'scripts/sql/verify-staff-bookings-report.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: booking draft invites', 'scripts/sql/verify-booking-draft-invites.sql', /\|\s*FAIL\s*\|/m, null]
