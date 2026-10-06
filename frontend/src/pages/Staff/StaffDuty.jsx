@@ -87,7 +87,7 @@ const StaffDuty = () => {
   const cardStyle = {
     background: 'var(--admin-card)',
     border: '1px solid var(--admin-border)',
-    borderRadius: 'var(--admin-radius-lg, 12px)',
+    borderRadius: 'var(--admin-radius)',
     padding: 'clamp(1.5rem, 4vw, 2rem)',
     color: 'var(--admin-text-primary)',
     boxShadow: 'var(--admin-card-shadow)'
@@ -104,7 +104,7 @@ const StaffDuty = () => {
       <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '640px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: isClockedIn ? 'rgba(16, 185, 129, 0.12)' : 'rgba(169, 27, 24, 0.12)', border: `1px solid ${isClockedIn ? 'var(--status-success)' : 'var(--admin-brand)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isClockedIn ? 'var(--status-success)' : 'var(--admin-brand)' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: 'var(--admin-radius)', background: isClockedIn ? 'rgba(16, 185, 129, 0.12)' : 'rgba(169, 27, 24, 0.12)', border: `1px solid ${isClockedIn ? 'var(--status-success)' : 'var(--admin-brand)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isClockedIn ? 'var(--status-success)' : 'var(--admin-brand)' }}>
               <Clock size={24} />
             </div>
             <div>
@@ -122,7 +122,7 @@ const StaffDuty = () => {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)' }}>
           <Timer size={18} color="var(--admin-text-secondary)" />
           <div>
             <div style={{ fontSize: '0.72rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-secondary)' }}>Current Shift Duration</div>
@@ -137,7 +137,7 @@ const StaffDuty = () => {
             type="button"
             onClick={handleClockOut}
             disabled={!shiftActionAvailable}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--status-danger)', color: 'var(--status-danger)', borderRadius: '8px', fontWeight: '900', fontSize: '0.85rem', cursor: shiftActionAvailable ? 'pointer' : 'not-allowed', opacity: shiftActionAvailable ? 1 : 0.55, textTransform: 'uppercase' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--status-danger)', color: 'var(--status-danger)', borderRadius: 'var(--admin-radius)', fontWeight: '900', fontSize: '0.85rem', cursor: shiftActionAvailable ? 'pointer' : 'not-allowed', opacity: shiftActionAvailable ? 1 : 0.55, textTransform: 'uppercase' }}
           >
             <LogOut size={18} /> Clock Out
           </button>
@@ -146,7 +146,7 @@ const StaffDuty = () => {
             type="button"
             onClick={() => confirmThen({ title: 'Start your shift?', message: 'You will be marked on duty and can receive assignments.', confirmText: 'Start shift' }, handleClockIn)}
             disabled={!shiftActionAvailable}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '1rem', background: 'var(--admin-brand)', border: 'none', color: 'var(--admin-text-on-brand)', borderRadius: '8px', fontWeight: '900', fontSize: '0.85rem', cursor: shiftActionAvailable ? 'pointer' : 'not-allowed', opacity: shiftActionAvailable ? 1 : 0.55, textTransform: 'uppercase' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '1rem', background: 'var(--admin-brand)', border: 'none', color: 'var(--admin-text-on-brand)', borderRadius: 'var(--admin-radius)', fontWeight: '900', fontSize: '0.85rem', cursor: shiftActionAvailable ? 'pointer' : 'not-allowed', opacity: shiftActionAvailable ? 1 : 0.55, textTransform: 'uppercase' }}
           >
             <LogIn size={18} /> Clock In
           </button>

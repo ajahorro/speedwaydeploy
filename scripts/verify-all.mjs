@@ -24,7 +24,7 @@ const run = (name, command, commandArgs, options = {}) => {
 };
 
 // ── guard scripts ──────────────────────────────────────────────────────────
-for (const script of ['verify-single-source', 'verify-email-source', 'verify-email-links', 'verify-contact-rules', 'verify-shop-time', 'verify-statement-pdf', 'verify-ocr-parser', 'verify-idle-session']) {
+for (const script of ['verify-single-source', 'verify-email-source', 'verify-email-links', 'verify-contact-rules', 'verify-shop-time', 'verify-statement-pdf', 'verify-ocr-parser', 'verify-idle-session', 'verify-staff-assistant']) {
   run(script, 'node', [`scripts/${script}.mjs`], { note: (out) => out.trim().split('\n').pop().slice(0, 70) });
 }
 
@@ -59,6 +59,7 @@ if (container) {
     ['sql: pricing guard', 'scripts/sql/verify-pricing-guard.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: per-vehicle technicians', 'scripts/sql/verify-per-vehicle-technicians.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: staff reports', 'scripts/sql/verify-staff-report.sql', /\|\s*FAIL\s*\|/m, null],
+    ['sql: staff bookings report', 'scripts/sql/verify-staff-bookings-report.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: booking draft invites', 'scripts/sql/verify-booking-draft-invites.sql', /\|\s*FAIL\s*\|/m, null]
   ];
   for (const [name, file, failPattern] of suites) {

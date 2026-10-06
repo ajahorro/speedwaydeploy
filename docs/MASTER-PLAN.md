@@ -475,3 +475,11 @@ The original plan is archived unchanged in `docs/MASTER-PLAN-v1-original.md`. It
 - **Audit:** an administrator's or staff member's automatic sign-out is written to the audit log ("Signed out for inactivity").
 - **Tests:** `scripts/verify-idle-session.mjs` (14 checks, part of `verify-all`, now 22 checks); tested live in the browser: warning, "Stay signed in", expiry sign-out, login message, audit row.
 - **Paper:** "automatic termination of inactive sessions" can go back into the security requirements.
+
+## Staff Reports widened to all bookings + bookings assistant: built (migration `20261120000001`)
+- **What changed:** when an administrator turns on "Can view reports" for a staff account, the staff Reports page now opens on **All bookings**: every booking report for the whole shop (any date range up to 93 days, counts by status, bookings per day, most booked services, technician workload, a searchable booking list, PDF and CSV). The previous page is kept as the **My work** tab.
+- **Bookings only:** the database function `staff_bookings_report` returns no amounts, payments, prices, phone numbers, emails or notes, and refuses any account that is not an active staff member with the switch on (administrators may call it too).
+- **Assistant:** the same "Ask AI" helper the administrator has, at `/api/staff/analytics-assistant`, with booking-only tools. Without an API key a built-in rule-based mode answers booking questions and refuses money, payment, price and contact questions; with a key the model gets only the booking tools and a booking-only instruction.
+- **Staff look:** staff containers now use the same sharp corners and card shadow as the administrator pages.
+- **Edit staff pop-up:** removed the birthday field and the "Require a password reset" checkbox; Date joined is read-only text.
+- **Tests:** `verify-all` has 24 checks (adds `verify-staff-assistant` and the 10-check `verify-staff-bookings-report.sql`).

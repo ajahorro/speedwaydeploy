@@ -3271,6 +3271,39 @@ app.post('/api/admin/analytics-assistant', async (req, res) => {
   }
 });
 
+// Staff reports assistant: the same helper, limited to bookings (no money, payments, or contact details).
+// Only an active staff account whose "can view reports" switch an administrator turned on may use it; the
+// database function behind every tool checks that switch again with the caller's own JWT.
+app.post('/api/staff/analytics-assistant', async (req, res) => {
+  const actor = await getAuthenticatedActor(req);
+  if (!actor || String(actor.profile.role || '').toUpperCase() !== 'STAFF') {
+    return res.status(403).json({ success: false, error: 'A staff account is required.' });
+  }
+  try {
+    const { data: flag } = await supabaseAdmin.from('profiles').select('can_view_reports').eq('id', actor.user.id).maybeSingle();
+    if (!flag?.can_view_reports) {
+      return res.status(403).json({ success: false, error: 'Reports are not turned on for your account.' });
+    }
+    const token = String(req.headers.authorization || '').replace(/^bearer\s+/i, '');
+    const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+    const { status, body } = await askAnalyticsAssistant({
+      question: req.body?.question,
+      range: req.body?.range,
+      history: Array.isArray(req.body?.history) ? req.body.history : [],
+      db,
+      adminId: actor.user.id,
+      scope: 'staff'
+    });
+    return res.status(status).json(body);
+  } catch (error) {
+    console.error('[staff-analytics-assistant] failed:', error.message);
+    return res.status(500).json({ success: false, error: 'The assistant is unavailable right now.' });
+  }
+});
+
 app.delete('/api/admin/promos/:promoId', async (req, res) => {
   if (!(await requireAdmin(req))) return res.status(403).json({ success: false, error: 'Authorized administrator required.' });
   const promoId = String(req.params.promoId || '').trim();

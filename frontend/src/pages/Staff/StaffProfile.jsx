@@ -53,9 +53,9 @@ const StaffProfile = () => {
   };
 
   const cardStyle = {
-    background: 'var(--admin-card)',
+    background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)',
     border: '1px solid var(--admin-border)',
-    borderRadius: '8px',
+    borderRadius: 'var(--admin-radius)',
     padding: isMobile ? '1.25rem' : '2rem',
     display: 'flex',
     flexDirection: 'column',
@@ -94,7 +94,7 @@ const StaffProfile = () => {
     width: '100%',
     background: 'var(--admin-bg)',
     border: '1px solid var(--admin-border)',
-    borderRadius: '4px',
+    borderRadius: 'var(--admin-radius)',
     padding: '0.85rem 1rem',
     color: 'var(--admin-text-primary)',
     fontSize: '0.9rem',
@@ -115,7 +115,7 @@ const StaffProfile = () => {
         {/* Identity Section */}
         <section style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1.5rem' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '8px', background: 'var(--admin-brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: 'var(--admin-radius)', background: 'var(--admin-brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <UserCircle size={40} color="white" />
             </div>
             <div>
@@ -227,7 +227,7 @@ const StaffProfile = () => {
             )}
             {/* Task 16: confirmation-email delivery status + resend option. */}
             {passwordEmailState && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.85rem 1rem', background: passwordEmailState.delivered ? 'rgba(var(--admin-success-rgb), 0.08)' : 'rgba(245, 158, 11, 0.1)', border: `1px solid ${passwordEmailState.delivered ? 'var(--admin-success)' : 'var(--status-warning)'}`, borderRadius: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.85rem 1rem', background: passwordEmailState.delivered ? 'rgba(var(--admin-success-rgb), 0.08)' : 'rgba(245, 158, 11, 0.1)', border: `1px solid ${passwordEmailState.delivered ? 'var(--admin-success)' : 'var(--status-warning)'}`, borderRadius: 'var(--admin-radius)' }}>
                 <span style={{ fontSize: '0.72rem', fontWeight: '700', color: passwordEmailState.delivered ? 'var(--admin-success)' : 'var(--status-warning)' }}>
                   {passwordEmailState.delivered
                     ? 'Confirmation email sent. Check your inbox (and spam) to complete the change.'
@@ -236,7 +236,7 @@ const StaffProfile = () => {
                 <button
                   type="button"
                   onClick={handleResendPasswordEmail}
-                  style={{ padding: '0.5rem 0.9rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '4px', fontSize: '0.72rem', fontWeight: '900', cursor: 'pointer', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
+                  style={{ padding: '0.5rem 0.9rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius)', fontSize: '0.72rem', fontWeight: '900', cursor: 'pointer', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
                 >
                   Resend confirmation email
                 </button>
@@ -250,7 +250,7 @@ const StaffProfile = () => {
                 padding: '0.85rem 2rem', 
                 background: (!isFormValid || passLoading) ? 'var(--admin-border)' : '#E61E2A', 
                 color: (!isFormValid || passLoading) ? 'var(--admin-text-secondary)' : 'white', 
-                border: 'none', borderRadius: '4px', 
+                border: 'none', borderRadius: 'var(--admin-radius)', 
                 fontWeight: '950', fontSize: '0.8rem', 
                 cursor: (!isFormValid || passLoading) ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: '0.75rem',

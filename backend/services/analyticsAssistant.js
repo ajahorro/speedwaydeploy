@@ -1,6 +1,7 @@
 'use strict';
 
 const { createBuiltInAnswerer } = require('./analyticsBuiltIn');
+const { createStaffBuiltInAnswerer } = require('./analyticsStaffBuiltIn');
 
 /**
  * Admin analytics assistant (master plan 4.6).
@@ -84,6 +85,39 @@ const TOOLS = [
   }
 ];
 
+// Staff assistant: bookings only. No tool returns money, payments, prices, contact details or accounts.
+const STAFF_TOOLS = [
+  {
+    name: 'get_bookings_report',
+    description: 'The shop\'s bookings that START in a date range (max 93 days): reference, start, customer name, status, and for each vehicle its brand, model, plate, services and technician, plus counts. No money. Use it for "what were the bookings on <date>".',
+    input_schema: {
+      type: 'object',
+      properties: { from: { type: 'string', description: 'First day, YYYY-MM-DD (Asia/Manila).' }, to: { type: 'string', description: 'Last day inclusive, YYYY-MM-DD.' } },
+      required: ['from', 'to']
+    }
+  },
+  {
+    name: 'get_booking_stats',
+    description: 'Booking figures for a date range (max 93 days): counts (bookings, vehicles, upcoming, in progress, completed, cancelled, walk-ins), most booked services, bookings per day, vehicles per technician, vehicles per vehicle type. Use it for "how many", "most booked service", "busiest day" and "who has the most vehicles".',
+    input_schema: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' } }, required: ['from', 'to'] }
+  },
+  {
+    name: 'show_bookings_report',
+    description: 'Ask the Reports page to show its bookings for a date range.',
+    input_schema: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' } }, required: ['from', 'to'] }
+  },
+  {
+    name: 'create_bookings_pdf',
+    description: 'Ask the Reports page to create and download a PDF of the bookings for a date range.',
+    input_schema: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' } }, required: ['from', 'to'] }
+  },
+  {
+    name: 'export_report_csv',
+    description: 'Ask the Reports page to download the bookings CSV for the range currently shown.',
+    input_schema: { type: 'object', properties: {} }
+  }
+];
+
 const isDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
 // Manila is UTC+8 with no daylight saving; the range is [from 00:00, to+1 00:00) shop time.
 const dayStartIso = (day) => new Date(Date.parse(`${day}T00:00:00Z`) - 8 * 3600 * 1000).toISOString();
@@ -121,8 +155,46 @@ const allowRequest = (adminId) => {
   return true;
 };
 
+/** Runs one staff tool as the signed-in staff member (their own JWT: the database function checks the switch). */
+const runStaffTool = async (name, input, db, userId) => {
+  try {
+    if (name === 'get_bookings_report' || name === 'get_booking_stats') {
+      const range = validateRange(input, 93);
+      if (range.error) return { result: { error: range.error } };
+      const data = await cached(`staffbk:${userId}:${range.from}:${range.to}`, async () => {
+        const { data: report, error } = await db.rpc('staff_bookings_report', { p_from: dayStartIso(range.from), p_to: dayEndIso(range.to) });
+        if (error) throw error;
+        return report;
+      });
+      if (name === 'get_booking_stats') {
+        return { result: { totals: data.totals, by_service: data.by_service, by_day: data.by_day, by_technician: data.by_technician, by_vehicle_type: data.by_vehicle_type } };
+      }
+      return {
+        result: {
+          totals: data.totals,
+          shown: Math.min(25, (data.bookings || []).length),
+          bookings: (data.bookings || []).slice(0, 25).map((b) => ({
+            ref: b.reference, start: b.start, customer: b.customer, status: b.status, walk_in: b.walk_in,
+            vehicles: (b.vehicles || []).map((v) => [v.brand, v.model, v.plate].filter(Boolean).join(' ') + ': ' + (v.services || []).join(', ') + (v.technician ? ' (' + v.technician + ')' : ''))
+          }))
+        }
+      };
+    }
+    if (name === 'show_bookings_report' || name === 'create_bookings_pdf') {
+      const range = validateRange(input, 93);
+      if (range.error) return { result: { error: range.error } };
+      return { result: { ok: true, range: `${range.from} to ${range.to}` }, action: { type: name === 'create_bookings_pdf' ? 'bookings_pdf' : 'show_bookings', from: range.from, to: range.to } };
+    }
+    if (name === 'export_report_csv') return { result: { ok: true }, action: { type: 'export_csv' } };
+    return { result: { error: `Unknown tool ${name}.` } };
+  } catch (error) {
+    return { result: { error: 'The report could not be read right now.' } };
+  }
+};
+
 /** Runs one tool as the admin. Returns { result, action? } and never throws. */
-const runTool = async (name, input, db, adminId) => {
+const runTool = async (name, input, db, adminId, scope = 'admin') => {
+  if (scope === 'staff') return runStaffTool(name, input, db, adminId);
   try {
     if (name === 'get_sales_report') {
       const range = validateRange(input);
@@ -211,6 +283,18 @@ const systemPrompt = (range) => [
   '- Be brief: a short answer first, then at most a few bullet points. You cannot change any data.'
 ].join('\n');
 
+const staffSystemPrompt = (range) => [
+  'You are the bookings assistant for Comar Garage, a car-care shop in the Philippines. You help a staff member read the shop\'s BOOKING reports.',
+  `Today is ${todayInManila()} (Asia/Manila). The report page currently shows ${range?.from || '?'} to ${range?.to || '?'}.`,
+  'Rules:',
+  '- You only know about bookings: which bookings, vehicles, services, statuses, technicians, and counts. Answer only from tool results. Never invent or estimate a figure; if a tool returns nothing or an error, say so.',
+  '- You have no information about money. If asked about payments, revenue, refunds, prices, balances, discounts, customer phone numbers or emails, accounts, or the audit log, say briefly that staff reports cover bookings only, and offer a booking-related alternative.',
+  '- Convert phrases like "this week" or "last month" to exact YYYY-MM-DD dates before calling a tool, and say which dates you used.',
+  '- For questions about bookings on a day or period, call get_bookings_report and list them briefly (time, customer, vehicle, status). For counts, popular services, busiest days or technician workload, call get_booking_stats.',
+  '- When asked to show or open the report, call show_bookings_report; for a PDF call create_bookings_pdf; for the CSV call export_report_csv.',
+  '- Be brief: a short answer first, then at most a few bullet points. You cannot change any data.'
+].join('\n');
+
 const callModel = async (apiKey, body) => {
   const response = await fetch(API_URL, {
     method: 'POST',
@@ -234,8 +318,10 @@ const callModel = async (apiKey, body) => {
  * @param {Array<{role:'user'|'assistant',content:string}>} [args.history]  earlier turns (text only)
  * @param {object} args.db        Supabase client acting as the signed-in admin
  * @param {string} args.adminId
+ * @param {'admin'|'staff'} [args.scope] staff = bookings only, no money (the staff reports assistant)
  */
-async function askAnalyticsAssistant({ question, range, history = [], db, adminId }) {
+async function askAnalyticsAssistant({ question, range, history = [], db, adminId, scope = 'admin' }) {
+  const staffScope = scope === 'staff';
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   const text = String(question || '').trim().slice(0, MAX_QUESTION_CHARS);
@@ -243,7 +329,7 @@ async function askAnalyticsAssistant({ question, range, history = [], db, adminI
   if (!allowRequest(adminId)) return { status: 429, body: { success: false, error: 'Too many questions. Wait a moment and try again.' } };
 
   // No key = free built-in mode (no paid service). The model is optional.
-  if (!apiKey) return answerWithBuiltInRules({ question: text, range, db, adminId });
+  if (!apiKey) return (staffScope ? answerStaffWithBuiltInRules : answerWithBuiltInRules)({ question: text, range, db, adminId });
 
   const messages = [
     ...history
@@ -261,8 +347,8 @@ async function askAnalyticsAssistant({ question, range, history = [], db, adminI
         model: MODEL,
         max_tokens: MAX_TOKENS,
         temperature: 0,
-        system: systemPrompt(range),
-        tools: TOOLS,
+        system: staffScope ? staffSystemPrompt(range) : systemPrompt(range),
+        tools: staffScope ? STAFF_TOOLS : TOOLS,
         messages
       });
 
@@ -276,7 +362,7 @@ async function askAnalyticsAssistant({ question, range, history = [], db, adminI
       messages.push({ role: 'assistant', content: reply.content });
       const results = [];
       for (const call of toolCalls) {
-        const { result, action } = await runTool(call.name, call.input, db, adminId);
+        const { result, action } = await runTool(call.name, call.input, db, adminId, scope);
         toolsUsed.push(call.name);
         if (action) actions.push(action);
         results.push({ type: 'tool_result', tool_use_id: call.id, content: JSON.stringify(result).slice(0, MAX_TOOL_RESULT_CHARS) });
@@ -292,5 +378,6 @@ async function askAnalyticsAssistant({ question, range, history = [], db, adminI
 }
 
 const answerWithBuiltInRules = createBuiltInAnswerer({ runTool, isDay, todayInManila });
+const answerStaffWithBuiltInRules = createStaffBuiltInAnswerer({ runTool, isDay, todayInManila });
 
-module.exports = { askAnalyticsAssistant, TOOLS, validateRange, dayStartIso, dayEndIso };
+module.exports = { askAnalyticsAssistant, TOOLS, STAFF_TOOLS, validateRange, dayStartIso, dayEndIso };

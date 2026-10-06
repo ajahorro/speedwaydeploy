@@ -128,7 +128,7 @@ const StaffLayout = () => {
       alignItems: 'center',
       gap: '0.75rem',
       padding: '0.85rem 1.25rem',
-      borderRadius: '4px',
+      borderRadius: 'var(--admin-radius)',
       color: isActive ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)',
       background: isActive ? 'var(--admin-brand)' : 'transparent',
       textDecoration: 'none',
@@ -227,7 +227,7 @@ const StaffLayout = () => {
               <item.icon size={16} strokeWidth={2.25} />
               {item.label}
               {item.path === '/staff/notifications' && unreadCount > 0 && (
-                <span style={{ marginLeft: 'auto', minWidth: '18px', padding: '0.1rem 0.35rem', borderRadius: '9px', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', fontSize: '0.72rem', textAlign: 'center' }}>
+                <span style={{ marginLeft: 'auto', minWidth: '18px', padding: '0.1rem 0.35rem', borderRadius: 'var(--admin-radius)', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', fontSize: '0.72rem', textAlign: 'center' }}>
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
@@ -346,7 +346,7 @@ const StaffLayout = () => {
             <button
               onClick={() => navigate('/staff/notifications')}
               aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
-              style={{ minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', padding: '0.5rem', borderRadius: '4px', cursor: 'pointer', position: 'relative', opacity: unreadCount > 0 ? 1 : 0.6, transition: 'all 0.2s' }}
+              style={{ minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', padding: '0.5rem', borderRadius: 'var(--admin-radius)', cursor: 'pointer', position: 'relative', opacity: unreadCount > 0 ? 1 : 0.6, transition: 'all 0.2s' }}
               onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
               onMouseLeave={(e) => { if (unreadCount <= 0) e.currentTarget.style.opacity = '0.6'; }}
             >
@@ -358,7 +358,7 @@ const StaffLayout = () => {
                   fontSize: '0.72rem', fontWeight: '950',
                   minWidth: '16px', height: '16px', padding: '0 3px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  borderRadius: '2px', border: '1.5px solid var(--admin-card)'
+                  borderRadius: 'var(--admin-radius-sm)', border: '1.5px solid var(--admin-card)'
                 }}>{unreadCount > 99 ? '99+' : unreadCount}</span>
               )}
             </button>

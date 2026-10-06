@@ -118,7 +118,7 @@ const StaffWorkHistory = () => {
         subtitle="Review your completed detailing jobs and historical service performance."
       />
 
-      <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', overflow: 'hidden' }}>
         {/* Search Bar & Stats */}
         <div style={{
           padding: '1.5rem',
@@ -136,7 +136,7 @@ const StaffWorkHistory = () => {
               placeholder="Search by Plate or Model..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ width: '100%', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '0.75rem 1rem 0.75rem 2.5rem', color: 'var(--admin-text-primary)', fontSize: '0.85rem', outline: 'none' }}
+              style={{ width: '100%', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: '0.75rem 1rem 0.75rem 2.5rem', color: 'var(--admin-text-primary)', fontSize: '0.85rem', outline: 'none' }}
             />
           </div>
           <div style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
@@ -160,13 +160,13 @@ const StaffWorkHistory = () => {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '4px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: 'var(--admin-radius)', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)' }}>
                         <Car size={20} />
                       </div>
                       <div>
                         <div style={{ fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase' }}>{item.brand} {item.model}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
-                          <span style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', padding: '0.1rem 0.4rem', borderRadius: '2px', fontSize: '0.72rem', fontWeight: '950' }}>
+                          <span style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', padding: '0.1rem 0.4rem', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.72rem', fontWeight: '950' }}>
                             {item.plate_number}
                           </span>
                           <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>
@@ -177,7 +177,7 @@ const StaffWorkHistory = () => {
                     </div>
                     <div style={{
                       fontSize: '0.72rem', fontWeight: '950', padding: '0.2rem 0.5rem',
-                      borderRadius: '2px', background: item.booking_status === 'completed' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                      borderRadius: 'var(--admin-radius-sm)', background: item.booking_status === 'completed' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                       color: item.booking_status === 'completed' ? '#10b981' : '#ef4444', border: '1px solid currentColor', textTransform: 'uppercase'
                     }}>
                       {item.booking_status}
@@ -185,7 +185,7 @@ const StaffWorkHistory = () => {
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                     {item.services?.slice(0, 3).map((s, i) => (
-                      <span key={i} style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', background: 'rgba(255,255,255,0.03)', padding: '0.2rem 0.5rem', borderRadius: '2px' }}>{s.service_name}</span>
+                      <span key={i} style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', background: 'rgba(255,255,255,0.03)', padding: '0.2rem 0.5rem', borderRadius: 'var(--admin-radius-sm)' }}>{s.service_name}</span>
                     ))}
                     {item.services?.length > 3 && <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)' }}>+{item.services.length - 3} more</span>}
                   </div>
@@ -221,7 +221,7 @@ const StaffWorkHistory = () => {
                   >
                     <td style={tableRowStyle}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '4px', background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: 'var(--admin-radius)', background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)' }}>
                           <Car size={18} />
                         </div>
                         <div>
@@ -231,7 +231,7 @@ const StaffWorkHistory = () => {
                       </div>
                     </td>
                     <td style={tableRowStyle}>
-                      <span style={{ background: 'var(--admin-bg)', padding: '0.25rem 0.5rem', borderRadius: '2px', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)' }}>
+                      <span style={{ background: 'var(--admin-bg)', padding: '0.25rem 0.5rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)' }}>
                         {item.plate_number}
                       </span>
                     </td>
@@ -245,7 +245,7 @@ const StaffWorkHistory = () => {
                       <div style={{ 
                         display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
                         fontSize: '0.72rem', fontWeight: '950', padding: '0.3rem 0.6rem',
-                        borderRadius: '2px', border: '1px solid currentColor',
+                        borderRadius: 'var(--admin-radius-sm)', border: '1px solid currentColor',
                         color: item.booking_status === 'completed' ? '#10b981' : '#ef4444',
                         background: item.booking_status === 'completed' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                         textTransform: 'uppercase'

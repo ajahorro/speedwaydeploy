@@ -1,9 +1,13 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { BarChart2, CalendarDays, CheckCircle2, Clock, Wrench } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// The shop-wide bookings report (and its assistant) load only when the tab is opened.
+const StaffBookingsReport = lazy(() => import('../../features/staff-reports/StaffBookingsReport'));
 
 const TZ = 'Asia/Manila';
 const timeOf = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-PH', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }) : '');
@@ -16,7 +20,7 @@ const statusWords = (status) => {
   return 'Waiting to start';
 };
 
-const cardStyle = { background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '1.25rem' };
+const cardStyle = { background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: '1.25rem' };
 const smallLabel = { fontSize: '0.68rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' };
 
 const Stat = ({ icon: Icon, label, value }) => (
@@ -39,7 +43,7 @@ const ScheduleList = ({ title, rows }) => (
     ) : (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
         {rows.map((row, index) => (
-          <div key={`${row.booking}-${row.plate}-${index}`} style={{ border: '1px solid var(--admin-border)', borderRadius: '6px', padding: '0.75rem 0.9rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '0.5rem' }}>
+          <div key={`${row.booking}-${row.plate}-${index}`} style={{ border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: '0.75rem 0.9rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '0.5rem' }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 900, color: 'var(--admin-text-primary)', fontSize: '0.9rem' }}>{timeOf(row.start)} · {row.vehicle || 'Vehicle'} {row.plate ? `(${row.plate})` : ''}</div>
               <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.78rem', fontWeight: 700, marginTop: '0.2rem' }}>
@@ -55,9 +59,10 @@ const ScheduleList = ({ title, rows }) => (
 );
 
 /**
- * A technician's own report (only when an administrator turned reports on for this account): today's
- * and tomorrow's vehicles, their job counts, and the last jobs they finished. No money and nobody
- * else's work: the database function behind it enforces both.
+ * Staff reports (only when an administrator turned reports on for this account).
+ *  - All bookings: every booking report for the whole shop, plus the bookings assistant. Bookings only: no money,
+ *    payments, prices, or customer contact details (the database functions behind it leave them out).
+ *  - My work: this technician's own vehicles for today and tomorrow, their job counts, and the last jobs they finished.
  */
 const StaffReports = () => {
   const { profile } = useAuth();
@@ -80,7 +85,7 @@ const StaffReports = () => {
   if (denied || !report) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        <PageHeader badge="MY REPORT" title="Reports" subtitle="Your work at a glance." />
+        <PageHeader badge="MY REPORT" title="Reports" subtitle="Booking reports for the shop." />
         <div style={{ ...cardStyle, color: 'var(--admin-text-secondary)', fontWeight: 700 }}>
           Reports are not turned on for your account. Ask an administrator if you need them.
         </div>
@@ -95,8 +100,20 @@ const StaffReports = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
-      <PageHeader badge="MY REPORT" title="Reports" subtitle="Your vehicles and finished jobs. This report shows your own work only." onRefresh={load} />
+      <PageHeader badge="REPORTS" title="Reports" subtitle="Booking reports for the whole shop, and your own work. Payments, prices, and customer contact details are not shown." onRefresh={load} />
 
+      <div className="ui-root">
+      <Tabs defaultValue="bookings" className="gap-6">
+        <TabsList>
+          <TabsTrigger value="bookings">All bookings</TabsTrigger>
+          <TabsTrigger value="mine">My work</TabsTrigger>
+        </TabsList>
+        <TabsContent value="bookings">
+          <Suspense fallback={<LoadingState message="Opening the bookings report..." />}>
+            <StaffBookingsReport />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="mine" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '1rem' }}>
         <Stat icon={CalendarDays} label="Vehicles today" value={counts.today_total ?? 0} />
         <Stat icon={CheckCircle2} label="Finished today" value={counts.today_completed ?? 0} />
@@ -126,6 +143,9 @@ const StaffReports = () => {
             ))}
           </div>
         )}
+      </div>
+        </TabsContent>
+      </Tabs>
       </div>
     </div>
   );

@@ -276,7 +276,7 @@ const StaffDashboard = () => {
       fontSize: '0.72rem',
       fontWeight: '950',
       padding: '0.35rem 0.75rem',
-      borderRadius: '4px',
+      borderRadius: 'var(--admin-radius)',
       textTransform: 'uppercase',
       border: '1px solid currentColor',
       background: s === 'COMPLETED' ? 'rgba(16, 185, 129, 0.1)' : (s === 'IN_PROGRESS' ? 'rgba(245, 158, 11, 0.1)' : 'var(--admin-input-bg)'),
@@ -297,7 +297,7 @@ const StaffDashboard = () => {
           subtitle={`Ready for duty, ${profile?.full_name?.split(' ')[0]}. Vehicles assigned to you for detailing today.`}
         />
 
-        <div style={{ background: 'var(--admin-card)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--admin-border)', minWidth: isMobile ? 0 : '320px', width: isMobile ? '100%' : undefined, maxWidth: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', padding: '1.25rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', minWidth: isMobile ? 0 : '320px', width: isMobile ? '100%' : undefined, maxWidth: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <TrendingUp size={14} color="var(--status-success)" /> Shift Tracker
@@ -323,7 +323,7 @@ const StaffDashboard = () => {
               type="button"
               onClick={() => confirmThen({ title: 'Start your shift?', message: 'You will be marked on duty and can receive assignments.', confirmText: 'Start shift' }, handleClockIn)}
               disabled={!profile?.id || isClockingIn}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', padding: '0.75rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: '4px', fontWeight: '900', textTransform: 'uppercase', cursor: isClockingIn ? 'wait' : 'pointer', opacity: !profile?.id || isClockingIn ? 0.65 : 1 }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', padding: '0.75rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius)', fontWeight: '900', textTransform: 'uppercase', cursor: isClockingIn ? 'wait' : 'pointer', opacity: !profile?.id || isClockingIn ? 0.65 : 1 }}
             >
               <LogIn size={16} /> {isClockingIn ? 'Clocking In...' : 'Clock In'}
             </button>
@@ -342,18 +342,18 @@ const StaffDashboard = () => {
 
           {tasks.length > 0 ? (
             tasks.map((task) => (
-              <div key={task.id} style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.2s', opacity: task.status === 'COMPLETED' ? 0.7 : 1 }}>
+              <div key={task.id} style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', overflow: 'hidden', transition: 'all 0.2s', opacity: task.status === 'COMPLETED' ? 0.7 : 1 }}>
                 <div style={{ padding: isMobile ? '1rem' : '1.5rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.9rem', background: 'var(--admin-bg)' }}>
                   <div
                     onClick={() => navigate(`/staff/job/${task.id}`)}
                     style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.85rem' : '1.25rem', cursor: 'pointer', flex: '1 1 260px', minWidth: 0 }}
                   >
-                    <div style={{ width: '56px', height: '56px', borderRadius: '8px', background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)', border: '1px solid var(--admin-border)' }}>
+                    <div style={{ width: '56px', height: '56px', borderRadius: 'var(--admin-radius)', background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)', border: '1px solid var(--admin-border)' }}>
                       <Car size={28} />
                     </div>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem 0.5rem', marginBottom: '0.25rem' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-brand)', background: 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.1)', padding: '0.2rem 0.5rem', borderRadius: '2px', letterSpacing: '1px' }}>JOB #{task.id.slice(0, 8).toUpperCase()}</span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-brand)', background: 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.1)', padding: '0.2rem 0.5rem', borderRadius: 'var(--admin-radius-sm)', letterSpacing: '1px' }}>JOB #{task.id.slice(0, 8).toUpperCase()}</span>
                         <span style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>• Plate: {task.plate_number || 'N/A'}</span>
                       </div>
                       <h3 style={{ margin: 0, fontSize: isMobile ? '1.05rem' : '1.2rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '0.5px', overflowWrap: 'anywhere' }}>{task.brand} {task.model}</h3>
@@ -369,11 +369,11 @@ const StaffDashboard = () => {
                 </div>
 
                 <div style={{ padding: isMobile ? '1rem' : '1.5rem', display: 'flex', flexDirection: 'column', gap: isMobile ? '1.1rem' : '1.5rem' }}>
-                  <div style={{ background: 'var(--admin-bg)', borderRadius: '6px', padding: '1.25rem', border: '1px solid var(--admin-border)' }}>
+                  <div style={{ background: 'var(--admin-bg)', borderRadius: 'var(--admin-radius)', padding: '1.25rem', border: '1px solid var(--admin-border)' }}>
                     <div style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.75rem' }}>Service Breakdown</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
                       {task.services?.map((s, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--admin-card)', padding: '0.4rem 0.8rem', borderRadius: '4px', border: '1px solid var(--admin-border)' }}>
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--admin-card)', padding: '0.4rem 0.8rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)' }}>
                           <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--admin-brand)' }}></div>
                           <span style={{ fontSize: '0.7rem', color: 'var(--admin-text-primary)', fontWeight: '800', textTransform: 'uppercase' }}>{s.service_name}</span>
                         </div>
@@ -395,9 +395,9 @@ const StaffDashboard = () => {
                           value={localNotes[task.id] || ''}
                           onChange={(e) => setLocalNotes({ ...localNotes, [task.id]: e.target.value })}
                           disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'}
-                          style={{ width: '100%', minHeight: '100px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '1rem', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '600', outline: 'none', resize: 'none' }}
+                          style={{ width: '100%', minHeight: '100px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: '1rem', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '600', outline: 'none', resize: 'none' }}
                         />
-                        <button onClick={() => confirmThen({ title: 'Save notes?', message: 'The notes are saved to this job for the admin and customer record.', confirmText: 'Save notes' }, () => handleSaveNotes(task.id))} disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'} aria-label="Save notes" style={{ minWidth: 44, minHeight: 44,  position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer' }}>
+                        <button onClick={() => confirmThen({ title: 'Save notes?', message: 'The notes are saved to this job for the admin and customer record.', confirmText: 'Save notes' }, () => handleSaveNotes(task.id))} disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'} aria-label="Save notes" style={{ minWidth: 44, minHeight: 44,  position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius)', padding: '0.5rem', cursor: 'pointer' }}>
                           <Save size={16} />
                         </button>
                       </div>
@@ -445,7 +445,7 @@ const StaffDashboard = () => {
                           beforePhotos={photoCounts[task.id]?.before || 0}
                           startDatetime={task.start_datetime}
                         />
-                        {SHOW_START_SERVICE_ACTIONS && <button onClick={() => requestStartTask(task)} disabled={!canStartTask(task)} title={!profile?.is_clocked_in ? 'Clock in to start service.' : (photoCounts[task.id]?.before || 0) < 1 ? 'Upload at least one before photo first.' : undefined} style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canStartTask(task) ? 'var(--admin-brand)' : 'var(--admin-border)', color: canStartTask(task) ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', cursor: canStartTask(task) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        {SHOW_START_SERVICE_ACTIONS && <button onClick={() => requestStartTask(task)} disabled={!canStartTask(task)} title={!profile?.is_clocked_in ? 'Clock in to start service.' : (photoCounts[task.id]?.before || 0) < 1 ? 'Upload at least one before photo first.' : undefined} style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canStartTask(task) ? 'var(--admin-brand)' : 'var(--admin-border)', color: canStartTask(task) ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)', border: 'none', borderRadius: 'var(--admin-radius)', fontWeight: '950', fontSize: '0.8rem', cursor: canStartTask(task) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
                           <Play size={18} /> START SERVICE
                         </button>}
                       </>
@@ -469,7 +469,7 @@ const StaffDashboard = () => {
                                       ? 'Add at least 1 completion (after) photo to finish.'
                                   : 'Mark this job as finished.'
                             }
-                                    style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canComplete ? 'var(--status-success)' : 'var(--admin-border)', color: canComplete ? 'white' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', cursor: !profile?.is_clocked_in || missingAfter ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}
+                                    style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canComplete ? 'var(--status-success)' : 'var(--admin-border)', color: canComplete ? 'white' : 'var(--admin-text-secondary)', border: 'none', borderRadius: 'var(--admin-radius)', fontWeight: '950', fontSize: '0.8rem', cursor: !profile?.is_clocked_in || missingAfter ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}
                           >
                                     <CheckCircle2 size={18} /> MARK AS FINISHED
                           </button>
@@ -481,7 +481,7 @@ const StaffDashboard = () => {
               </div>
             ))
           ) : (
-            <div style={{ background: 'var(--admin-card)', border: '1px dashed var(--admin-border)', borderRadius: '8px', textAlign: 'center', padding: '2rem 1.5rem', minHeight: '180px', maxHeight: '220px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', border: '1px dashed var(--admin-border)', borderRadius: 'var(--admin-radius)', textAlign: 'center', padding: '2rem 1.5rem', minHeight: '180px', maxHeight: '220px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
               <ClipboardList size={36} style={{ marginBottom: '1rem', opacity: 0.25, color: 'var(--admin-text-secondary)' }} />
               <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: 'var(--admin-text-primary)' }}>No active assignments</h3>
               <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: '600', marginTop: '0.4rem' }}>Vehicles assigned to you will appear here.</p>
@@ -491,7 +491,7 @@ const StaffDashboard = () => {
 
         <div style={{ width: isMobile ? '100%' : '320px', display: 'flex', flexDirection: 'column', gap: '2rem', position: 'sticky', top: '100px' }}>
           {/* System Broadcasts & Announcements */}
-          <div style={{ background: 'var(--admin-card)', borderRadius: '8px', border: '1px solid var(--admin-border)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', overflow: 'hidden' }}>
             <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <Bell size={18} color="var(--admin-brand)" />
               <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
@@ -520,7 +520,7 @@ const StaffDashboard = () => {
           </div>
 
           {!profile?.is_clocked_in && (
-            <div style={{ padding: '1.25rem', background: 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.05)', border: '1px solid rgba(var(--admin-brand-rgb, 169, 27, 24), 0.15)', borderRadius: '8px', textAlign: 'center' }}>
+            <div style={{ padding: '1.25rem', background: 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.05)', border: '1px solid rgba(var(--admin-brand-rgb, 169, 27, 24), 0.15)', borderRadius: 'var(--admin-radius)', textAlign: 'center' }}>
               <Clock size={24} color="var(--admin-brand)" style={{ margin: '0 auto 0.75rem' }} />
               <div style={{ fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Not Clocked In</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Open Duty &amp; Shift to clock in and enable service controls.</div>

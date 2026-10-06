@@ -19,7 +19,15 @@ const QUICK_QUESTIONS = [
  * so nothing here weighs on first paint. It only reads reports through the backend and can ask
  * this page to change its date range or export the CSV; it cannot change any data.
  */
-export default function AssistantPanel({ open, onOpenChange, range, onSetRange, onExport, onShowBookings, onBookingsPdf }) {
+export default function AssistantPanel({
+  open, onOpenChange, range, onSetRange, onExport, onShowBookings, onBookingsPdf,
+  endpoint = '/api/admin/analytics-assistant',
+  quickQuestions = QUICK_QUESTIONS,
+  title = 'Ask the reports assistant',
+  description = 'Ask about bookings, money and balances for any day. It can open a report or create a PDF, but it cannot change any data.',
+  busyText = 'Reading the ledger…',
+  placeholder = 'Ask a question…'
+}) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -36,7 +44,7 @@ export default function AssistantPanel({ open, onOpenChange, range, onSetRange, 
     setBusy(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(`${BACKEND_URL}/api/admin/analytics-assistant`, {
+      const response = await fetch(`${BACKEND_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
         body: JSON.stringify({ question: text, history, range })
@@ -61,14 +69,14 @@ export default function AssistantPanel({ open, onOpenChange, range, onSetRange, 
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="ui-root flex w-full flex-col gap-0 sm:max-w-md">
         <SheetHeader>
-          <SheetTitle className="flex items-center gap-2"><Sparkles className="size-4" /> Ask the reports assistant</SheetTitle>
-          <SheetDescription>Ask about bookings, money and balances for any day. It can open a report or create a PDF, but it cannot change any data.</SheetDescription>
+          <SheetTitle className="flex items-center gap-2"><Sparkles className="size-4" /> {title}</SheetTitle>
+          <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 space-y-3 overflow-y-auto px-4 py-2" aria-live="polite">
           {messages.length === 0 && (
             <div className="flex flex-wrap gap-2">
-              {QUICK_QUESTIONS.map((question) => (
+              {quickQuestions.map((question) => (
                 <Button key={question} variant="outline" size="sm" className="h-auto whitespace-normal text-left" onClick={() => ask(question)}>{question}</Button>
               ))}
             </div>
@@ -80,7 +88,7 @@ export default function AssistantPanel({ open, onOpenChange, range, onSetRange, 
               </div>
             </div>
           ))}
-          {busy && <p className="text-xs text-muted-foreground">Reading the ledger…</p>}
+          {busy && <p className="text-xs text-muted-foreground">{busyText}</p>}
           <div ref={endRef} />
         </div>
 
@@ -89,7 +97,7 @@ export default function AssistantPanel({ open, onOpenChange, range, onSetRange, 
             value={input}
             onChange={(event) => setInput(event.target.value)}
             maxLength={600}
-            placeholder="Ask a question…"
+            placeholder={placeholder}
             aria-label="Ask the finance assistant"
             data-no-auto-capitalize="true"
             className="h-9 flex-1 rounded-md border bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"

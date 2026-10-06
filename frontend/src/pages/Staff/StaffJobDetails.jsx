@@ -79,9 +79,9 @@ const StaffJobDetails = () => {
   if (!unit) return null;
 
   const cardStyle = {
-    background: 'var(--admin-card)',
+    background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)',
     border: '1px solid var(--admin-border)',
-    borderRadius: '8px',
+    borderRadius: 'var(--admin-radius)',
     padding: '2rem',
     display: 'flex',
     flexDirection: 'column',
@@ -160,14 +160,14 @@ const StaffJobDetails = () => {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
               {unit.services?.map((s, i) => (
-                <div key={i} style={{ flex: '1 1 200px', background: 'var(--admin-bg)', padding: '1rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                <div key={i} style={{ flex: '1 1 200px', background: 'var(--admin-bg)', padding: '1rem', borderRadius: 'var(--admin-radius)', border: '1px solid rgba(255,255,255,0.03)' }}>
                   <div style={{ fontSize: '0.85rem', fontWeight: '900', color: 'var(--admin-text-primary)' }}>{s.service_name}</div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '700', marginTop: '0.25rem' }}>PROFESSIONAL GRADE</div>
                 </div>
               ))}
             </div>
             {unit.service_notes && (
-              <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--admin-bg)', borderRadius: '4px', borderLeft: '3px solid var(--admin-brand)' }}>
+              <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--admin-bg)', borderRadius: 'var(--admin-radius)', borderLeft: '3px solid var(--admin-brand)' }}>
                 <div style={labelStyle}>Technical Observations</div>
                 <div style={{ fontSize: '0.85rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>{unit.service_notes}</div>
               </div>
@@ -233,14 +233,14 @@ const StaffJobDetails = () => {
                     type="button"
                     onClick={() => setPhotoGalleryOpen(true)}
                     aria-label={`View ${photo.phase} service photo`}
-                    style={{ padding: 0, aspectRatio: '1 / 1', overflow: 'hidden', border: '1px solid var(--admin-border)', borderRadius: '4px', background: 'var(--admin-bg)', cursor: 'pointer' }}
+                    style={{ padding: 0, aspectRatio: '1 / 1', overflow: 'hidden', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', background: 'var(--admin-bg)', cursor: 'pointer' }}
                   >
                     <img src={photo.url} alt={photo.caption || `${photo.phase} service evidence`} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                   </button>
                 ))}
               </div>
             ) : (
-              <div style={{ height: '150px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: 'var(--admin-bg)', borderRadius: '4px', border: '1px dashed var(--admin-border)' }}>
+              <div style={{ height: '150px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: 'var(--admin-bg)', borderRadius: 'var(--admin-radius)', border: '1px dashed var(--admin-border)' }}>
                 <Info size={24} color="var(--admin-text-secondary)" />
                 <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '950' }}>NO EVIDENCE PHOTOS AVAILABLE</div>
               </div>

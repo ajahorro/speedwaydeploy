@@ -141,20 +141,20 @@ const StaffActiveJobs = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
         {tasks.length > 0 ? (
           tasks.map(task => (
-            <div key={task.id} style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div key={task.id} style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
                 <div
                   onClick={() => navigate(`/staff/job/${task.id}`)}
                   style={{ display: 'flex', gap: '1rem', alignItems: 'center', cursor: 'pointer', flex: '1 1 240px', minWidth: 0 }}
                 >
-                  <div style={{ width: '48px', height: '48px', borderRadius: '4px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: 'var(--admin-radius)', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)' }}>
                     <Car size={24} />
                   </div>
                   <div>
                     <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase', overflowWrap: 'anywhere' }}>{task.brand} {task.model}</h3>
                     <CustomerContact name={task.customer_name} phone={task.contact_number} compact />
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem' }}>
-                      <span style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', padding: '0.15rem 0.45rem', borderRadius: '2px', fontSize: '0.72rem', fontWeight: '950', letterSpacing: '0.5px' }}>
+                      <span style={{ background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', padding: '0.15rem 0.45rem', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.72rem', fontWeight: '950', letterSpacing: '0.5px' }}>
                         {task.plate_number}
                       </span>
                     </div>
@@ -162,17 +162,17 @@ const StaffActiveJobs = () => {
                 </div>
                 <div style={{
                   fontSize: '0.72rem', fontWeight: '950', padding: '0.3rem 0.6rem',
-                  borderRadius: '2px', background: task.status === 'IN_PROGRESS' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(255,255,255,0.05)',
+                  borderRadius: 'var(--admin-radius-sm)', background: task.status === 'IN_PROGRESS' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(255,255,255,0.05)',
                   color: task.status === 'IN_PROGRESS' ? '#f59e0b' : '#8E9196', border: '1px solid currentColor', textTransform: 'uppercase'
                 }}>
                   {String(task.status || '').replace(/_/g, ' ')}
                 </div>
               </div>
 
-              <div style={{ background: 'var(--admin-bg)', padding: '1rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
+              <div style={{ background: 'var(--admin-bg)', padding: '1rem', borderRadius: 'var(--admin-radius)', border: '1px solid rgba(255,255,255,0.03)' }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                   {task.services?.map((s, i) => (
-                    <span key={i} style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--admin-text-primary)', background: 'var(--admin-card)', padding: '0.25rem 0.5rem', borderRadius: '2px', border: '1px solid var(--admin-border)' }}>{s.service_name}</span>
+                    <span key={i} style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--admin-text-primary)', background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', padding: '0.25rem 0.5rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>{s.service_name}</span>
                   ))}
                 </div>
               </div>
@@ -206,9 +206,9 @@ const StaffActiveJobs = () => {
                   autoCorrect="off"
                   spellCheck={false}
                   data-no-auto-capitalize=""
-                  style={{ width: '100%', minHeight: '80px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '1rem', color: 'var(--admin-text-primary)', fontSize: '0.85rem', outline: 'none', resize: 'none' }}
+                  style={{ width: '100%', minHeight: '80px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: '1rem', color: 'var(--admin-text-primary)', fontSize: '0.85rem', outline: 'none', resize: 'none' }}
                 />
-                <button onClick={() => confirmThen({ title: 'Save notes?', message: 'The notes are saved to this job for the admin and customer record.', confirmText: 'Save notes' }, () => handleSaveNotes(task.id))} aria-label="Save notes" style={{ minWidth: 44, minHeight: 44,  position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '4px', padding: '0.4rem', cursor: 'pointer', color: 'var(--admin-text-primary)' }}>
+                <button onClick={() => confirmThen({ title: 'Save notes?', message: 'The notes are saved to this job for the admin and customer record.', confirmText: 'Save notes' }, () => handleSaveNotes(task.id))} aria-label="Save notes" style={{ minWidth: 44, minHeight: 44,  position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius)', padding: '0.4rem', cursor: 'pointer', color: 'var(--admin-text-primary)' }}>
                   <Save size={14} />
                 </button>
               </div>
@@ -223,12 +223,12 @@ const StaffActiveJobs = () => {
               )}
               <div style={{ display: 'flex', gap: '1rem' }}>
                 {SHOW_START_SERVICE_ACTIONS && ['PENDING', 'SCHEDULED', 'CONFIRMED'].includes(task.status?.toUpperCase()) && (
-                  <button onClick={() => requestUpdateStatus(task, 'IN_PROGRESS')} disabled={!canStartTask(task)} title={!profile?.is_clocked_in ? 'Clock in before starting.' : (photoCounts[task.id]?.before || 0) < 1 ? 'Upload an intake photo first.' : new Date(task.start_datetime).getTime() > Date.now() ? 'Available at the scheduled start time.' : undefined} style={{ flex: 1, padding: '0.85rem', background: canStartTask(task) ? '#E61E2A' : 'var(--admin-border)', color: canStartTask(task) ? 'white' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: canStartTask(task) ? 'pointer' : 'not-allowed', textTransform: 'uppercase' }}>
+                  <button onClick={() => requestUpdateStatus(task, 'IN_PROGRESS')} disabled={!canStartTask(task)} title={!profile?.is_clocked_in ? 'Clock in before starting.' : (photoCounts[task.id]?.before || 0) < 1 ? 'Upload an intake photo first.' : new Date(task.start_datetime).getTime() > Date.now() ? 'Available at the scheduled start time.' : undefined} style={{ flex: 1, padding: '0.85rem', background: canStartTask(task) ? '#E61E2A' : 'var(--admin-border)', color: canStartTask(task) ? 'white' : 'var(--admin-text-secondary)', border: 'none', borderRadius: 'var(--admin-radius)', fontWeight: '950', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: canStartTask(task) ? 'pointer' : 'not-allowed', textTransform: 'uppercase' }}>
                     <Play size={16} /> Start Service
                   </button>
                 )}
                 {task.status?.toUpperCase() === 'IN_PROGRESS' && (
-                  <button onClick={() => requestUpdateStatus(task, 'COMPLETED')} disabled={!profile?.is_clocked_in || (photoCounts[task.id]?.after || 0) < 1} style={{ flex: 1, padding: '0.85rem', background: profile?.is_clocked_in && (photoCounts[task.id]?.after || 0) > 0 ? 'var(--status-success)' : 'var(--admin-border)', color: profile?.is_clocked_in && (photoCounts[task.id]?.after || 0) > 0 ? 'var(--admin-text-primary)' : 'var(--admin-text-secondary)', border: 'none', borderRadius: '4px', fontWeight: '950', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: profile?.is_clocked_in && (photoCounts[task.id]?.after || 0) > 0 ? 'pointer' : 'not-allowed', textTransform: 'uppercase' }}>
+                  <button onClick={() => requestUpdateStatus(task, 'COMPLETED')} disabled={!profile?.is_clocked_in || (photoCounts[task.id]?.after || 0) < 1} style={{ flex: 1, padding: '0.85rem', background: profile?.is_clocked_in && (photoCounts[task.id]?.after || 0) > 0 ? 'var(--status-success)' : 'var(--admin-border)', color: profile?.is_clocked_in && (photoCounts[task.id]?.after || 0) > 0 ? 'var(--admin-text-primary)' : 'var(--admin-text-secondary)', border: 'none', borderRadius: 'var(--admin-radius)', fontWeight: '950', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: profile?.is_clocked_in && (photoCounts[task.id]?.after || 0) > 0 ? 'pointer' : 'not-allowed', textTransform: 'uppercase' }}>
                     <CheckCircle2 size={16} /> Complete Service
                   </button>
                 )}
