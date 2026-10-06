@@ -1,8 +1,8 @@
 // How long a signed-in session may sit untouched before it is ended automatically.
-// One place to change the numbers. Administrators and staff handle money and customer data, so theirs is shorter.
+// One place to change the numbers (per role if the shop ever wants a different limit).
 export const IDLE_LIMIT_MINUTES = {
-  ADMIN: 15,
-  STAFF: 15,
+  ADMIN: 60,
+  STAFF: 60,
   CUSTOMER: 60
 };
 

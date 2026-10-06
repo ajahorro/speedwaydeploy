@@ -297,7 +297,7 @@ const idleLogout = () => {
   // limits and rules panel
   const px = 800, pw = 400, py = 130;
   const rows = [
-    ['Idle limits', 'Administrator and staff: 15 minutes. Customer: 60 minutes. They are set in one place and can be changed.'],
+    ['Idle limits', 'Every role (administrator, staff, and customer) is signed out after 60 minutes without activity. The limit is set in one place and can be changed.'],
     ['Several tabs', 'Activity in any tab keeps every tab signed in. If another tab presses "Stay signed in", this tab\'s warning closes.'],
     ['Reopened browser', 'If the limit has already passed (for example the computer was asleep or closed), the user is signed out at once, with no warning.'],
     ['Nothing is lost', 'Booking forms are saved as they are typed, so the draft is there after signing in again.']

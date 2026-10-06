@@ -9,9 +9,8 @@ const checks = [];
 const check = (name, fn) => { try { fn(); checks.push([name, true]); } catch (e) { checks.push([name, false, e.message]); } };
 const MIN = 60000;
 
-check('administrator and staff have a shorter limit than customers', () => {
-  assert.ok(IDLE_LIMIT_MINUTES.ADMIN < IDLE_LIMIT_MINUTES.CUSTOMER);
-  assert.equal(IDLE_LIMIT_MINUTES.ADMIN, IDLE_LIMIT_MINUTES.STAFF);
+check('every role is signed out after 60 minutes without activity', () => {
+  for (const role of ['ADMIN', 'STAFF', 'CUSTOMER']) assert.equal(IDLE_LIMIT_MINUTES[role], 60);
   assert.equal(idleLimitMinutesFor('staff'), IDLE_LIMIT_MINUTES.STAFF);
   assert.equal(idleLimitMinutesFor(undefined), IDLE_LIMIT_MINUTES.CUSTOMER);
 });

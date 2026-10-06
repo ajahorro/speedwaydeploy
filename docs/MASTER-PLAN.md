@@ -470,7 +470,7 @@ The original plan is archived unchanged in `docs/MASTER-PLAN-v1-original.md`. It
 - **Tests:** `verify-all` now has 21 checks (adds staff reports 6, booking draft invites 12).
 
 ## Automatic logout after inactivity: built (migration `20261119000001`)
-- **Limits (one place, `config/sessionPolicy.js`):** administrator and staff 15 minutes, customers 60 minutes. A warning with a 60-second countdown and "Stay signed in" / "Sign out now" appears before the end.
+- **Limits (one place, `config/sessionPolicy.js`):** 60 minutes for every role (the owner asked for this so staff and administrators who work continuously are not signed out between services). A warning with a 60-second countdown and "Stay signed in" / "Sign out now" appears before the end.
 - **Behaviour:** the last-activity time is shared by all open tabs of the browser, so activity in one tab keeps every tab signed in; clicks elsewhere do not count while the warning is open (only the button); a browser reopened after the limit signs out at once; the login page explains why ("signed out because there was no activity"); booking drafts are already saved as typed.
 - **Audit:** an administrator's or staff member's automatic sign-out is written to the audit log ("Signed out for inactivity").
 - **Tests:** `scripts/verify-idle-session.mjs` (14 checks, part of `verify-all`, now 22 checks); tested live in the browser: warning, "Stay signed in", expiry sign-out, login message, audit row.
