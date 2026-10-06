@@ -2712,13 +2712,11 @@ app.post('/api/admin/services/usage', async (req, res) => {
  * The Default Admin guard is enforced here too.
  */
 // ── Admin edits a staff or admin account (master plan 4.8) ───────────────────────────────
-// Editable: first name, last name, mobile number, birthday, hire date, role (STAFF <-> ADMIN) and
-// a forced password reset. The email address is not editable. Role-safety rules live in the
+// Editable: first name, last name, mobile number, report access, and role (STAFF <-> ADMIN). The joined date
+// is set by the database and the email address is not editable. Role-safety rules live in the
 // database (default admin, last admin, staff with active services), so they hold for every caller;
 // their errors come back here as 409. Every change writes an audit entry with before and after.
 const NAME_PATTERN = /^[\p{L}][\p{L} .'-]{0,59}$/u;
-const isIsoDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
-const todayIsoInManila = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
 
 app.patch('/api/admin/staff/:id', async (req, res) => {
   const actor = await requireAdmin(req);
@@ -2750,14 +2748,6 @@ app.patch('/api/admin/staff/:id', async (req, res) => {
       const phone = normalizePhPhone(body.phone_number);
       if (phone !== (before.phone_number || '')) updates.phone_number = phone;
     }
-    if (body.birthday !== undefined) {
-      if (body.birthday === null || body.birthday === '') {
-        if (before.birthday) updates.birthday = null;
-      } else {
-        if (!isIsoDay(body.birthday) || body.birthday > todayIsoInManila() || body.birthday < '1900-01-01') return fail('Enter a valid birthday that is not in the future.');
-        if (body.birthday !== before.birthday) updates.birthday = body.birthday;
-      }
-    }
     // The joined date is set by the database when the account becomes a staff account; it cannot be edited.
     if (body.hired_at !== undefined && String(body.hired_at || '') !== String(before.hired_at || '')) {
       return fail('The joined date is set automatically and cannot be changed.');
@@ -2779,8 +2769,6 @@ app.patch('/api/admin/staff/:id', async (req, res) => {
     if (updates.first_name !== undefined || updates.last_name !== undefined) {
       updates.full_name = `${updates.first_name ?? before.first_name ?? ''} ${updates.last_name ?? before.last_name ?? ''}`.trim();
     }
-    const forceReset = body.force_password_reset === true;
-    if (forceReset) updates.must_change_password = true;
     if (Object.keys(updates).length === 0) {
       return res.json({ success: true, changed: [], profile: toPublicProfile(before), message: 'Nothing to change.' });
     }
@@ -2792,32 +2780,18 @@ app.patch('/api/admin/staff/:id', async (req, res) => {
       return res.status(guarded ? 409 : 500).json({ success: false, error: guarded ? updateError.message : 'The account could not be updated.' });
     }
 
-    let passwordResetSent = null;
-    if (forceReset && before.email) {
-      try {
-        const { data: link, error: linkError } = await supabaseAdmin.auth.admin.generateLink({ type: 'recovery', email: before.email });
-        const resetLink = link?.properties?.action_link;
-        if (linkError || !resetLink) throw linkError || new Error('No reset link');
-        await sendPasswordResetEmail({ customerEmail: before.email, resetLink });
-        passwordResetSent = true;
-      } catch (mailError) {
-        console.warn('[ADMIN] forced password reset email failed:', mailError.message);
-        passwordResetSent = false;
-      }
-    }
-
     const changed = Object.keys(updates).filter((key) => key !== 'full_name');
     const diff = (source) => Object.fromEntries(changed.map((key) => [key, source[key] ?? null]));
     await writeAuditLog({
       actionType: 'STAFF_DETAILS_UPDATED',
-      details: `Updated ${before.full_name || before.email} (${currentRole}): ${changed.join(', ')}${forceReset ? '. Password reset required.' : ''}`,
+      details: `Updated ${before.full_name || before.email} (${currentRole}): ${changed.join(', ')}`,
       actorId: actor.profile.id,
       actorName: actor.profile.full_name || actor.profile.email,
       actorRole: 'ADMIN',
-      metadata: { target_id: targetId, before: diff(before), after: diff(after), password_reset_sent: passwordResetSent }
+      metadata: { target_id: targetId, before: diff(before), after: diff(after) }
     });
 
-    return res.json({ success: true, changed, profile: toPublicProfile(after), passwordResetSent });
+    return res.json({ success: true, changed, profile: toPublicProfile(after) });
   } catch (error) {
     console.error('[ADMIN] staff update failed:', error.message);
     return res.status(500).json({ success: false, error: 'The account could not be updated.' });

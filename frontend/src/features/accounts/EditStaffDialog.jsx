@@ -11,23 +11,19 @@ import { PhoneInput } from '@/components/common/ContactInputs';
 import { isValidPhPhone, normalizePhPhone } from '@/utils/contactValidation';
 
 const NAME_PATTERN = /^[\p{L}][\p{L} .'-]{0,59}$/u;
-const today = () => new Date().toISOString().slice(0, 10);
 
 const toForm = (member) => ({
   first_name: member?.first_name || '',
   last_name: member?.last_name || '',
   phone_number: member?.phone_number || '',
-  birthday: member?.birthday || '',
   role: String(member?.role || 'STAFF').toUpperCase(),
-  can_view_reports: Boolean(member?.can_view_reports),
-  force_password_reset: false
+  can_view_reports: Boolean(member?.can_view_reports)
 });
 
 const LABELS = {
   first_name: 'First name',
   last_name: 'Last name',
   phone_number: 'Mobile number',
-  birthday: 'Birthday',
   role: 'Role',
   can_view_reports: 'Can view reports'
 };
@@ -63,7 +59,6 @@ export default function EditStaffDialog({ member, open, onOpenChange, onSaved, r
     if (!NAME_PATTERN.test(form.first_name.trim())) e.first_name = 'Enter a first name (letters only).';
     if (!NAME_PATTERN.test(form.last_name.trim())) e.last_name = 'Enter a last name (letters only).';
     if (!isValidPhPhone(form.phone_number)) e.phone_number = 'Enter an 11-digit mobile number starting with 09.';
-    if (form.birthday && (form.birthday > today() || form.birthday < '1900-01-01')) e.birthday = 'Birthday cannot be in the future.';
     return e;
   }, [form]);
 
@@ -78,14 +73,14 @@ export default function EditStaffDialog({ member, open, onOpenChange, onSaved, r
     return list;
   }, [form, original]);
 
-  const hasChanges = changes.length > 0 || form.force_password_reset;
+  const hasChanges = changes.length > 0;
   const valid = Object.keys(errors).length === 0;
 
   const save = async () => {
     setSaving(true);
     setServerError('');
     try {
-      const payload = { force_password_reset: form.force_password_reset };
+      const payload = {};
       changes.forEach(({ key }) => {
         if (key === 'can_view_reports') payload[key] = Boolean(form[key]);
         else payload[key] = key === 'phone_number' ? normalizePhPhone(form[key]) : String(form[key]).trim() || null;
@@ -97,9 +92,7 @@ export default function EditStaffDialog({ member, open, onOpenChange, onSaved, r
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.success) throw new Error(result.error || 'The account could not be updated.');
-      toast.success(form.force_password_reset
-        ? (result.passwordResetSent === false ? 'Saved. The reset email could not be sent, but a password change is now required at next sign-in.' : 'Saved. A password reset link was emailed.')
-        : 'Account updated.');
+      toast.success('Account updated.');
       onSaved?.(result.profile);
       onOpenChange(false);
     } catch (error) {
@@ -151,17 +144,12 @@ export default function EditStaffDialog({ member, open, onOpenChange, onSaved, r
               {errorText('phone_number')}
             </div>
 
-            <div className="grid gap-5 sm:grid-cols-2">
-              <div className={fieldClass}>
-                <Label htmlFor="es-birthday">Birthday</Label>
-                <Input id="es-birthday" type="date" value={form.birthday} max={today()} onChange={set('birthday')} aria-invalid={Boolean(errors.birthday)} />
-                {errorText('birthday')}
-              </div>
-              <div className={fieldClass}>
-                <Label htmlFor="es-hired">Date joined</Label>
-                <Input id="es-hired" type="text" readOnly disabled value={member?.hired_at ? new Date(`${member.hired_at}T00:00:00`).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'} />
-                <p className="text-xs text-muted-foreground">Set automatically when the account became a staff account.</p>
-              </div>
+            <div className="flex items-baseline justify-between gap-4 rounded-md border bg-muted/30 px-3 py-2.5 text-sm">
+              <span className="text-muted-foreground">Date joined</span>
+              <span className="text-right">
+                <strong>{member?.hired_at ? new Date(`${member.hired_at}T00:00:00`).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</strong>
+                <span className="block text-xs text-muted-foreground">Set automatically when the account became a staff account.</span>
+              </span>
             </div>
 
             <div className={fieldClass}>
@@ -191,13 +179,6 @@ export default function EditStaffDialog({ member, open, onOpenChange, onSaved, r
               </div>
             )}
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
-              <input type="checkbox" className="mt-0.5" checked={form.force_password_reset} onChange={(event) => setForm((prev) => ({ ...prev, force_password_reset: event.target.checked }))} />
-              <span className="grid gap-0.5">
-                <span className="text-sm font-semibold">Require a password reset</span>
-                <span className="text-xs text-muted-foreground">They must choose a new password at their next sign-in, and a reset link is emailed to them.</span>
-              </span>
-            </label>
           </div>
         ) : (
           <div className="grid max-h-[60dvh] gap-4 overflow-y-auto px-6 py-5">
@@ -208,9 +189,6 @@ export default function EditStaffDialog({ member, open, onOpenChange, onSaved, r
                   <span><span className="text-muted-foreground line-through">{show(change.before)}</span> → <strong>{show(change.after)}</strong></span>
                 </li>
               ))}
-              {form.force_password_reset && (
-                <li className="rounded-md border px-3 py-2 text-sm"><strong>Password reset required</strong> at next sign-in; a reset link will be emailed.</li>
-              )}
             </ul>
             {changes.some((change) => change.key === 'role') && (
               <p role="note" className="rounded-md border border-amber-500/50 px-3 py-2 text-sm">
