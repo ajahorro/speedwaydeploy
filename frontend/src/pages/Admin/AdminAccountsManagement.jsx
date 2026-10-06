@@ -18,6 +18,7 @@ import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { EmailInput } from '../../components/common/ContactInputs';
 import { emailError } from '../../utils/contactValidation';
 import EditStaffDialog from '../../features/accounts/EditStaffDialog';
+import InactiveStaffPanel from '../../features/accounts/InactiveStaffPanel';
 import { matchesSearchText } from '../../utils/searchMatch';
 
 const AdminAccountsManagement = () => {
@@ -257,6 +258,8 @@ const AdminAccountsManagement = () => {
         subtitle="Manage system access levels and administrative privileges via secure invitation."
         onRefresh={fetchAccounts}
       />
+
+      {activeTab === 'STAFF' && <InactiveStaffPanel confirmThen={confirmThen} onChanged={fetchAccounts} />}
 
       <div style={{ ...cardStyle }}>
         {/* Tabs */}

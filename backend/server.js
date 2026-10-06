@@ -2824,6 +2824,45 @@ app.patch('/api/admin/staff/:id', async (req, res) => {
   }
 });
 
+// Only an administrator can bring back a staff account that was deactivated for inactivity.
+app.post('/api/admin/reactivate-staff', async (req, res) => {
+  const { memberId } = req.body || {};
+  try {
+    const actor = await requireAdmin(req);
+    if (!actor) return res.status(403).json({ success: false, error: 'Only administrators may reactivate staff accounts.' });
+    if (!memberId) return res.status(400).json({ success: false, error: 'The account is required.' });
+
+    const { data: profile, error: readError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role, email, full_name, staff_deactivated_at')
+      .eq('id', memberId)
+      .maybeSingle();
+    if (readError) throw readError;
+    if (!profile || !profile.staff_deactivated_at || String(profile.role || '').toUpperCase() !== 'CUSTOMER') {
+      return res.status(409).json({ success: false, error: 'This account was not deactivated for inactivity.' });
+    }
+
+    // Back to staff: the database stamps a new joined date, so the inactivity period starts again.
+    const { error } = await supabaseAdmin
+      .from('profiles')
+      .update({ role: 'STAFF', staff_deactivated_at: null, staff_deactivation_reason: null })
+      .eq('id', memberId);
+    if (error) throw error;
+
+    await writeAuditLog({
+      actionType: 'REACTIVATE_STAFF',
+      actorId: actor.profile.id,
+      actorName: actor.profile.full_name || actor.profile.email || 'ADMIN',
+      actorRole: 'ADMIN',
+      details: `Staff account reactivated for ${profile.full_name || 'Unnamed'} (${profile.email}).`,
+    });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Reactivate staff failed:', err.message);
+    return res.status(500).json({ success: false, error: 'The account could not be reactivated.' });
+  }
+});
+
 app.post('/api/admin/revoke-access', async (req, res) => {
   const { memberId } = req.body;
   console.log(`🚫 [ADMIN] REVOKE ACCESS REQUEST for: ${memberId}`);
@@ -3900,6 +3939,21 @@ const releaseExpiredUnpaidHolds = async () => {
 };
 
 setInterval(releaseExpiredUnpaidHolds, 5 * 60000);
+
+// Deactivate staff accounts that have not signed in for the period the administrator set (off by default).
+// The database function does the work, skips anyone with active work, and writes the audit entry.
+const deactivateInactiveStaff = async () => {
+  if (!supabaseAdmin) return;
+  try {
+    const { data, error } = await supabaseAdmin.rpc('deactivate_inactive_staff');
+    if (error) throw error;
+    if ((data || []).length) console.log(`🕒 [INACTIVE STAFF] Deactivated ${data.length} inactive staff account(s).`);
+  } catch (err) {
+    console.warn('🕒 [INACTIVE STAFF] Sweep failed:', err.message);
+  }
+};
+setInterval(deactivateInactiveStaff, 60 * 60000);
+setTimeout(deactivateInactiveStaff, 2 * 60000);
 releaseExpiredUnpaidHolds();
 
 /**
