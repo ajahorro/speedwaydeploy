@@ -422,3 +422,13 @@ The original plan is archived unchanged in `docs/MASTER-PLAN-v1-original.md`. It
 - **Backend:** staff tasks return only the vehicles assigned to the caller; a technician can start or finish only their own vehicle; a booking is confirmed (and can start) only when every vehicle has a technician; each technician gets their own task notice; the staff directory counts work per vehicle.
 - **Screens:** vehicle cards each have a technician dropdown, plus "Assign all vehicles to…" when there is more than one vehicle; the header shows one name, or a dropdown "Technician - Vehicle" when they differ; the customer sees a technician per vehicle; dashboard/bookings "unassigned" now means any vehicle without a technician; scheduling grid shows a booking in each technician's row.
 - **Tested:** `scripts/sql/verify-per-vehicle-technicians.sql` (16 checks, in `verify-all`) plus the backend routes with two technician accounts.
+
+## To do: make the landing page contact form work
+- **Finding:** the "Contact Us" form on the public landing page (name, email, message) is only a design. Its submit does nothing (`onSubmit` just prevents the page reload), so a visitor's message is lost.
+- **Plan:**
+  1. Store each submission in the database (visitor name, email, message, time, read/handled state), with a simple limit per visitor to stop spam, and no sign-in needed.
+  2. Show the messages to the administrator in a "Website Inquiries" list (new count badge, mark as handled, reply by email link). Keep it separate from the customer booking chat in Message Inquiries.
+  3. Notify the active administrators (in-app, and email to the shop address) when a message arrives.
+  4. Show the visitor a clear confirmation or error, with the same email and message length rules used elsewhere.
+- **Done when:** a message sent from the landing page appears for the administrator within a minute, a repeated or oversized submission is refused, and the visitor sees the result.
+- **Paper:** once built, add "Inquiry Form" back to the Contact item of the Public Landing Page in the scope.
