@@ -432,3 +432,14 @@ The original plan is archived unchanged in `docs/MASTER-PLAN-v1-original.md`. It
   4. Show the visitor a clear confirmation or error, with the same email and message length rules used elsewhere.
 - **Done when:** a message sent from the landing page appears for the administrator within a minute, a repeated or oversized submission is refused, and the visitor sees the result.
 - **Paper:** once built, add "Inquiry Form" back to the Contact item of the Public Landing Page in the scope.
+
+## To do: automatic logout after inactivity
+- **Finding:** there is no idle timeout. A signed-in session stays open until the user signs out or the sign-in token expires, so a shared or unattended shop computer stays signed in as an administrator or technician.
+- **Plan:**
+  1. Track inactivity (clicks, typing, scrolling, touch) in the signed-in app. After the idle period, show a short warning ("You will be signed out in 60 seconds") with a "Stay signed in" button, then sign out and return to the login page with a message.
+  2. Idle period by role: shorter for administrator and staff (they handle money and customer data; proposed 15 minutes), longer for customers (proposed 60 minutes). Keep the values in one place so they can be changed.
+  3. Work across several open tabs: activity in one tab keeps every tab signed in, and a sign-out in one tab signs out all of them.
+  4. Do not lose work silently: if a form has unsaved changes (for example the booking wizard or a payment being recorded), keep the warning visible for the full countdown, and keep the existing draft saving where it exists.
+  5. Record automatic sign-outs in the audit log for administrator and staff accounts.
+- **Done when:** an idle admin, staff, and customer session each end after their configured time, the warning appears and "Stay signed in" resets it, two tabs stay in step, and the login page explains why the user was signed out.
+- **Paper:** once built, add "automatic termination of inactive sessions" back to the security requirements (REQ-NFR-33 in the old numbering).
