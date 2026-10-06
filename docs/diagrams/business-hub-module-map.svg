@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1560 820" width="1560" height="820" font-family="Arial, Helvetica, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker></defs>
+<rect width="1560" height="820" fill="#fff"/>
+<text x="780" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Business Hub (Administrator): Module Map and Effects</text>
+<rect x="25" y="55" width="1510" height="40" rx="8" fill="#111"/>
+<text x="780" y="81" text-anchor="middle" font-size="15" font-weight="800" fill="#fff">BUSINESS HUB: six sections, all saved to one shared set of shop rules</text>
+<line x1="145" y1="95" x2="145" y2="125" stroke="#111" stroke-width="1.4"/>
+<rect x="25" y="125" width="240" height="235" rx="10" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<rect x="25" y="125" width="240" height="32" rx="10" fill="#e6e6e6" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#111"><tspan x="145" y="150.33333333333334">1. Business Profile</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="37" y="183">•</tspan><tspan x="49" y="183">Store name, contact number,</tspan><tspan x="49" y="197">email, and address</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="37" y="221">•</tspan><tspan x="49" y="221">Payment and settlement details:</tspan><tspan x="49" y="235">QR code, account name, and</tspan><tspan x="49" y="249">account number</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="37" y="273">•</tspan><tspan x="49" y="273">FAQ management: add, edit,</tspan><tspan x="49" y="287">reorder</tspan></text>
+<path d="M145,360 L145,410" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<line x1="399" y1="95" x2="399" y2="125" stroke="#111" stroke-width="1.4"/>
+<rect x="279" y="125" width="240" height="235" rx="10" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<rect x="279" y="125" width="240" height="32" rx="10" fill="#e6e6e6" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#111"><tspan x="399" y="150.33333333333334">2. Schedule Rules</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="291" y="183">•</tspan><tspan x="303" y="183">Opening and closing hours, or</tspan><tspan x="303" y="197">open 24/7</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="291" y="221">•</tspan><tspan x="303" y="221">Closed weekdays</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="291" y="245">•</tspan><tspan x="303" y="245">Minimum notice before booking,</tspan><tspan x="303" y="259">and how far ahead customers can</tspan><tspan x="303" y="273">book</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="291" y="297">•</tspan><tspan x="303" y="297">Total bays, and vehicles per</tspan><tspan x="303" y="311">technician</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="291" y="335">•</tspan><tspan x="303" y="335">Closures: a whole day, several</tspan><tspan x="303" y="349">days, or specific hours</tspan></text>
+<path d="M399,360 L399,410" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<line x1="653" y1="95" x2="653" y2="125" stroke="#111" stroke-width="1.4"/>
+<rect x="533" y="125" width="240" height="235" rx="10" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<rect x="533" y="125" width="240" height="32" rx="10" fill="#e6e6e6" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#111"><tspan x="653" y="150.33333333333334">3. Service Catalog</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="545" y="183">•</tspan><tspan x="557" y="183">Add a service: name, general</tspan><tspan x="557" y="197">service, vehicle category, price,</tspan><tspan x="557" y="211">and duration</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="545" y="235">•</tspan><tspan x="557" y="235">Edit a service</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="545" y="259">•</tspan><tspan x="557" y="259">Archive or restore a service</tspan><tspan x="557" y="273">(never deleted)</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="545" y="297">•</tspan><tspan x="557" y="297">Vehicle category names</tspan></text>
+<path d="M653,360 L653,410" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<line x1="907" y1="95" x2="907" y2="125" stroke="#111" stroke-width="1.4"/>
+<rect x="787" y="125" width="240" height="235" rx="10" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<rect x="787" y="125" width="240" height="32" rx="10" fill="#e6e6e6" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#111"><tspan x="907" y="150.33333333333334">4. Promo Management</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="799" y="183">•</tspan><tspan x="811" y="183">Standard promo and package promo</tspan><tspan x="811" y="197">(fixed bundle price)</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="799" y="221">•</tspan><tspan x="811" y="221">Valid dates, and the vehicles and</tspan><tspan x="811" y="235">services it applies to</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="799" y="259">•</tspan><tspan x="811" y="259">Promo codes: applies to, start</tspan><tspan x="811" y="273">and end, usage limit</tspan></text>
+<path d="M907,360 L907,410" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<line x1="1161" y1="95" x2="1161" y2="125" stroke="#111" stroke-width="1.4"/>
+<rect x="1041" y="125" width="240" height="235" rx="10" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<rect x="1041" y="125" width="240" height="32" rx="10" fill="#e6e6e6" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#111"><tspan x="1161" y="150.33333333333334">5. Payment Policy</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="1053" y="183">•</tspan><tspan x="1065" y="183">Downpayment allowed from this</tspan><tspan x="1065" y="197">total amount</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="1053" y="221">•</tspan><tspan x="1065" y="221">Standard downpayment rate</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="1053" y="245">•</tspan><tspan x="1065" y="245">Higher rate from a larger total</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="1053" y="269">•</tspan><tspan x="1065" y="269">Higher downpayment rate</tspan></text>
+<path d="M1161,360 L1161,410" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<line x1="1415" y1="95" x2="1415" y2="125" stroke="#111" stroke-width="1.4"/>
+<rect x="1295" y="125" width="240" height="235" rx="10" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<rect x="1295" y="125" width="240" height="32" rx="10" fill="#e6e6e6" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#111"><tspan x="1415" y="150.33333333333334">6. Terms</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="1307" y="183">•</tspan><tspan x="1319" y="183">One text for each role: customer,</tspan><tspan x="1319" y="197">staff, administrator</tspan></text>
+<text font-size="11.5" fill="#111"><tspan x="1307" y="221">•</tspan><tspan x="1319" y="221">Publishing a changed text asks</tspan><tspan x="1319" y="235">everyone in that role to accept</tspan><tspan x="1319" y="249">it again</tspan></text>
+<path d="M1415,360 L1415,410" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="25" y="410" width="1510" height="82" rx="10" fill="#f1f1f1" stroke="#111" stroke-width="2"/>
+<text text-anchor="middle" font-size="14" font-weight="800" fill="#111"><tspan x="780" y="438.6666666666667">SAVED SHOP RULES (read by every part of the system)</tspan></text>
+<text text-anchor="middle" font-size="11.5" font-weight="400" fill="#111"><tspan x="780" y="459.5833333333333">One shared record holds the business details, hours and capacity, services and vehicle categories, promos, downpayment policy, terms, and FAQs. Closure times and promo codes are kept in</tspan><tspan x="780" y="474.0833333333333">their own lists.</tspan></text>
+<path d="M145,492 L145,560" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="25" y="560" width="240" height="175" rx="10" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<rect x="25" y="560" width="240" height="32" rx="10" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="145" y="585.3333333333334">Customer booking</tspan></text>
+<text text-anchor="middle" font-size="11.5" font-weight="400" fill="#111"><tspan x="145" y="624.3333333333334">Which dates and times can be</tspan><tspan x="145" y="638.8333333333334">picked, and which services,</tspan><tspan x="145" y="653.3333333333334">prices, and promos are offered</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="700" fill="#111" font-style="italic"><tspan x="145" y="694.75">Uses: Schedule Rules, Service</tspan><tspan x="145" y="708.25">Catalog, Promo Management</tspan></text>
+<path d="M399,492 L399,560" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="279" y="560" width="240" height="175" rx="10" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<rect x="279" y="560" width="240" height="32" rx="10" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="399" y="585.3333333333334">Payments and receipts</tspan></text>
+<text text-anchor="middle" font-size="11.5" font-weight="400" fill="#111"><tspan x="399" y="624.3333333333334">The QR code and account shown to</tspan><tspan x="399" y="638.8333333333334">customers, the receipt check, and</tspan><tspan x="399" y="653.3333333333334">how much downpayment is required</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="700" fill="#111" font-style="italic"><tspan x="399" y="694.75">Uses: Business Profile, Payment</tspan><tspan x="399" y="708.25">Policy</tspan></text>
+<path d="M653,492 L653,560" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="533" y="560" width="240" height="175" rx="10" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<rect x="533" y="560" width="240" height="32" rx="10" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="653" y="585.3333333333334">Staff assignment</tspan></text>
+<text text-anchor="middle" font-size="11.5" font-weight="400" fill="#111"><tspan x="653" y="624.3333333333334">How many vehicles one technician</tspan><tspan x="653" y="638.8333333333334">can handle at the same time, and</tspan><tspan x="653" y="653.3333333333334">how many bays the shop has</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="700" fill="#111" font-style="italic"><tspan x="653" y="701.5">Uses: Schedule Rules</tspan></text>
+<path d="M907,492 L907,560" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="787" y="560" width="240" height="175" rx="10" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<rect x="787" y="560" width="240" height="32" rx="10" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="907" y="585.3333333333334">Administrator walk-ins</tspan></text>
+<text text-anchor="middle" font-size="11.5" font-weight="400" fill="#111"><tspan x="907" y="624.3333333333334">Follow the same hours, closures,</tspan><tspan x="907" y="638.8333333333334">and capacity, but skip the minimum</tspan><tspan x="907" y="653.3333333333334">notice</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="700" fill="#111" font-style="italic"><tspan x="907" y="701.5">Uses: Schedule Rules</tspan></text>
+<path d="M1161,492 L1161,560" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="1041" y="560" width="240" height="175" rx="10" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<rect x="1041" y="560" width="240" height="32" rx="10" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="1161" y="585.3333333333334">Public information</tspan></text>
+<text text-anchor="middle" font-size="11.5" font-weight="400" fill="#111"><tspan x="1161" y="631.5833333333334">Contact details, address, and FAQs</tspan><tspan x="1161" y="646.0833333333334">shown on the storefront</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="700" fill="#111" font-style="italic"><tspan x="1161" y="701.5">Uses: Business Profile</tspan></text>
+<path d="M1415,492 L1415,560" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="1295" y="560" width="240" height="175" rx="10" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<rect x="1295" y="560" width="240" height="32" rx="10" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="1415" y="585.3333333333334">Terms acceptance</tspan></text>
+<text text-anchor="middle" font-size="11.5" font-weight="400" fill="#111"><tspan x="1415" y="624.3333333333334">People in the changed role are</tspan><tspan x="1415" y="638.8333333333334">asked to read and accept the new</tspan><tspan x="1415" y="653.3333333333334">text again</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="700" fill="#111" font-style="italic"><tspan x="1415" y="701.5">Uses: Terms</tspan></text>
+<text text-anchor="start" font-size="11.5" font-weight="400" fill="#111"><tspan x="25" y="768.8333333333334">Changes apply to new bookings. A booking that already exists keeps the price and promo it was made with. Services are archived, never deleted, so old bookings still show their service names.</tspan></text>
+<text text-anchor="start" font-size="11.5" font-weight="400" fill="#111"><tspan x="25" y="793.8333333333334">Key: the top row is what the administrator can set; all six sections save into the same shop rules; the bottom row is where those rules take effect.</tspan></text>
+</svg>
