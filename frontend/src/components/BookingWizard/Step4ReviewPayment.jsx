@@ -433,6 +433,15 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   // A verifier outage is shown as pending manual review, not as a customer error.
   const isReceiptBlocked = !adminMode && receiptDetails && !receiptVerified;
   const downpaymentAmount = getRequiredDownpayment(grandTotal);
+  // A receipt was read against the total at the time. If the total changes afterwards (for example a promo code
+  // was added or removed on the first page), that receipt no longer matches, so it is cleared and asked for again.
+  const scannedTotal = Number(bookingData.payment?.ocrData?.fullAmount);
+  useEffect(() => {
+    if (adminMode || !bookingData.payment?.proofOfPayment || !Number.isFinite(scannedTotal) || scannedTotal <= 0) return;
+    if (Math.abs(scannedTotal - grandTotal) <= 0.5) return;
+    setBookingData((prev) => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null, ocrData: null } }));
+    toastManager.error('The booking total changed after you uploaded your receipt. Please upload it again for the new amount.', { dedupeKey: 'receipt-total-changed' });
+  }, [grandTotal, scannedTotal]); // eslint-disable-line react-hooks/exhaustive-deps
   const isUnderpaidReceipt = Boolean(
     !adminMode &&
     bookingData.payment.method === 'GCash' &&
@@ -1260,7 +1269,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
           {/* The promo code is entered on the first page (with the services) so the amount to pay is final before
               any payment is made. Here it is only shown. */}
-          {!adminMode && bookingData.promoRule && (
+          {bookingData.promoRule && (
             <div role="status" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 1rem', border: '1px solid var(--status-success)', borderRadius: 'var(--admin-radius)', background: 'rgba(var(--admin-success-rgb, 16, 185, 129), 0.08)', color: 'var(--status-success)', fontSize: '0.8rem', fontWeight: 800 }}>
               <Tag size={14} /> Promo code {bookingData.promoRule.code} applied: {bookingData.promoRule.name}. It is already included in the total above.
             </div>

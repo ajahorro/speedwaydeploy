@@ -785,7 +785,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
     {/* The promo code is entered HERE, with the services, so the total and the downpayment are final before the
         customer reaches the payment page. (On the payment page it came too late: a receipt could already be
         uploaded for the old amount.) */}
-    {!adminMode && (
+    {(!adminMode || bookingData.customerId) && (
       <PromoCodeBox
         promoCode={bookingData.promoCode}
         promoRule={bookingData.promoRule}

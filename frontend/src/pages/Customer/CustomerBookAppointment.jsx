@@ -19,6 +19,7 @@ import LeaveGuardModal from '../../components/LeaveGuardModal';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { loadDraft, saveServerDraft, writeLocalDraft, deleteDraft, toDraftData, hasMeaningfulDraft } from '../../services/bookingDraftService';
 import { setRedeemedPromoRule } from '../../data/servicesCatalog';
+import { redeemPromoCode } from '../../services/promoCodeService';
 
 // Utility for Data Integrity: Find service in catalog by name and get current price
 const getCatalogServiceByName = (name, type) => {
@@ -127,8 +128,9 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
 
   // The redeemed promo code's promotion feeds every price shown and saved in this
   // wizard; it is cleared when the wizard closes so it can never leak into another
-  // booking. (Admin walk-ins do not use customer promo codes.)
-  setRedeemedPromoRule(adminMode ? null : (bookingData.promoRule || null));
+  // booking. An administrator booking FOR a customer (from the chat) keeps the code the customer had applied, so
+  // the customer gets the discount they were promised; a walk-in guest has no code.
+  setRedeemedPromoRule(bookingData.promoRule || null);
   React.useEffect(() => () => setRedeemedPromoRule(null), []);
 
   const updateBookingData = updater => {
@@ -161,6 +163,17 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
         setCurrentStep(step);
         if (step > 1) setCustomerDetailsLocked(true);
         if (onDraftRestore && draft.extras) onDraftRestore(draft.extras);
+        // A saved promo code may have expired, been used up, or been removed since it was applied. Check it again now,
+        // so it can never make the final submit fail (and the administrator, who has no code field here, is not stuck).
+        if (saved.promoCode) {
+          redeemPromoCode(saved.promoCode).then((result) => {
+            if (cancelled) return;
+            setBookingData((current) => (result.valid
+              ? { ...current, promoCode: result.rule.code, promoRule: result.rule }
+              : { ...current, promoCode: null, promoRule: null }));
+            if (!result.valid) toastManager.error(`The promo code ${saved.promoCode} cannot be used (${result.message.replace(/\.$/, '')}), so it was removed from this booking.`);
+          });
+        }
         setHasDraftChanges(true);
         setDraftRestored(true);
       }
