@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 884" width="1500" height="884" font-family="Arial, Helvetica, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker></defs>
+<rect width="1500" height="884" fill="#fff"/>
+<text x="750" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Logical Data Flow Matrix</text>
+<text x="40" y="80" font-size="15" font-weight="800" fill="#111">Table 1. What each process does with each data store</text>
+<rect x="40" y="98" width="1380" height="58" fill="#111"/>
+<text x="52" y="132" font-size="13" font-weight="800" fill="#fff">Process</text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="445" y="124.33333333333333">D1</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#fff"><tspan x="445" y="143.5">Accounts</tspan></text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="595" y="124.33333333333333">D2</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#fff"><tspan x="595" y="143.5">Bookings</tspan></text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="745" y="124.33333333333333">D3</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#fff"><tspan x="745" y="143.5">Payments and Refunds</tspan></text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="895" y="124.33333333333333">D4</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#fff"><tspan x="895" y="143.5">Service Photos</tspan></text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="1045" y="124.33333333333333">D5</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#fff"><tspan x="1045" y="143.5">Messages and Notices</tspan></text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="1195" y="124.33333333333333">D6</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#fff"><tspan x="1195" y="143.5">Audit Log</tspan></text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="1345" y="124.33333333333333">D7</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#fff"><tspan x="1345" y="143.5">Shop Rules</tspan></text>
+<rect x="40" y="156" width="1380" height="40" fill="#fff" stroke="#bbb"/>
+<text x="52" y="181" font-size="12.5" font-weight="700" fill="#111">1.0  Manage Accounts and Sign-in</text>
+<text x="445" y="181" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C R U</text>
+<text x="595" y="181" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="745" y="181" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="895" y="181" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1045" y="181" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C</text>
+<text x="1195" y="181" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C</text>
+<text x="1345" y="181" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<rect x="40" y="196" width="1380" height="40" fill="#f2f2f2" stroke="#bbb"/>
+<text x="52" y="221" font-size="12.5" font-weight="700" fill="#111">2.0  Make and Change Bookings</text>
+<text x="445" y="221" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<text x="595" y="221" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C R U</text>
+<text x="745" y="221" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C R</text>
+<text x="895" y="221" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1045" y="221" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C</text>
+<text x="1195" y="221" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C</text>
+<text x="1345" y="221" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<rect x="40" y="236" width="1380" height="40" fill="#fff" stroke="#bbb"/>
+<text x="52" y="261" font-size="12.5" font-weight="700" fill="#111">3.0  Handle Payments and Refunds</text>
+<text x="445" y="261" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<text x="595" y="261" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R U</text>
+<text x="745" y="261" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C R U</text>
+<text x="895" y="261" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1045" y="261" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C</text>
+<text x="1195" y="261" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C</text>
+<text x="1345" y="261" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<rect x="40" y="276" width="1380" height="40" fill="#f2f2f2" stroke="#bbb"/>
+<text x="52" y="301" font-size="12.5" font-weight="700" fill="#111">4.0  Carry Out the Service</text>
+<text x="445" y="301" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<text x="595" y="301" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R U</text>
+<text x="745" y="301" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="895" y="301" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C R</text>
+<text x="1045" y="301" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C</text>
+<text x="1195" y="301" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C</text>
+<text x="1345" y="301" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<rect x="40" y="316" width="1380" height="40" fill="#fff" stroke="#bbb"/>
+<text x="52" y="341" font-size="12.5" font-weight="700" fill="#111">5.0  Send Messages and Notices</text>
+<text x="445" y="341" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<text x="595" y="341" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<text x="745" y="341" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="895" y="341" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1045" y="341" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C R U</text>
+<text x="1195" y="341" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1345" y="341" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<rect x="40" y="356" width="1380" height="40" fill="#f2f2f2" stroke="#bbb"/>
+<text x="52" y="381" font-size="12.5" font-weight="700" fill="#111">6.0  Report and Audit</text>
+<text x="445" y="381" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<text x="595" y="381" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<text x="745" y="381" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<text x="895" y="381" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1045" y="381" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<text x="1195" y="381" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<text x="1345" y="381" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<rect x="40" y="396" width="1380" height="40" fill="#fff" stroke="#bbb"/>
+<text x="52" y="421" font-size="12.5" font-weight="700" fill="#111">7.0  Manage Shop Rules</text>
+<text x="445" y="421" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="595" y="421" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="745" y="421" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="895" y="421" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1045" y="421" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1195" y="421" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1345" y="421" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C R U D</text>
+<rect x="40" y="436" width="1380" height="40" fill="#f2f2f2" stroke="#bbb"/>
+<text x="52" y="461" font-size="12.5" font-weight="700" fill="#111">8.0  Run Scheduled Checks</text>
+<text x="445" y="461" text-anchor="middle" font-size="13" font-weight="800" fill="#111">U</text>
+<text x="595" y="461" text-anchor="middle" font-size="13" font-weight="800" fill="#111">U</text>
+<text x="745" y="461" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="895" y="461" text-anchor="middle" font-size="13" font-weight="800" fill="#111">D</text>
+<text x="1045" y="461" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C</text>
+<text x="1195" y="461" text-anchor="middle" font-size="13" font-weight="800" fill="#111">C</text>
+<text x="1345" y="461" text-anchor="middle" font-size="13" font-weight="800" fill="#111">R</text>
+<text x="40" y="498" font-size="11.5" fill="#111">C = creates, R = reads, U = updates, D = deletes. Services are only archived, never deleted. Process 8.0 (D4) removes old photos by the retention policy.</text>
+<text x="40" y="542" font-size="15" font-weight="800" fill="#111">Table 2. Which outside party sends data to, and receives data from, each process</text>
+<rect x="40" y="560" width="1230" height="64" fill="#111"/>
+<text x="52" y="598" font-size="13" font-weight="800" fill="#fff">Outside party</text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="295" y="584.3333333333334">1.0</tspan></text>
+<text text-anchor="middle" font-size="10" font-weight="400" fill="#fff"><tspan x="295" y="600.8333333333334">Manage Accounts and</tspan><tspan x="295" y="613.8333333333334">Sign-in</tspan></text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="425" y="584.3333333333334">2.0</tspan></text>
+<text text-anchor="middle" font-size="10" font-weight="400" fill="#fff"><tspan x="425" y="600.8333333333334">Make and Change</tspan><tspan x="425" y="613.8333333333334">Bookings</tspan></text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="555" y="584.3333333333334">3.0</tspan></text>
+<text text-anchor="middle" font-size="10" font-weight="400" fill="#fff"><tspan x="555" y="600.8333333333334">Handle Payments and</tspan><tspan x="555" y="613.8333333333334">Refunds</tspan></text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="685" y="584.3333333333334">4.0</tspan></text>
+<text text-anchor="middle" font-size="10" font-weight="400" fill="#fff"><tspan x="685" y="600.8333333333334">Carry Out the</tspan><tspan x="685" y="613.8333333333334">Service</tspan></text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="815" y="584.3333333333334">5.0</tspan></text>
+<text text-anchor="middle" font-size="10" font-weight="400" fill="#fff"><tspan x="815" y="600.8333333333334">Send Messages and</tspan><tspan x="815" y="613.8333333333334">Notices</tspan></text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="945" y="584.3333333333334">6.0</tspan></text>
+<text text-anchor="middle" font-size="10" font-weight="400" fill="#fff"><tspan x="945" y="607.3333333333334">Report and Audit</tspan></text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="1075" y="584.3333333333334">7.0</tspan></text>
+<text text-anchor="middle" font-size="10" font-weight="400" fill="#fff"><tspan x="1075" y="607.3333333333334">Manage Shop Rules</tspan></text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="1205" y="584.3333333333334">8.0</tspan></text>
+<text text-anchor="middle" font-size="10" font-weight="400" fill="#fff"><tspan x="1205" y="600.8333333333334">Run Scheduled</tspan><tspan x="1205" y="613.8333333333334">Checks</tspan></text>
+<rect x="40" y="624" width="1230" height="40" fill="#fff" stroke="#bbb"/>
+<text x="52" y="649" font-size="12.5" font-weight="700" fill="#111">Customer</text>
+<text x="295" y="649" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="425" y="649" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="555" y="649" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="685" y="649" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="815" y="649" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="945" y="649" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1075" y="649" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1205" y="649" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<rect x="40" y="664" width="1230" height="40" fill="#f2f2f2" stroke="#bbb"/>
+<text x="52" y="689" font-size="12.5" font-weight="700" fill="#111">Staff</text>
+<text x="295" y="689" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="425" y="689" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="555" y="689" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="685" y="689" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="815" y="689" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="945" y="689" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1075" y="689" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1205" y="689" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<rect x="40" y="704" width="1230" height="40" fill="#fff" stroke="#bbb"/>
+<text x="52" y="729" font-size="12.5" font-weight="700" fill="#111">Administrator</text>
+<text x="295" y="729" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="425" y="729" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="555" y="729" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="685" y="729" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="815" y="729" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="945" y="729" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="1075" y="729" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="1205" y="729" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<rect x="40" y="744" width="1230" height="40" fill="#f2f2f2" stroke="#bbb"/>
+<text x="52" y="769" font-size="12.5" font-weight="700" fill="#111">Email Service</text>
+<text x="295" y="769" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="425" y="769" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="555" y="769" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="685" y="769" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="815" y="769" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I O</text>
+<text x="945" y="769" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1075" y="769" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1205" y="769" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<rect x="40" y="784" width="1230" height="40" fill="#fff" stroke="#bbb"/>
+<text x="52" y="809" font-size="12.5" font-weight="700" fill="#111">Scheduled time</text>
+<text x="295" y="809" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="425" y="809" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="555" y="809" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="685" y="809" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="815" y="809" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="945" y="809" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1075" y="809" text-anchor="middle" font-size="13" font-weight="800" fill="#111"></text>
+<text x="1205" y="809" text-anchor="middle" font-size="13" font-weight="800" fill="#111">I</text>
+<text x="40" y="846" font-size="11.5" fill="#111">I = sends data into the process (a request, a form, a receipt). O = receives data out of it (a result, a notice, an email). The email service also reports delivery results back.</text>
+</svg>

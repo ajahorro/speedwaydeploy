@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1290 1010" width="1290" height="1010" font-family="Arial, Helvetica, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker></defs>
+<rect width="1290" height="1010" fill="#fff"/>
+<text x="645" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Sequence Diagram: Administrator Verifies a Payment</text>
+<line x1="162.5" y1="110" x2="162.5" y2="920" stroke="#111" stroke-width="1.2" stroke-dasharray="6 5"/>
+<rect x="77.5" y="70" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="162.5" y="94.33333333333333">Administrator</tspan></text>
+<rect x="77.5" y="920" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="162.5" y="944.3333333333334">Administrator</tspan></text>
+<line x1="367.5" y1="110" x2="367.5" y2="920" stroke="#111" stroke-width="1.2" stroke-dasharray="6 5"/>
+<rect x="282.5" y="70" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="367.5" y="94.33333333333333">Web app</tspan></text>
+<rect x="282.5" y="920" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="367.5" y="944.3333333333334">Web app</tspan></text>
+<line x1="572.5" y1="110" x2="572.5" y2="920" stroke="#111" stroke-width="1.2" stroke-dasharray="6 5"/>
+<rect x="487.5" y="70" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="572.5" y="94.33333333333333">Backend</tspan></text>
+<rect x="487.5" y="920" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="572.5" y="944.3333333333334">Backend</tspan></text>
+<line x1="777.5" y1="110" x2="777.5" y2="920" stroke="#111" stroke-width="1.2" stroke-dasharray="6 5"/>
+<rect x="692.5" y="70" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="777.5" y="94.33333333333333">Database</tspan></text>
+<rect x="692.5" y="920" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="777.5" y="944.3333333333334">Database</tspan></text>
+<line x1="982.5" y1="110" x2="982.5" y2="920" stroke="#111" stroke-width="1.2" stroke-dasharray="6 5"/>
+<rect x="897.5" y="70" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="982.5" y="94.33333333333333">Email service</tspan></text>
+<rect x="897.5" y="920" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="982.5" y="944.3333333333334">Email service</tspan></text>
+<line x1="1187.5" y1="110" x2="1187.5" y2="920" stroke="#111" stroke-width="1.2" stroke-dasharray="6 5"/>
+<rect x="1102.5" y="70" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="1187.5" y="94.33333333333333">Customer</tspan></text>
+<rect x="1102.5" y="920" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="1187.5" y="944.3333333333334">Customer</tspan></text>
+<path d="M164.5,190 L365.5,190" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="265" y="168">1. Open the booking and its</tspan><tspan x="265" y="182">receipt</tspan></text>
+<path d="M369.5,240 L775.5,240" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="572.5" y="232">2. Load the payments and the balance</tspan></text>
+<path d="M775.5,290 L369.5,290" fill="none" stroke="#111" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="572.5" y="282">3. One ledger: paid, owed, refunded</tspan></text>
+<path d="M164.5,354 L365.5,354" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="265" y="332">4. Verify the payment (or</tspan><tspan x="265" y="346">reject it with a reason)</tspan></text>
+<path d="M369.5,404 L775.5,404" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="572.5" y="396">5. Save the verification</tspan></text>
+<rect x="771.5" y="422" width="12" height="68" fill="#fff" stroke="#111" stroke-width="1.4"/>
+<path d="M783.5,430 L811.5,430 L811.5,452 L783.5,452" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="821.5" y="434">6. Keep the verified amount, who</tspan><tspan x="821.5" y="448">checked and when; write the audit</tspan><tspan x="821.5" y="462">entry. A rejection sets the</tspan><tspan x="821.5" y="476">payment to Rejected</tspan></text>
+<path d="M369.5,556 L570.5,556" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="470" y="534">7. Update the booking after</tspan><tspan x="470" y="548">the payment</tspan></text>
+<path d="M574.5,620 L775.5,620" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="675" y="598">8. Read the ledger and the</tspan><tspan x="675" y="612">technicians</tspan></text>
+<rect x="566.5" y="638" width="12" height="68" fill="#fff" stroke="#111" stroke-width="1.4"/>
+<path d="M578.5,646 L606.5,646 L606.5,668 L578.5,668" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="616.5" y="650">9. Downpayment met and every</tspan><tspan x="616.5" y="664">vehicle has a technician:</tspan><tspan x="616.5" y="678">Confirmed. All vehicles done and</tspan><tspan x="616.5" y="692">fully paid: Completed</tspan></text>
+<path d="M574.5,772 L775.5,772" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="675" y="750">10. Save the new status;</tspan><tspan x="675" y="764">notify the assigned staff</tspan></text>
+<path d="M574.5,836 L980.5,836" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="777.5" y="814">11. Send the payment receipt, and the confirmation when it</tspan><tspan x="777.5" y="828">applies</tspan></text>
+<path d="M984.5,886 L1185.5,886" fill="none" stroke="#111" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="1085" y="878">12. Receipt email</tspan></text>
+<text x="40" y="992" font-size="11.5" fill="#111">Key: solid arrow = request; dashed arrow = response. The same steps run for cash recorded by the administrator.</text>
+</svg>

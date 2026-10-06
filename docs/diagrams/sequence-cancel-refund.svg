@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1290 1014" width="1290" height="1014" font-family="Arial, Helvetica, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker></defs>
+<rect width="1290" height="1014" fill="#fff"/>
+<text x="645" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Sequence Diagram: Cancellation and Refund</text>
+<line x1="162.5" y1="110" x2="162.5" y2="924" stroke="#111" stroke-width="1.2" stroke-dasharray="6 5"/>
+<rect x="77.5" y="70" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="162.5" y="94.33333333333333">Customer</tspan></text>
+<rect x="77.5" y="924" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="162.5" y="948.3333333333334">Customer</tspan></text>
+<line x1="367.5" y1="110" x2="367.5" y2="924" stroke="#111" stroke-width="1.2" stroke-dasharray="6 5"/>
+<rect x="282.5" y="70" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="367.5" y="94.33333333333333">Administrator</tspan></text>
+<rect x="282.5" y="924" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="367.5" y="948.3333333333334">Administrator</tspan></text>
+<line x1="572.5" y1="110" x2="572.5" y2="924" stroke="#111" stroke-width="1.2" stroke-dasharray="6 5"/>
+<rect x="487.5" y="70" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="572.5" y="94.33333333333333">Web app</tspan></text>
+<rect x="487.5" y="924" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="572.5" y="948.3333333333334">Web app</tspan></text>
+<line x1="777.5" y1="110" x2="777.5" y2="924" stroke="#111" stroke-width="1.2" stroke-dasharray="6 5"/>
+<rect x="692.5" y="70" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="777.5" y="94.33333333333333">Backend</tspan></text>
+<rect x="692.5" y="924" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="777.5" y="948.3333333333334">Backend</tspan></text>
+<line x1="982.5" y1="110" x2="982.5" y2="924" stroke="#111" stroke-width="1.2" stroke-dasharray="6 5"/>
+<rect x="897.5" y="70" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="982.5" y="94.33333333333333">Database</tspan></text>
+<rect x="897.5" y="924" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="982.5" y="948.3333333333334">Database</tspan></text>
+<line x1="1187.5" y1="110" x2="1187.5" y2="924" stroke="#111" stroke-width="1.2" stroke-dasharray="6 5"/>
+<rect x="1102.5" y="70" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="1187.5" y="94.33333333333333">Email service</tspan></text>
+<rect x="1102.5" y="924" width="170" height="40" rx="6" fill="#111"/>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff"><tspan x="1187.5" y="948.3333333333334">Email service</tspan></text>
+<path d="M164.5,176 L570.5,176" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="367.5" y="168">1. Cancel the booking and give a reason</tspan></text>
+<path d="M574.5,240 L775.5,240" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="675" y="218">2. Cancel request with the</tspan><tspan x="675" y="232">sign-in token</tspan></text>
+<rect x="771.5" y="258" width="12" height="40" fill="#fff" stroke="#111" stroke-width="1.4"/>
+<path d="M783.5,266 L811.5,266 L811.5,288 L783.5,288" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="821.5" y="270">3. Check that the user owns the</tspan><tspan x="821.5" y="284">booking</tspan></text>
+<path d="M779.5,350 L980.5,350" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="880" y="342">4. Cancel the booking</tspan></text>
+<rect x="976.5" y="368" width="12" height="82" fill="#fff" stroke="#111" stroke-width="1.4"/>
+<path d="M988.5,376 L1016.5,376 L1016.5,398 L988.5,398" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="1026.5" y="380">5. Check that no vehicle has</tspan><tspan x="1026.5" y="394">started; mark Cancelled; release</tspan><tspan x="1026.5" y="408">the slot and technicians; queue a</tspan><tspan x="1026.5" y="422">refund for any payment made; write</tspan><tspan x="1026.5" y="436">the audit entry</tspan></text>
+<path d="M980.5,516 L779.5,516" fill="none" stroke="#111" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="880" y="494">6. Result and the refund</tspan><tspan x="880" y="508">amount</tspan></text>
+<path d="M779.5,566 L1185.5,566" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="982.5" y="558">7. Cancellation email with the refund status</tspan></text>
+<path d="M1185.5,616 L164.5,616" fill="none" stroke="#111" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="675" y="608">8. Email to the customer</tspan></text>
+<path d="M369.5,680 L570.5,680" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="470" y="658">9. Open the Refund Hub and</tspan><tspan x="470" y="672">review the queued refund</tspan></text>
+<path d="M574.5,730 L980.5,730" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="777.5" y="722">10. Record the refund</tspan></text>
+<rect x="976.5" y="748" width="12" height="40" fill="#fff" stroke="#111" stroke-width="1.4"/>
+<path d="M988.5,756 L1016.5,756 L1016.5,778 L988.5,778" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="1026.5" y="760">11. Mark the payment Refunded;</tspan><tspan x="1026.5" y="774">write the audit entry</tspan></text>
+<path d="M574.5,840 L1185.5,840" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="880" y="832">12. Send the refund receipt</tspan></text>
+<path d="M1185.5,890 L164.5,890" fill="none" stroke="#111" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#a)"/>
+<text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke"><tspan x="675" y="882">13. Refund receipt to the customer</tspan></text>
+<text x="40" y="996" font-size="11.5" fill="#111">Key: solid arrow = request; dashed arrow = response. Nothing is paid back automatically: the refund waits in the Refund Hub for the administrator.</text>
+</svg>
