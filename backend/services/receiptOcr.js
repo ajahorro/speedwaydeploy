@@ -60,7 +60,7 @@ const recognizeWithTesseract = async (image, passNumber) => {
   const worker = await getWorker();
   const finishTiming = startTiming(`recognition pass ${passNumber}`);
   try {
-    const { data } = await withTimeout(worker.recognize(image), RECOGNITION_TIMEOUT_MS, 'OCR recognition');
+    const { data } = await withTimeout(worker.recognize(image), passNumber > 1 ? RECOGNITION_TIMEOUT_MS * 2 : RECOGNITION_TIMEOUT_MS, 'OCR recognition');
     return { text: data?.text || '', confidence: Number(data?.confidence) || 0 };
   } catch (error) {
     if (/timed out/.test(error.message || '')) {
@@ -97,11 +97,14 @@ const buildImageVariant = async (buffer, index) => {
         .toBuffer();
     }
     if (index === 1) {
-      return await base.clone()
+      // Second chance, used only when the fast first pass did not find everything: a larger, sharpened copy
+      // makes the small grey labels (Recipient, Reference Number) readable.
+      return await sharp(buffer, { failOn: 'error', limitInputPixels: MAX_IMAGE_PIXELS })
+        .rotate()
+        .resize({ width: 1500, height: 2400, fit: 'inside' })
         .grayscale()
         .normalize()
-        .linear(1.20, -10)
-        .threshold(170)
+        .sharpen()
         .png()
         .toBuffer();
     }
@@ -151,7 +154,7 @@ const createReceiptOcr = ({
   const finishTiming = startTiming('complete OCR scan');
   let best = null;
   try {
-    const maxPasses = 1;
+    const maxPasses = 2;
     for (let index = 0; index < maxPasses; index += 1) {
       const variant = await buildVariant(buffer, index);
       const { text, confidence } = await recognize(variant, index + 1);

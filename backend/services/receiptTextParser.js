@@ -164,58 +164,121 @@ const looksLikeMoneyToken = (token) => {
  * matcher finds nothing and returns a null amount, failing a genuine payment. So
  * each labelled line is checked, then the next non-empty line.
  */
+const CURRENCY_WORD = /^(?:[₱£¥$]|PHP|Php|php|P|p|F|f)$/;
+const MONEY_WORD = /^([₱£¥$]|PHP|Php|php|P|p|F|f)?([0-9OoQDlI|!SsBZzgqAT]+(?:[.,][0-9OoQDlI|!SsBZzgqAT]{1,3})*)$/;
+const MONTH_NAMES = '(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\b\\.?';
+
+/**
+ * A line with its dates and times taken out. "Oct 26, 2023, 03:45 PM" must never leak a "45" or a "2023"
+ * into the money candidates (this was the "OCR reads 45 pesos" defect: the figure sat ABOVE its label, so the
+ * parser looked at the next line, the date and time, and took the minutes).
+ */
+const stripDatesAndTimes = (line) => String(line)
+  .replace(/\b\d{1,2}\s*[:.]\s*\d{2}(?:\s*:\s*\d{2})?\s*(?:[AaPp]\.?\s?[Mm]\.?)?(?![\d,])/g, (match) => (/[:]/.test(match) || /[AaPp]\.?\s?[Mm]/.test(match) ? ' ' : match))
+  .replace(new RegExp('\\b' + MONTH_NAMES + '\\s*\\d{1,2}\\s*,?\\s*(?:\\d{2,4})?', 'gi'), ' ')
+  .replace(new RegExp('\\b\\d{1,2}\\s*' + MONTH_NAMES + '\\s*,?\\s*(?:\\d{2,4})?', 'gi'), ' ')
+  .replace(/\b\d{1,4}[\/-]\d{1,2}[\/-]\d{1,4}\b/g, ' ');
+
+const repairDigits = (text) => String(text).replace(/[OoQDlI|!SsBZzgqAT]/g, (ch) => DIGIT_CONFUSIONS[ch] ?? ch);
+
+/**
+ * Money-shaped tokens on one line, each with how strongly it looks like an amount.
+ * A token is rejected when it is really something else: a reference or phone number (8 or more digits with no
+ * separator), a word ("To", "Total"), or a date/time fragment (removed first).
+ */
+const moneyTokensOnLine = (line) => {
+  const words = stripDatesAndTimes(line).split(/\s+/).filter(Boolean);
+  const out = [];
+  for (let i = 0; i < words.length; i += 1) {
+    let word = words[i];
+    let glyph = false;
+    if (CURRENCY_WORD.test(word) && i + 1 < words.length) { glyph = true; i += 1; word = words[i]; }
+    const match = word.match(MONEY_WORD);
+    if (!match) continue;
+    if (match[1] && /[₱£¥$]|^(?:PHP|Php|php)$/.test(match[1])) glyph = true;
+    else if (match[1] && /^[PpFf]$/.test(match[1]) && /\d/.test(match[2])) glyph = true;
+    const body = match[2];
+    const realDigits = (body.match(/\d/g) || []).length;
+    const digits = repairDigits(body).replace(/[^0-9]/g, '').length;
+    if (digits < 1) continue;
+    if (!glyph && realDigits === 0) continue;
+    if (realDigits && realDigits / Math.max(1, body.replace(/[.,]/g, '').length) < 0.5) continue;
+    const hasSeparator = /[.,]/.test(body);
+    if (!hasSeparator && digits >= 8) continue; // a reference or phone number, not money
+    if (hasSeparator && digits >= 14) continue;
+    const value = parseAmountToken((glyph && !/[₱£¥$]/.test(word) ? '₱' : '') + body);
+    if (value === null || !(value > 0)) continue;
+    const decimals = /[.,]\d{2}$/.test(body);
+    out.push({ value, glyph, decimals, separator: hasSeparator, strong: glyph || decimals || /\d,\d{3}/.test(body), score: (glyph ? 3 : 0) + (decimals ? 3 : 0) + (hasSeparator ? 1 : 0) });
+  }
+  return out;
+};
+
+const bestToken = (tokens, strongOnly) => {
+  const pool = strongOnly ? tokens.filter((t) => t.strong) : tokens;
+  if (!pool.length) return null;
+  return pool.reduce((best, t) => (t.score >= best.score ? t : best), pool[0]);
+};
+
+/**
+ * Extract amount candidates from raw OCR text.
+ *
+ * Receipts put the figure either on the label's line, on the line AFTER it ("Total Amount Sent" / "2,500.00"), or
+ * on the line BEFORE it (a big "₱2,500.00" with "Amount Paid" printed underneath). So the nearest strong money
+ * token within two lines either way is used, never a token from a line that carries a different label, and never
+ * a date, time, reference or phone number. With no label at all, the most amount-like token on the receipt
+ * (currency sign and two decimals) is taken as the amount.
+ */
 const extractAmounts = (text) => {
   const found = { net: null, gross: null, fee: null, generic: null };
   if (!text) return found;
 
   const lines = String(text).split(/\r?\n/);
+  const tokens = lines.map(moneyTokensOnLine);
+  const labels = lines.map((line) => {
+    if (!line.trim()) return null;
+    const source = repairLabelText(line);
+    for (const candidate of AMOUNT_LABELS) {
+      if (candidate.pattern.test(source)) return candidate.key;
+    }
+    return null;
+  });
 
-  /**
-   * Best money token on one line, or null. `strict` rejects bare runs with no
-   * currency glyph and no separator — used on the LABEL line, where a fragment
-   * like "T0" would otherwise be read as 70. The value line is read permissively,
-   * because a bare "2500" there is legitimate.
-   */
-  const moneyOnLine = (line, strict = false) => {
-    if (!line) return null;
-    const matches = [...String(line).matchAll(NUMBER_LITERAL)]
-      .map((m) => m[0].trim())
-      .filter(looksLikeMoneyToken)
-      .filter((token) => (!strict ? true : (/[₱PpFf£¥$]/.test(token) && /\d/.test(token)) || /[.,]/.test(token)));
-    if (!matches.length) return null;
-    const value = parseAmountToken(matches[matches.length - 1]);
-    return value !== null && value > 0 ? value : null;
+  const valueFor = (i) => {
+    // 1. the label line itself
+    const own = bestToken(tokens[i], true);
+    if (own) return own.value;
+    // 2. the nearest strong token within two lines, after the label first, then before it
+    for (let d = 1; d <= 2; d += 1) {
+      for (const j of [i + d, i - d]) {
+        if (j < 0 || j >= lines.length || !lines[j].trim()) continue;
+        if (labels[j]) continue; // that figure belongs to another label
+        const near = bestToken(tokens[j], true);
+        if (near) return near.value;
+      }
+    }
+    // 3. a plain number alone on the next line ("Amount" / "2500")
+    for (let j = i + 1; j < Math.min(i + 3, lines.length); j += 1) {
+      if (!lines[j].trim() || labels[j]) continue;
+      const bare = bestToken(tokens[j], false);
+      if (bare && tokens[j].length === 1) return bare.value;
+      break;
+    }
+    return null;
   };
 
   for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (!line.trim()) continue;
-
-    const labelSource = repairLabelText(line);
-    let label = null;
-    for (const candidate of AMOUNT_LABELS) {
-      if (candidate.pattern.test(labelSource)) { label = candidate.key; break; }
-    }
-    if (!label || found[label] !== null) {
-      if (!label && found.generic === null && /\b(?:paid|amount|total|grand)\b|[₱PpFf£¥$]|\bphp\b/i.test(line)) {
-        const fallbackValue = moneyOnLine(line);
-        if (fallbackValue !== null) found.generic = fallbackValue;
-      }
-      continue;
-    }
-
-    let value = moneyOnLine(line, true);
-    if (value === null) {
-      for (let j = i + 1; j < Math.min(i + 3, lines.length); j += 1) {
-        if (!lines[j].trim()) continue;
-        const nextLabelSource = repairLabelText(lines[j]);
-        if (AMOUNT_LABELS.some((candidate) => candidate.pattern.test(nextLabelSource))) break;
-        value = moneyOnLine(lines[j]);
-        break;
-      }
-    }
-
+    const label = labels[i];
+    if (!label || found[label] !== null) continue;
+    const value = valueFor(i);
     if (value !== null) found[label] = value;
+  }
+
+  if (found.net === null && found.gross === null && found.generic === null) {
+    // No usable label (low-contrast labels are often dropped by the reader): the most amount-like figure wins.
+    const all = tokens.flatMap((list, index) => list.map((t) => ({ ...t, index })));
+    const hero = all.filter((t) => t.strong).sort((a, b) => b.score - a.score || a.index - b.index)[0];
+    if (hero) found.generic = hero.value;
   }
 
   return found;
@@ -238,35 +301,51 @@ const REFERENCE_LABEL = /(reference\s*(?:no|number|id|#)?|ref\s*(?:no|number|id|
  * Real alphanumeric references carry letter PREFIXES; OCR noise interleaves
  * single letters among digits ("9O2L33488722L").
  */
+const cleanReference = (token) => {
+  const cleaned = String(token || '').replace(/\s+/g, '').replace(/^[-]+|[-]+$/g, '').trim();
+  if (cleaned.length < 6 || !/\d/.test(cleaned)) return null;
+  const chars = cleaned.replace(/[^A-Za-z0-9]/g, '');
+  const digitRatio = chars.length ? (chars.match(/\d/g) || []).length / chars.length : 0;
+  const hasLetterRun = /[A-Za-z]{2,}/.test(cleaned);
+  const repaired = digitRatio >= 0.7 && !hasLetterRun
+    ? cleaned.replace(/[OoQDlI|!SsBZzg]/g, (ch) => DIGIT_CONFUSIONS[ch] ?? ch)
+    : cleaned;
+  return repaired.toUpperCase();
+};
+
+// Words that sit next to a reference label but are not the reference.
+const NOT_A_REFERENCE_WORD = /^(?:no|number|id|date|time|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep)$/i;
+
 const extractReferenceNumber = (text) => {
   if (!text) return null;
   const lines = String(text).split(/\r?\n/);
 
-  for (const line of lines) {
-    const labelMatch = line.match(REFERENCE_LABEL);
+  // 1. by label: the token after "Reference No" on the same line, or on the next lines
+  for (let i = 0; i < lines.length; i += 1) {
+    const labelMatch = lines[i].match(REFERENCE_LABEL);
     if (!labelMatch) continue;
-
-    const after = line.slice(labelMatch.index + labelMatch[0].length);
-    let tokenMatch = after.match(/([A-Za-z0-9][A-Za-z0-9\s-]{4,})/);
-    if (!tokenMatch) {
-      const nextLine = lines.slice(lines.indexOf(line) + 1).find((candidate) => candidate.trim());
-      if (nextLine) tokenMatch = nextLine.match(/([A-Za-z0-9][A-Za-z0-9\s-]{4,})/);
+    const sources = [lines[i].slice(labelMatch.index + labelMatch[0].length), lines[i + 1], lines[i + 2]];
+    for (const source of sources) {
+      if (!source || !String(source).trim()) continue;
+      const candidate = stripDatesAndTimes(source).match(/([A-Za-z0-9][A-Za-z0-9\s-]{4,})/);
+      if (!candidate) continue;
+      const ref = cleanReference(candidate[1]);
+      if (ref && !NOT_A_REFERENCE_WORD.test(ref)) return ref;
     }
-    if (!tokenMatch) continue;
+  }
 
-    const cleaned = tokenMatch[1]
-      .replace(/\s+/g, '')
-      .replace(/^[-]+|[-]+$/g, '')
-      .trim();
-
-    if (cleaned.length >= 6 && /\d/.test(cleaned)) {
-      const chars = cleaned.replace(/[^A-Za-z0-9]/g, '');
-      const digitRatio = chars.length ? (chars.match(/\d/g) || []).length / chars.length : 0;
-      const hasLetterRun = /[A-Za-z]{2,}/.test(cleaned);
-      const repaired = digitRatio >= 0.7 && !hasLetterRun
-        ? cleaned.replace(/[OoQDlI|!SsBZzg]/g, (ch) => DIGIT_CONFUSIONS[ch] ?? ch)
-        : cleaned;
-      return repaired.toUpperCase();
+  // 2. the label was not read (small grey labels often are): a standalone mixed or long reference-looking token
+  for (const line of lines) {
+    const words = stripDatesAndTimes(line).split(/\s+/).filter(Boolean);
+    for (const word of words) {
+      const w = word.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '');
+      if (w.length < 10 || w.length > 24 || !/^[A-Za-z0-9]+$/.test(w)) continue;
+      const digitCount = (w.match(/\d/g) || []).length;
+      if (digitCount < 6) continue;
+      if (/^0?9\d{9,10}$/.test(w) || /^\+?639\d{9}$/.test(w)) continue; // a mobile number
+      if (/^\d{1,3}(?:[,.]\d{3})+(?:[.,]\d{2})?$/.test(w)) continue;
+      const ref = cleanReference(w);
+      if (ref) return ref;
     }
   }
 
@@ -278,49 +357,65 @@ const extractReferenceNumber = (text) => {
  *
  * A bare "to" is deliberately NOT in this list — see BARE_TO_LABEL below.
  */
-const RECIPIENT_LABELS = /(sent\s*to|send\s*money\s*to|paid\s*to|receiver|recipient|transferred\s*to)\s*[:\-]?\s*(.*)/i;
+const RECIPIENT_LABELS = /(sent\s*to|send\s*money\s*to|paid\s*to|receiver(?:\s*name)?|recipient(?:\s*name)?|transferred\s*to|beneficiary(?:\s*name)?|account\s*name)\s*[:\-]?\s*(.*)/i;
 
 /**
  * A standalone "To" is a recipient label; the "to" inside "Total" is not.
  */
 const BARE_TO_LABEL = /(?:^|\s)to\s*[:\-]?\s*(.+)/i;
 
+// Words that are field labels or headings, never a person's or a shop's name.
+const LABEL_WORD = /^(?:name|details?|account|acct|number|no|info|information|mobile|phone|gcash|wallet|maya|bank|type|source|purpose|remarks?|reference|amount|date|time|transaction|send|sent|money|payment|successful|personal|to|from)$/i;
+const isLabelLine = (line) => /^(?:recipient|receiver|beneficiary|account|mobile|number|name|details?|purpose|reference|ref|amount|date|transaction|source|remarks?|mode|total|fee)\b/i.test(String(line).trim());
+
+const cleanName = (value) => String(value || '')
+  .replace(/[^\p{L}\p{N}\s.,'-]/gu, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const looksLikeName = (name) => {
+  if (name.length < 3) return false;
+  if (/^[\d\s.,]+$/.test(name)) return false;
+  if (/amount|total|fee/i.test(name)) return false;
+  if (/^(sent|send|paid|transferred)\b/i.test(name)) return false;
+  const words = name.split(' ').filter(Boolean);
+  return !words.every((word) => LABEL_WORD.test(word));
+};
+
 /**
- * Extract the payee name, allowing the label and name to appear on separate
- * lines.
+ * Extract the payee name, allowing the label and name to appear on separate lines ("Recipient Name" on one line,
+ * "Bunny Monera" on the next), skipping headings such as "Recipient Details" and other labels in between.
+ * When the label was not read at all, a name-shaped line directly above a mobile or account number is used.
  */
 const extractRecipient = (text) => {
   if (!text) return null;
   const lines = String(text).split(/\r?\n/);
 
-  const clean = (value) => String(value || '')
-    .replace(/[^\p{L}\p{N}\s.,'-]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-
     const labelled = line.match(RECIPIENT_LABELS);
     const bare = labelled ? null : line.match(BARE_TO_LABEL);
     if (!labelled && !bare) continue;
-    const sameLineName = labelled ? labelled[2] : bare[1];
-    let name = clean(sameLineName);
+    let name = cleanName(labelled ? labelled[2] : bare[1]);
 
-    if (name.length < 3) {
-      for (let j = i + 1; j < Math.min(i + 3, lines.length); j += 1) {
-        const candidate = clean(lines[j]);
-        if (candidate.length >= 3) { name = candidate; break; }
+    if (!looksLikeName(name)) {
+      name = '';
+      for (let j = i + 1; j < Math.min(i + 4, lines.length); j += 1) {
+        if (isLabelLine(lines[j])) continue;
+        const candidate = cleanName(lines[j]);
+        if (looksLikeName(candidate)) { name = candidate; break; }
       }
     }
+    if (name && looksLikeName(name)) return name;
+  }
 
-    if (
-      name.length >= 3
-      && !/^[\d\s.,]+$/.test(name)
-      && !/amount|total|fee/i.test(name)
-      && !/^(sent|send|paid|transferred)\b/i.test(name)
-    ) {
-      return name;
+  // No label: a name-shaped line right above a mobile/account number line
+  for (let i = 0; i + 1 < lines.length; i += 1) {
+    const candidate = cleanName(lines[i]);
+    const next = String(lines[i + 1] || '');
+    const nextDigits = next.replace(/[^0-9]/g, '');
+    if (nextDigits.length >= 10 && /^[\d\s+()-]+$/.test(next.trim()) && /^[\p{L}][\p{L}.'-]*(?:\s+[\p{L}][\p{L}.'-]*){1,4}$/u.test(candidate) && looksLikeName(candidate)) {
+      return candidate;
     }
   }
 

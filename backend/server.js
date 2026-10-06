@@ -977,6 +977,23 @@ const recipientNameMatches = (receiptRecipient, expectedRecipient) => {
   return receiptText.includes(expectedText) || expectedText.includes(receiptText);
 };
 
+/**
+ * Is the receipt addressed to the shop's registered account?
+ * The reader does not always get the "Recipient" label (small grey labels are often dropped), so the check is
+ * wider than the extracted name: the payee name matches, OR the shop's registered name is printed on a receipt
+ * line that is not a sender line, OR the shop's registered mobile/account number is printed (compared by its
+ * last 10 digits, so "0927 571 8000", "09275718000" and "+63 927 571 8000" are the same number).
+ */
+const shopAccountMatches = (parsed, expectedName, expectedNumber) => {
+  if (recipientNameMatches(parsed?.recipient, expectedName)) return true;
+  const lines = String(parsed?.rawText || '').split(/\r?\n/).filter((line) => !/\b(?:from|sender|source)\b/i.test(line));
+  const expectedText = normalizeMatchText(expectedName);
+  if (expectedText && lines.some((line) => normalizeMatchText(line).includes(expectedText))) return true;
+  const expectedDigits = String(expectedNumber || '').replace(/\D/g, '').slice(-10);
+  if (expectedDigits.length === 10 && lines.some((line) => !/\*/.test(line) && line.replace(/\D/g, '').includes(expectedDigits))) return true;
+  return false;
+};
+
 // A reference number is kept only for a payment that actually becomes part of a
 // booking. A receipt that failed its checks (rejected, duplicate, mismatched)
 // must leave no reference behind, otherwise failed attempts pile up in the
@@ -1119,6 +1136,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     const paymentId = req.body.paymentId;
     const expectedQrVersion = Number(req.body.expectedQrVersion || req.body.expected_qr_version || 0);
     let liveQrAccountName = '';
+    let liveQrAccountNumber = '';
     let liveQrVersion = 0;
     if (supabaseAdmin) {
       try {
@@ -1131,6 +1149,9 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         liveQrVersion = Number(liveCfg?.qr_config_version || 0);
         liveQrAccountName = String(
           liveCfg?.qr_account_name || liveCfg?.payment_account_name || liveCfg?.gcash_name || ''
+        ).trim();
+        liveQrAccountNumber = String(
+          liveCfg?.qr_account_number || liveCfg?.payment_account_number || liveCfg?.gcash_number || ''
         ).trim();
       } catch (cfgErr) {
         console.warn('⚠️ [AI OCR] QR version lookup failed (non-fatal):', cfgErr.message);
@@ -1158,7 +1179,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
             && parsed.amount !== null
             && parsed.amount >= effectiveRequiredAmount
             && isReferenceValid
-            && (!expectedRecipientName || recipientNameMatches(parsed.recipient, expectedRecipientName))
+            && (!expectedRecipientName || shopAccountMatches(parsed, expectedRecipientName, liveQrAccountNumber))
           );
         },
       });
@@ -1188,7 +1209,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // 🛡️ FINANCIAL INTEGRITY GUARD: Comparison Logic
     const extractedAmount = normalizeAmountValue(extractedData.amount) ?? 0;
     const referenceNo = String(extractedData.referenceNo || '').trim();
-    const isNameMatch = recipientNameMatches(extractedData.recipient, expectedRecipientName);
+    const isNameMatch = shopAccountMatches(extractedData, expectedRecipientName, liveQrAccountNumber);
 
     const isAmountMatch = extractedData.amount !== null && extractedAmount >= effectiveRequiredAmount;
     const overpaymentAmount = Math.max(0, Math.round((extractedAmount - fullAmount) * 100) / 100);
