@@ -1346,31 +1346,6 @@ export default function BusinessHub() {
 
   const isArchivedService = (service) => service?.is_active === false || service?.archived === true;
 
-  const getDeleteBlockedVehicleTypes = (services) => {
-    const selectedActiveServices = (services || []).filter((service) => !isArchivedService(service));
-    if (!selectedActiveServices.length) return [];
-    const selectedIds = new Set(selectedActiveServices.map((service) => String(service?.id || '')));
-    const remainingActive = allLoadedServices.filter((service) => (
-      !selectedIds.has(String(service.id)) && !isArchivedService(service)
-    ));
-
-    return (businessForm.vehicle_types || [])
-      .filter((vehicleType) => !remainingActive.some((service) => (
-        normalizeVehicleTypes(service).includes(normalizeVehicleCategoryKey(vehicleType))
-      )))
-      .map((vehicleType) => getVehicleTypeLabel(vehicleType));
-  };
-
-  const showDeleteBlockedModal = (vehicleTypes) => {
-    openModal({
-      title: 'Cannot delete these services',
-      message: `Every vehicle type needs at least one active service. Keep an active service for ${vehicleTypes.join(', ')} before deleting the selected rows. Archived services do not count as the required active service.`,
-      confirmText: 'Understood',
-      cancelText: null,
-      type: 'warning'
-    });
-  };
-
   // Confirmation wrapper. Every button routes through here, so there is exactly
   // one place where a catalog change is authorized — and a Decline leaves the
   // catalog untouched.
@@ -1433,190 +1408,6 @@ export default function BusinessHub() {
       type: 'info',
       run: () => commitRestoreServices(snapshot),
     });
-  };
-
-  // Delete is confirmed through the same gate as archive/restore, so the admin
-  // sees one consistent "are you sure" step no matter which button they pressed.
-  const requestDeleteService = (service) => {
-    if (!service) return;
-    const blockedVehicleTypes = getDeleteBlockedVehicleTypes([service]);
-    if (blockedVehicleTypes.length) {
-      showDeleteBlockedModal(blockedVehicleTypes);
-      return;
-    }
-    confirmCatalogAction({
-      title: 'Delete this service?',
-      message: `"${service.name}" will be removed. If it is linked to any past or active booking it is archived instead, so booking history is never orphaned.`,
-      confirmText: 'Delete Service',
-      type: 'danger',
-      run: () => commitDeleteService(service),
-    });
-  };
-
-  // Section 3: batch archive / batch delete. The master toolbar acts on every
-  // checked row at once; both paths record tombstones for the whole selection so
-  // a batch delete of BUILT-IN services cannot resurrect them on the next load.
-  // NOTE: batch archive and batch restore are now SEPARATE actions
-  // (requestBatchArchive / requestBatchRestore above) instead of one control that
-  // guessed its direction from row state.
-  const batchDeleteServices = async (services) => {
-    const list = Array.isArray(services) ? services.filter(Boolean) : [];
-    if (!list.length) return;
-    const byId = new Map(list.map((s) => [String(s.id), s]));
-    const next = (businessForm.custom_services || []).filter((s) => !byId.has(String(s.id)));
-    // Every removed id becomes a tombstone — this is what stops
-    // flattenDefaultServices() from regenerating a deleted built-in.
-    await saveCatalogState(
-      next,
-      businessForm.vehicle_types,
-      `${list.length} service(s) deleted successfully.`,
-      {
-        archivedServiceIds,
-        deletedServiceIds: tombstoneDeleted([...byId.keys()])
-      }
-    );
-    if (editingServiceId && byId.has(String(editingServiceId))) {
-      setEditingServiceId(null);
-      setNewService(EMPTY_NEW_SERVICE);
-    }
-    setSelectedServiceIds([]);
-  };
-
-  // Section 1: batch delete must respect the SAME foreign-key rule as a single
-  // delete (Section 3) — a service referenced by past bookings is soft-archived
-  // rather than hard-deleted, so booking history keeps naming it. One usage
-  // lookup covers the whole selection.
-  // NOTE: as of the confirm-gate change this is only called from commitBatchDelete
-  // (i.e. AFTER the admin confirmed), which is why the confirmation now lives on
-  // requestBatchDelete.
-  const requestBatchDelete = () => {
-    if (!selectedServiceRows.length) return;
-    const blockedVehicleTypes = getDeleteBlockedVehicleTypes(selectedServiceRows);
-    if (blockedVehicleTypes.length) {
-      showDeleteBlockedModal(blockedVehicleTypes);
-      return;
-    }
-    const count = selectedServiceRows.length;
-    // Snapshot the rows so the modal's confirm handler cannot act on a selection
-    // the admin changed while the dialog was open.
-    const rowsSnapshot = [...selectedServiceRows];
-    confirmCatalogAction({
-      title: `Delete ${count} service${count === 1 ? '' : 's'}?`,
-      message: 'Services linked to past bookings will be archived instead of deleted so booking history is preserved. Services with no booking history are removed permanently. Continue?',
-      confirmText: 'Delete Services',
-      type: 'danger',
-      run: () => commitBatchDelete(rowsSnapshot),
-    });
-  };
-
-  const commitBatchDelete = async (services) => {
-    const list = Array.isArray(services) ? services.filter(Boolean) : [];
-    if (!list.length) return;
-
-    // Ask the backend which of these names are referenced by real bookings.
-    let inUseNames = new Set();
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/services/usage`, {
-        method: 'POST',
-        headers: await authHeaders(),
-        body: JSON.stringify({ names: list.map((s) => s.name).filter(Boolean) })
-      });
-      const result = await res.json();
-      if (result?.success) {
-        inUseNames = new Set(
-          Object.entries(result.usage || {})
-            .filter(([, count]) => Number(count) > 0)
-            .map(([name]) => name)
-        );
-      } else {
-        // Safe path: if the check did not succeed, treat everything as in use.
-        inUseNames = new Set(list.map((s) => s.name).filter(Boolean));
-      }
-    } catch {
-      inUseNames = new Set(list.map((s) => s.name).filter(Boolean));
-    }
-
-    const toArchive = list.filter((s) => inUseNames.has(s.name));
-    const toDelete = list.filter((s) => !inUseNames.has(s.name));
-
-    if (toArchive.length) await commitArchiveServices(toArchive);
-    if (toDelete.length) await batchDeleteServices(toDelete);
-
-    setMessage({
-      type: 'success',
-      text: [
-        toDelete.length ? `${toDelete.length} service(s) deleted.` : '',
-        toArchive.length ? `${toArchive.length} service(s) archived instead of deleted (linked to past bookings).` : '',
-      ].filter(Boolean).join(' '),
-    });
-  };
-
-  // ---- Section 3.1: Delete with soft-archive fallback ----
-  //
-  // `requestDeleteService` (defined with the other confirm-gated actions) opens
-  // the shared confirmation modal; this is the COMMIT that runs only if the admin
-  // confirms. The legacy in-component `pendingDelete` dialog was removed so there
-  // is a single confirmation surface for archive/restore/delete.
-  const commitDeleteService = async (service) => {
-    if (!service) return;
-
-    // A service tied to ANY booking (past or active) must never be hard-deleted:
-    // the booking history references it by name. Ask the backend how many bookings
-    // use it and fall back to soft-archiving when the count is non-zero.
-    let inUse = false;
-    let referenceCount = 0;
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/services/usage`, {
-        method: 'POST',
-        headers: await authHeaders(),
-        body: JSON.stringify({ names: [service.name] })
-      });
-      const result = await res.json();
-      if (result?.success) {
-        referenceCount = Number(result.usage?.[service.name] || 0);
-        inUse = referenceCount > 0;
-      }
-    } catch {
-      // If the check itself fails we take the safe path and archive rather than
-      // risk orphaning a booking's historical service name.
-      inUse = true;
-    }
-
-    if (inUse) {
-      // A service referenced by bookings is ARCHIVED, not deleted, so history is
-      // preserved. Persist immediately through saveCatalogState (the same path the
-      // sibling Archive/Edit buttons use) — the previous implementation only wrote
-      // local state + localStorage, so the change was never saved and the row
-      // reappeared on the next config fetch.
-      const archivedAt = new Date().toISOString();
-      const next = (businessForm.custom_services || []).map((s) =>
-        s.id === service.id ? { ...s, archived: true, is_active: false, archivedAt } : s
-      );
-      // Tombstone the id too: for a built-in, this is the ONLY durable marker
-      // (there is no custom row to carry `archived: true`).
-      await saveCatalogState(
-        next,
-        businessForm.vehicle_types,
-        `"${service.name}" is linked to ${referenceCount || 'existing'} booking(s), so it was archived instead of deleted to preserve booking history.`,
-        { archivedServiceIds, deletedServiceIds: tombstoneDeleted([service.id]) }
-      );
-    } else {
-      const next = (businessForm.custom_services || []).filter((s) => s.id !== service.id);
-      // A deleted built-in must ALSO be tombstoned; otherwise
-      // flattenDefaultServices() regenerates it on the next load and the delete
-      // silently reverts (the reported "fake success" bug).
-      await saveCatalogState(
-        next,
-        businessForm.vehicle_types,
-        `Service "${service.name}" deleted successfully.`,
-        { archivedServiceIds: tombstoneArchived([service.id]) }
-      );
-      // If the row being deleted was open in the editor, drop the stale edit.
-      if (editingServiceId === service.id) {
-        setEditingServiceId(null);
-        setNewService(EMPTY_NEW_SERVICE);
-      }
-    }
   };
 
   // ---- FAQ catalog helpers (Tab 4) — Tier 2.8 ----
@@ -3033,14 +2824,6 @@ export default function BusinessHub() {
                         >
                           <ArchiveRestore size={14} /> Restore
                         </button>
-                        <button
-                          type="button"
-                          disabled={!selectedServiceRows.length}
-                          onClick={requestBatchDelete}
-                          style={{ ...buttonBase, background: 'rgba(239,68,68,0.1)', color: 'var(--status-danger)', border: '1px solid rgba(239,68,68,0.4)', opacity: selectedServiceRows.length ? 1 : 0.45, cursor: selectedServiceRows.length ? 'pointer' : 'not-allowed' }}
-                        >
-                          <Trash2 size={14} /> Delete
-                        </button>
                       </div>
                     </div>
                   )}
@@ -3100,7 +2883,6 @@ export default function BusinessHub() {
                                       ) : (
                                         <button type="button" onClick={() => requestArchiveService(service)} style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(239,68,68,0.4)' }}>Archive</button>
                                       )}
-                                      <button type="button" onClick={() => requestDeleteService(service)} style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(239,68,68,0.4)' }}>Delete</button>
                                     </>
                                   )}
                                 </div>
