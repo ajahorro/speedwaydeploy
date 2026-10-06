@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 1392" width="1240" height="1392" font-family="Arial, Helvetica, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker></defs>
+<rect width="1240" height="1392" fill="#fff"/>
+<text x="620" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Flowchart: Administrator Walk-In Booking</text>
+<path d="M330,142 L330,180" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M330,246 L330,284" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M455,336 L485,336" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="329" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M330,388 L330,426" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="406" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,492 L330,530" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M455,582 L485,582" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="575" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,634 L330,672" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="652" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M330,738 L330,776" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M330,842 L330,880" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M455,932 L485,932" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="925" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,984 L330,1022" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="1002" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M330,1088 L330,1126" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M330,1192 L330,1230" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="205" y="90" width="250" height="52" rx="26" fill="#fff" stroke="#111" stroke-width="2"/><text text-anchor="middle" font-size="13" font-weight="700" fill="#111"><tspan x="330" y="104.33333333333333">A customer arrives at the shop;</tspan><tspan x="330" y="120.33333333333333">the administrator opens a walk-in</tspan><tspan x="330" y="136.33333333333331">booking</tspan></text>
+<rect x="205" y="180" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="201.33333333333334">Choose Walk-in Guest (name,</tspan><tspan x="330" y="217.33333333333334">email, phone) or select an</tspan><tspan x="330" y="233.33333333333334">existing customer account</tspan></text>
+<polygon points="330,284 455,336 330,388 205,336" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="324.6666666666667">Does a guest email</tspan><tspan x="330" y="340.1666666666667">already belong to an</tspan><tspan x="330" y="355.6666666666667">account?</tspan></text>
+<rect x="205" y="426" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="447.3333333333333">Add each vehicle (plate, type)</tspan><tspan x="330" y="463.3333333333333">and its services, then pick the</tspan><tspan x="330" y="479.3333333333333">date and time</tspan></text>
+<polygon points="330,530 455,582 330,634 205,582" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="578.4166666666666">Is the time open, not</tspan><tspan x="330" y="593.9166666666666">blocked, and with room?</tspan></text>
+<rect x="205" y="672" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="693.3333333333334">Choose the amount: downpayment,</tspan><tspan x="330" y="709.3333333333334">full, a manual amount, or "to be</tspan><tspan x="330" y="725.3333333333334">received" (nothing collected now)</tspan></text>
+<rect x="205" y="776" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="797.3333333333334">Choose the method: cash, or</tspan><tspan x="330" y="813.3333333333334">GCash/bank (scan the receipt, or</tspan><tspan x="330" y="829.3333333333334">enter the reference number)</tspan></text>
+<polygon points="330,880 455,932 330,984 205,932" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="920.6666666666666">Is the amount valid and,</tspan><tspan x="330" y="936.1666666666666">if digital, is the proof</tspan><tspan x="330" y="951.6666666666666">accepted?</tspan></text>
+<rect x="205" y="1022" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="1035.3333333333333">The server re-checks the price,</tspan><tspan x="330" y="1051.3333333333333">hours, and capacity, then creates</tspan><tspan x="330" y="1067.3333333333333">the booking as Confirmed with the</tspan><tspan x="330" y="1083.3333333333333">payment recorded</tspan></text>
+<rect x="205" y="1126" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="1147.3333333333333">The customer is emailed the</tspan><tspan x="330" y="1163.3333333333333">confirmation, and linked accounts</tspan><tspan x="330" y="1179.3333333333333">also get a notification</tspan></text>
+<rect x="205" y="1230" width="250" height="52" rx="26" fill="#fff" stroke="#111" stroke-width="2"/><text text-anchor="middle" font-size="13" font-weight="700" fill="#111"><tspan x="330" y="1252.3333333333333">Booking appears as Confirmed for</tspan><tspan x="330" y="1268.3333333333333">the shop and staff</tspan></text>
+<rect x="485" y="290" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="310.8333333333333">Link the booking to</tspan><tspan x="560" y="325.3333333333333">that account</tspan><tspan x="560" y="339.8333333333333">(advised), or</tspan><tspan x="560" y="354.3333333333333">knowingly continue</tspan><tspan x="560" y="368.8333333333333">as guest</tspan></text>
+<rect x="485" y="536" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="585.8333333333334">Pick another time</tspan></text>
+<rect x="485" y="886" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="921.3333333333334">Correct the amount</tspan><tspan x="560" y="935.8333333333334">or proof, then try</tspan><tspan x="560" y="950.3333333333334">again</tspan></text>
+<rect x="800" y="90" width="400" height="452" rx="10" fill="none" stroke="#111" stroke-width="1.8"/>
+<rect x="800" y="90" width="400" height="34" rx="10" fill="#111"/>
+<text x="1000" y="112" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">Rules</text>
+<line x1="800" y1="130" x2="1200" y2="130" stroke="#bbb"/>
+<text x="814" y="150" font-size="13" font-weight="800" fill="#111">No minimum notice</text>
+<text font-size="12" fill="#111"><tspan x="814" y="170">Unlike a customer booking, a walk-in can start today</tspan><tspan x="814" y="185">without the usual lead time. Closed days, blocked</tspan><tspan x="814" y="200">times, and capacity still apply.</tspan></text>
+<line x1="800" y1="219" x2="1200" y2="219" stroke="#bbb"/>
+<text x="814" y="239" font-size="13" font-weight="800" fill="#111">Cash</text>
+<text font-size="12" fill="#111"><tspan x="814" y="259">Cash is allowed at any total for a walk-in, because</tspan><tspan x="814" y="274">the money is received in front of the administrator.</tspan></text>
+<line x1="800" y1="293" x2="1200" y2="293" stroke="#bbb"/>
+<text x="814" y="313" font-size="13" font-weight="800" fill="#111">Downpayment</text>
+<text font-size="12" fill="#111"><tspan x="814" y="333">Offered only when the total is 1,000 or more. A</tspan><tspan x="814" y="348">manual amount cannot be below the minimum or above</tspan><tspan x="814" y="363">the total.</tspan></text>
+<line x1="800" y1="382" x2="1200" y2="382" stroke="#bbb"/>
+<text x="814" y="402" font-size="13" font-weight="800" fill="#111">To be received</text>
+<text font-size="12" fill="#111"><tspan x="814" y="422">Records the full amount as owed. Payments are added</tspan><tspan x="814" y="437">later from the booking details.</tspan></text>
+<line x1="800" y1="456" x2="1200" y2="456" stroke="#bbb"/>
+<text x="814" y="476" font-size="13" font-weight="800" fill="#111">Admin identity</text>
+<text font-size="12" fill="#111"><tspan x="814" y="496">The administrator's own account is never stored as</tspan><tspan x="814" y="511">the customer.</tspan></text>
+</svg>

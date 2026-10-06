@@ -500,8 +500,29 @@ const addServiceFlow = () => laneChart('Flowchart: Adding a Service to an Existi
   ['Who can do it', 'The customer who owns the booking, or an administrator for walk-ins and phone requests.']
 ]);
 
+
+const walkInFlow = () => laneChart('Flowchart: Administrator Walk-In Booking', [
+  { type: 'start', label: 'A customer arrives at the shop; the administrator opens a walk-in booking' },
+  { type: 'step', label: 'Choose Walk-in Guest (name, email, phone) or select an existing customer account' },
+  { type: 'decision', label: 'Does a guest email already belong to an account?', no: 'Link the booking to that account (advised), or knowingly continue as guest', noLabel: 'Yes', yesLabel: 'No' },
+  { type: 'step', label: 'Add each vehicle (plate, type) and its services, then pick the date and time' },
+  { type: 'decision', label: 'Is the time open, not blocked, and with room?', no: 'Pick another time', noLabel: 'No', yesLabel: 'Yes' },
+  { type: 'step', label: 'Choose the amount: downpayment, full, a manual amount, or "to be received" (nothing collected now)' },
+  { type: 'step', label: 'Choose the method: cash, or GCash/bank (scan the receipt, or enter the reference number)' },
+  { type: 'decision', label: 'Is the amount valid and, if digital, is the proof accepted?', no: 'Correct the amount or proof, then try again', noLabel: 'No', yesLabel: 'Yes' },
+  { type: 'step', label: 'The server re-checks the price, hours, and capacity, then creates the booking as Confirmed with the payment recorded' },
+  { type: 'step', label: 'The customer is emailed the confirmation, and linked accounts also get a notification' },
+  { type: 'end', label: 'Booking appears as Confirmed for the shop and staff' }
+], [
+  ['No minimum notice', 'Unlike a customer booking, a walk-in can start today without the usual lead time. Closed days, blocked times, and capacity still apply.'],
+  ['Cash', 'Cash is allowed at any total for a walk-in, because the money is received in front of the administrator.'],
+  ['Downpayment', 'Offered only when the total is 1,000 or more. A manual amount cannot be below the minimum or above the total.'],
+  ['To be received', 'Records the full amount as owed. Payments are added later from the booking details.'],
+  ['Admin identity', 'The administrator\'s own account is never stored as the customer.']
+]);
+
 (async () => {
-  const out = { 'flowchart-account-creation': accountCreation(), 'flowchart-password-recovery': recovery(), 'flowchart-sign-in-lockout': signIn(), 'flowchart-access-control': accessControl(), 'flowchart-idle-signout': idleLogout(), 'flowchart-customer-booking': bookingFlow(), 'flowchart-reschedule': rescheduleFlow(), 'flowchart-cancel': cancelFlow(), 'flowchart-add-service': addServiceFlow() };
+  const out = { 'flowchart-account-creation': accountCreation(), 'flowchart-password-recovery': recovery(), 'flowchart-sign-in-lockout': signIn(), 'flowchart-access-control': accessControl(), 'flowchart-idle-signout': idleLogout(), 'flowchart-customer-booking': bookingFlow(), 'flowchart-reschedule': rescheduleFlow(), 'flowchart-cancel': cancelFlow(), 'flowchart-add-service': addServiceFlow(), 'flowchart-walk-in': walkInFlow() };
   for (const [name, svg] of Object.entries(out)) {
     fs.writeFileSync(path.join(__dirname, `${name}.svg`), svg);
     await sharp(Buffer.from(svg), { density: 150 }).png().toFile(path.join(__dirname, `${name}.png`));
