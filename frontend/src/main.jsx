@@ -42,7 +42,6 @@ const AdminAcceptInvite = lazy(() => import('./pages/Admin/AdminAcceptInvite'));
 const AdminWalkInForm = lazy(() => import('./pages/Admin/AdminWalkInWizard'));
 const StaffLayout = lazy(() => import('./pages/Staff/StaffLayout'));
 const StaffDashboard = lazy(() => import('./pages/Staff/StaffDashboard'));
-const StaffActiveJobs = lazy(() => import('./pages/Staff/StaffActiveJobs'));
 const StaffWorkHistory = lazy(() => import('./pages/Staff/StaffWorkHistory'));
 const StaffReports = lazy(() => import('./pages/Staff/StaffReports'));
 const StaffJobDetails = lazy(() => import('./pages/Staff/StaffJobDetails'));
@@ -183,7 +182,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   }
                 >
                   <Route index element={<StaffDashboard />} />
-                  <Route path="tasks" element={<StaffActiveJobs />} />
+                  <Route path="tasks" element={<Navigate to="/staff" replace />} />
                   <Route path="history" element={<StaffWorkHistory />} />
                   <Route path="reports" element={<StaffReports />} />
                   <Route path="duty" element={<StaffDuty />} />

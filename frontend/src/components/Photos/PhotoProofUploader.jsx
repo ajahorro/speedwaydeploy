@@ -87,34 +87,49 @@ const PhotoProofUploader = ({
     return null;
   };
 
-  const handleFiles = async (fileList) => {
+  // Photos are first collected in a tray (take or choose as many as needed, up to the limit), then submitted together.
+  // Submitted evidence is locked, so nothing is saved until the technician presses Submit.
+  const [staged, setStaged] = useState([]); // { id, file, url }
+  const cameraRef = useRef(null);
+
+  useEffect(() => () => { staged.forEach((item) => URL.revokeObjectURL(item.url)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleFiles = (fileList) => {
     if (interactionDisabled || uploading) return;
     const files = Array.from(fileList || []);
-    if (!files.length) return;
-    if (photos.length + files.length > MAX_PHOTOS_PER_PHASE) {
-      toast.error(`Upload no more than ${MAX_PHOTOS_PER_PHASE} photos for this phase.`);
-      if (inputRef.current) inputRef.current.value = '';
-      return;
-    }
-
-    for (const f of files) {
-      const problem = validate(f);
-      if (problem) {
-        toast.error(problem);
-        if (inputRef.current) inputRef.current.value = '';
-        return;
-      }
-    }
-
-    // Submitted evidence is locked (it cannot be added to or removed afterwards),
-    // so the technician confirms before it is sent.
-    // The picked files are already in hand; clear the input so the same photo can be picked again if this is cancelled.
     if (inputRef.current) inputRef.current.value = '';
+    if (cameraRef.current) cameraRef.current.value = '';
+    if (!files.length) return;
+    const room = MAX_PHOTOS_PER_PHASE - photos.length - staged.length;
+    if (files.length > room) {
+      toast.error(room > 0 ? `You can add ${room} more photo${room === 1 ? '' : 's'} (maximum ${MAX_PHOTOS_PER_PHASE}).` : `The maximum is ${MAX_PHOTOS_PER_PHASE} photos.`);
+    }
+    const accepted = [];
+    for (const file of files.slice(0, Math.max(0, room))) {
+      const problem = validate(file);
+      if (problem) { toast.error(problem); continue; }
+      accepted.push({ id: `${file.name}-${file.size}-${Math.random().toString(36).slice(2, 7)}`, file, url: URL.createObjectURL(file) });
+    }
+    if (accepted.length) setStaged((prev) => [...prev, ...accepted]);
+  };
+
+  const unstage = (id) => setStaged((prev) => {
+    const target = prev.find((item) => item.id === id);
+    if (target) URL.revokeObjectURL(target.url);
+    return prev.filter((item) => item.id !== id);
+  });
+
+  const submitStaged = () => {
+    if (!staged.length) return;
+    const files = staged.map((item) => item.file);
     confirmThen({
       title: phase === 'before' ? 'Submit the intake photos?' : 'Submit the completion photos?',
-      message: `${files.length} photo${files.length > 1 ? 's' : ''} will be saved as the ${phase === 'before' ? 'before' : 'after'} evidence for this vehicle. Once submitted they are locked and cannot be changed.`,
-      confirmText: 'Upload photos'
-    }, () => sendFiles(files));
+      message: `${files.length} photo${files.length > 1 ? 's' : ''} will be saved as the ${phase === 'before' ? 'before' : 'after'} evidence for this vehicle. Once submitted they are locked and cannot be added to or removed.`,
+      confirmText: 'Submit photos'
+    }, async () => {
+      await sendFiles(files);
+      setStaged((prev) => { prev.forEach((item) => URL.revokeObjectURL(item.url)); return []; });
+    });
   };
 
   const sendFiles = async (files) => {
@@ -200,56 +215,53 @@ const PhotoProofUploader = ({
         <p role="status" style={{ margin: 0, fontSize: '0.7rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
           Evidence saved. Photos in this submission are locked and can no longer be added or removed.
         </p>
-      ) : <div
-        onDrop={handleDrop}
-        onDragOver={(e) => e.preventDefault()}
-        style={{
-          border: '1px dashed var(--admin-input-border, var(--admin-border))',
-          borderRadius: 'var(--admin-radius)',
-          padding: '0.9rem',
-          textAlign: 'center',
-          background: 'var(--admin-bg)'
-        }}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept={ACCEPTED}
-          capture="environment"
-          multiple
-          disabled={interactionDisabled || uploading}
-          onChange={(e) => handleFiles(e.target.files)}
-          style={{ display: 'none' }}
-          id={`photo-input-${bookingVehicleId}-${phase}`}
-        />
-        <label
-          htmlFor={`photo-input-${bookingVehicleId}-${phase}`}
-          aria-disabled={interactionDisabled || uploading}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            cursor: interactionDisabled || uploading ? 'not-allowed' : 'pointer',
-            background: interactionDisabled || uploading ? 'var(--admin-border)' : 'var(--admin-brand)',
-            color: interactionDisabled || uploading ? 'var(--admin-text-secondary)' : 'var(--admin-text-on-brand)',
-            border: 'none',
-            borderRadius: 'var(--admin-radius)',
-            padding: '0.55rem 1rem',
-            fontWeight: 900,
-            fontSize: '0.72rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            opacity: interactionDisabled || uploading ? 0.6 : 1,
-            pointerEvents: interactionDisabled || uploading ? 'none' : 'auto'
-          }}
+      ) : (
+        <div
+          onDrop={handleDrop}
+          onDragOver={(e) => e.preventDefault()}
+          style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
         >
-          {uploading ? <Loader2 size={14} className="spin" /> : <ImagePlus size={14} />}
-          {uploading ? 'Uploading…' : 'Add Photos'}
-        </label>
-        <div style={{ marginTop: '0.4rem', fontSize: '0.72rem', color: 'var(--admin-text-secondary)' }}>
-          JPEG / PNG / WebP / HEIC · up to 10 MB each · max {MAX_PHOTOS_PER_PHASE}
+          <input ref={cameraRef} type="file" accept={ACCEPTED} capture="environment" disabled={interactionDisabled || uploading}
+            onChange={(e) => handleFiles(e.target.files)} style={{ display: 'none' }} id={`photo-camera-${bookingVehicleId}-${phase}`} />
+          <input ref={inputRef} type="file" accept={ACCEPTED} multiple disabled={interactionDisabled || uploading}
+            onChange={(e) => handleFiles(e.target.files)} style={{ display: 'none' }} id={`photo-input-${bookingVehicleId}-${phase}`} />
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {[['Take a photo', `photo-camera-${bookingVehicleId}-${phase}`, Camera], [staged.length ? 'Add more from gallery' : 'Choose photos', `photo-input-${bookingVehicleId}-${phase}`, ImagePlus]].map(([text, htmlFor, Icon]) => {
+              const off = interactionDisabled || uploading || staged.length >= MAX_PHOTOS_PER_PHASE;
+              return (
+                <label key={htmlFor} htmlFor={htmlFor} aria-disabled={off}
+                  style={{ flex: '1 1 140px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', minHeight: '44px', padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius)', fontWeight: 900, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: off ? 'not-allowed' : 'pointer', background: off ? 'var(--admin-border)' : 'var(--admin-bg)', color: off ? 'var(--admin-text-secondary)' : 'var(--admin-text-primary)', border: '1px solid var(--admin-brand)', opacity: off ? 0.6 : 1, pointerEvents: off ? 'none' : 'auto' }}>
+                  <Icon size={16} /> {text}
+                </label>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: 700 }}>
+            Add as many as you need (up to {MAX_PHOTOS_PER_PHASE}), then submit them together · JPEG / PNG / WebP / HEIC, 10 MB each
+          </div>
+
+          {staged.length > 0 && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))', gap: '0.5rem' }}>
+                {staged.map((item) => (
+                  <figure key={item.id} style={{ ...tileStyle, margin: 0 }}>
+                    <img src={item.url} alt="Selected photo" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    <button type="button" onClick={() => unstage(item.id)} aria-label="Remove this photo from the selection" disabled={uploading}
+                      style={{ position: 'absolute', top: 4, right: 4, width: 26, height: 26, display: 'grid', placeItems: 'center', border: 'none', borderRadius: 'var(--admin-radius-sm)', cursor: 'pointer', background: 'rgba(0,0,0,0.65)', color: '#fff' }}>
+                      <X size={14} />
+                    </button>
+                  </figure>
+                ))}
+              </div>
+              <button type="button" onClick={submitStaged} disabled={uploading}
+                style={{ minHeight: '46px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.7rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius)', fontWeight: 950, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: uploading ? 'wait' : 'pointer' }}>
+                {uploading ? <Loader2 size={16} className="spin" /> : <Camera size={16} />} {uploading ? 'Uploading…' : `Submit ${staged.length} photo${staged.length === 1 ? '' : 's'} (${staged.length} of ${MAX_PHOTOS_PER_PHASE})`}
+              </button>
+            </>
+          )}
         </div>
-      </div>}
+      )}
 
       {/* Gallery */}
       {loading ? (

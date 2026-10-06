@@ -4,35 +4,27 @@ import { subscribeTables } from '../../lib/realtimeHub';
 import { useNavigate } from 'react-router-dom';
 import {
   ClipboardList, Clock, CheckCircle2, AlertCircle,
-  Car, User, ArrowRight, Play, Loader2, Image, Save, UploadCloud, TrendingUp, Bell, LogIn
+  Car, ArrowRight, TrendingUp, Bell, LogIn
 } from 'lucide-react';
 import toast from '@/lib/toast';
 import { useAuth } from '../../hooks/useAuth';
-import { useUI } from '../../context/UIContext';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
-import PhotoProofUploader from '../../components/Photos/PhotoProofUploader';
-import IntakeWarningBadge from '../../components/Photos/IntakeWarningBadge';
 import { BACKEND_URL } from '../../config/api';
 import { loadPreferences } from '../../utils/preferenceStore';
 import { playJobAssignmentChime } from '../../utils/jobAssignmentChime';
 import { isNotificationActionable, isRedundantStaffTechnicianAssignment } from '../../utils/notificationRouting';
-import { SHOW_START_SERVICE_ACTIONS } from '../../config/workflowFeatures';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
-import StartChecklist from '../../components/Photos/StartChecklist';
-import { startReadiness } from '../../utils/staffStart';
 import CustomerContact from '../../components/Staff/CustomerContact';
 const StaffDashboard = () => {
   const { confirmThen } = useConfirmAction();
   const { profile, toggleShift } = useAuth();
-  const { openModal } = useUI();
   const navigate = useNavigate();
   const isMobile = useMediaQuery('(max-width: 1024px)');
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ pending: 0, active: 0, completed: 0 });
-  const [localNotes, setLocalNotes] = useState({});
   const [broadcasts, setBroadcasts] = useState([]);
   const [shiftTimer, setShiftTimer] = useState('OFF DUTY');
   const [isClockingIn, setIsClockingIn] = useState(false);
@@ -40,15 +32,6 @@ const StaffDashboard = () => {
   const soundHapticChimeRef = useRef(false);
   const knownTaskIdsRef = useRef(new Set());
   const hasLoadedTasksRef = useRef(false);
-  // Batch 5: per-unit photo counts, keyed by task.id -> { before, after }.
-  // Drives the intake soft-warning and the completion hard-gate on the client.
-  const [photoCounts, setPhotoCounts] = useState({});
-  const setPhotoCount = (taskId, phase) => (count) =>
-    setPhotoCounts((prev) => ({
-      ...prev,
-      [taskId]: { before: 0, after: 0, ...(prev[taskId] || {}), [phase]: count }
-    }));
-
   useEffect(() => {
     soundHapticChimeRef.current = soundHapticChime;
   }, [soundHapticChime]);
@@ -133,9 +116,6 @@ const StaffDashboard = () => {
       hasLoadedTasksRef.current = true;
 
       setTasks(allVehicleTasks);
-      const notesObj = {};
-      allVehicleTasks.forEach(t => { notesObj[t.id] = t.service_notes || ''; });
-      setLocalNotes(notesObj);
       
       const pending = allVehicleTasks.filter(t => t.status?.toUpperCase() === 'PENDING').length;
       const active = allVehicleTasks.filter(t => t.status?.toUpperCase() === 'IN_PROGRESS').length;
@@ -177,41 +157,6 @@ const StaffDashboard = () => {
     return () => { stopRealtime(); };
   }, [fetchAssignedTasks, profile?.id]);
 
-  const handleUpdateStatus = async (task, newStatus) => {
-    if (task.booking_status?.toLowerCase() === 'completed' || task.booking_status?.toLowerCase() === 'cancelled') {
-      return toast.error('Booking is finalized.');
-    }
-    const toastId = toast.loading(`Updating unit status...`);
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/bookings/update-status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}` },
-        body: JSON.stringify({
-          bookingId: task.booking_id,
-          unitId: task.id,
-          newStatus: newStatus,
-          notes: localNotes[task.id],
-          actorName: profile?.full_name || 'Staff',
-          actorRole: 'STAFF'
-        })
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.success) throw new Error(result.error || 'Lifecycle service unavailable. No status change was made.');
-      toast.success(`Unit marked as ${newStatus.toUpperCase()}`, { id: toastId });
-      return fetchAssignedTasks();
-    } catch (err) {
-      toast.error(err.message || 'Status update failed', { id: toastId });
-    }
-  };
-
-  const canStartTask = (task) => {
-    return startReadiness({
-      clockedIn: profile?.is_clocked_in,
-      beforePhotos: photoCounts[task.id]?.before || 0,
-      startDatetime: task.start_datetime
-    }).ok;
-  };
-
   const handleClockIn = async () => {
     if (!profile?.id || typeof toggleShift !== 'function' || profile.is_clocked_in || isClockingIn) return;
     setIsClockingIn(true);
@@ -219,52 +164,6 @@ const StaffDashboard = () => {
       await toggleShift(true);
     } finally {
       setIsClockingIn(false);
-    }
-  };
-
-  const requestUpdateStatus = (task, newStatus) => {
-    openModal({
-      title: newStatus === 'COMPLETED' ? 'Finalize Service?' : 'Start Service?',
-      message: newStatus === 'COMPLETED'
-        ? `Confirm completion for ${task.brand} ${task.model}. This will notify the customer.`
-        : `Start service for ${task.brand} ${task.model}?`,
-      confirmText: newStatus === 'COMPLETED' ? 'Finish Job' : 'Start Service',
-      cancelText: 'Cancel',
-      type: newStatus === 'COMPLETED' ? 'success' : 'info',
-      onConfirm: () => handleUpdateStatus(task, newStatus)
-    });
-  };
-
-  /**
-   * Batch 5 — Start with a SOFT intake warning. If no 'before' photo exists we
-   * still allow the start, but make the omission explicit and remind the tech.
-   * The skip is inherently auditable via the absence of a before-phase row.
-   */
-  const requestStartTask = (task) => {
-    const hasIntake = (photoCounts[task.id]?.before || 0) > 0;
-    if (!hasIntake) {
-      toast.error('Upload at least one before-service photo before starting this vehicle.');
-      return;
-    }
-    openModal({
-      title: 'Start Service?',
-      message: `Start service for ${task.brand} ${task.model}?`,
-      confirmText: 'Start Service',
-      cancelText: 'Cancel',
-      type: 'info',
-      onConfirm: () => handleUpdateStatus(task, 'IN_PROGRESS')
-    });
-  };
-
-  const handleSaveNotes = async (taskId) => {
-    const toastId = toast.loading('Saving notes...');
-    try {
-      const { error } = await supabase.rpc('update_booking_vehicle_service_notes', { p_vehicle_id: taskId, p_notes: localNotes[taskId] ?? '' });
-      if (error) throw error;
-      toast.success('Notes saved!', { id: toastId });
-      fetchAssignedTasks();
-    } catch (err) {
-      toast.error('Failed to save notes', { id: toastId });
     }
   };
 
@@ -342,143 +241,31 @@ const StaffDashboard = () => {
 
           {tasks.length > 0 ? (
             tasks.map((task) => (
-              <div key={task.id} style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', overflow: 'hidden', transition: 'all 0.2s', opacity: task.status === 'COMPLETED' ? 0.7 : 1 }}>
-                <div style={{ padding: isMobile ? '1rem' : '1.5rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.9rem', background: 'var(--admin-bg)' }}>
-                  <div
-                    onClick={() => navigate(`/staff/job/${task.id}`)}
-                    style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.85rem' : '1.25rem', cursor: 'pointer', flex: '1 1 260px', minWidth: 0 }}
-                  >
-                    <div style={{ width: '56px', height: '56px', borderRadius: 'var(--admin-radius)', background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)', border: '1px solid var(--admin-border)' }}>
-                      <Car size={28} />
-                    </div>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem 0.5rem', marginBottom: '0.25rem' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-brand)', background: 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.1)', padding: '0.2rem 0.5rem', borderRadius: 'var(--admin-radius-sm)', letterSpacing: '1px' }}>JOB #{task.id.slice(0, 8).toUpperCase()}</span>
-                        <span style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>• Plate: {task.plate_number || 'N/A'}</span>
-                      </div>
-                      <h3 style={{ margin: 0, fontSize: isMobile ? '1.05rem' : '1.2rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '0.5px', overflowWrap: 'anywhere' }}>{task.brand} {task.model}</h3>
-                      <CustomerContact name={task.customer_name} phone={task.contact_number} />
-                    </div>
+              <button
+                key={task.id}
+                type="button"
+                onClick={() => navigate(`/staff/job/${task.id}`)}
+                style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', width: '100%', textAlign: 'left', background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: isMobile ? '1rem' : '1.25rem 1.5rem', color: 'var(--admin-text-primary)', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: '1 1 240px', minWidth: 0 }}>
+                  <div style={{ width: '48px', height: '48px', flexShrink: 0, borderRadius: 'var(--admin-radius)', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)' }}>
+                    <Car size={24} />
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', ...(isMobile ? { width: '100%' } : { flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }) }}>
-                    <div style={badgeStyle(task.status)}>{task.status?.replace(/_/g, ' ').toUpperCase()}</div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--admin-text-secondary)', fontWeight: '900', textTransform: 'uppercase' }}>
-                      Sch: {new Date(task.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '1rem', fontWeight: 950, textTransform: 'uppercase', overflowWrap: 'anywhere' }}>{task.brand} {task.model}</div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--admin-text-secondary)', marginTop: '0.2rem', overflowWrap: 'anywhere' }}>
+                      {task.plate_number || 'No plate'} · {task.customer_name || 'Customer'} · {(task.services || []).map((s) => s.service_name).join(', ') || 'No services'}
                     </div>
                   </div>
                 </div>
-
-                <div style={{ padding: isMobile ? '1rem' : '1.5rem', display: 'flex', flexDirection: 'column', gap: isMobile ? '1.1rem' : '1.5rem' }}>
-                  <div style={{ background: 'var(--admin-bg)', borderRadius: 'var(--admin-radius)', padding: '1.25rem', border: '1px solid var(--admin-border)' }}>
-                    <div style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.75rem' }}>Service Breakdown</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
-                      {task.services?.map((s, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--admin-card)', padding: '0.4rem 0.8rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)' }}>
-                          <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--admin-brand)' }}></div>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--admin-text-primary)', fontWeight: '800', textTransform: 'uppercase' }}>{s.service_name}</span>
-                        </div>
-                      ))}
-                    </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--admin-text-secondary)', fontWeight: 900, textTransform: 'uppercase' }}>
+                    {new Date(task.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
-
-                  {(
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobile || task.status?.toUpperCase() !== 'IN_PROGRESS' ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '1.5rem' }}>
-                      {task.status?.toUpperCase() !== 'PENDING' && (
-                      <div style={{ position: 'relative' }}>
-                        <div style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Detailing Observations</div>
-                        <textarea
-                          placeholder="Document service steps or vehicle conditions..."
-                          autoCapitalize="off"
-                          autoCorrect="off"
-                          spellCheck={false}
-                          data-no-auto-capitalize=""
-                          value={localNotes[task.id] || ''}
-                          onChange={(e) => setLocalNotes({ ...localNotes, [task.id]: e.target.value })}
-                          disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'}
-                          style={{ width: '100%', minHeight: '100px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: '1rem', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '600', outline: 'none', resize: 'none' }}
-                        />
-                        <button onClick={() => confirmThen({ title: 'Save notes?', message: 'The notes are saved to this job for the admin and customer record.', confirmText: 'Save notes' }, () => handleSaveNotes(task.id))} disabled={!profile?.is_clocked_in || task.status?.toUpperCase() === 'COMPLETED'} aria-label="Save notes" style={{ minWidth: 44, minHeight: 44,  position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', border: 'none', borderRadius: 'var(--admin-radius)', padding: '0.5rem', cursor: 'pointer' }}>
-                          <Save size={16} />
-                        </button>
-                      </div>
-                      )}
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Service Evidence</div>
-                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '700', lineHeight: 1.5 }}>
-                          {task.status?.toUpperCase() === 'IN_PROGRESS'
-                            ? 'Service started. Add at least one completion photo to finish the job.'
-                            : 'Add at least one before photo, then start the service.'}
-                        </p>
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
-                          <PhotoProofUploader
-                            bookingId={task.booking_id}
-                            bookingVehicleId={task.id}
-                            phase="before"
-                            disabled={['IN_PROGRESS', 'COMPLETED'].includes(task.status?.toUpperCase())}
-                            compact
-                            helperText="Capture the vehicle condition before work begins."
-                            onCountChange={setPhotoCount(task.id, 'before')}
-                          />
-                          {task.status?.toUpperCase() === 'IN_PROGRESS' && (
-                            <PhotoProofUploader
-                              bookingId={task.booking_id}
-                              bookingVehicleId={task.id}
-                              phase="after"
-                              compact
-                              helperText="Required: at least one QA photo before marking finished."
-                              onCountChange={setPhotoCount(task.id, 'after')}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    {['PENDING', 'SCHEDULED', 'CONFIRMED'].includes(task.status?.toUpperCase()) && (
-                      <>
-                        {/* Intake evidence is a hard precondition for starting. */}
-                        <StartChecklist
-                          taskId={task.id}
-                          clockedIn={profile?.is_clocked_in}
-                          beforePhotos={photoCounts[task.id]?.before || 0}
-                          startDatetime={task.start_datetime}
-                        />
-                        {SHOW_START_SERVICE_ACTIONS && <button onClick={() => requestStartTask(task)} disabled={!canStartTask(task)} title={!profile?.is_clocked_in ? 'Clock in to start service.' : (photoCounts[task.id]?.before || 0) < 1 ? 'Upload at least one before photo first.' : undefined} style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canStartTask(task) ? 'var(--admin-brand)' : 'var(--admin-border)', color: canStartTask(task) ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)', border: 'none', borderRadius: 'var(--admin-radius)', fontWeight: '950', fontSize: '0.8rem', cursor: canStartTask(task) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                          <Play size={18} /> START SERVICE
-                        </button>}
-                      </>
-                    )}
-                    {task.status?.toUpperCase() === 'IN_PROGRESS' && (() => {
-                      const afterCount = photoCounts[task.id]?.after || 0;
-                      const missingAfter = afterCount < 1;
-                      const canComplete = Boolean(profile?.is_clocked_in) && !missingAfter;
-                      return (
-                        <>
-                          {missingAfter && (
-                            <IntakeWarningBadge tone="danger" compact>Completion photo required</IntakeWarningBadge>
-                          )}
-                          <button
-                            onClick={() => requestUpdateStatus(task, 'COMPLETED')}
-                            disabled={!profile?.is_clocked_in || missingAfter}
-                            title={
-                              !profile?.is_clocked_in
-                                ? 'Clock in to update the job.'
-                                : missingAfter
-                                      ? 'Add at least 1 completion (after) photo to finish.'
-                                  : 'Mark this job as finished.'
-                            }
-                                    style={{ flex: 1, minWidth: '200px', padding: '1rem', background: canComplete ? 'var(--status-success)' : 'var(--admin-border)', color: canComplete ? 'white' : 'var(--admin-text-secondary)', border: 'none', borderRadius: 'var(--admin-radius)', fontWeight: '950', fontSize: '0.8rem', cursor: !profile?.is_clocked_in || missingAfter ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px' }}
-                          >
-                                    <CheckCircle2 size={18} /> MARK AS FINISHED
-                          </button>
-                        </>
-                      );
-                    })()}
-                  </div>
+                  <div style={badgeStyle(task.status)}>{task.status?.replace(/_/g, ' ').toUpperCase()}</div>
+                  <ArrowRight size={16} color="var(--admin-text-secondary)" />
                 </div>
-              </div>
+              </button>
             ))
           ) : (
             <div style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', border: '1px dashed var(--admin-border)', borderRadius: 'var(--admin-radius)', textAlign: 'center', padding: '2rem 1.5rem', minHeight: '180px', maxHeight: '220px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>

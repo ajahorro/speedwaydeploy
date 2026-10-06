@@ -113,6 +113,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
 
   const [promoDraft, setPromoDraft] = useState(defaultPromoDraft);
   const [promoValidationError, setPromoValidationError] = useState('');
+  const [showPastPromos, setShowPastPromos] = useState(false);
   const [promoPublishing, setPromoPublishing] = useState(false);
   const [activeVehiclePopover, setActiveVehiclePopover] = useState(null);
 
@@ -422,6 +423,39 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       }
     });
   };
+
+  // A running or upcoming promotion is archived, never deleted: it stops applying at once and moves to the archive list.
+  const handleArchivePromo = (promoId) => {
+    const target = promoRules.find(rule => rule.id === promoId);
+    if (!target) return;
+    openModal({
+      title: 'Archive this promo?',
+      message: `"${target.name}" stops applying immediately, including in carts that are still open. It moves to the archived promos list. Past bookings keep their own discount record.`,
+      confirmText: 'Archive Promo',
+      cancelText: 'Cancel',
+      type: 'danger',
+      onConfirm: async () => {
+        const session = (await supabase.auth.getSession()).data.session;
+        const response = await fetch(`${BACKEND_URL}/api/admin/promos/${encodeURIComponent(promoId)}/archive`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session?.access_token || ''}` }
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+          toast.error(result.error || 'The promotion could not be archived.');
+          return;
+        }
+        syncPromoRules(result.promoRules || promoRules);
+        toast.success(`Promo "${target.name}" archived.`);
+      }
+    });
+  };
+
+  // Current promos are listed; archived and expired ones sit behind one button so they do not fill the screen.
+  const isPastPromo = (rule) => Boolean(rule?.archived_at) || getPromoStatus(rule) === 'EXPIRED';
+  const currentRules = promoRules.filter((rule) => !isPastPromo(rule));
+  const pastRules = promoRules.filter(isPastPromo);
+  const shownRules = showPastPromos ? pastRules : currentRules;
 
   return (
     <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '1.25rem', marginTop: '0.5rem' }}>
@@ -806,13 +840,25 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.75rem' }}>
         <div style={{ fontSize: 'clamp(0.76rem, 0.45vw + 0.67rem, 0.86rem)', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--admin-text-secondary)' }}>
-          Campaign Promo Rules ({promoRules.length})
+          {showPastPromos ? `Archived and expired promos (${pastRules.length})` : `Campaign Promo Rules (${currentRules.length})`}
         </div>
+        <button
+          type="button"
+          onClick={() => setShowPastPromos((value) => !value)}
+          style={{ marginLeft: 'auto', padding: '0.45rem 0.8rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.72rem', cursor: 'pointer' }}
+        >
+          {showPastPromos ? 'Back to current promos' : `View archived and expired promos (${pastRules.length})`}
+        </button>
       </div>
+      {shownRules.length === 0 && (
+        <div style={{ padding: '1rem', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: 700 }}>
+          {showPastPromos ? 'No archived or expired promos.' : 'No current promos.'}
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {promoRules.map(rule => {
-          const status = getPromoStatus(rule);
+        {shownRules.map(rule => {
+          const status = rule.archived_at ? 'ARCHIVED' : getPromoStatus(rule);
           const isOngoing = status === 'ONGOING PROMO';
 
           return (
@@ -887,7 +933,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                     promotion, delete it and create a new one. */}
                 <button
                   type="button"
-                  onClick={() => handleRemovePromo(rule.id)}
+                  onClick={() => (showPastPromos ? handleRemovePromo(rule.id) : handleArchivePromo(rule.id))}
                   style={{
                     border: '1px solid var(--status-danger)',
                     background: 'transparent',
@@ -899,7 +945,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                     fontSize: 'clamp(0.68rem, 0.35vw + 0.58rem, 0.8rem)'
                   }}
                 >
-                  Delete
+                  {showPastPromos ? 'Delete' : 'Archive'}
                 </button>
               </div>
             </div>

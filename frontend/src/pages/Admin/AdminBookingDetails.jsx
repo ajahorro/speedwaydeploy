@@ -1313,6 +1313,9 @@ const AdminBookingDetails = () => {
   if (allUnitsFinished && isFullySettled && !['cancelled', 'released'].includes(derivedStatus)) derivedStatus = 'completed';
 
   const isLocked = ['completed', 'released', 'cancelled', 'flagged_noshow'].includes(derivedStatus);
+  // a receipt (or any payment) is waiting for the admin: no manual top-up until it is verified or rejected
+  const hasPendingPayment = Number(ledger?.pending_verification || 0) > 0
+    || (bookingPayments || []).some((payment) => String(payment.status || '').toUpperCase() === 'FOR_VERIFICATION');
   const isNoShowBooking = ['FLAGGED_NOSHOW', 'NO_SHOW'].includes(String(booking?.status || '').toUpperCase());
 
   const requestReleaseBooking = () => {
@@ -1647,7 +1650,7 @@ const AdminBookingDetails = () => {
                 ) : derivedStatus === 'completed' ? (
                   <><ShieldCheck size={16} /> SERVICE FINISHED & CLOSED</>
                 ) : surplus > 0 ? (
-                  <><TrendingUp size={16} /> ACCOUNT OVERPAID • SURPLUS: {formatCurrency(surplus)}</>
+                  <><CheckCircle2 size={16} /> ACCOUNT SETTLED • FULLY PAID • OVERPAID BY {formatCurrency(surplus)}</>
                 ) : totalPaid >= (booking?.total_amount || 0) && (booking?.total_amount || 0) > 0 ? (
                   <><CheckCircle2 size={16} /> ACCOUNT SETTLED • FULLY PAID</>
                 ) : totalPaid > 0 ? (
@@ -1658,18 +1661,16 @@ const AdminBookingDetails = () => {
                   <><ShieldAlert size={16} /> UNPAID</>
                 )}
               </div>
-              {balance <= 0 && !isLocked && (
-                <button
-                  onClick={() => setShowManualInput(!showManualInput)}
-                  style={{ background: 'transparent', border: 'none', color: 'inherit', fontSize: '0.6rem', fontWeight: '950', textDecoration: 'underline', cursor: 'pointer', opacity: 0.6, marginTop: '0.25rem' }}
-                >
-                  {showManualInput ? 'HIDE OVERRIDE' : 'ENABLE MANUAL ENTRY OVERRIDE'}
-                </button>
-              )}
             </div>
 
-            {/* Re-activates if balance > 0 OR override is enabled */}
-            {(balance > 0 || showManualInput) && !isLocked && (
+            {/* Manual top-up: only while money is still owed, and never while a payment waits to be verified
+                (it comes back if that proof is rejected). Nothing owed means no top-up input at all. */}
+            {balance > 0.009 && !isLocked && hasPendingPayment && (
+              <p role="status" style={{ margin: '0.75rem 0 0', padding: '0.75rem 1rem', border: '1px solid var(--admin-border)', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
+                A payment is waiting to be verified. Manual payment entry is off until it is verified or rejected.
+              </p>
+            )}
+            {balance > 0.009 && !isLocked && !hasPendingPayment && (
               <>
                 <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
                   <span style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: 'var(--admin-text-secondary)' }}>How was it paid?</span>
@@ -1790,9 +1791,8 @@ const AdminBookingDetails = () => {
                         <div style={{ textAlign: isMobile ? 'left' : 'right', minWidth: 0 }}>
                           <div style={{ fontWeight: '950', color: 'var(--admin-brand)', fontSize: '1.1rem', marginBottom: '0.25rem' }}>{formatCurrency(v.subtotal)}</div>
                           <div style={{ display: 'flex', gap: '0.5rem', width: isMobile ? '100%' : 'auto', flexWrap: 'wrap' }}>
-                            <button
+                            {!isLocked && !['COMPLETED', 'RELEASED', 'CANCELLED'].includes(String(v.status || '').toUpperCase()) && <button
                               onClick={() => setServiceModal({ open: true, vehicleId: v.id })}
-                              disabled={isLocked}
                               style={{
                                 background: 'transparent', border: '1px solid #444',
                                 padding: '0.4rem 0.6rem', borderRadius: '4px', color: 'var(--admin-text-secondary)', flex: isMobile ? '1 1 80px' : '0 0 auto', minWidth: 0,
@@ -1800,7 +1800,7 @@ const AdminBookingDetails = () => {
                               }}
                             >
                               <Plus size={12} /> ADD
-                            </button>
+                            </button>}
                             {/* Finishing a service needs the technician's completion photos, so it is done from
                                 the staff account only. The admin just sees that the unit is finished. */}
                             {v.status?.toUpperCase() === 'COMPLETED' && (

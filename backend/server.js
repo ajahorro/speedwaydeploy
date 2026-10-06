@@ -3325,6 +3325,55 @@ app.post('/api/staff/analytics-assistant', async (req, res) => {
   }
 });
 
+/**
+ * Archive a promotion (POST /api/admin/promos/:promoId/archive). A running or upcoming promotion is never deleted:
+ * archiving ends it now (it stops applying at once, in open carts too) and moves it to the archived list. Past
+ * bookings keep their own discount record.
+ */
+app.post('/api/admin/promos/:promoId/archive', async (req, res) => {
+  if (!(await requireAdmin(req))) return res.status(403).json({ success: false, error: 'Authorized administrator required.' });
+  const promoId = String(req.params.promoId || '').trim();
+  if (!promoId) return res.status(400).json({ success: false, error: 'Promo ID is required.' });
+  try {
+    const { data: config, error: fetchError } = await supabaseAdmin.from('business_config').select('id, promo_rules').maybeSingle();
+    if (fetchError) throw fetchError;
+    const existingRules = Array.isArray(config?.promo_rules) ? config.promo_rules : [];
+    const target = existingRules.find((rule) => rule?.id === promoId);
+    if (!target) return res.status(404).json({ success: false, error: 'Promo code not found.' });
+
+    const now = new Date();
+    const stillRunning = target.neverExpires === true || target.validUntil === 'never' || !target.validUntil || new Date(target.validUntil).getTime() > now.getTime();
+    const archived = {
+      ...target,
+      archived_at: now.toISOString(),
+      neverExpires: false,
+      validUntil: stillRunning ? now.toISOString() : target.validUntil,
+      // an upcoming promotion that is archived must not start later
+      validFrom: target.validFrom && new Date(target.validFrom).getTime() > now.getTime() ? now.toISOString() : target.validFrom
+    };
+    const nextRules = existingRules.map((rule) => (rule?.id === promoId ? archived : rule));
+    const { error: updateError } = await supabaseAdmin.from('business_config').upsert({ id: config?.id || 1, promo_rules: nextRules, updated_at: now.toISOString() });
+    if (updateError) throw updateError;
+    inMemoryPromoCache = nextRules;
+
+    try {
+      await supabaseAdmin.from('audit_logs').insert({
+        action_type: 'PROMO_ARCHIVED',
+        actor_name: 'Administrator',
+        actor_role: 'ADMIN',
+        details: `Promo "${target?.name || promoId}" archived. It no longer applies; past bookings keep their own discount record.`,
+        metadata: { promo_id: promoId, promo_name: target?.name || null, archived_at: now.toISOString() }
+      });
+    } catch (auditErr) {
+      console.warn('🏷️ [ADMIN PROMO] Archive audit log failed (non-fatal):', auditErr?.message);
+    }
+    return res.json({ success: true, archived: true, promoRules: nextRules });
+  } catch (error) {
+    console.error('🏷️ [ADMIN PROMO] Archive failed:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.delete('/api/admin/promos/:promoId', async (req, res) => {
   if (!(await requireAdmin(req))) return res.status(403).json({ success: false, error: 'Authorized administrator required.' });
   const promoId = String(req.params.promoId || '').trim();
@@ -3441,6 +3490,22 @@ app.post('/api/staff/toggle-shift', async (req, res) => {
   console.log(`⏱️ [STAFF] Shift toggle request: userId=${userId}, newStatus=${newStatus}`);
 
   try {
+    // A technician with a job under way (started, or its before photo is saved) or one starting within 5 minutes
+    // may not clock out: an admin has to assign another staff member first.
+    if (!newStatus) {
+      const { data: blockers, error: blockerError } = await supabaseAdmin.rpc('staff_clock_out_blockers', { p_staff: userId });
+      if (blockerError) throw blockerError;
+      if ((blockers || []).length > 0) {
+        const first = blockers[0];
+        const what = first.reason === 'STARTS_SOON' ? 'starts within 5 minutes' : 'is already under way';
+        return res.status(409).json({
+          success: false,
+          code: 'CLOCK_OUT_BLOCKED',
+          blockers,
+          error: `You cannot clock out yet: ${first.vehicle_label || 'an assigned vehicle'} ${what}. If you really need to clock out, ask an admin to assign another staff member to it first.`
+        });
+      }
+    }
 
     const timestamp = newStatus ? new Date().toISOString() : null;
 
@@ -4316,9 +4381,9 @@ app.post('/api/bookings/add-service', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Booking not found.' });
     }
     const status = String(booking.status || '').toLowerCase();
-    const allowedStatuses = isCustomer ? ['scheduled', 'confirmed'] : ['scheduled', 'confirmed', 'in_progress'];
+    const allowedStatuses = ['scheduled', 'confirmed', 'in_progress', 'ongoing'];
     if (!allowedStatuses.includes(status)) {
-      return res.status(409).json({ success: false, error: isCustomer ? 'Services can only be added before the work starts.' : 'Services can only be added while the booking is scheduled, confirmed, or in progress.' });
+      return res.status(409).json({ success: false, error: 'Services can only be added while the booking is scheduled, confirmed, or in progress.' });
     }
 
     // Check every service; the price and the duration are the shop's, never the browser's word
@@ -4333,8 +4398,8 @@ app.post('/api/bookings/add-service', async (req, res) => {
         const { data: vehicle, error: vehicleError } = await supabaseAdmin.from('booking_vehicles').select('id, booking_id, vehicle_type, status').eq('id', item.vehicleId).eq('booking_id', bookingId).maybeSingle();
         if (vehicleError) throw vehicleError;
         if (!vehicle) return res.status(404).json({ success: false, error: 'Vehicle does not belong to this booking.' });
-        if (isCustomer && ['IN_PROGRESS', 'ONGOING', 'COMPLETED', 'RELEASED'].includes(String(vehicle.status || '').toUpperCase())) {
-          return res.status(409).json({ success: false, error: 'Work on this vehicle has already started, so a service cannot be added.' });
+        if (['COMPLETED', 'RELEASED', 'CANCELLED'].includes(String(vehicle.status || '').toUpperCase())) {
+          return res.status(409).json({ success: false, error: 'This vehicle is already finished, so a service cannot be added.' });
         }
         vehicles.set(item.vehicleId, vehicle);
       }
@@ -4371,10 +4436,15 @@ app.post('/api/bookings/add-service', async (req, res) => {
     // A customer's longer booking must still fit the shop's hours and bays (the admin screen checks
     // this in the browser and may override it after an explicit confirmation).
     if (isCustomer) {
-      const start = new Date(booking.start_datetime);
+      // Once the work has started its own time is already taken: only the extra time (from the booked end, or from
+      // now if the job is running late) has to fit the shop's hours and bays.
+      const bookedStart = new Date(booking.start_datetime);
+      const started = bookedStart.getTime() <= Date.now();
+      const extensionStart = new Date(Math.max(new Date(booking.end_datetime).getTime(), Date.now() + 60000));
+      const start = started ? extensionStart : bookedStart;
       const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
         .formatToParts(start).filter((p) => p.type !== 'literal').map((p) => [p.type, p.value]));
-      const currentMinutes = Math.max(1, Math.round((new Date(booking.end_datetime) - start) / 60000));
+      const currentMinutes = started ? 0 : Math.max(1, Math.round((new Date(booking.end_datetime) - start) / 60000));
       const { count: vehicleCount } = await supabaseAdmin.from('booking_vehicles').select('id', { count: 'exact', head: true }).eq('booking_id', bookingId);
       const check = await validateBookingRequest(supabaseAdmin, {
         date: `${parts.year}-${parts.month}-${parts.day}`,

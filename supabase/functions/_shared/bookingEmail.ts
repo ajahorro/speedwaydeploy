@@ -309,7 +309,6 @@ const paymentBlock = (
   rows.push(`<tr><td style="padding:10px 14px;color:#6b7280;font-size:13px;">Amount Paid</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.grossPaid)}</td></tr>`);
 
   if (amounts.transferFee > 0) {
-    rows.push(`<tr><td style="padding:10px 14px;color:#6b7280;font-size:13px;">Transfer Fee (charged by your bank)</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.transferFee)}</td></tr>`);
     rows.push(`<tr><td style="padding:10px 14px;color:#6b7280;font-size:13px;">Amount Received</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.netReceived)}</td></tr>`);
   }
 

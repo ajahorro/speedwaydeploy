@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from '@/lib/toast';
-import { ArrowLeft, Lock, Save } from 'lucide-react';
+import { ArrowLeft, History, Lock, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { BACKEND_URL, authHeaders } from '@/config/api';
 import { PhoneInput } from '@/components/common/ContactInputs';
 import { isValidPhPhone, normalizePhPhone } from '@/utils/contactValidation';
+import WorkHistoryByDay from '@/features/staff-history/WorkHistoryByDay';
 
 const NAME_PATTERN = /^[\p{L}][\p{L} .'-]{0,59}$/u;
 
@@ -110,13 +111,17 @@ export default function EditStaffDialog({ member, open, onOpenChange, onSaved, r
     <Dialog open={open} onOpenChange={(next) => { if (!saving) onOpenChange(next); }}>
       <DialogContent className="ui-root max-h-[92dvh] gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="border-b px-6 py-5">
-          <DialogTitle>{step === 'review' ? 'Review changes' : `Edit ${member?.full_name || 'account'}`}</DialogTitle>
+          <DialogTitle>{step === 'review' ? 'Review changes' : (step === 'history' ? `Attendance and bookings: ${member?.full_name || 'account'}` : `Edit ${member?.full_name || 'account'}`)}</DialogTitle>
           <DialogDescription>
-            {step === 'review' ? 'Check what will change, then confirm.' : 'Update the details for this account. The email address cannot be changed.'}
+            {step === 'review' ? 'Check what will change, then confirm.' : step === 'history' ? 'Clock-ins and the vehicles worked, by day. Open a day, then a vehicle, for the details.' : 'Update the details for this account. The email address cannot be changed.'}
           </DialogDescription>
         </DialogHeader>
 
-        {step === 'form' ? (
+        {step === 'history' ? (
+          <div className="max-h-[60dvh] overflow-y-auto px-6 py-5">
+            <WorkHistoryByDay staffId={member?.id} isAdmin onNavigate={() => onOpenChange(false)} />
+          </div>
+        ) : step === 'form' ? (
           <div className="grid max-h-[60dvh] gap-5 overflow-y-auto px-6 py-5">
             {serverError && <p role="alert" className="rounded-md border border-destructive/50 px-3 py-2 text-sm text-destructive">{serverError}</p>}
 
@@ -201,9 +206,14 @@ export default function EditStaffDialog({ member, open, onOpenChange, onSaved, r
         )}
 
         <DialogFooter className="border-t px-6 py-4">
-          {step === 'form' ? (
+          {step === 'history' ? (
+            <Button variant="ghost" onClick={() => setStep('form')}><ArrowLeft /> Back to details</Button>
+          ) : step === 'form' ? (
             <>
               <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+              {String(member?.role || '').toUpperCase() === 'STAFF' && (
+                <Button variant="outline" onClick={() => setStep('history')}><History /> View attendance and history of bookings</Button>
+              )}
               <Button disabled={!hasChanges || !valid} title={!hasChanges ? 'Change something first' : (!valid ? 'Fix the highlighted fields' : undefined)} onClick={() => setStep('review')}>
                 Review changes
               </Button>

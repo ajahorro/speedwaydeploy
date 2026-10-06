@@ -80,16 +80,14 @@ export function TransactionsTable({ range, kind = 'settled', title, description,
       </CardHeader>
       <CardContent className="px-0">
         <div className="overflow-x-auto">
-          <Table className="min-w-[720px]">
+          <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow>
                 <TableHead className="pl-6">Date</TableHead>
                 <TableHead>Booking</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Method</TableHead>
-                {!isRefund && <TableHead className="text-right">Gross</TableHead>}
-                {!isRefund && <TableHead className="text-right">Fee</TableHead>}
-                <TableHead className="text-right">{isRefund ? 'Refunded' : 'Net received'}</TableHead>
+                <TableHead className="text-right">{isRefund ? 'Refunded' : 'Amount received'}</TableHead>
                 <TableHead className="pr-6">Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -97,18 +95,18 @@ export function TransactionsTable({ range, kind = 'settled', title, description,
               {state.loading ? (
                 Array.from({ length: 5 }).map((_, index) => (
                   <TableRow key={index}>
-                    <TableCell colSpan={8} className="px-6"><Skeleton className="h-5 w-full" /></TableCell>
+                    <TableCell colSpan={6} className="px-6"><Skeleton className="h-5 w-full" /></TableCell>
                   </TableRow>
                 ))
               ) : state.error ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="px-6 py-10 text-center text-destructive">
+                  <TableCell colSpan={6} className="px-6 py-10 text-center text-destructive">
                     Could not load transactions: {state.error.message}
                   </TableCell>
                 </TableRow>
               ) : !state.rows.length ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="px-6 py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="px-6 py-10 text-center text-muted-foreground">
                     No transactions in this range.
                   </TableCell>
                 </TableRow>
@@ -118,8 +116,6 @@ export function TransactionsTable({ range, kind = 'settled', title, description,
                   <TableCell className="font-mono text-xs">#{String(row.booking_id || '').slice(0, 8).toUpperCase()}</TableCell>
                   <TableCell className="max-w-[180px] truncate">{row.customer_name}</TableCell>
                   <TableCell>{formatMethod(row.method)}</TableCell>
-                  {!isRefund && <TableCell className="text-right font-mono tabular-nums">{formatPeso(row.gross_paid)}</TableCell>}
-                  {!isRefund && <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{formatPeso(row.transfer_fee)}</TableCell>}
                   <TableCell className="text-right font-mono font-semibold tabular-nums">
                     {formatPeso(isRefund ? Math.abs(row.amount) : row.net_received)}
                   </TableCell>
@@ -164,9 +160,15 @@ export function TransactionsTable({ range, kind = 'settled', title, description,
                 <DetailRow label="OCR detected">{selected.detected_amount ? formatPeso(selected.detected_amount) : '—'}</DetailRow>
                 <DetailRow label="Admin verified">{selected.verified_amount ? formatPeso(selected.verified_amount) : '—'}</DetailRow>
                 <Separator className="my-2" />
-                <DetailRow label="Gross paid">{formatPeso(selected.gross_paid)}</DetailRow>
-                <DetailRow label="Transfer fee">{formatPeso(selected.transfer_fee)}</DetailRow>
-                <DetailRow label="Net received"><span className="text-primary">{formatPeso(selected.net_received)}</span></DetailRow>
+                <DetailRow label="Amount received"><span className="text-primary">{formatPeso(selected.net_received)}</span></DetailRow>
+                <details className="mt-2 rounded-md border px-3 py-2 text-sm">
+                  <summary className="cursor-pointer font-medium">View OCR readings</summary>
+                  <div className="mt-2 grid gap-1">
+                    <DetailRow label="Total read from the receipt">{formatPeso(selected.gross_paid)}</DetailRow>
+                    <DetailRow label="Transfer fee read">{formatPeso(selected.transfer_fee)}</DetailRow>
+                    <DetailRow label="Amount counted">{formatPeso(selected.net_received)}</DetailRow>
+                  </div>
+                </details>
               </div>
               <div className="px-4 pt-4">
                 <Button asChild className="w-full">

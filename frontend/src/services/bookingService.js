@@ -563,8 +563,7 @@ export const fetchCustomerBookings = async (customerId) => {
     .select(`
       *,
       vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services!booking_vehicle_id(*)),
-      payments:payments!payments_booking_id_fkey(*),
-      assigned_staff:profiles!bookings_staff_id_fkey(first_name, last_name, email)
+      payments:payments!payments_booking_id_fkey(*)
     `)
     .eq('customer_id', customerId)
     .order('created_at', { ascending: false });
@@ -590,9 +589,27 @@ export const fetchCustomerBookings = async (customerId) => {
   } catch (ledgerError) {
     console.error('[CustomerBookings] Ledger load failed:', ledgerError);
   }
+  // The technician of each vehicle (a customer may not read staff profiles, only these names through the function).
+  let technicianRows = [];
+  try {
+    const { data: rows } = await supabase.rpc('get_customer_bookings_technicians', { p_booking_ids: bookings.map((booking) => booking.id) });
+    technicianRows = rows || [];
+  } catch (technicianError) {
+    console.error('[CustomerBookings] Technician load failed:', technicianError);
+  }
   return bookings.map((booking) => {
     const ledger = ledgers.get(booking.id) || null;
-    return { ...booking, ledger, totalPaid: Number(ledger?.net_settled || 0) };
+    const names = new Map(technicianRows.filter((row) => row.booking_id === booking.id).map((row) => [row.vehicle_id, row.technician_name || null]));
+    const vehicles = (booking.vehicles || []).map((vehicle) => ({ ...vehicle, technician_name: names.get(vehicle.id) || null }));
+    const distinct = [...new Set([...names.values()].filter(Boolean))];
+    return {
+      ...booking,
+      vehicles,
+      ledger,
+      totalPaid: Number(ledger?.net_settled || 0),
+      technician_names: distinct,
+      assigned_staff: distinct.length ? { full_name: distinct.join(', ') } : null
+    };
   });
 };
 

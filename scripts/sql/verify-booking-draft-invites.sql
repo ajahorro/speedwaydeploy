@@ -36,7 +36,7 @@ select pg_temp.try('opening before the customer shares is refused', format('sele
 select pg_temp.as_user(:'cu2');
 select pg_temp.try('another customer cannot share into it', format($f$select public.share_booking_draft(%L, '{"date":"2026-12-01"}'::jsonb, 2)$f$, :'inv'), 'not found');
 select pg_temp.as_user(:'cu');
-select pg_temp.try('the customer shares their details', format($f$select public.share_booking_draft(%L, '{"date":"2026-12-01","vehicles":[{"brand":"Toyota"}],"payment":{"method":"GCash"}}'::jsonb, 3)$f$, :'inv'));
+select pg_temp.try('the customer shares their details', format($f$select public.share_booking_draft(%L, ('{"date":"2026-12-01","vehicles":[{"brand":"Toyota"}],"payment":{"method":"GCash"},"qrSnapshot":{"img":"'||repeat('A',300000)||'"}}')::jsonb, 3)$f$, :'inv'));
 select pg_temp.try('the same invitation cannot be used twice', format($f$select public.share_booking_draft(%L, '{"date":"2026-12-02"}'::jsonb, 1)$f$, :'inv'), 'no longer open');
 select pg_temp.try('the customer cannot read other invitations', $$select (select count(*) from public.booking_draft_invites where customer_id <> auth.uid())::text$$);
 select pg_temp.as_user(:'ad');

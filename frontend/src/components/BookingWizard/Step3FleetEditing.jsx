@@ -385,6 +385,7 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
               padding: '1rem 2rem',
               borderRadius: 'var(--admin-radius-md)',
               fontWeight: '950',
+              fontSize: '1rem',
               cursor: 'pointer',
               textTransform: 'uppercase',
               letterSpacing: '1px'

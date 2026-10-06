@@ -342,6 +342,13 @@ const CustomerBookingDetails = () => {
       ['IN_PROGRESS', 'ONGOING', 'COMPLETED', 'RELEASED'].includes(status)
     );
 
+  // A service can be added until the booking is over: before and while the work is under way, never after it is
+  // finished, cancelled, refunded or flagged. Vehicles that are already finished take no more services.
+  const addableVehicles = (vehicles || []).filter((vehicle) => !['COMPLETED', 'RELEASED', 'CANCELLED'].includes(String(vehicle.status || '').toUpperCase()));
+  const canAddService = ['scheduled', 'confirmed', 'in_progress', 'ongoing'].includes(derivedStatus)
+    && addableVehicles.length > 0
+    && !['REFUNDED', 'REFUND_PENDING'].includes(String(booking.refund_status || '').toUpperCase());
+
   const summaryBooking = {
     ...booking,
     status: derivedStatus,
@@ -431,7 +438,7 @@ const CustomerBookingDetails = () => {
         {/* LEFT COLUMN */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-          {canCancelBooking && (
+          {canAddService && (
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="button"
@@ -877,7 +884,7 @@ const CustomerBookingDetails = () => {
         open={addServiceOpen}
         onOpenChange={setAddServiceOpen}
         booking={booking}
-        vehicles={vehicles}
+        vehicles={addableVehicles}
         ledger={booking.ledger}
         onAdded={() => fetchAll()}
       />

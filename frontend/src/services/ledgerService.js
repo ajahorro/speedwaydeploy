@@ -85,9 +85,9 @@ export const fetchBookingsReport = async ({ from, to }) => {
   return data;
 };
 
-/** The daily report for one day (shop time); with no day it is today. Admin only. */
-export const fetchDailyReport = async (day = null) => {
-  const { data, error } = await supabase.rpc('daily_report', { p_day: day });
+/** The printable report for a range of days (shop time), first to last day; with no day it is today. Admin only. */
+export const fetchDailyReport = async (day = null, lastDay = null) => {
+  const { data, error } = await supabase.rpc('daily_report', { p_day: day, p_to: lastDay });
   if (error) throw error;
   return data;
 };

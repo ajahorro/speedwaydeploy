@@ -45,7 +45,7 @@ export const buildBookingsReportHtml = ({ report, rangeLabel }) => {
       </tr></thead>
       <tbody>${body || '<tr><td colspan="8" style="padding:14px;text-align:center;color:#666">No bookings in this range.</td></tr>'}</tbody>
     </table>
-    <p style="margin-top:10px;color:#666;font-size:9.5px">Amounts come from the shop's payment ledger. "Paid" is net money received (transfer fees excluded), "to be received" is a balance an administrator deferred, not money received.</p>
+    <p style="margin-top:10px;color:#666;font-size:9.5px">Amounts come from the shop's payment ledger. "Paid" is the money received, "to be received" is a balance an administrator deferred, not money received.</p>
   </div>`;
 };
 

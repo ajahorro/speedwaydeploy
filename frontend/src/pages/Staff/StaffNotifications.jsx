@@ -10,6 +10,8 @@ import { useAuth } from '../../hooks/useAuth';
 import NotificationDetailsModal from '../../components/NotificationDetailsModal';
 import { isNotificationActionable, isRedundantStaffTechnicianAssignment } from '../../utils/notificationRouting';
 import { matchesSearchText } from '../../utils/searchMatch';
+import SeeMoreButton from '../../components/SeeMoreButton';
+import { fetchVisiblePage } from '../../utils/pagedFetch';
 
 const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
   <div style={{
@@ -57,6 +59,9 @@ const StaffNotifications = () => {
   const isMobile = useMediaQuery('(max-width: 1024px)');
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  // latest 10 first, then "See more" adds 10 at a time
+  const [pageSize, setPageSize] = useState(10);
+  const [hasMore, setHasMore] = useState(false);
   const [filter, setFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -69,19 +74,18 @@ const StaffNotifications = () => {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setNotifications((data || []).filter((notification) =>
+      const page = await fetchVisiblePage({
+        pageSize,
+        fetchChunk: (from, to) => supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).range(from, to),
+        visible: (rows) => rows.filter((notification) =>
         isNotificationActionable(notification)
         && !isRedundantStaffTechnicianAssignment(notification)
         && notification.notification_type !== 'MESSAGE_RECEIVED'
         && !notification.title?.toLowerCase().includes('new message')
-      ));
+        )
+      });
+      setNotifications(page.rows);
+      setHasMore(page.hasMore);
     } catch (err) {
       logger.error('Staff Notification Fetch Error', err);
       toast.error('Failed to load notifications.');
@@ -108,7 +112,7 @@ const StaffNotifications = () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
       stopRealtime();
     };
-  }, [userId]);
+  }, [userId, pageSize]);
 
   const handleMarkAsRead = async (id, silent = false) => {
     try {
@@ -183,7 +187,7 @@ const StaffNotifications = () => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
-        {loading ? (
+        {loading && notifications.length === 0 ? (
           [1,2,3].map(i => <div key={i} style={{ height: '100px', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)' }} className="animate-pulse" />)
         ) : filteredNotifications.length > 0 ? (
           filteredNotifications.map((notif) => (
@@ -222,6 +226,7 @@ const StaffNotifications = () => {
             </div>
           </div>
         )}
+        {hasMore && <SeeMoreButton loading={loading} onClick={() => setPageSize((n) => n + 10)} />}
       </div>
     </div>
   );

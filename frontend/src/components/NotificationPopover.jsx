@@ -136,7 +136,7 @@ const NotificationPopover = ({ profile, onClose, onRead }) => {
         const jobId = await resolveStaffJobId(supabase, n.booking_id);
         if (!jobId) {
           toast.error('No assigned vehicle was found for this booking.');
-          navigate('/staff/tasks');
+          navigate('/staff');
           onClose();
           return;
         }

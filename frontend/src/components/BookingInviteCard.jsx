@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { subscribeTable } from '../lib/realtimeHub';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirmAction } from '../hooks/useConfirmAction';
-import { loadDraft, writeLocalDraft, saveServerDraft } from '../services/bookingDraftService';
+import { loadDraft, slimDraftData, writeLocalDraft, saveServerDraft } from '../services/bookingDraftService';
 
 /**
  * The "send me your booking details" invitation inside the chat.
@@ -38,6 +38,13 @@ export default function BookingInviteCard({ message }) {
     return subscribeTable({ table: 'booking_draft_invites', event: 'UPDATE', filter: `id=eq.${message.invite_id}` }, () => load());
   }, [load, message.invite_id]);
 
+  // re-check the clock so an ignored invitation disappears on its own (no countdown is shown)
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick((n) => n + 1), 10000);
+    return () => clearInterval(timer);
+  }, []);
+
   const expired = invite && ['SENT', 'SHARED'].includes(invite.status) && new Date(invite.expires_at) <= new Date();
   const state = !invite ? 'LOADING' : expired ? 'EXPIRED' : invite.status;
 
@@ -49,7 +56,7 @@ export default function BookingInviteCard({ message }) {
         toast.error('You do not have a saved booking to send yet. Start a booking, choose your vehicles, services, and time, then tap this again.');
         return;
       }
-      const { error } = await supabase.rpc('share_booking_draft', { p_invite_id: invite.id, p_data: draft.data, p_step: draft.step || 1 });
+      const { error } = await supabase.rpc('share_booking_draft', { p_invite_id: invite.id, p_data: slimDraftData(draft.data), p_step: draft.step || 1 });
       if (error) throw error;
       toast.success('Your booking details were sent to the shop.');
       load();
@@ -95,6 +102,9 @@ export default function BookingInviteCard({ message }) {
       {busy ? <Loader2 size={14} className="animate-spin" /> : <CalendarCheck size={14} />} {label}
     </button>
   );
+
+  // not tapped within 2 minutes, or replaced by a newer one: nothing is shown
+  if (state === 'CANCELLED' || (state === 'EXPIRED' && invite?.status === 'SENT')) return null;
 
   let body = null;
   if (state === 'SENT') {

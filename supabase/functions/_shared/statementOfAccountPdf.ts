@@ -58,8 +58,7 @@ const renderStatementPage = (
   ops.push(text('DATE', left + 9, 589, 7, 'F2', MUTED))
   ops.push(text('RECEIPT / REFERENCE', 130, 589, 7, 'F2', MUTED))
   ops.push(text('METHOD', 318, 589, 7, 'F2', MUTED))
-  ops.push(text('FEE', 440, 589, 7, 'F2', MUTED, 'right'))
-  ops.push(text('NET RECEIVED', right - 9, 589, 7, 'F2', MUTED, 'right'))
+  ops.push(text('AMOUNT RECEIVED', right - 9, 589, 7, 'F2', MUTED, 'right'))
 
   let y = 558
   for (const entry of lines) {
@@ -68,7 +67,6 @@ const renderStatementPage = (
     ops.push(text(String(label).slice(0, 40), 130, y, 7, 'F1', entry.kind === 'refund' ? RED : DARK))
     if (entry.reference) ops.push(text(`Ref ${String(entry.reference).slice(0, 30)}`, 130, y - 9, 6, 'F1', MUTED))
     ops.push(text(entry.kind === 'refund' ? 'REFUND' : entry.method || '-', 318, y, 8, 'F1'))
-    ops.push(text(entry.kind === 'refund' ? '-' : currency(entry.transferFee), 440, y, 8, 'F1', MUTED, 'right'))
     ops.push(text(currency(entry.netReceived), right - 9, y, 8, 'F2', entry.kind === 'refund' ? RED : DARK, 'right'))
     ops.push(line(left, y - 14, right, y - 14, RULE, 0.45))
     y -= 30

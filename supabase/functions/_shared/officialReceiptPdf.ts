@@ -84,13 +84,7 @@ const renderPage = (
 
     ops.push(line(summaryLeft, summaryY + 10, summaryRight, summaryY + 10, DARK, 1.2))
     summaryY -= 12
-    ops.push(text('Gross Paid', summaryLeft, summaryY, 8, 'F1', MUTED))
-    ops.push(text(currency(amounts.grossPaid), summaryRight, summaryY, 8, 'F1', DARK, 'right'))
-    summaryY -= 15
-    ops.push(text('Transfer Fee', summaryLeft, summaryY, 8, 'F1', MUTED))
-    ops.push(text(currency(amounts.transferFee), summaryRight, summaryY, 8, 'F1', DARK, 'right'))
-    summaryY -= 15
-    ops.push(text('Net Received', summaryLeft, summaryY, 8, 'F1', MUTED))
+    ops.push(text('Amount Received', summaryLeft, summaryY, 8, 'F1', MUTED))
     ops.push(text(currency(amounts.netReceived), summaryRight, summaryY, 8, 'F1', DARK, 'right'))
 
     if (amounts.creditApplied > 0) {
@@ -121,8 +115,8 @@ export const buildOfficialReceiptPdf = (input: OfficialReceiptPdfInput): string 
   const normalizedItems = [{
     service: 'Payment for Booking',
     qty: 1,
-    unitPrice: amounts.grossPaid,
-    lineTotal: amounts.grossPaid,
+    unitPrice: amounts.netReceived,
+    lineTotal: amounts.netReceived,
   }]
   const pageSize = 12
   const itemPages: OfficialReceiptPdfItem[][] = []

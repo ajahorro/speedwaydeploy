@@ -10,8 +10,6 @@ import { formatPeso } from '@/features/finance/money';
 const KPIS = [
   { key: 'net_revenue', label: 'Net revenue', hint: 'Net received minus refunds', emphasis: true },
   { key: 'net_received', label: 'Net received', hint: 'Money that reached the shop' },
-  { key: 'gross_collected', label: 'Gross collected', hint: 'What customers sent, incl. fees' },
-  { key: 'transfer_fees', label: 'Transfer fees', hint: 'Bank/e-wallet fees (not revenue)' },
   { key: 'refunds', label: 'Refunds', hint: 'Posted refund transactions', tone: 'text-chart-2' },
   { key: 'pending_verification', label: 'Pending verification', hint: 'Receipts awaiting an admin', tone: 'text-warning' },
   { key: 'outstanding_balance', label: 'Outstanding balance', hint: 'Owed on active bookings (today)', tone: 'text-destructive' },

@@ -19,7 +19,8 @@ const localKey = (userId, kind) => `comar-booking-draft:${userId}:${kind}`;
 
 /** The part of the wizard state worth keeping. */
 export const toDraftData = (bookingData) => {
-  const { payment, isRebooking, ...rest } = bookingData || {};
+  // the shop QR image (hundreds of KB) is rebuilt on the payment page; it is never part of a saved draft
+  const { payment, isRebooking, qrSnapshot, ...rest } = bookingData || {};
   return {
     ...rest,
     payment: payment ? { method: payment.method, type: payment.type, manualAmount: payment.manualAmount } : undefined
@@ -73,6 +74,12 @@ export const deleteDraft = async (userId, kind) => {
 };
 
 /** Load the newest draft (browser copy or server copy), or null. */
+/** Drop what is not booking data (older saved drafts still carry the QR image). */
+export const slimDraftData = (data) => {
+  const { qrSnapshot, payment, ...rest } = data || {};
+  return rest;
+};
+
 export const loadDraft = async (userId, kind) => {
   const local = readLocal(userId, kind);
   let server = null;

@@ -239,6 +239,10 @@ export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
       shortText: 'Paid',
       color: 'var(--status-success)',
       balance: 0,
+      // stays "Fully Paid"; an overpayment is shown under it
+      ...(Math.max(Number(ps.credit || 0), totalPaid - totalAmount) > 0.009
+        ? { subtext: `Overpaid by ₱${Math.max(Number(ps.credit || 0), totalPaid - totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
+        : {}),
     };
   }
 

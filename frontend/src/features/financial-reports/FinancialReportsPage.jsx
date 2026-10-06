@@ -24,6 +24,8 @@ import { RangeFilter, formatRangeLabel } from './RangeFilter';
 // The assistant is fetched only when an admin opens it, so the report's first paint is unchanged.
 const AssistantPanel = lazy(() => import('./AssistantPanel'));
 
+const TAB_LABELS = { overview: 'overview', bookings: 'bookings', transactions: 'transactions', refunds: 'refunds and credits', outstanding: 'outstanding balances' };
+
 const toDayString = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 /**
@@ -50,7 +52,8 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
         import('@/services/ledgerService'),
         import('./dailyReportPdf')
       ]);
-      await downloadDailyReportPdf(await fetchDailyReport());
+      // the printable report covers the chosen range, not just today
+      await downloadDailyReportPdf(await fetchDailyReport(toDayString(range.from), toDayString(new Date(range.to.getTime() - 1))));
     } catch (error) {
       toast.error('The daily report could not be prepared. Please try again.');
     } finally {
@@ -91,10 +94,10 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const result = await downloadReportCsv({ range, method, report });
+      const result = await downloadReportCsv({ tab, range, method, report, daily });
       toast.success(result.truncated
-        ? `Exported the first ${result.transactions} transactions.`
-        : `Exported ${result.transactions} transactions and ${result.refunds} refunds.`);
+        ? `Exported the first ${result.rows} rows.`
+        : `Exported the ${TAB_LABELS[tab] || 'report'} for ${rangeLabel}.`);
     } catch (error) {
       console.error('Report export failed:', error);
       toast.error('Export failed. Please try again.');
@@ -114,26 +117,12 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
           subtitle="Revenue, bookings, refunds and balances from the shop's single payment ledger."
           onRefresh={() => setRefreshKey((value) => value + 1)}
         >
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={handleExport} disabled={exporting || loading}>
-              <Download /> {exporting ? 'Exporting…' : 'Export CSV'}
-            </Button>
-            <Button variant="outline" onClick={() => setAssistantOpen(true)}>
-              <Sparkles /> Ask AI
-            </Button>
-            <Button variant="outline" onClick={handleDailyReport} disabled={dailyBusy}>
-              <FileText /> {dailyBusy ? 'Preparing…' : "Print today's report"}
-            </Button>
-            <Button onClick={() => window.print()} disabled={loading}>
-              <Printer /> Print
-            </Button>
-          </div>
         </PageHeader>
       </div>
 
       <div className="hidden print:block">
         <h1 className="text-2xl font-bold">Comar Garage — Report</h1>
-        <p className="text-sm">{rangeLabel} · generated {new Date().toLocaleString('en-PH')}</p>
+        <p className="text-sm">{TAB_LABELS[tab]} · {rangeLabel} · generated {new Date().toLocaleString('en-PH')}</p>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
@@ -144,7 +133,22 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
           onPresetChange={setPreset}
           onCustomRange={setCustomRange}
         />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={handleExport} disabled={exporting || loading} title={`Download the ${TAB_LABELS[tab]} tab for ${rangeLabel} as a spreadsheet`}>
+            <Download /> {exporting ? 'Exporting…' : 'Download CSV'}
+          </Button>
+          <Button variant="outline" onClick={handleDailyReport} disabled={dailyBusy} title={`A full PDF report for ${rangeLabel}`}>
+            <FileText /> {dailyBusy ? 'Preparing…' : 'Report PDF'}
+          </Button>
+          <Button variant="outline" onClick={() => window.print()} disabled={loading} title={`Print the ${TAB_LABELS[tab]} tab`}>
+            <Printer /> Print
+          </Button>
+          <Button variant="outline" onClick={() => setAssistantOpen(true)}>
+            <Sparkles /> Ask AI
+          </Button>
+        </div>
       </div>
+      <p className="-mt-3 text-xs text-muted-foreground print:hidden">The buttons above apply to the <strong>{TAB_LABELS[tab]}</strong> tab and the dates shown: {rangeLabel}.</p>
 
       <Tabs value={tab} onValueChange={setTab} className="gap-4">
         <TabsList className="w-full justify-start overflow-x-auto sm:w-fit print:hidden">

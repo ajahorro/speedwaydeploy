@@ -51,6 +51,7 @@ const ACTION_META = {
   PROMO_CREATED: { category: 'BUSINESS', title: 'Promotion created' },
   PROMO_DEACTIVATED: { category: 'BUSINESS', title: 'Promotion deactivated' },
   PROMO_DELETED: { category: 'BUSINESS', title: 'Promotion deleted' },
+  PROMO_ARCHIVED: { category: 'BUSINESS', title: 'Promotion archived' },
   PROMO_CODE_CREATED: { category: 'BUSINESS', title: 'Promo code created' },
   PROMO_CODE_DELETED: { category: 'BUSINESS', title: 'Promo code deleted' },
   TERMS_PUBLISHED: { category: 'BUSINESS', title: 'Terms published' },
@@ -239,6 +240,9 @@ const AdminAuditLogs = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL');
+  // The latest 10 entries load first; "See more" adds 10 at a time so the database never loads the whole trail at once.
+  const [pageSize, setPageSize] = useState(10);
+  const [hasMore, setHasMore] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
   const [isAuditListOpen, setIsAuditListOpen] = useState(false);
   const fetchSequence = useRef(0);
@@ -267,7 +271,9 @@ const AdminAuditLogs = () => {
           .map(([actionType]) => actionType);
         query = query.in('action_type', actionTypes);
       }
-      const { data, error } = await query.limit(100);
+      const { data: fetched, error } = await query.limit(pageSize + 1);
+      const data = (fetched || []).slice(0, pageSize);
+      if (sequence === fetchSequence.current) setHasMore((fetched || []).length > pageSize);
 
       if (error) throw error;
       if (sequence !== fetchSequence.current) return;
@@ -315,7 +321,7 @@ const AdminAuditLogs = () => {
     } finally {
       if (sequence === fetchSequence.current) setLoading(false);
     }
-  }, [filterType]);
+  }, [filterType, pageSize]);
 
   useEffect(() => {
     fetchLogs();
@@ -443,7 +449,7 @@ const AdminAuditLogs = () => {
           <Filter size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
           <select
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
+            onChange={(e) => { setFilterType(e.target.value); setPageSize(10); }}
             style={{
               width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem',
               background: 'var(--admin-input-bg)', border: '1px solid var(--admin-input-border)',
@@ -486,7 +492,7 @@ const AdminAuditLogs = () => {
         style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 0, padding: '0.5rem 1.5rem' }}
       >
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-        {loading ? (
+        {loading && logs.length === 0 ? (
           [1, 2, 3, 4, 5].map((i) => (
             <div key={i} style={{ height: '58px', borderBottom: '1px solid var(--admin-border)' }} className="animate-pulse" />
           ))
@@ -533,6 +539,11 @@ const AdminAuditLogs = () => {
             <Database size={40} style={{ marginBottom: '1rem', opacity: 0.3 }} />
             <p style={{ fontWeight: 700, fontSize: '0.9rem', margin: 0 }}>No logs found</p>
           </div>
+        )}
+        {hasMore && (
+          <button type="button" onClick={() => setPageSize((n) => n + 10)} disabled={loading} style={{ margin: '1rem auto', padding: '0.6rem 1.5rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', cursor: loading ? 'wait' : 'pointer' }}>
+            {loading ? 'Loading…' : 'See more'}
+          </button>
         )}
         </div>
       </div>

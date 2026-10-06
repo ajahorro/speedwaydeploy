@@ -14,9 +14,11 @@ const CustomerDashboard = () => {
 
   // 3. THE GHOST BOOKING FIX: 
   // Strictly filter out inactive statuses so they never show up in the trackers
-  const activeTrackableBookings = allBookings.filter(
-    b => !['cancelled', 'completed', 'released', 'flagged_noshow'].includes(b.status?.toLowerCase())
-  );
+  // most immediate first: a booking under way, then the soonest appointment
+  const isUnderWay = (b) => (b.vehicles || []).some((v) => String(v.status || '').toUpperCase() === 'IN_PROGRESS');
+  const activeTrackableBookings = allBookings
+    .filter(b => !['cancelled', 'completed', 'released', 'flagged_noshow'].includes(b.status?.toLowerCase()))
+    .sort((a, b) => (Number(isUnderWay(b)) - Number(isUnderWay(a))) || (new Date(a.start_datetime) - new Date(b.start_datetime)));
 
   // The 'Active' booking is the most immediate one
   const activeBooking = activeTrackableBookings[0] || null;

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Clock, LogIn, LogOut, MapPin, CheckCircle2, Timer } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabase';
 import { useUI } from '../../context/UIContext';
 import PageHeader from '../../components/PageHeader';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
@@ -31,6 +32,8 @@ const StaffDuty = () => {
   // call is in flight), which previously could fire two conflicting clock ops.
   const [isShiftBusy, setIsShiftBusy] = useState(false);
 
+  const [blockers, setBlockers] = useState([]);
+
   const isClockedIn = Boolean(profile?.is_clocked_in);
   const startTs = profile?.clock_in_timestamp || profile?.updated_at;
   const shiftActionAvailable = Boolean(profile?.id) && typeof toggleShift === 'function' && !isShiftBusy;
@@ -52,6 +55,19 @@ const StaffDuty = () => {
     return () => clearInterval(interval);
   }, [isClockedIn, startTs]);
 
+  // Jobs that stop a clock-out (one under way, or one starting within 5 minutes); re-checked every 30 seconds
+  useEffect(() => {
+    if (!isClockedIn) { setBlockers([]); return undefined; }
+    let alive = true;
+    const check = async () => {
+      const { data } = await supabase.rpc('my_clock_out_blockers');
+      if (alive) setBlockers(data || []);
+    };
+    check();
+    const timer = setInterval(check, 30000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [isClockedIn]);
+
   const handleClockIn = async () => {
     if (!shiftActionAvailable) return;
     setIsShiftBusy(true);
@@ -65,7 +81,7 @@ const StaffDuty = () => {
   const handleClockOut = () => {
     // Defensive: never open a confirm modal — and never reach the API — without a
     // resolvable profile id and a toggleShift implementation.
-    if (!shiftActionAvailable) return;
+    if (!shiftActionAvailable || blockers.length > 0) return;
 
     openModal({
       title: 'End Shift?',
@@ -132,12 +148,24 @@ const StaffDuty = () => {
           </div>
         </div>
 
+        {isClockedIn && blockers.length > 0 && (
+          <div role="alert" style={{ padding: '1rem 1.25rem', border: '1px solid var(--status-warning)', borderRadius: 'var(--admin-radius)', fontSize: '0.8rem', fontWeight: 700, lineHeight: 1.6, color: 'var(--admin-text-primary)' }}>
+            <strong>You cannot clock out yet.</strong>
+            <ul style={{ margin: '0.4rem 0', paddingLeft: '1.1rem' }}>
+              {blockers.map((b) => (
+                <li key={b.vehicle_id}>{b.vehicle_label || 'Assigned vehicle'} — {b.reason === 'STARTS_SOON' ? 'starts within 5 minutes' : 'already under way'}</li>
+              ))}
+            </ul>
+            If you really need to clock out, ask an admin to assign another staff member to it.
+          </div>
+        )}
+
         {isClockedIn ? (
           <button
             type="button"
             onClick={handleClockOut}
-            disabled={!shiftActionAvailable}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--status-danger)', color: 'var(--status-danger)', borderRadius: 'var(--admin-radius)', fontWeight: '900', fontSize: '0.85rem', cursor: shiftActionAvailable ? 'pointer' : 'not-allowed', opacity: shiftActionAvailable ? 1 : 0.55, textTransform: 'uppercase' }}
+            disabled={!shiftActionAvailable || blockers.length > 0}
+            style={{ opacity: blockers.length > 0 ? 0.45 : 1, cursor: blockers.length > 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--status-danger)', color: 'var(--status-danger)', borderRadius: 'var(--admin-radius)', fontWeight: '900', fontSize: '0.85rem', cursor: shiftActionAvailable ? 'pointer' : 'not-allowed', opacity: shiftActionAvailable ? 1 : 0.55, textTransform: 'uppercase' }}
           >
             <LogOut size={18} /> Clock Out
           </button>

@@ -99,13 +99,10 @@ const OfficialReceipt = ({ booking, vehicles = [], user, selectedPayment, onClos
         ) : selectedPayment ? (
           <>
             <div style={{ display: 'grid', gap: '0.45rem', fontSize: '0.82rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Gross Paid</span><span>{currency(paymentAmounts.grossPaid)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Transfer Fee</span><span>{currency(paymentAmounts.transferFee)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Net Received</span><span>{currency(paymentAmounts.netReceived)}</span></div>
-              {paymentAmounts.creditApplied > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Credit Applied</span><span>{currency(paymentAmounts.creditApplied)}</span></div>}
+                            {paymentAmounts.creditApplied > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Credit Applied</span><span>{currency(paymentAmounts.creditApplied)}</span></div>}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '1.1rem', marginTop: '0.75rem', borderTop: '1px solid #E5E7EB', paddingTop: '0.6rem' }}>
-              <span>Net Received</span><span>{currency(paymentAmounts.netReceived)}</span>
+              <span>Amount Received</span><span>{currency(paymentAmounts.netReceived)}</span>
             </div>
           </>
         ) : (

@@ -261,6 +261,7 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
               padding: '1rem 2rem',
               borderRadius: 'var(--admin-radius-md)',
               fontWeight: '950',
+              fontSize: '1rem',
               cursor: 'pointer',
               textTransform: 'uppercase',
               letterSpacing: '1px',

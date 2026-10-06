@@ -135,21 +135,17 @@ export function StatementOfAccount({ booking, vehicles = [], ledger, transaction
                 <th className="py-2 pr-3 font-semibold">Date</th>
                 <th className="py-2 pr-3 font-semibold">Receipt</th>
                 <th className="py-2 pr-3 font-semibold">Method</th>
-                <th className="py-2 pr-3 text-right font-semibold">Paid</th>
-                <th className="py-2 pr-3 text-right font-semibold">Fee</th>
-                <th className="py-2 text-right font-semibold">Net received</th>
+                <th className="py-2 text-right font-semibold">Amount received</th>
               </tr>
             </thead>
             <tbody>
               {!lines.length ? (
-                <tr><td colSpan={6} className="py-6 text-center text-neutral-500">No verified payments yet.</td></tr>
+                <tr><td colSpan={4} className="py-6 text-center text-neutral-500">No verified payments yet.</td></tr>
               ) : lines.map((line) => (
                 <tr key={`${line.receiptNumber}-${line.kind}`} className="border-b border-neutral-100">
                   <td className="py-2 pr-3 whitespace-nowrap">{dateLabel(line.date)}</td>
                   <td className="py-2 pr-3 font-mono text-[0.65rem] break-all">{line.kind === 'refund' ? 'Refund' : line.receiptNumber}</td>
                   <td className="py-2 pr-3">{line.kind === 'refund' ? 'Refund' : formatMethod(line.method)}</td>
-                  <td className="py-2 pr-3 text-right font-mono tabular-nums">{line.kind === 'refund' ? '—' : formatPeso(line.grossPaid)}</td>
-                  <td className="py-2 pr-3 text-right font-mono tabular-nums text-neutral-500">{line.kind === 'refund' ? '—' : formatPeso(line.transferFee)}</td>
                   <td className={`py-2 text-right font-mono font-semibold tabular-nums ${line.kind === 'refund' ? 'text-[#b91c1c]' : ''}`}>{formatPeso(line.netReceived)}</td>
                 </tr>
               ))}
@@ -172,8 +168,7 @@ export function StatementOfAccount({ booking, vehicles = [], ledger, transaction
         </div>
 
         <p className="mt-8 text-xs text-neutral-500">
-          This statement lists every verified payment and refund on this booking. Transfer fees charged by your bank or
-          e-wallet are shown for reference and are not credited to the booking. Each payment also has its own official
+          This statement lists every verified payment and refund on this booking. Each payment also has its own official
           receipt (RCP number).
         </p>
       </div>

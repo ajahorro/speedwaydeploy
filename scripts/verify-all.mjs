@@ -62,6 +62,8 @@ if (container) {
     ['sql: flagged for review', 'scripts/sql/verify-flagged-review.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: add several services', 'scripts/sql/verify-add-several-services.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: staff bookings report', 'scripts/sql/verify-staff-bookings-report.sql', /\|\s*FAIL\s*\|/m, null],
+    ['sql: in-progress extension', 'scripts/sql/verify-in-progress-extension.sql', 0, null],
+    ['sql: staff attendance', 'scripts/sql/verify-staff-attendance.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: booking draft invites', 'scripts/sql/verify-booking-draft-invites.sql', /\|\s*FAIL\s*\|/m, null]
   ];
   for (const [name, file, failPattern] of suites) {

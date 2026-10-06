@@ -12,6 +12,8 @@ import NotificationDetailsModal from '../../components/NotificationDetailsModal'
 import { isNotificationActionable, resolveBookingId } from '../../utils/notificationRouting';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { matchesSearchText } from '../../utils/searchMatch';
+import SeeMoreButton from '../../components/SeeMoreButton';
+import { fetchVisiblePage } from '../../utils/pagedFetch';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DELETE CONFIRMATION MODAL (REQ #5)
@@ -97,6 +99,9 @@ const AdminNotifications = () => {
   const isMobile = useMediaQuery('(max-width: 1024px)');
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  // latest 10 first, then "See more" adds 10 at a time
+  const [pageSize, setPageSize] = useState(10);
+  const [hasMore, setHasMore] = useState(false);
   const [filter, setFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -166,18 +171,12 @@ const AdminNotifications = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
       // Deduplicate ANNOUNCEMENT notifications:
       // Admin sees only 1 entry per unique broadcast message (the most recent one),
       // not one copy per user profile that was sent to.
+      const dedupe = (rows) => {
       const seen = new Set();
-      const deduplicated = (data || []).filter(n => {
+      return rows.filter(n => {
         if (!isNotificationActionable(n)) return false;
         if (n.notification_type === 'ANNOUNCEMENT') {
           const key = n.message?.trim();
@@ -186,8 +185,14 @@ const AdminNotifications = () => {
         }
         return true;
       });
-
-      setNotifications(deduplicated);
+      };
+      const page = await fetchVisiblePage({
+        pageSize,
+        visible: dedupe,
+        fetchChunk: (from, to) => supabase.from('notifications').select('*').order('created_at', { ascending: false }).range(from, to)
+      });
+      setNotifications(page.rows);
+      setHasMore(page.hasMore);
       logger.admin('Signal spectrum synchronized.');
     } catch (err) {
       logger.error('Notification Fetch Error', err);
@@ -243,7 +248,7 @@ const AdminNotifications = () => {
 
   useEffect(() => {
     fetchNotifications();
-  }, []);
+  }, [pageSize]);
 
   const handleMarkAsRead = async (id, silent = false) => {
     try {
@@ -388,7 +393,7 @@ const AdminNotifications = () => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
-        {loading ? (
+        {loading && notifications.length === 0 ? (
           [1,2,3].map(i => <div key={i} style={{ height: '100px', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)' }} className="animate-pulse" />)
         ) : filteredNotifications.length > 0 ? (
           filteredNotifications.map((notif) => {
@@ -460,6 +465,7 @@ const AdminNotifications = () => {
             </div>
           </div>
         )}
+        {hasMore && <SeeMoreButton loading={loading} onClick={() => setPageSize((n) => n + 10)} />}
       </div>
     </div>
   );
