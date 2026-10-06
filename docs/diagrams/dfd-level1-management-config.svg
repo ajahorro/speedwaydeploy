@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1560 960" width="1560" height="960" font-family="Arial, Helvetica, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker></defs>
+<rect width="1560" height="960" fill="#fff"/>
+<text x="780" y="30" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Data Flow Diagram (Level 1): Management and Configuration</text>
+<rect x="60" y="50" width="1440" height="64" fill="#fff" stroke="#111" stroke-width="2"/>
+<text x="780" y="88" text-anchor="middle" font-size="15" font-weight="800" fill="#111">Administrator (Business Hub)</text>
+<path d="M180,114 L180,200" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="end" font-size="11.5" font-weight="600" fill="#111"><tspan x="172" y="160.83333333333334">Business settings</tspan></text>
+<path d="M260,200 L260,114" stroke="#111" stroke-width="1.6" fill="none" stroke-dasharray="6 4" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="268" y="160.83333333333334">Confirmation</tspan></text>
+<rect x="85" y="200" width="270" height="112" rx="18" fill="#fff" stroke="#111" stroke-width="2"/>
+<line x1="85" y1="228" x2="355" y2="228" stroke="#111" stroke-width="1.4"/>
+<text x="220" y="220" text-anchor="middle" font-size="13" font-weight="800" fill="#111">1.0</text>
+<text text-anchor="middle" font-size="13.5" font-weight="800" fill="#111"><tspan x="220" y="256.5">Manage Business Settings</tspan></text>
+<text text-anchor="middle" font-size="11" font-weight="400" fill="#111"><tspan x="220" y="284.6666666666667">Hours, closed days, notice, capacity,</tspan><tspan x="220" y="298.6666666666667">deposit rule, payment account</tspan></text>
+<path d="M220,312 L220,410" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="228" y="364.8333333333333">Saved settings</tspan></text>
+<rect x="85" y="410" width="270" height="76" fill="#fff" stroke="#111" stroke-width="2"/>
+<line x1="125" y1="410" x2="125" y2="486" stroke="#111" stroke-width="1.4"/>
+<text x="105" y="454" text-anchor="middle" font-size="13" font-weight="800" fill="#111">D1</text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#111"><tspan x="240" y="438.3333333333333">Business Settings</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#111"><tspan x="240" y="460.75">hours, closed days, notice,</tspan><tspan x="240" y="474.25">capacity, deposit rule</tspan></text>
+<path d="M220,486 L220,590" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="228" y="534.5833333333334">Hours, notice,</tspan><tspan x="228" y="549.0833333333334">capacity, deposit rule</tspan></text>
+<path d="M560,114 L560,200" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="end" font-size="11.5" font-weight="600" fill="#111"><tspan x="552" y="153.58333333333334">Service and price</tspan><tspan x="552" y="168.08333333333334">changes</tspan></text>
+<path d="M640,200 L640,114" stroke="#111" stroke-width="1.6" fill="none" stroke-dasharray="6 4" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="648" y="160.83333333333334">Confirmation</tspan></text>
+<rect x="465" y="200" width="270" height="112" rx="18" fill="#fff" stroke="#111" stroke-width="2"/>
+<line x1="465" y1="228" x2="735" y2="228" stroke="#111" stroke-width="1.4"/>
+<text x="600" y="220" text-anchor="middle" font-size="13" font-weight="800" fill="#111">2.0</text>
+<text text-anchor="middle" font-size="13.5" font-weight="800" fill="#111"><tspan x="600" y="256.5">Manage Services and Prices</tspan></text>
+<text text-anchor="middle" font-size="11" font-weight="400" fill="#111"><tspan x="600" y="284.6666666666667">Add, edit, or archive services; set</tspan><tspan x="600" y="298.6666666666667">prices and durations</tspan></text>
+<path d="M600,312 L600,410" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="608" y="357.5833333333333">Saved services and</tspan><tspan x="608" y="372.0833333333333">prices</tspan></text>
+<rect x="465" y="410" width="270" height="76" fill="#fff" stroke="#111" stroke-width="2"/>
+<line x1="505" y1="410" x2="505" y2="486" stroke="#111" stroke-width="1.4"/>
+<text x="485" y="454" text-anchor="middle" font-size="13" font-weight="800" fill="#111">D2</text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#111"><tspan x="620" y="438.3333333333333">Service Catalog</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#111"><tspan x="620" y="460.75">services, prices, durations,</tspan><tspan x="620" y="474.25">archived list</tspan></text>
+<path d="M600,486 L600,590" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="608" y="534.5833333333334">Current services,</tspan><tspan x="608" y="549.0833333333334">prices, durations</tspan></text>
+<path d="M940,114 L940,200" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="end" font-size="11.5" font-weight="600" fill="#111"><tspan x="932" y="160.83333333333334">Promo details</tspan></text>
+<path d="M1020,200 L1020,114" stroke="#111" stroke-width="1.6" fill="none" stroke-dasharray="6 4" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="1028" y="160.83333333333334">Confirmation</tspan></text>
+<rect x="845" y="200" width="270" height="112" rx="18" fill="#fff" stroke="#111" stroke-width="2"/>
+<line x1="845" y1="228" x2="1115" y2="228" stroke="#111" stroke-width="1.4"/>
+<text x="980" y="220" text-anchor="middle" font-size="13" font-weight="800" fill="#111">3.0</text>
+<text text-anchor="middle" font-size="13.5" font-weight="800" fill="#111"><tspan x="980" y="256.5">Manage Promotions</tspan></text>
+<text text-anchor="middle" font-size="11" font-weight="400" fill="#111"><tspan x="980" y="284.6666666666667">Create or end discounts for chosen</tspan><tspan x="980" y="298.6666666666667">vehicles and services</tspan></text>
+<path d="M980,312 L980,410" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="988" y="364.8333333333333">Saved promos</tspan></text>
+<rect x="845" y="410" width="270" height="76" fill="#fff" stroke="#111" stroke-width="2"/>
+<line x1="885" y1="410" x2="885" y2="486" stroke="#111" stroke-width="1.4"/>
+<text x="865" y="454" text-anchor="middle" font-size="13" font-weight="800" fill="#111">D3</text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#111"><tspan x="1000" y="438.3333333333333">Promotions</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#111"><tspan x="1000" y="460.75">discounts, dates, vehicle types,</tspan><tspan x="1000" y="474.25">services</tspan></text>
+<path d="M980,486 L980,590" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="988" y="541.8333333333334">Active promos</tspan></text>
+<path d="M1320,114 L1320,200" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="end" font-size="11.5" font-weight="600" fill="#111"><tspan x="1312" y="153.58333333333334">Closure dates and</tspan><tspan x="1312" y="168.08333333333334">times</tspan></text>
+<path d="M1400,200 L1400,114" stroke="#111" stroke-width="1.6" fill="none" stroke-dasharray="6 4" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="1408" y="160.83333333333334">Confirmation</tspan></text>
+<rect x="1225" y="200" width="270" height="112" rx="18" fill="#fff" stroke="#111" stroke-width="2"/>
+<line x1="1225" y1="228" x2="1495" y2="228" stroke="#111" stroke-width="1.4"/>
+<text x="1360" y="220" text-anchor="middle" font-size="13" font-weight="800" fill="#111">4.0</text>
+<text text-anchor="middle" font-size="13.5" font-weight="800" fill="#111"><tspan x="1360" y="256.5">Block Dates and Times</tspan></text>
+<text text-anchor="middle" font-size="11" font-weight="400" fill="#111"><tspan x="1360" y="284.6666666666667">Close the shop for holidays, repairs,</tspan><tspan x="1360" y="298.6666666666667">or special days</tspan></text>
+<path d="M1360,312 L1360,410" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="1368" y="364.8333333333333">Saved closures</tspan></text>
+<rect x="1225" y="410" width="270" height="76" fill="#fff" stroke="#111" stroke-width="2"/>
+<line x1="1265" y1="410" x2="1265" y2="486" stroke="#111" stroke-width="1.4"/>
+<text x="1245" y="454" text-anchor="middle" font-size="13" font-weight="800" fill="#111">D4</text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#111"><tspan x="1380" y="438.3333333333333">Blocked Times</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#111"><tspan x="1380" y="460.75">closed date, start and end time,</tspan><tspan x="1380" y="474.25">reason</tspan></text>
+<path d="M1360,486 L1360,590" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="1368" y="541.8333333333334">Blocked times</tspan></text>
+<rect x="80" y="590" width="1400" height="104" rx="18" fill="#fff" stroke="#111" stroke-width="2"/>
+<line x1="80" y1="618" x2="1480" y2="618" stroke="#111" stroke-width="1.4"/>
+<text x="780" y="610" text-anchor="middle" font-size="13" font-weight="800" fill="#111">5.0</text>
+<text x="780" y="646" text-anchor="middle" font-size="14" font-weight="800" fill="#111">Apply Rules to Bookings</text>
+<text text-anchor="middle" font-size="11.5" font-weight="400" fill="#111"><tspan x="780" y="677.8333333333334">Shows only the times, services, prices, and promos that are currently allowed, and accepts or declines each booking request using the saved rules</tspan></text>
+<path d="M500,694 L500,794" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="end" font-size="11.5" font-weight="600" fill="#111"><tspan x="492" y="740.5833333333334">New booking with its</tspan><tspan x="492" y="755.0833333333334">price and promo saved</tspan></text>
+<path d="M640,794 L640,694" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="648" y="740.5833333333334">Existing bookings (to</tspan><tspan x="648" y="755.0833333333334">check room)</tspan></text>
+<rect x="365" y="794" width="270" height="76" fill="#fff" stroke="#111" stroke-width="2"/>
+<line x1="405" y1="794" x2="405" y2="870" stroke="#111" stroke-width="1.4"/>
+<text x="385" y="838" text-anchor="middle" font-size="13" font-weight="800" fill="#111">D5</text>
+<text text-anchor="middle" font-size="13" font-weight="800" fill="#111"><tspan x="520" y="822.3333333333334">Bookings</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#111"><tspan x="520" y="844.75">schedule, services, price, promo,</tspan><tspan x="520" y="858.25">payments</tspan></text>
+<path d="M1180,794 L1180,694" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="end" font-size="11.5" font-weight="600" fill="#111"><tspan x="1172" y="747.8333333333334">Booking request</tspan></text>
+<path d="M1320,694 L1320,794" stroke="#111" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text text-anchor="start" font-size="11.5" font-weight="600" fill="#111"><tspan x="1328" y="733.3333333333334">Open times, prices,</tspan><tspan x="1328" y="747.8333333333334">promos; booking accepted</tspan><tspan x="1328" y="762.3333333333334">or declined</tspan></text>
+<rect x="1140" y="794" width="360" height="76" fill="#fff" stroke="#111" stroke-width="2"/>
+<text text-anchor="middle" font-size="14" font-weight="800" fill="#111"><tspan x="1320" y="828.1666666666666">Customer (or administrator for a</tspan><tspan x="1320" y="845.1666666666666">walk-in)</tspan></text>
+<text x="60" y="925" font-size="11.5" fill="#111">Key: plain rectangle = external entity; rounded box with a number = process; box with D = data store; dashed arrow = confirmation shown to the administrator. Saved changes in D1 to D4 are used for the next booking request.</text>
+</svg>
