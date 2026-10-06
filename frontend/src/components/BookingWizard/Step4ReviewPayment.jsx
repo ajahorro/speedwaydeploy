@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, CheckCircle2, Wallet, Banknote, ShieldAlert, AlertTriangle, Package as PackageIcon, Hash, Camera } from 'lucide-react';
+import { Upload, CheckCircle2, Wallet, Banknote, ShieldAlert, AlertTriangle, Package as PackageIcon, Hash, Camera, Tag } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useConfig } from '../../context/ConfigContext';
 import { useAuth } from '../../hooks/useAuth';
@@ -12,7 +12,6 @@ import { sanitizeCurrency } from '../../config/constants';
 import { logger } from '../../utils/logger';
 import toastManager from '../../utils/toastManager';
 import { BACKEND_URL } from '../../config/api';
-import PromoCodeBox from './PromoCodeBox';
 
 const DEFAULT_TERMS = [
   '1. Customer information provided during booking is collected solely for scheduling, service communication, and payment verification.',
@@ -1259,14 +1258,12 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
             </div>
           )}
 
-          {!adminMode && (
-            <PromoCodeBox
-              promoCode={bookingData.promoCode}
-              promoRule={bookingData.promoRule}
-              disabled={isUploading}
-              onApplied={(rule) => setBookingData(prev => ({ ...prev, promoCode: rule.code, promoRule: rule }))}
-              onRemoved={() => setBookingData(prev => ({ ...prev, promoCode: null, promoRule: null }))}
-            />
+          {/* The promo code is entered on the first page (with the services) so the amount to pay is final before
+              any payment is made. Here it is only shown. */}
+          {!adminMode && bookingData.promoRule && (
+            <div role="status" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 1rem', border: '1px solid var(--status-success)', borderRadius: 'var(--admin-radius)', background: 'rgba(var(--admin-success-rgb, 16, 185, 129), 0.08)', color: 'var(--status-success)', fontSize: '0.8rem', fontWeight: 800 }}>
+              <Tag size={14} /> Promo code {bookingData.promoRule.code} applied: {bookingData.promoRule.name}. It is already included in the total above.
+            </div>
           )}
 
           {!adminMode && <div style={{ padding: '1rem', background: termsAccepted ? 'rgba(var(--admin-brand-rgb), 0.05)' : 'transparent', borderRadius: 'var(--admin-radius-md)', border: `1px solid ${termsAccepted ? 'var(--admin-brand)' : 'var(--admin-border)'}`, transition: 'all 0.2s' }}>

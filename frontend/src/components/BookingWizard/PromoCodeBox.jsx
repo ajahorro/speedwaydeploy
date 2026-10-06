@@ -4,7 +4,7 @@ import toast from '@/lib/toast';
 import { redeemPromoCode } from '../../services/promoCodeService';
 
 /**
- * Optional promo code on the last booking page.
+ * Optional promo code, entered on the first booking page (with the services) so the total is final before payment.
  *
  * `promoRule` (the promotion the code unlocked) lives in the booking data, so it
  * is saved with the draft. A restored draft re-checks the code once, because it

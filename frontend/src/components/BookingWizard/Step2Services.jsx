@@ -10,6 +10,7 @@ import { useConfig } from '../../context/ConfigContext';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { appendNewGarageVehicles, uniqueGarageVehicles } from '../../utils/fleetVehicleUtils';
 import { getBayCapacity } from '../../config/shopConfig';
+import PromoCodeBox from './PromoCodeBox';
 
 const newId = () => crypto.randomUUID ? crypto.randomUUID() : `v_${Math.random().toString(36).slice(2)}`;
 const emptyVehicle = (manual = false) => ({ id: newId(), type: '', brand: '', model: '', plateNumber: '', services: [], locked: false, manual });
@@ -781,6 +782,17 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
         <Plus size={16} /> ADD ANOTHER VEHICLE
       </button>
     </section>}
+    {/* The promo code is entered HERE, with the services, so the total and the downpayment are final before the
+        customer reaches the payment page. (On the payment page it came too late: a receipt could already be
+        uploaded for the old amount.) */}
+    {!adminMode && (
+      <PromoCodeBox
+        promoCode={bookingData.promoCode}
+        promoRule={bookingData.promoRule}
+        onApplied={(rule) => setBookingData((prev) => ({ ...prev, promoCode: rule.code, promoRule: rule }))}
+        onRemoved={() => setBookingData((prev) => ({ ...prev, promoCode: null, promoRule: null }))}
+      />
+    )}
     <footer style={{ padding: '1.25rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', background: 'var(--admin-sidebar)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)' }}><div><span style={{ color: 'var(--admin-text-secondary)', fontWeight: '800', fontSize: '.72rem', textTransform: 'uppercase' }}>Booking estimate · {vehicles.length} vehicle{vehicles.length === 1 ? '' : 's'} in {units.length} unit{units.length === 1 ? '' : 's'}</span><strong style={{ display: 'block', color: 'var(--admin-brand)', fontSize: '1.6rem' }}>₱{grandTotal.toLocaleString()}</strong></div><div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>{onCancel && <button type="button" onClick={onCancel} style={{ padding: '.9rem 1.25rem', background: 'transparent', color: 'var(--status-danger)', border: '1px solid #ef4444', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}>CANCEL</button>}<button type="button" disabled={!validUnits} title={!validUnits ? 'Complete every vehicle unit and select at least one service for each.' : ''} onClick={onNext} style={{ padding: '.9rem 1.25rem', background: validUnits ? 'var(--admin-brand)' : 'var(--admin-bg)', color: validUnits ? '#fff' : 'var(--admin-text-secondary)', border: `1px solid ${validUnits ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '6px', fontWeight: '900', cursor: validUnits ? 'pointer' : 'not-allowed', opacity: validUnits ? 1 : .5 }}>PROCEED TO SCHEDULE</button></div></footer>
   </div>;
 };
