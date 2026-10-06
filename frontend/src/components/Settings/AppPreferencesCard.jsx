@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Monitor, Moon, Sun } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import { COMMUNICATION_PREFERENCES } from '../../config/legalContent';

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, ShieldAlert, CheckCircle2, Loader2, LogOut } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 

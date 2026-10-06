@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { X, ExternalLink, Info, Calendar, Star, Megaphone, Bell, MessageSquare } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { parseChatNotification } from './NotificationPopover';
 import { supabase } from '../lib/supabase';
 import { resolveBookingId, resolveStaffJobId } from '../utils/notificationRouting';

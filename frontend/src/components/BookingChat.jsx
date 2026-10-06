@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { subscribeTable } from '../lib/realtimeHub';
 import { useAuth } from '../hooks/useAuth';
 import { Send, Image as ImageIcon, Bot, Check, CheckCheck, Loader2, AlertCircle, X } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { emitEventToMany, EVENTS } from '../services/eventEngine';
 import { useGlobalChat } from '../context/ChatContext';
 import { useImagePreview } from '../context/ImagePreviewContext';

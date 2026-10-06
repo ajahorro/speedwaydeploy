@@ -7,7 +7,7 @@ import { ClipboardList, Car, Clock, Play, CheckCircle2, Save, UploadCloud, Image
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
 import PhotoProofUploader from '../../components/Photos/PhotoProofUploader';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { BACKEND_URL } from '../../config/api';
 import { SHOW_START_SERVICE_ACTIONS } from '../../config/workflowFeatures';
 import { useConfirmAction } from '../../hooks/useConfirmAction';

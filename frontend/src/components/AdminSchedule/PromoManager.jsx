@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Tag, Layers, ChevronDown, ChevronUp } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { getServiceCatalog, getPackageStandaloneSum } from '../../data/servicesCatalog';
 import { VEHICLE_TYPE_KEYS } from '../../config/constants';
 import { useMediaQuery } from '../../hooks/useMediaQuery';

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { ArrowLeft, Lock, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';

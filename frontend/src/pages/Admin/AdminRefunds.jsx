@@ -10,7 +10,7 @@ import {
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { logger } from '../../utils/logger';
 import { fetchBookingLedgers } from '../../services/ledgerService';
 import { matchesSearchText } from '../../utils/searchMatch';

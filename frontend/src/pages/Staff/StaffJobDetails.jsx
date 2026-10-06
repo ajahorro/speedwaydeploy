@@ -8,7 +8,7 @@ import {
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
 import { fetchVehiclePhotos, resolvePhotoUrls } from '../../services/photoService';
 import { fetchStaffBookings } from '../../utils/notificationRouting';

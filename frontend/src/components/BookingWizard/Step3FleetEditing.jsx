@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Car, Trash2, Copy, Plus, ChevronRight, Info, Lock, X } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import Step2Services from './Step2Services';
 import { supabase } from '../../lib/supabase';
 import { calculateBayUsage } from '../../utils/schedulingUtils';

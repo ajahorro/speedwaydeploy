@@ -47,7 +47,7 @@
  * ============================================================================
  */
 
-import reactHotToast from 'react-hot-toast';
+import reactHotToast from '@/lib/toast';
 
 /** Hard ceiling on simultaneously visible toasts. */
 export const MAX_VISIBLE = 2;
@@ -108,8 +108,8 @@ export const createToastQueue = (engine) => {
     switch (kind) {
       case 'error': return engine.error(message, options);
       case 'loading': return engine.loading(message, options);
-      case 'warning': return engine.default(message, { ...options, icon: '⚠️' });
-      case 'info': return engine.default(message, { ...options, icon: 'ℹ️' });
+      case 'warning': return engine.warning ? engine.warning(message, options) : engine.default(message, { ...options, icon: '⚠️' });
+      case 'info': return engine.info ? engine.info(message, options) : engine.default(message, { ...options, icon: 'ℹ️' });
       case 'success': return engine.success(message, options);
       default: return engine.default(message, options);
     }
@@ -200,7 +200,7 @@ export const createToastQueue = (engine) => {
 };
 
 /**
- * Production engine adapter over react-hot-toast.
+ * Production engine adapter over the app toast (lib/toast.js, shadcn Sonner).
  *
  * `isActive` is attached only when the library actually exports it: the queue
  * treats a missing `isActive` as "assume gone", which affects bookkeeping
@@ -210,6 +210,8 @@ const reactHotToastEngine = {
   success: (message, options) => reactHotToast.success(message, options),
   error: (message, options) => reactHotToast.error(message, options),
   loading: (message, options) => reactHotToast.loading(message, options),
+  warning: (message, options) => reactHotToast.warning(message, options),
+  info: (message, options) => reactHotToast.info(message, options),
   default: (message, options) => reactHotToast(message, options),
   dismiss: (id) => (id === undefined ? reactHotToast.dismiss() : reactHotToast.dismiss(id)),
 };

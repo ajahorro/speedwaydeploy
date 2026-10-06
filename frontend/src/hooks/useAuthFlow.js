@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { BACKEND_URL } from '../config/api';
 import { emailError, phoneError, normalizePhPhone } from '../utils/contactValidation';
 import { safeNextPath } from '../utils/safeNextPath';

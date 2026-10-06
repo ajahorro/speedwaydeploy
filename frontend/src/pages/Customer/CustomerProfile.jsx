@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { PhoneInput, EmailInput } from '../../components/common/ContactInputs';
 import { phoneError, emailError, normalizePhPhone } from '../../utils/contactValidation';

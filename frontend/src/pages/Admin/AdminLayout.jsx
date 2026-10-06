@@ -19,6 +19,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../context/ThemeContext';
 import BrandLogo from '../../components/BrandLogo';
 import toastManager from '../../utils/toastManager';
+import { NotificationToast } from '@/components/ui/notification-toast';
 import TermsGate from '../../components/TermsGate';
 
 const AdminLayout = () => {
@@ -88,27 +89,13 @@ const AdminLayout = () => {
           const bookingId = payload.new.booking_id;
           toastManager.background(
             (t) => (
-              <button
-                type="button"
-                onClick={() => { navigate(`/admin/bookings/${bookingId}`); toastManager.dismiss(t.id); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.6rem',
-                  background: 'var(--admin-card, #1a1a1a)',
-                  color: 'var(--admin-text-primary, #fff)',
-                  border: '1px solid var(--admin-border, #333)',
-                  borderLeft: '3px solid var(--admin-brand, #E61E2A)',
-                  borderRadius: '8px', padding: '0.75rem 1rem',
-                  fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', textAlign: 'left',
-                }}
-              >
-                <Bell size={16} color="var(--admin-brand, #E61E2A)" />
-                <span>
-                  {payload.new.message || 'New booking received.'}
-                  <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 600, opacity: 0.7, marginTop: '0.15rem' }}>
-                    Click to view booking
-                  </span>
-                </span>
-              </button>
+              <NotificationToast
+                title={payload.new.message || 'New booking received.'}
+                description="A customer just booked an appointment."
+                actionLabel="View booking"
+                onAction={() => { navigate(`/admin/bookings/${bookingId}`); toastManager.dismiss(t.id); }}
+                onClose={() => toastManager.dismiss(t.id)}
+              />
             ),
             { duration: 6000, kind: 'default', dedupeKey: `new-booking:${bookingId}` }
           );

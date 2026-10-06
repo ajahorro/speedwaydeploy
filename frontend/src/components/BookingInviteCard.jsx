@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { CalendarCheck, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { subscribeTable } from '../lib/realtimeHub';

@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import PageHeader from '../../components/PageHeader';
 import { Bell, CheckCircle, Clock, Trash2, Filter, Search, AlertTriangle, X, ExternalLink } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { logger } from '../../utils/logger';
 import { useAuth } from '../../hooks/useAuth';
 import { BACKEND_URL } from '../../config/api';

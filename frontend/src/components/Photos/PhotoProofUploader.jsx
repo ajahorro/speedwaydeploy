@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, ImagePlus, Loader2, Trash2, X, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { useAuth } from '../../hooks/useAuth';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { useImagePreview } from '../../context/ImagePreviewContext';

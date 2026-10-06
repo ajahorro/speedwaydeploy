@@ -7,7 +7,7 @@ import { Calendar as CalendarIcon, ShieldAlert, Lock, Zap, CheckCircle2, RotateC
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { logger } from '../../utils/logger';
 import { getServiceCatalog } from '../../data/servicesCatalog';
 import { buildLocalDateWindow, buildLocalMonthWindow } from '../../utils/dateTimeUtils';

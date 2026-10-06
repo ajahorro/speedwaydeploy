@@ -7,7 +7,7 @@ import {
   ArrowLeft, Clock, Car, ShieldCheck,
   CreditCard, FileText, MessageCircle, ChevronRight, AlertCircle, Package, Printer, CheckCircle2, X
 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { cancelBooking, rescheduleBooking } from '../../services/bookingService';
 import { getStatusColor } from '../../utils/bookingHelpers';
 import { useUnifiedData } from '../../context/UnifiedContext';

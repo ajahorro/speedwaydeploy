@@ -18,7 +18,7 @@ import { getStatusColor, isStaffOccupied } from '../../utils/bookingHelpers';
 import { calculatePaymentSummary, requiresDownpayment } from '../../utils/paymentUtils';
 import { fetchBookingLedger, fetchRequiredDownpayment } from '../../services/ledgerService';
 import { fetchBookingExcessCredit } from '../../services/creditLedgerService';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import BookingAuditTrail from '../../components/BookingAuditTrail';
 import BookingSummaryHeader from '../../components/BookingSummaryHeader';
 import { useMediaQuery } from '../../hooks/useMediaQuery';

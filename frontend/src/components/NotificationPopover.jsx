@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useUnifiedData } from '../context/UnifiedContext';
 import { Bell, CheckCheck, ChevronRight, Info, Calendar, Star, Megaphone, MessageSquare } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import NotificationDetailsModal from './NotificationDetailsModal';
 import { isRedundantStaffTechnicianAssignment, resolveStaffJobId } from '../utils/notificationRouting';
 

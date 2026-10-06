@@ -4,7 +4,7 @@ import { subscribeTables } from '../lib/realtimeHub';
 import { logger } from '../utils/logger';
 import { calculatePaymentStatus } from '../utils/paymentUtils';
 import { fetchBookingLedgers } from '../services/ledgerService';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 
 /**
  * useAdminBookings — REQ-NFR-05

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import PageHeader from '../../components/PageHeader';
 import { User, Mail, Lock, Shield, Save, Key } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { supabase } from '../../lib/supabase';
 

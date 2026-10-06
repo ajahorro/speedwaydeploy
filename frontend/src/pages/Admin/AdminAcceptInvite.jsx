@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { BACKEND_URL } from '../../config/api';
 
 const AdminAcceptInvite = () => {

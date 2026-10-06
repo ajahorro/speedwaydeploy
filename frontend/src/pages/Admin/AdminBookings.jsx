@@ -13,7 +13,7 @@ import { formatBookingDate, formatBookingTime, getStatusColor } from '../../util
 import { useAdminBookings } from '../../hooks/useAdminBookings';
 import { supabase } from '../../lib/supabase';
 import { useUI } from '../../context/UIContext';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { BACKEND_URL } from '../../config/api';
 
 import AdminSchedulingGrid from './AdminSchedulingGrid';

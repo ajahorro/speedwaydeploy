@@ -4,7 +4,7 @@ import { getServiceCatalog, getBestPromoForService, fetchActivePromos, priceVehi
 import { fetchUserGarage, fetchFleetGroups } from '../../services/garageService';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { sanitizeVehiclePlate, sanitizeVehicleText, SHOP_CONFIG } from '../../config/constants';
 import { useConfig } from '../../context/ConfigContext';
 import { calculateBayUsage } from '../../utils/schedulingUtils';

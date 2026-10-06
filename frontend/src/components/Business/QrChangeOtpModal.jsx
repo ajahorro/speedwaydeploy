@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, ShieldCheck, Mail, KeyRound, AlertCircle, Loader, UploadCloud } from 'lucide-react';
 import { requestQrChangeOtp, verifyQrChangeOtp, QR_FIELDS, validateQrRecipients } from '../../services/qrSecurityService';
 import { sanitizeQrAccountName, sanitizeQrAccountNumber } from '../../services/qrConfigUtils';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 
 /**
  * QrChangeOtpModal

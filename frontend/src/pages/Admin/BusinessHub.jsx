@@ -7,7 +7,7 @@ import {
 import { useConfig } from '../../context/ConfigContext';
 import { useUI } from '../../context/UIContext';
 import { supabase } from '../../lib/supabase';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import PromoManager from '../../components/AdminSchedule/PromoManager';
 import { DownpaymentPolicyCard } from '../../features/business-hub/DownpaymentPolicyCard';
 import { TermsEditorCard } from '../../features/business-hub/TermsEditorCard';

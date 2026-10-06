@@ -7,7 +7,7 @@ import {
   Maximize2, ExternalLink, RefreshCcw
 } from 'lucide-react';
 import { logger } from '../../utils/logger';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { shopDateString, shopHourValue, shopWallToDate } from '../../utils/shopTime';
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Tag, Loader2, CheckCircle2, X } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { redeemPromoCode } from '../../services/promoCodeService';
 
 /**

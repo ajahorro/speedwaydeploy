@@ -10,7 +10,7 @@ import {
 import PageHeader from '../../components/PageHeader';
 import { useUI } from '../../context/UIContext';
 import { logger } from '../../utils/logger';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { BACKEND_URL } from '../../config/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';

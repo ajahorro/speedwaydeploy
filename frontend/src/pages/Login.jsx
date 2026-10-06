@@ -7,7 +7,7 @@ import RecoverForm from '../components/auth/RecoverForm';
 import EmergencyRecoveryForm from '../components/auth/EmergencyRecoveryForm';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { X, Mail } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { supabase } from '../lib/supabase';
 
 const Login = ({ isModal = false, onClose }) => {

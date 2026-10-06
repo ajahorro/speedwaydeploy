@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { User, Mail, Phone, Shield, Key, Save, Loader2, UserCircle } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import PageHeader from '../../components/PageHeader';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 

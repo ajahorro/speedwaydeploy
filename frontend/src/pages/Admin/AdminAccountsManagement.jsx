@@ -8,7 +8,7 @@ import {
   AlertCircle, MoreVertical, Ban, Shield, Settings,
   CheckCircle2, X, Send
 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useConfirmation } from '../../utils/logoutConfirm';
 import { logger } from '../../utils/logger';

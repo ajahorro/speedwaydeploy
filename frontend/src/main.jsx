@@ -3,8 +3,7 @@ import './styles/ui.css';
 import React, { Suspense, lazy, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
-import { TOASTER_DEFAULTS } from './utils/toastChrome';
+import { Toaster } from '@/components/ui/sonner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { installGlobalErrorReporter } from './utils/globalErrorReporter';
 import { UIProvider } from './context/UIContext';
@@ -216,30 +215,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 </Route>
                 </Routes>
                 </Suspense>
-                {/* react-hot-toast host — the ONE toast engine for the whole app
-                    after Step 7.3 consolidation. Previously no <Toaster/> was
-                    mounted, so every `toast.*()` call was a silent no-op; and a
-                    second bespoke stack lived in UIContext. Both are resolved:
-                    all toast output flows here, styled from the shared
-                    token-based chrome in utils/toastChrome so it adapts to
-                    dark/light and stays 375px-safe.
-
-                    Stacking + volume are governed by utils/toastManager, which
-                    every call site now routes through. The container is pinned
-                    top-right with a real vertical gutter so toasts stack in a
-                    column instead of overlapping, and `containerStyle` keeps
-                    the column below the sticky header (z-index --z-toast so it
-                    still outranks modals when a foreground toast must show). */}
-                <Toaster
-                  position="top-right"
-                  gutter={12}
-                  containerStyle={{
-                    top: 76,
-                    right: 20,
-                    zIndex: 'var(--z-toast)',
-                  }}
-                  toastOptions={TOASTER_DEFAULTS}
-                />
+                {/* The one toast host (shadcn Sonner). Every toast.*() call goes through lib/toast.js, which
+                    utils/toastManager gates (dedupe, 2-toast cap, no background toast over a modal). */}
+                <Toaster />
                 </ImagePreviewProvider>
                 </UIProvider>
               </BrowserRouter>

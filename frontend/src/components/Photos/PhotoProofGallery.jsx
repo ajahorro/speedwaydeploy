@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, Image as ImageIcon, Loader2, Camera, ChevronLeft, ChevronRight } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { fetchBookingPhotos, fetchVehiclePhotos, resolvePhotoUrls } from '../../services/photoService';
 import { useImagePreview } from '../../context/ImagePreviewContext';
 

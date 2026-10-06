@@ -6,7 +6,7 @@ import {
   ClipboardList, Clock, CheckCircle2, AlertCircle,
   Car, User, ArrowRight, Play, Loader2, Image, Save, UploadCloud, TrendingUp, Bell, LogIn
 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { useAuth } from '../../hooks/useAuth';
 import { useUI } from '../../context/UIContext';
 import { useMediaQuery } from '../../hooks/useMediaQuery';

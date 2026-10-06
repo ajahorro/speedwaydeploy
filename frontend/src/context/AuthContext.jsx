@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { supabase, createUniqueChannel } from '../lib/supabase';
 import { logger } from '../utils/logger';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { BACKEND_URL, authHeaders } from '../config/api';
 
 export const AuthContext = createContext({});

@@ -8,7 +8,7 @@ import {
   CreditCard, XCircle, ArrowRight, Car,
   FileText, ShieldCheck, Printer, X
 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { logger } from '../../utils/logger';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';

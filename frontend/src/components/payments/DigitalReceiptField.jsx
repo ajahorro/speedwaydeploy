@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { ImagePlus } from 'lucide-react';
 import { BACKEND_URL } from '@/config/api';
 

@@ -4,7 +4,7 @@ import { subscribeTable } from '../../lib/realtimeHub';
 import PageHeader from '../../components/PageHeader';
 import { Bell, CheckCircle, Trash2, Search, AlertTriangle } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { logger } from '../../utils/logger';
 import { useAuth } from '../../hooks/useAuth';
 import NotificationDetailsModal from '../../components/NotificationDetailsModal';

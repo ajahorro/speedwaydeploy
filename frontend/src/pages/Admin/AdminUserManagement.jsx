@@ -8,7 +8,7 @@ import {
   AlertCircle, Trash2, RefreshCcw, ShieldCheck, UserCog,
   ShieldAlert, MoreVertical, Shield
 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { logger } from '../../utils/logger';
 import { BACKEND_URL, authHeaders } from '../../config/api';

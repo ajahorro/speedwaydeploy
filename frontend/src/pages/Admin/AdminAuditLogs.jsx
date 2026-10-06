@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import PageHeader from '../../components/PageHeader';
 import { Search, Filter, Database, ChevronDown, ChevronRight, ExternalLink, X } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { logger } from '../../utils/logger';
 import { matchesSearchText } from '../../utils/searchMatch';

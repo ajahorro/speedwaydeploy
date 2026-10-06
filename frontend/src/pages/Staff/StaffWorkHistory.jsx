@@ -6,7 +6,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { History, Car, Calendar, CheckCircle2, Search, FileText } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { matchesSearchText } from '../../utils/searchMatch';
 
 const StaffWorkHistory = () => {

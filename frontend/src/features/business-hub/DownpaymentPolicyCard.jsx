@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';

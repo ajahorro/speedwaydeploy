@@ -5,7 +5,7 @@ import PageHeader from "../components/PageHeader";
 import { Bell, CheckCircle, Trash2, Search, AlertTriangle, X, Info, Calendar, Star, Megaphone, ExternalLink, MessageSquare } from 'lucide-react';
 import { parseChatNotification } from '../components/NotificationPopover';
 import { useMediaQuery } from "../hooks/useMediaQuery";
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { logger } from "../utils/logger";
 import { useAuth } from "../hooks/useAuth";
 import { useUnifiedData } from "../context/UnifiedContext";

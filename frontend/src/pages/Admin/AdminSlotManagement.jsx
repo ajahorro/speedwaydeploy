@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 
 const AdminSlotManagement = () => {

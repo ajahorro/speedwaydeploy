@@ -15,7 +15,7 @@ import {
   deleteGarageVehicle,
   fetchVehicleHistory
 } from '../../services/garageService';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { sanitizeVehiclePlate, sanitizeVehicleText } from '../../config/constants';
 import { useConfig } from '../../context/ConfigContext';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
