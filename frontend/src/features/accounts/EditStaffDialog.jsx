@@ -18,7 +18,6 @@ const toForm = (member) => ({
   last_name: member?.last_name || '',
   phone_number: member?.phone_number || '',
   birthday: member?.birthday || '',
-  hired_at: member?.hired_at || '',
   role: String(member?.role || 'STAFF').toUpperCase(),
   can_view_reports: Boolean(member?.can_view_reports),
   force_password_reset: false
@@ -29,7 +28,6 @@ const LABELS = {
   last_name: 'Last name',
   phone_number: 'Mobile number',
   birthday: 'Birthday',
-  hired_at: 'Hire date',
   role: 'Role',
   can_view_reports: 'Can view reports'
 };
@@ -66,7 +64,6 @@ export default function EditStaffDialog({ member, open, onOpenChange, onSaved, r
     if (!NAME_PATTERN.test(form.last_name.trim())) e.last_name = 'Enter a last name (letters only).';
     if (!isValidPhPhone(form.phone_number)) e.phone_number = 'Enter an 11-digit mobile number starting with 09.';
     if (form.birthday && (form.birthday > today() || form.birthday < '1900-01-01')) e.birthday = 'Birthday cannot be in the future.';
-    if (form.hired_at && (form.hired_at > today() || form.hired_at < '1990-01-01')) e.hired_at = 'Hire date cannot be in the future.';
     return e;
   }, [form]);
 
@@ -161,9 +158,9 @@ export default function EditStaffDialog({ member, open, onOpenChange, onSaved, r
                 {errorText('birthday')}
               </div>
               <div className={fieldClass}>
-                <Label htmlFor="es-hired">Hire date</Label>
-                <Input id="es-hired" type="date" value={form.hired_at} max={today()} onChange={set('hired_at')} aria-invalid={Boolean(errors.hired_at)} />
-                {errorText('hired_at')}
+                <Label htmlFor="es-hired">Date joined</Label>
+                <Input id="es-hired" type="text" readOnly disabled value={member?.hired_at ? new Date(`${member.hired_at}T00:00:00`).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'} />
+                <p className="text-xs text-muted-foreground">Set automatically when the account became a staff account.</p>
               </div>
             </div>
 

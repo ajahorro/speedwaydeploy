@@ -443,3 +443,20 @@ The original plan is archived unchanged in `docs/MASTER-PLAN-v1-original.md`. It
   5. Record automatic sign-outs in the audit log for administrator and staff accounts.
 - **Done when:** an idle admin, staff, and customer session each end after their configured time, the warning appears and "Stay signed in" resets it, two tabs stay in step, and the login page explains why the user was signed out.
 - **Paper:** once built, add "automatic termination of inactive sessions" back to the security requirements (REQ-NFR-33 in the old numbering).
+
+## Done: staff "joined" date and invitation password rule (migration `20261114000001`, committed, not yet applied to production)
+- The "Date joined" in the admin's Edit Staff pop-up is now read-only. The database sets it (shop time zone) at the moment an account becomes a staff or administrator account (invitation, or a role change into staff/admin); moving between staff and administrator keeps it. The server refuses attempts to change it.
+- The "Force user to change password on first login" checkbox is removed from the staff/administrator invitation. A first-login password change is now always required.
+
+## Final features queued by the owner (to be built, in this order)
+1. **Automatic deactivation of inactive accounts** after a number of days or months chosen by the administrator.
+   - A setting in the Business Hub (a number plus days or months, and on/off). A daily job deactivates accounts with no sign-in and no booking activity for that long, writes each one to the audit log, and sends the customer a warning email first.
+   - Deactivation never deletes data. Open bookings, unpaid balances, and the last administrator are protected from being deactivated.
+2. **Print today's report:** a "Print today" button in Reports that produces one printable page (PDF) for the current day: bookings of the day, payments received by method, refunds, outstanding balances, and technician workload. Built from the existing bookings report and financial report.
+3. **Staff Reports (enable):** a Reports page for staff, shown only when the administrator turns on "Can view reports" for that account (the switch already exists in Edit Staff and defaults to off). Recommended content: operational data only (today's and tomorrow's schedule, their own jobs by status and completed counts), no money figures and no other technician's data, enforced in the database.
+4. **Book for customer, from chat (admin sends an invitation):**
+   - The administrator sends an "invitation" message with a button in the booking chat. When the customer taps it, the booking details saved on the customer's own device (the draft) are sent to the shop, tied to that chat and that customer, readable only by the administrator, valid for a limited time, and usable once.
+   - The administrator opens "Book for customer": the walk-in booking form opens with all the draft details filled in and the customer's existing account already selected. The slot and prices are re-checked when it opens, because they may have changed.
+   - The customer gives the payment receipt photo to the administrator (chat, message, or in person); the administrator drags it into the receipt reader of the walk-in form and submits. The receipt reader's strict rules still apply to the receipt, but the administrator can use the manual entry option.
+   - Feasible: the draft transfer is a short-lived server copy that the customer sends deliberately; nothing is read from the customer's device without their tap.
+   - Questions to settle before building are listed in the owner conversation (who is invited, expiry, what if no draft exists, what is copied).

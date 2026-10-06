@@ -480,20 +480,7 @@ const AdminAccountsManagement = () => {
                 </div>
               </div>
 
-              {/* Section 1.1: first-login password reset. Checked by default so an
-                  invited account cannot be used until the owner sets a real password. */}
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)' }}>
-                <input
-                  type="checkbox"
-                  checked={inviteForm.forcePasswordChange}
-                  onChange={(e) => setInviteForm({...inviteForm, forcePasswordChange: e.target.checked})}
-                  style={{ marginTop: '0.15rem', width: '16px', height: '16px', accentColor: 'var(--admin-brand)', cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
-                  <strong style={{ color: 'var(--admin-text-primary)', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Force user to change password on first login</strong>
-                  The invited user must set a new password before they can access any part of the platform.
-                </span>
-              </label>
+              {/* The invited user always has to set their own password on first sign-in. */}
 
               <div style={{ padding: '1rem', background: 'rgba(169, 27, 24, 0.1)', borderRadius: 'var(--admin-radius-sm)', border: '1px solid rgba(169, 27, 24, 0.2)' }}>
                 <p style={{ fontSize: '0.7rem', color: 'var(--admin-text-secondary)', margin: 0, fontWeight: '700' }}>

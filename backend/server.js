@@ -2330,7 +2330,9 @@ const attemptRoleElevation = async ({ email, role, firstName, lastName, actor })
 };
 
 app.post('/api/admin/invite-account', async (req, res) => {
-  const { email, firstName, lastName, role, forcePasswordChange = true } = req.body || {};
+  const { email, firstName, lastName, role } = req.body || {};
+  // An invited account must always set its own password on first sign-in (not optional).
+  const forcePasswordChange = true;
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
   const normalizedRole = typeof role === 'string' ? role.trim().toUpperCase() : '';
   console.log(`🎟️ [INVITE] Admin-driven invite for ${normalizedEmail} (${normalizedRole})`);
@@ -2756,13 +2758,9 @@ app.patch('/api/admin/staff/:id', async (req, res) => {
         if (body.birthday !== before.birthday) updates.birthday = body.birthday;
       }
     }
-    if (body.hired_at !== undefined) {
-      if (body.hired_at === null || body.hired_at === '') {
-        if (before.hired_at) updates.hired_at = null;
-      } else {
-        if (!isIsoDay(body.hired_at) || body.hired_at > todayIsoInManila() || body.hired_at < '1990-01-01') return fail('Enter a valid hire date that is not in the future.');
-        if (body.hired_at !== before.hired_at) updates.hired_at = body.hired_at;
-      }
+    // The joined date is set by the database when the account becomes a staff account; it cannot be edited.
+    if (body.hired_at !== undefined && String(body.hired_at || '') !== String(before.hired_at || '')) {
+      return fail('The joined date is set automatically and cannot be changed.');
     }
     if (body.can_view_reports !== undefined) {
       if (typeof body.can_view_reports !== 'boolean') return fail('can_view_reports must be true or false.');
