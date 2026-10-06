@@ -24,7 +24,7 @@ const SIZE = {
   end: { w: 250, h: 52, chars: 34 },
   step: { w: 250, h: 66, chars: 33 },
   decision: { w: 250, h: 104, chars: 24 },
-  side: { w: 150, h: 70, chars: 19 }
+  side: { w: 160, h: 92, chars: 21 }
 };
 
 const shape = (n) => {
@@ -173,8 +173,101 @@ const recovery = () => {
   return svgWrap(W, H, parts.join('\n'));
 };
 
+
+// ───────────────────────── Flowchart 3: sign-in and lockout ─────────────────────────
+const signIn = () => {
+  const W = 1240, cx = 330;
+  const steps = [
+    { type: 'start', label: 'User enters email and password' },
+    { type: 'step', label: 'Email is cleaned up; both fields are required' },
+    { type: 'decision', label: 'Is the account locked right now? (checked in the database)', no: 'Refused: shows the minutes left, or "check your email"', noLabel: 'Yes', yesLabel: 'No' },
+    { type: 'step', label: 'Email and password are sent to the sign-in service' },
+    { type: 'decision', label: 'Are the email and password correct?', no: 'Failure is recorded (see the ladder on the right)', noLabel: 'No', yesLabel: 'Yes' },
+    { type: 'step', label: 'The failure counter and any lock are cleared; the profile is loaded' },
+    { type: 'decision', label: 'Is the account active?', no: 'Signed out (a self-deactivated account can be recovered within 15 days)', noLabel: 'No', yesLabel: 'Yes' },
+    { type: 'step', label: 'Password gate: an invited account must set its own new password first and cannot skip it' },
+    { type: 'step', label: 'Terms gate: if the current terms for this role are not accepted, the user must scroll to the end and accept' },
+    { type: 'step', label: 'Role check: Customer goes to the customer portal, Staff to the staff portal, Administrator to the admin portal' },
+    { type: 'end', label: 'Signed in' }
+  ];
+  const lane = layLane(cx, 90, steps);
+  const H = lane.endY + 110;
+  const parts = [];
+  parts.push(`<text x="${W / 2}" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Flowchart: Sign-In and Account Lockout</text>`);
+  parts.push(...lane.links, ...lane.nodes.map(shape), ...lane.sides.map(shape));
+
+  // the lockout ladder panel, fed by the "wrong password" exit
+  const px = 820, pw = 360, py = 330;
+  const rows = [
+    ['Wrong passwords 1 to 4', 'No lock. The screen says how many tries are left.'],
+    ['5th wrong password', 'Locked for 5 minutes.'],
+    ['6th wrong password', 'Allowed (a small fresh allowance after the wait).'],
+    ['7th wrong password', 'Locked for 10 minutes.'],
+    ['8th wrong password', 'Held for 60 minutes. A security notice with a password-reset link is emailed to the owner.']
+  ];
+  parts.push(`<rect x="${px}" y="${py - 40}" width="${pw}" height="${rows.length * 78 + 52}" rx="10" fill="none" stroke="#111" stroke-width="1.8"/>`);
+  parts.push(`<rect x="${px}" y="${py - 40}" width="${pw}" height="34" rx="10" fill="#111"/>`);
+  parts.push(`<text x="${px + pw / 2}" y="${py - 18}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">Lockout ladder (kept in the database)</text>`);
+  rows.forEach(([head, body], i) => {
+    const y = py + i * 78 + 8;
+    parts.push(`<line x1="${px}" y1="${y - 6}" x2="${px + pw}" y2="${y - 6}" stroke="#bbb"/>`);
+    parts.push(`<text x="${px + 14}" y="${y + 12}" font-size="12.5" font-weight="800" fill="#111">${esc(head)}</text>`);
+    parts.push(`<text font-size="12" fill="#111">${wrap(body, 44).map((t, k) => `<tspan x="${px + 14}" y="${y + 32 + k * 15}">${esc(t)}</tspan>`).join('')}</text>`);
+  });
+  parts.push(`<text x="${px + pw / 2}" y="${py + rows.length * 78 + 24}" text-anchor="middle" font-size="11" fill="#444">An unknown email gets the same answer as a wrong password.</text>`);
+  // arrow from the "No" side box of the credentials decision to the panel
+  const credDecision = lane.nodes[4];
+  const side = lane.sides.find((n) => n.y === credDecision.y);
+  parts.push(`<path d="M${side.x + SIZE.side.w / 2},${side.y} L${px - 24},${side.y} L${px - 24},${py + 60} L${px},${py + 60}" fill="none" stroke="#111" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a)"/>`);
+  return svgWrap(W, H, parts.join('\n'));
+};
+
+// ───────────────────────── Flowchart 4: access control by role ─────────────────────────
+const accessControl = () => {
+  const W = 1240, cx = 330;
+  const steps = [
+    { type: 'start', label: 'A signed-in user opens a page or asks for data' },
+    { type: 'decision', label: 'Layer 1, the screen: is there a valid session?', no: 'Sent to login, then back to the same page', noLabel: 'No', yesLabel: 'Yes' },
+    { type: 'decision', label: 'Does the user\'s role allow this page?', no: 'Sent to the home page', noLabel: 'No', yesLabel: 'Yes' },
+    { type: 'decision', label: 'Layer 2, the server: is the caller allowed this action?', no: 'Request refused (not authorised)', noLabel: 'No', yesLabel: 'Yes' },
+    { type: 'decision', label: 'Layer 3, the database: does row-level security allow these records?', no: 'Records hidden or change refused', noLabel: 'No', yesLabel: 'Yes' },
+    { type: 'step', label: 'Protected fields (role, joined date, report access) are administrator-only; the last administrator cannot be removed' },
+    { type: 'step', label: 'Important administrator actions are written to the audit log' },
+    { type: 'end', label: 'Request allowed' }
+  ];
+  const lane = layLane(cx, 90, steps);
+  const H = lane.endY + 110;
+  const parts = [];
+  parts.push(`<text x="${W / 2}" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Flowchart: Role-Based Access Control</text>`);
+  parts.push(...lane.links, ...lane.nodes.map(shape), ...lane.sides.map(shape));
+
+  // what each role can reach
+  const px = 800, pw = 400, py = 250;
+  const roles = [
+    ['Customer', 'Own bookings, vehicles, payments, receipts, and chat only.'],
+    ['Staff', 'Only the vehicles assigned to them: photos, notes, and start or finish. No payments, prices, refunds, or other accounts. Reports only if the administrator turns them on.'],
+    ['Administrator', 'All bookings, payments, refunds, reports, accounts, settings, and the audit log.']
+  ];
+  parts.push(`<rect x="${px}" y="${py - 40}" width="${pw}" height="330" rx="10" fill="none" stroke="#111" stroke-width="1.8"/>`);
+  parts.push(`<rect x="${px}" y="${py - 40}" width="${pw}" height="34" rx="10" fill="#111"/>`);
+  parts.push(`<text x="${px + pw / 2}" y="${py - 18}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">What each role can reach</text>`);
+  const heights = [78, 128, 84];
+  let y = py + 6;
+  roles.forEach(([head, body], i) => {
+    parts.push(`<line x1="${px}" y1="${y - 6}" x2="${px + pw}" y2="${y - 6}" stroke="#bbb"/>`);
+    parts.push(`<text x="${px + 14}" y="${y + 14}" font-size="13" font-weight="800" fill="#111">${esc(head)}</text>`);
+    parts.push(`<text font-size="12" fill="#111">${wrap(body, 52).map((t, k) => `<tspan x="${px + 14}" y="${y + 34 + k * 15}">${esc(t)}</tspan>`).join('')}</text>`);
+    y += heights[i];
+  });
+  // the watchdog note
+  parts.push(`<rect x="${px}" y="${py + 320}" width="${pw}" height="104" rx="10" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="6 4"/>`);
+  parts.push(`<text x="${px + pw / 2}" y="${py + 344}" text-anchor="middle" font-size="13" font-weight="800" fill="#111">Access is re-checked while signed in</text>`);
+  parts.push(`<text font-size="12" fill="#111">${wrap('Every minute, and each time the user returns to the tab, the system re-reads the role and active status. A changed role refreshes the session; a deactivated account is signed out at once.', 54).map((t, k) => `<tspan x="${px + 14}" y="${py + 366 + k * 15}">${esc(t)}</tspan>`).join('')}</text>`);
+  return svgWrap(W, H, parts.join('\n'));
+};
+
 (async () => {
-  const out = { 'flowchart-account-creation': accountCreation(), 'flowchart-password-recovery': recovery() };
+  const out = { 'flowchart-account-creation': accountCreation(), 'flowchart-password-recovery': recovery(), 'flowchart-sign-in-lockout': signIn(), 'flowchart-access-control': accessControl() };
   for (const [name, svg] of Object.entries(out)) {
     fs.writeFileSync(path.join(__dirname, `${name}.svg`), svg);
     await sharp(Buffer.from(svg), { density: 150 }).png().toFile(path.join(__dirname, `${name}.png`));
