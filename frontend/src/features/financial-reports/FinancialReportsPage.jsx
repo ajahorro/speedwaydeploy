@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CalendarRange, Download, Printer, Sparkles } from 'lucide-react';
+import { CalendarRange, Download, Printer, Sparkles, FileText } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -95,6 +95,21 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
   const [assistantOpen, setAssistantOpen] = useState(false);
   // incremented when the assistant asks for the bookings PDF
   const [pdfRequest, setPdfRequest] = useState(0);
+  const [dailyBusy, setDailyBusy] = useState(false);
+  const handleDailyReport = async () => {
+    setDailyBusy(true);
+    try {
+      const [{ fetchDailyReport }, { downloadDailyReportPdf }] = await Promise.all([
+        import('@/services/ledgerService'),
+        import('./dailyReportPdf')
+      ]);
+      await downloadDailyReportPdf(await fetchDailyReport());
+    } catch (error) {
+      toast.error('The daily report could not be prepared. Please try again.');
+    } finally {
+      setDailyBusy(false);
+    }
+  };
 
   const rangeLabel = useMemo(() => formatRangeLabel(range), [range]);
 
@@ -158,6 +173,9 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
             </Button>
             <Button variant="outline" onClick={() => setAssistantOpen(true)}>
               <Sparkles /> Ask AI
+            </Button>
+            <Button variant="outline" onClick={handleDailyReport} disabled={dailyBusy}>
+              <FileText /> {dailyBusy ? 'Preparing…' : "Print today's report"}
             </Button>
             <Button onClick={() => window.print()} disabled={loading}>
               <Printer /> Print
