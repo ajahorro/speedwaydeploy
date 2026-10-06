@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 830" width="1300" height="830" font-family="Arial, Helvetica, sans-serif">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10" fill="none" stroke="#111" stroke-width="1.4"/></marker></defs>
+  <rect width="1300" height="830" fill="#fff"/>
+  <text x="650" y="34" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Use Case Diagram: Staff (Technician)</text>
+  <rect x="230" y="58" width="860" height="754" rx="8" fill="none" stroke="#111" stroke-width="2"/>
+  <text x="660" y="82" text-anchor="middle" font-size="13" font-weight="700" fill="#111">Comar Garage Online Appointment and Scheduling Management System</text>
+  
+  <g stroke="#111" stroke-width="2" fill="none">
+    <circle cx="110" cy="400" r="12" fill="#fff"/>
+    <line x1="110" y1="412" x2="110" y2="452"/>
+    <line x1="86" y1="424" x2="134" y2="424"/>
+    <line x1="110" y1="452" x2="90" y2="484"/>
+    <line x1="110" y1="452" x2="130" y2="484"/>
+  </g>
+  <text x="110" y="504" text-anchor="middle" font-size="15" font-weight="700" fill="#111"><tspan x="110" dy="0">Staff</tspan><tspan x="110" dy="17">(Technician)</tspan></text>
+  
+  <g stroke="#111" stroke-width="2" fill="none">
+    <circle cx="1190" cy="704" r="12" fill="#fff"/>
+    <line x1="1190" y1="716" x2="1190" y2="756"/>
+    <line x1="1166" y1="728" x2="1214" y2="728"/>
+    <line x1="1190" y1="756" x2="1170" y2="788"/>
+    <line x1="1190" y1="756" x2="1210" y2="788"/>
+  </g>
+  <text x="1190" y="808" text-anchor="middle" font-size="15" font-weight="700" fill="#111"><tspan x="1190" dy="0">Email Service</tspan></text>
+  <line x1="134" y1="424" x2="395" y2="134" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="424" x2="395" y2="210" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="424" x2="395" y2="286" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="424" x2="395" y2="362" stroke="#111" stroke-width="1.1"/>
+  <line x1="645" y1="362" x2="765" y2="362" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="705" y="356" text-anchor="middle" font-size="11" font-style="italic" fill="#111">&#171;include&#187;</text>
+  <line x1="134" y1="424" x2="395" y2="438" stroke="#111" stroke-width="1.1"/>
+  <line x1="645" y1="438" x2="765" y2="438" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="705" y="432" text-anchor="middle" font-size="11" font-style="italic" fill="#111">&#171;include&#187;</text>
+  <line x1="134" y1="424" x2="395" y2="514" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="424" x2="395" y2="590" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="424" x2="395" y2="666" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="424" x2="395" y2="742" stroke="#111" stroke-width="1.1"/>
+  <line x1="1166" y1="728" x2="645" y2="742" stroke="#111" stroke-width="1.1"/>
+  <ellipse cx="520" cy="134" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="138">Sign In and Manage Profile</tspan></text>
+  <ellipse cx="520" cy="210" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="214">Clock In and Clock Out</tspan></text>
+  <ellipse cx="520" cy="286" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="290">View Assigned Vehicles</tspan></text>
+  <ellipse cx="520" cy="362" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="366">Start Job</tspan></text>
+  <ellipse cx="880" cy="362" rx="115" ry="22" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="880" y="366">Upload Before-Service Photo</tspan></text>
+  <ellipse cx="520" cy="438" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="442">Finish Job</tspan></text>
+  <ellipse cx="880" cy="438" rx="115" ry="22" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="880" y="442">Upload After-Service Photo</tspan></text>
+  <ellipse cx="520" cy="514" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="518">Write Service Notes</tspan></text>
+  <ellipse cx="520" cy="590" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="594">View Work History</tspan></text>
+  <ellipse cx="520" cy="666" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="662">View Own Reports (if enabled</tspan><tspan x="520" y="678">by the Administrator)</tspan></text>
+  <ellipse cx="520" cy="742" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="730">Receive Assignment</tspan><tspan x="520" y="746">Notifications and</tspan><tspan x="520" y="762">Announcements</tspan></text>
+</svg>

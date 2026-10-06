@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 1598" width="1300" height="1598" font-family="Arial, Helvetica, sans-serif">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10" fill="none" stroke="#111" stroke-width="1.4"/></marker></defs>
+  <rect width="1300" height="1598" fill="#fff"/>
+  <text x="650" y="34" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Use Case Diagram: Administrator</text>
+  <rect x="230" y="58" width="860" height="1522" rx="8" fill="none" stroke="#111" stroke-width="2"/>
+  <text x="660" y="82" text-anchor="middle" font-size="13" font-weight="700" fill="#111">Comar Garage Online Appointment and Scheduling Management System</text>
+  
+  <g stroke="#111" stroke-width="2" fill="none">
+    <circle cx="110" cy="784" r="12" fill="#fff"/>
+    <line x1="110" y1="796" x2="110" y2="836"/>
+    <line x1="86" y1="808" x2="134" y2="808"/>
+    <line x1="110" y1="836" x2="90" y2="868"/>
+    <line x1="110" y1="836" x2="130" y2="868"/>
+  </g>
+  <text x="110" y="888" text-anchor="middle" font-size="15" font-weight="700" fill="#111"><tspan x="110" dy="0">Administrator</tspan></text>
+  
+  <g stroke="#111" stroke-width="2" fill="none">
+    <circle cx="1190" cy="1472" r="12" fill="#fff"/>
+    <line x1="1190" y1="1484" x2="1190" y2="1524"/>
+    <line x1="1166" y1="1496" x2="1214" y2="1496"/>
+    <line x1="1190" y1="1524" x2="1170" y2="1556"/>
+    <line x1="1190" y1="1524" x2="1210" y2="1556"/>
+  </g>
+  <text x="1190" y="1576" text-anchor="middle" font-size="15" font-weight="700" fill="#111"><tspan x="1190" dy="0">Email Service</tspan></text>
+  <line x1="134" y1="808" x2="395" y2="134" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="808" x2="395" y2="210" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="808" x2="395" y2="286" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="808" x2="395" y2="362" stroke="#111" stroke-width="1.1"/>
+  <line x1="645" y1="362" x2="765" y2="362" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="705" y="356" text-anchor="middle" font-size="11" font-style="italic" fill="#111">&#171;include&#187;</text>
+  <line x1="134" y1="808" x2="395" y2="438" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="808" x2="395" y2="514" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="808" x2="395" y2="590" stroke="#111" stroke-width="1.1"/>
+  <line x1="645" y1="590" x2="765" y2="590" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="705" y="584" text-anchor="middle" font-size="11" font-style="italic" fill="#111">&#171;include&#187;</text>
+  <line x1="134" y1="808" x2="395" y2="666" stroke="#111" stroke-width="1.1"/>
+  <line x1="645" y1="666" x2="765" y2="666" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="705" y="660" text-anchor="middle" font-size="11" font-style="italic" fill="#111">&#171;include&#187;</text>
+  <line x1="134" y1="808" x2="395" y2="742" stroke="#111" stroke-width="1.1"/>
+  <line x1="645" y1="742" x2="765" y2="742" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="705" y="736" text-anchor="middle" font-size="11" font-style="italic" fill="#111">&#171;include&#187;</text>
+  <line x1="134" y1="808" x2="395" y2="818" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="808" x2="395" y2="894" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="808" x2="395" y2="970" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="808" x2="395" y2="1067" stroke="#111" stroke-width="1.1"/>
+  <line x1="765" y1="1041" x2="645" y2="1067" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="705" y="1048" text-anchor="middle" font-size="11" font-style="italic" fill="#111">&#171;extend&#187;</text>
+  <line x1="765" y1="1093" x2="645" y2="1067" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="705" y="1074" text-anchor="middle" font-size="11" font-style="italic" fill="#111">&#171;extend&#187;</text>
+  <line x1="134" y1="808" x2="395" y2="1164" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="808" x2="395" y2="1261" stroke="#111" stroke-width="1.1"/>
+  <line x1="765" y1="1235" x2="645" y2="1261" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="705" y="1242" text-anchor="middle" font-size="11" font-style="italic" fill="#111">&#171;extend&#187;</text>
+  <line x1="765" y1="1287" x2="645" y2="1261" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="705" y="1268" text-anchor="middle" font-size="11" font-style="italic" fill="#111">&#171;extend&#187;</text>
+  <line x1="134" y1="808" x2="395" y2="1358" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="808" x2="395" y2="1434" stroke="#111" stroke-width="1.1"/>
+  <line x1="134" y1="808" x2="395" y2="1510" stroke="#111" stroke-width="1.1"/>
+  <line x1="1166" y1="1496" x2="645" y2="1510" stroke="#111" stroke-width="1.1"/>
+  <ellipse cx="520" cy="134" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="138">Sign In and Manage Profile</tspan></text>
+  <ellipse cx="520" cy="210" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="206">View Dashboard (items needing</tspan><tspan x="520" y="222">attention)</tspan></text>
+  <ellipse cx="520" cy="286" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="282">Manage Bookings (confirm,</tspan><tspan x="520" y="298">reschedule, cancel, release)</tspan></text>
+  <ellipse cx="520" cy="362" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="358">Add Services and Record</tspan><tspan x="520" y="374">Payments</tspan></text>
+  <ellipse cx="880" cy="362" rx="115" ry="22" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="880" y="358">Upload Receipt or Enter by</tspan><tspan x="880" y="374">Hand</tspan></text>
+  <ellipse cx="520" cy="438" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="434">Assign Technician to Each</tspan><tspan x="520" y="450">Vehicle</tspan></text>
+  <ellipse cx="520" cy="514" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="518">Create Walk-In Booking</tspan></text>
+  <ellipse cx="520" cy="590" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="594">Book for Customer from Chat</tspan></text>
+  <ellipse cx="880" cy="590" rx="115" ry="22" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="880" y="586">Invite Customer to Send</tspan><tspan x="880" y="602">Details</tspan></text>
+  <ellipse cx="520" cy="666" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="670">Verify or Reject Payments</tspan></text>
+  <ellipse cx="880" cy="666" rx="115" ry="22" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="880" y="670">Read Receipt (OCR)</tspan></text>
+  <ellipse cx="520" cy="742" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="746">Process Refunds</tspan></text>
+  <ellipse cx="880" cy="742" rx="115" ry="22" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="880" y="746">Issue Refund Receipt</tspan></text>
+  <ellipse cx="520" cy="818" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="814">Manage Calendar and Block</tspan><tspan x="520" y="830">Slots</tspan></text>
+  <ellipse cx="520" cy="894" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="898">Reply to Customer Messages</tspan></text>
+  <ellipse cx="520" cy="970" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="966">Review Service Photos and</tspan><tspan x="520" y="982">Notes</tspan></text>
+  <ellipse cx="520" cy="1067" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="1071">Generate Reports</tspan></text>
+  <ellipse cx="880" cy="1041" rx="115" ry="22" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="880" y="1045">Print Today's Report</tspan></text>
+  <ellipse cx="880" cy="1093" rx="115" ry="22" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="880" y="1097">Export PDF or CSV</tspan></text>
+  <ellipse cx="520" cy="1164" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="1168">View Audit Logs</tspan></text>
+  <ellipse cx="520" cy="1261" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="1257">Manage Staff and Administrator</tspan><tspan x="520" y="1273">Accounts</tspan></text>
+  <ellipse cx="880" cy="1235" rx="115" ry="22" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="880" y="1239">Send Invitation</tspan></text>
+  <ellipse cx="880" cy="1287" rx="115" ry="22" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="880" y="1283">Set Auto-Deactivation and</tspan><tspan x="880" y="1299">Reactivate</tspan></text>
+  <ellipse cx="520" cy="1358" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="1362">Manage Customer Directory</tspan></text>
+  <ellipse cx="520" cy="1434" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="1430">Configure Business Hub</tspan><tspan x="520" y="1446">Settings</tspan></text>
+  <ellipse cx="520" cy="1510" rx="125" ry="27" fill="#fff" stroke="#111" stroke-width="1.6"/>
+  <text text-anchor="middle" font-size="13" fill="#111"><tspan x="520" y="1506">Send Notifications and</tspan><tspan x="520" y="1522">Announcements</tspan></text>
+</svg>
