@@ -1,0 +1,201 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1575 835" width="1575" height="835" font-family="Arial, Helvetica, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker></defs>
+<rect width="1575" height="835" fill="#fff"/>
+<rect x="205" y="55" width="1140" height="670" rx="6" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="14" font-weight="800" fill="#111"><tspan x="775" y="82.66666666666667">COMAR GARAGE ONLINE APPOINTMENT AND SCHEDULING SYSTEM: DFD LOGICAL DATA FLOW MATRIX</tspan></text>
+<rect x="215" y="140" width="270" height="555" rx="8" fill="#f1f1f1" stroke="#bbb" stroke-width="1.2"/>
+<text text-anchor="middle" font-size="11" font-weight="800" fill="#111"><tspan x="350" y="154.66666666666666">COLUMN 1: BOOKING AND</tspan><tspan x="350" y="168.66666666666666">PAYMENT PIPELINE</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#111"><tspan x="350" y="191.5">(Customer focus)</tspan></text>
+<rect x="495" y="140" width="270" height="555" rx="8" fill="#f1f1f1" stroke="#bbb" stroke-width="1.2"/>
+<text text-anchor="middle" font-size="11" font-weight="800" fill="#111"><tspan x="630" y="154.66666666666666">COLUMN 2: OPERATIONAL</tspan><tspan x="630" y="168.66666666666666">SCHEDULING</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#111"><tspan x="630" y="191.5">(Administrator focus)</tspan></text>
+<rect x="775" y="140" width="270" height="555" rx="8" fill="#f1f1f1" stroke="#bbb" stroke-width="1.2"/>
+<text text-anchor="middle" font-size="11" font-weight="800" fill="#111"><tspan x="910" y="154.66666666666666">COLUMN 3: ADMIN AND</tspan><tspan x="910" y="168.66666666666666">REPORTING</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#111"><tspan x="910" y="191.5">(Administrator focus)</tspan></text>
+<rect x="1055" y="140" width="270" height="555" rx="8" fill="#f1f1f1" stroke="#bbb" stroke-width="1.2"/>
+<text text-anchor="middle" font-size="11" font-weight="800" fill="#111"><tspan x="1190" y="154.66666666666666">COLUMN 4: SERVICE</tspan><tspan x="1190" y="168.66666666666666">EXECUTION</tspan></text>
+<text text-anchor="middle" font-size="10.5" font-weight="400" fill="#111"><tspan x="1190" y="191.5">(Staff / Mobile Hub)</tspan></text>
+<rect x="490" y="98" width="560" height="34" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<text x="770" y="120" text-anchor="middle" font-size="13" font-weight="800" fill="#111">ADMINISTRATOR</text>
+<rect x="265" y="199" width="170" height="72" rx="12" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<line x1="265" y1="219" x2="435" y2="219" stroke="#111" stroke-width="1.2"/>
+<text x="350" y="213" text-anchor="middle" font-size="11" font-weight="800" fill="#111">A1.1</text>
+<text text-anchor="middle" font-size="11.5" font-weight="700" fill="#111"><tspan x="350" y="248.83333333333334">Process Booking Request</tspan></text>
+<rect x="265" y="374" width="170" height="72" rx="12" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<line x1="265" y1="394" x2="435" y2="394" stroke="#111" stroke-width="1.2"/>
+<text x="350" y="388" text-anchor="middle" font-size="11" font-weight="800" fill="#111">A1.2</text>
+<text text-anchor="middle" font-size="11.5" font-weight="700" fill="#111"><tspan x="350" y="409.3333333333333">Verify Payment (receipt</tspan><tspan x="350" y="423.8333333333333">reading and administrator</tspan><tspan x="350" y="438.3333333333333">check)</tspan></text>
+<rect x="265" y="539" width="170" height="72" rx="12" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<line x1="265" y1="559" x2="435" y2="559" stroke="#111" stroke-width="1.2"/>
+<text x="350" y="553" text-anchor="middle" font-size="11" font-weight="800" fill="#111">A1.3</text>
+<text text-anchor="middle" font-size="11.5" font-weight="700" fill="#111"><tspan x="350" y="581.5833333333334">Track Progress and Manage</tspan><tspan x="350" y="596.0833333333334">Garage</tspan></text>
+<rect x="545" y="199" width="170" height="72" rx="12" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<line x1="545" y1="219" x2="715" y2="219" stroke="#111" stroke-width="1.2"/>
+<text x="630" y="213" text-anchor="middle" font-size="11" font-weight="800" fill="#111">A2.1</text>
+<text text-anchor="middle" font-size="11.5" font-weight="700" fill="#111"><tspan x="630" y="241.58333333333334">Check Capacity and Shop</tspan><tspan x="630" y="256.08333333333337">Rules</tspan></text>
+<rect x="545" y="374" width="170" height="72" rx="12" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<line x1="545" y1="394" x2="715" y2="394" stroke="#111" stroke-width="1.2"/>
+<text x="630" y="388" text-anchor="middle" font-size="11" font-weight="800" fill="#111">A2.2</text>
+<text text-anchor="middle" font-size="11.5" font-weight="700" fill="#111"><tspan x="630" y="416.5833333333333">Assign Technicians (per</tspan><tspan x="630" y="431.0833333333333">vehicle)</tspan></text>
+<rect x="545" y="539" width="170" height="72" rx="12" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<line x1="545" y1="559" x2="715" y2="559" stroke="#111" stroke-width="1.2"/>
+<text x="630" y="553" text-anchor="middle" font-size="11" font-weight="800" fill="#111">A2.3</text>
+<text text-anchor="middle" font-size="11.5" font-weight="700" fill="#111"><tspan x="630" y="581.5833333333334">Handle Cancellations and</tspan><tspan x="630" y="596.0833333333334">Refunds</tspan></text>
+<rect x="825" y="199" width="170" height="72" rx="12" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<line x1="825" y1="219" x2="995" y2="219" stroke="#111" stroke-width="1.2"/>
+<text x="910" y="213" text-anchor="middle" font-size="11" font-weight="800" fill="#111">A3.1</text>
+<text text-anchor="middle" font-size="11.5" font-weight="700" fill="#111"><tspan x="910" y="241.58333333333334">Manage Users (staff and</tspan><tspan x="910" y="256.08333333333337">customers)</tspan></text>
+<rect x="825" y="374" width="170" height="72" rx="12" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<line x1="825" y1="394" x2="995" y2="394" stroke="#111" stroke-width="1.2"/>
+<text x="910" y="388" text-anchor="middle" font-size="11" font-weight="800" fill="#111">A3.2</text>
+<text text-anchor="middle" font-size="11.5" font-weight="700" fill="#111"><tspan x="910" y="416.5833333333333">Configure Shop Rules,</tspan><tspan x="910" y="431.0833333333333">Services, Promos</tspan></text>
+<rect x="825" y="539" width="170" height="72" rx="12" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<line x1="825" y1="559" x2="995" y2="559" stroke="#111" stroke-width="1.2"/>
+<text x="910" y="553" text-anchor="middle" font-size="11" font-weight="800" fill="#111">A3.3</text>
+<text text-anchor="middle" font-size="11.5" font-weight="700" fill="#111"><tspan x="910" y="581.5833333333334">Generate Reports and Audit</tspan><tspan x="910" y="596.0833333333334">Log</tspan></text>
+<rect x="1105" y="199" width="170" height="72" rx="12" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<line x1="1105" y1="219" x2="1275" y2="219" stroke="#111" stroke-width="1.2"/>
+<text x="1190" y="213" text-anchor="middle" font-size="11" font-weight="800" fill="#111">A4.1</text>
+<text text-anchor="middle" font-size="11.5" font-weight="700" fill="#111"><tspan x="1190" y="241.58333333333334">Clock In and Out (shift</tspan><tspan x="1190" y="256.08333333333337">status)</tspan></text>
+<rect x="1105" y="374" width="170" height="72" rx="12" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<line x1="1105" y1="394" x2="1275" y2="394" stroke="#111" stroke-width="1.2"/>
+<text x="1190" y="388" text-anchor="middle" font-size="11" font-weight="800" fill="#111">A4.2</text>
+<text text-anchor="middle" font-size="11.5" font-weight="700" fill="#111"><tspan x="1190" y="423.8333333333333">View Assigned Vehicles</tspan></text>
+<rect x="1105" y="539" width="170" height="72" rx="12" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<line x1="1105" y1="559" x2="1275" y2="559" stroke="#111" stroke-width="1.2"/>
+<text x="1190" y="553" text-anchor="middle" font-size="11" font-weight="800" fill="#111">A4.3</text>
+<text text-anchor="middle" font-size="11.5" font-weight="700" fill="#111"><tspan x="1190" y="581.5833333333334">Update Job Status (start,</tspan><tspan x="1190" y="596.0833333333334">finish, photos)</tspan></text>
+<rect x="260" y="294" width="120" height="32" fill="#fff" stroke="#111" stroke-width="1.5"/>
+<line x1="288" y1="294" x2="288" y2="326" stroke="#111" stroke-width="1.2"/>
+<text x="274" y="314" text-anchor="middle" font-size="10.5" font-weight="800" fill="#111">D2</text>
+<text text-anchor="middle" font-size="10" font-weight="600" fill="#111"><tspan x="334" y="313.3333333333333">Booking Records</tspan></text>
+<rect x="275" y="469" width="150" height="32" fill="#fff" stroke="#111" stroke-width="1.5"/>
+<line x1="303" y1="469" x2="303" y2="501" stroke="#111" stroke-width="1.2"/>
+<text x="289" y="489" text-anchor="middle" font-size="10.5" font-weight="800" fill="#111">D3</text>
+<text text-anchor="middle" font-size="10" font-weight="600" fill="#111"><tspan x="364" y="488.3333333333333">Payment Records</tspan></text>
+<rect x="275" y="634" width="150" height="32" fill="#fff" stroke="#111" stroke-width="1.5"/>
+<line x1="303" y1="634" x2="303" y2="666" stroke="#111" stroke-width="1.2"/>
+<text x="289" y="654" text-anchor="middle" font-size="10.5" font-weight="800" fill="#111">D6</text>
+<text text-anchor="middle" font-size="10" font-weight="600" fill="#111"><tspan x="364" y="653.3333333333334">Customer Garage</tspan></text>
+<rect x="555" y="294" width="150" height="32" fill="#fff" stroke="#111" stroke-width="1.5"/>
+<line x1="583" y1="294" x2="583" y2="326" stroke="#111" stroke-width="1.2"/>
+<text x="569" y="314" text-anchor="middle" font-size="10.5" font-weight="800" fill="#111">D7</text>
+<text text-anchor="middle" font-size="10" font-weight="600" fill="#111"><tspan x="644" y="313.3333333333333">Shop Rules</tspan></text>
+<rect x="555" y="469" width="150" height="32" fill="#fff" stroke="#111" stroke-width="1.5"/>
+<line x1="583" y1="469" x2="583" y2="501" stroke="#111" stroke-width="1.2"/>
+<text x="569" y="489" text-anchor="middle" font-size="10.5" font-weight="800" fill="#111">D2</text>
+<text text-anchor="middle" font-size="10" font-weight="600" fill="#111"><tspan x="644" y="488.3333333333333">Booking Records</tspan></text>
+<rect x="545" y="634" width="170" height="32" fill="#fff" stroke="#111" stroke-width="1.5"/>
+<line x1="591" y1="634" x2="591" y2="666" stroke="#111" stroke-width="1.2"/>
+<text x="568" y="654" text-anchor="middle" font-size="10.5" font-weight="800" fill="#111">D2 D3</text>
+<text text-anchor="middle" font-size="10" font-weight="600" fill="#111"><tspan x="653" y="653.3333333333334">Bookings, Payments</tspan></text>
+<rect x="835" y="294" width="150" height="32" fill="#fff" stroke="#111" stroke-width="1.5"/>
+<line x1="863" y1="294" x2="863" y2="326" stroke="#111" stroke-width="1.2"/>
+<text x="849" y="314" text-anchor="middle" font-size="10.5" font-weight="800" fill="#111">D1</text>
+<text text-anchor="middle" font-size="10" font-weight="600" fill="#111"><tspan x="924" y="313.3333333333333">User Accounts</tspan></text>
+<rect x="820" y="469" width="180" height="32" fill="#fff" stroke="#111" stroke-width="1.5"/>
+<line x1="866" y1="469" x2="866" y2="501" stroke="#111" stroke-width="1.2"/>
+<text x="843" y="489" text-anchor="middle" font-size="10.5" font-weight="800" fill="#111">D5 D7</text>
+<text text-anchor="middle" font-size="10" font-weight="600" fill="#111"><tspan x="933" y="481.8333333333333">Services, Promos,</tspan><tspan x="933" y="494.8333333333333">Rules</tspan></text>
+<rect x="815" y="634" width="190" height="32" fill="#fff" stroke="#111" stroke-width="1.5"/>
+<line x1="881" y1="634" x2="881" y2="666" stroke="#111" stroke-width="1.2"/>
+<text x="848" y="654" text-anchor="middle" font-size="10.5" font-weight="800" fill="#111">D2 D3 D4</text>
+<text text-anchor="middle" font-size="10" font-weight="600" fill="#111"><tspan x="943" y="653.3333333333334">Read for reports</tspan></text>
+<rect x="1115" y="294" width="150" height="32" fill="#fff" stroke="#111" stroke-width="1.5"/>
+<line x1="1143" y1="294" x2="1143" y2="326" stroke="#111" stroke-width="1.2"/>
+<text x="1129" y="314" text-anchor="middle" font-size="10.5" font-weight="800" fill="#111">D8</text>
+<text text-anchor="middle" font-size="10" font-weight="600" fill="#111"><tspan x="1204" y="313.3333333333333">Staff Availability</tspan></text>
+<rect x="1115" y="469" width="150" height="32" fill="#fff" stroke="#111" stroke-width="1.5"/>
+<line x1="1143" y1="469" x2="1143" y2="501" stroke="#111" stroke-width="1.2"/>
+<text x="1129" y="489" text-anchor="middle" font-size="10.5" font-weight="800" fill="#111">D2</text>
+<text text-anchor="middle" font-size="10" font-weight="600" fill="#111"><tspan x="1204" y="488.3333333333333">Booking Records</tspan></text>
+<rect x="1105" y="634" width="170" height="32" fill="#fff" stroke="#111" stroke-width="1.5"/>
+<line x1="1133" y1="634" x2="1133" y2="666" stroke="#111" stroke-width="1.2"/>
+<text x="1119" y="654" text-anchor="middle" font-size="10.5" font-weight="800" fill="#111">D4</text>
+<text text-anchor="middle" font-size="10" font-weight="600" fill="#111"><tspan x="1204" y="653.3333333333334">Service Status, Photos</tspan></text>
+<path d="M320,271 L320,294" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="start" font-size="10.5" font-weight="700" fill="#111"><tspan x="328" y="289">Stores</tspan></text>
+<path d="M350,446 L350,469" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="start" font-size="10.5" font-weight="700" fill="#111"><tspan x="358" y="464">Stores</tspan></text>
+<path d="M338,611 L338,634" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M362,634 L362,611" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M630,294 L630,271" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="start" font-size="10.5" font-weight="700" fill="#111"><tspan x="638" y="289">Reads</tspan></text>
+<path d="M630,446 L630,469" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="start" font-size="10.5" font-weight="700" fill="#111"><tspan x="638" y="464">Stores</tspan></text>
+<path d="M630,611 L630,634" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="start" font-size="10.5" font-weight="700" fill="#111"><tspan x="638" y="629">Updates</tspan></text>
+<path d="M898,271 L898,294" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M922,294 L922,271" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M910,446 L910,469" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="start" font-size="10.5" font-weight="700" fill="#111"><tspan x="918" y="464">Saves</tspan></text>
+<path d="M910,634 L910,611" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="start" font-size="10.5" font-weight="700" fill="#111"><tspan x="918" y="629">Reads</tspan></text>
+<path d="M1178,271 L1178,294" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M1202,294 L1202,271" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M1190,469 L1190,446" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="start" font-size="10.5" font-weight="700" fill="#111"><tspan x="1198" y="464">Reads</tspan></text>
+<path d="M1190,611 L1190,634" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="start" font-size="10.5" font-weight="700" fill="#111"><tspan x="1198" y="629">Stores</tspan></text>
+<path d="M410,271 L410,374" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="start" font-size="10.5" font-weight="700" fill="#111"><tspan x="418" y="341.75">Booking</tspan><tspan x="418" y="355.25">reference</tspan></text>
+<rect x="15" y="145" width="150" height="48" fill="#e6e6e6" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="11" font-weight="800" fill="#111"><tspan x="90" y="165.66666666666666">EXTERNAL ENTITY</tspan><tspan x="90" y="179.66666666666666">(CUSTOMER)</tspan></text>
+<rect x="15" y="205" width="150" height="60" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="12" font-weight="800" fill="#111"><tspan x="90" y="231.5">Select Vehicle and</tspan><tspan x="90" y="246.5">Service</tspan></text>
+<path d="M165,235 L263,235" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="middle" font-size="10.5" font-weight="700" fill="#111"><tspan x="214" y="230.5">Customer</tspan></text>
+<rect x="15" y="380" width="150" height="60" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="12" font-weight="800" fill="#111"><tspan x="90" y="406.5">Upload GCash or</tspan><tspan x="90" y="421.5">Bank Receipt</tspan></text>
+<path d="M165,410 L263,410" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="middle" font-size="10.5" font-weight="700" fill="#111"><tspan x="214" y="405.5">Receipt image</tspan></text>
+<rect x="15" y="545" width="150" height="60" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="12" font-weight="800" fill="#111"><tspan x="90" y="579">Monitor Progress</tspan></text>
+<path d="M165,575 L263,575" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M263,589 L165,589" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="middle" font-size="10.5" font-weight="700" fill="#111"><tspan x="214" y="570.5">Customer</tspan></text>
+<path d="M263,249 L165,249" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="middle" font-size="10.5" font-weight="700" fill="#111"><tspan x="214" y="268.5">Confirmation</tspan></text>
+<path d="M263,424 L165,424" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="middle" font-size="10.5" font-weight="700" fill="#111"><tspan x="214" y="443.5">Payment status</tspan></text>
+<rect x="1385" y="145" width="170" height="48" fill="#e6e6e6" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="11" font-weight="800" fill="#111"><tspan x="1470" y="165.66666666666666">EXTERNAL ENTITY</tspan><tspan x="1470" y="179.66666666666666">(STAFF)</tspan></text>
+<rect x="1395" y="205" width="160" height="60" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="12" font-weight="800" fill="#111"><tspan x="1475" y="239">Clock In or Out</tspan></text>
+<path d="M1395,235 L1277,235" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M1277,249 L1395,249" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="middle" font-size="10.5" font-weight="700" fill="#111"><tspan x="1345" y="230.5">Shift</tspan></text>
+<rect x="1395" y="380" width="160" height="60" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="12" font-weight="800" fill="#111"><tspan x="1475" y="406.5">View Assigned</tspan><tspan x="1475" y="421.5">Vehicles</tspan></text>
+<path d="M1395,410 L1277,410" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M1277,424 L1395,424" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="middle" font-size="10.5" font-weight="700" fill="#111"><tspan x="1345" y="405.5">Tasks</tspan></text>
+<rect x="1395" y="545" width="160" height="60" fill="#fff" stroke="#111" stroke-width="1.8"/>
+<text text-anchor="middle" font-size="12" font-weight="800" fill="#111"><tspan x="1475" y="571.5">Start, Finish,</tspan><tspan x="1475" y="586.5">Upload Photos</tspan></text>
+<path d="M1395,575 L1277,575" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M1277,589 L1395,589" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="middle" font-size="10.5" font-weight="700" fill="#111"><tspan x="1345" y="570.5">Updates</tspan></text>
+<path d="M435,227 L543,227" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M543,247 L435,247" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="middle" font-size="10.5" font-weight="700" fill="#111"><tspan x="489" y="221.5">Slot check</tspan></text>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="middle" font-size="10.5" font-weight="700" fill="#111"><tspan x="489" y="266.5">Open or full</tspan></text>
+<path d="M490,132 L490,410 L437,410" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<circle cx="490" cy="132" r="2.6" fill="#111"/>
+<path d="M520,132 L520,575" fill="none" stroke="#111" stroke-width="1.6"/>
+<path d="M520,410 L543,410" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M520,575 L543,575" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<circle cx="520" cy="132" r="2.6" fill="#111"/>
+<path d="M985,132 L985,199" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M1050,132 L1050,575" fill="none" stroke="#111" stroke-width="1.6"/>
+<circle cx="1050" cy="132" r="2.6" fill="#111"/>
+<path d="M1050,410 L997,410" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M1050,567 L997,567" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M997,585 L1050,585" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="end" font-size="10.5" font-weight="700" fill="#111"><tspan x="1030" y="604.5">Reports</tspan></text>
+<path d="M715,410 L740,410 L740,350 L1150,350 L1150,374" fill="none" stroke="#111" stroke-width="1.6" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="middle" font-size="10.5" font-weight="700" fill="#111"><tspan x="890" y="345.5">Assignment notification</tspan></text>
+<path d="M1190,666 L1190,705 L228,705 L228,595 L263,595" fill="none" stroke="#111" stroke-width="1.6" stroke-dasharray="7 4" marker-end="url(#a)"/>
+<text stroke="#fff" stroke-width="3.5" paint-order="stroke" text-anchor="middle" font-size="10.5" font-weight="700" fill="#111"><tspan x="700" y="701.5">Live status shown to the customer</tspan></text>
+<text text-anchor="start" font-size="11" font-weight="400" fill="#111"><tspan x="20" y="756.6666666666666">Key: rounded box = process; box with D = data store; rectangle = outside party. A solid arrow down from a process writes to the store; an arrow up reads from it. The administrator performs</tspan><tspan x="20" y="770.6666666666666">the steps shown by the arrows from the ADMINISTRATOR bar (verify payments, assign technicians, decide refunds, manage users, configure rules, read reports).</tspan></text>
+<text text-anchor="start" font-size="11" font-weight="400" fill="#111"><tspan x="20" y="808.6666666666666">Stores: D1 User Accounts, D2 Booking Records, D3 Payment Records, D4 Service Status and Photos, D5 Services and Promos, D6 Customer Garage, D7 Shop Rules, D8 Staff Availability.</tspan></text>
+</svg>
