@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Tag, Layers, RefreshCw } from 'lucide-react';
+import { VEHICLE_TYPE_KEYS } from '../../config/constants';
 import { fetchActivePromos, isPackageRule, getPackageServicesForVehicle } from '../../data/servicesCatalog';
 
 /**
@@ -60,7 +61,7 @@ const AvailablePromosByVehicle = ({ compact = false }) => {
       });
     });
     // Stable vehicle order: the shop's canonical order first, then any extras.
-    const canonical = ['Sedan', 'SUV', 'Van/L300', 'Regular', 'Bigbike', 'Any vehicle'];
+    const canonical = [...VEHICLE_TYPE_KEYS, 'Any vehicle'];
     return [...map.entries()].sort((a, b) => {
       const ia = canonical.indexOf(a[0]);
       const ib = canonical.indexOf(b[0]);

@@ -42,35 +42,36 @@ set local session_replication_role = origin;
 select set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-0000-0000-0000000000c1', 'role', 'authenticated')::text, true);
 set local role authenticated;
 
--- catalog prices (Regular Wash: Sedan 150, SUV 180; Supreme Wash Sedan 500)
-select pg_temp.expect('exact catalog total is accepted', pg_temp.booking(150, 'Sedan', 'Regular Wash'));
-select pg_temp.expect('two services add up', pg_temp.booking(650, 'Sedan', 'Regular Wash', 'Supreme Wash'));
-select pg_temp.expect('vehicle aliases resolve (Motorcycle -> Regular)', pg_temp.booking(120, 'Motorcycle', 'Moto Wash'));
-select pg_temp.expect('a tampered total of 1 is refused', pg_temp.booking(1, 'Sedan', 'Regular Wash'), 'does not match the current prices');
-select pg_temp.expect('a total above the catalog is refused', pg_temp.booking(400, 'Sedan', 'Regular Wash'), 'does not match the current prices');
+-- catalog prices (Basic Carwash: Sedan 170, SUV 220; Premium All Carwash: Sedan 250; Van Large basic 350)
+select pg_temp.expect('exact catalog total is accepted', pg_temp.booking(170, 'Sedan', 'Basic Carwash'));
+select pg_temp.expect('two services add up', pg_temp.booking(420, 'Sedan', 'Basic Carwash', 'Premium All Carwash'));
+select pg_temp.expect('the new van sizes have their own price', pg_temp.booking(350, 'Van Large', 'Basic Carwash'));
+select pg_temp.expect('vehicle aliases resolve (Motorcycle -> Regular)', pg_temp.booking(100, 'Motorcycle', 'Bike Armor All Protectant'));
+select pg_temp.expect('a tampered total of 1 is refused', pg_temp.booking(1, 'Sedan', 'Basic Carwash'), 'does not match the current prices');
+select pg_temp.expect('a total above the catalog is refused', pg_temp.booking(400, 'Sedan', 'Basic Carwash'), 'does not match the current prices');
 select pg_temp.expect('an unknown service is refused', pg_temp.booking(10, 'Sedan', 'Free Gold Plating'), 'not available');
-select pg_temp.expect('a service with no price for that vehicle is refused', pg_temp.booking(100, 'Van/L300', 'Showroom Shine (Pkg 1)'), 'not available');
+select pg_temp.expect('a service with no price for that vehicle is refused', pg_temp.booking(100, 'Sedan', 'Bike Spray Wax'), 'not available');
 
 -- Business Hub edits layer on top of the built-ins
 set local role postgres;
 update business_config set custom_services = jsonb_build_array(
-  jsonb_build_object('name', 'Regular Wash', 'vehicleType', 'Sedan', 'price', 99, 'is_active', true, 'archived', false),
-  jsonb_build_object('name', 'Supreme Wash', 'vehicleType', 'Sedan', 'price', 500, 'is_active', true, 'archived', true),
+  jsonb_build_object('name', 'Basic Carwash', 'vehicleType', 'Sedan', 'price', 99, 'is_active', true, 'archived', false),
+  jsonb_build_object('name', 'Premium All Carwash', 'vehicleType', 'Sedan', 'price', 250, 'is_active', true, 'archived', true),
   jsonb_build_object('name', 'Window Tint', 'applicableVehicleTypes', jsonb_build_array('Sedan', 'SUV'), 'price', 2000, 'is_active', true, 'archived', false));
 set local role authenticated;
-select pg_temp.expect('an edited price replaces the built-in price', pg_temp.booking(99, 'Sedan', 'Regular Wash'));
-select pg_temp.expect('the old built-in price is now above the catalog', pg_temp.booking(150, 'Sedan', 'Regular Wash'), 'does not match');
-select pg_temp.expect('an archived service is refused', pg_temp.booking(500, 'Sedan', 'Supreme Wash'), 'not available');
+select pg_temp.expect('an edited price replaces the built-in price', pg_temp.booking(99, 'Sedan', 'Basic Carwash'));
+select pg_temp.expect('the old built-in price is now above the catalog', pg_temp.booking(170, 'Sedan', 'Basic Carwash'), 'does not match');
+select pg_temp.expect('an archived service is refused', pg_temp.booking(250, 'Sedan', 'Premium All Carwash'), 'not available');
 select pg_temp.expect('a custom service works for each vehicle type it lists', pg_temp.booking(2000, 'SUV', 'Window Tint'));
 select pg_temp.expect('a custom service is refused for other vehicle types', pg_temp.booking(2000, 'Regular', 'Window Tint'), 'not available');
 
 -- tombstones for built-ins
 set local role postgres;
-update business_config set custom_services = '[]', archived_service_ids = '["wash_1-Sedan"]', deleted_service_ids = '["ext_1"]';
+update business_config set custom_services = '[]', archived_service_ids = '["wash_basic-Sedan"]', deleted_service_ids = '["ext_asphalt"]';
 set local role authenticated;
-select pg_temp.expect('an archived built-in variant is refused for that vehicle', pg_temp.booking(150, 'Sedan', 'Regular Wash'), 'not available');
-select pg_temp.expect('the same service still works for other vehicles', pg_temp.booking(180, 'SUV', 'Regular Wash'));
-select pg_temp.expect('a deleted built-in is refused everywhere', pg_temp.booking(1000, 'Sedan', 'Spot Removal'), 'not available');
+select pg_temp.expect('an archived built-in variant is refused for that vehicle', pg_temp.booking(170, 'Sedan', 'Basic Carwash'), 'not available');
+select pg_temp.expect('the same service still works for other vehicles', pg_temp.booking(220, 'SUV', 'Basic Carwash'));
+select pg_temp.expect('a deleted built-in is refused everywhere', pg_temp.booking(300, 'Sedan', 'Asphalt, Bug and Tar Removal'), 'not available');
 
 -- promotions: a lower bound, never refusing a legitimate discount
 set local role postgres;
@@ -78,25 +79,25 @@ update business_config set archived_service_ids = '[]', deleted_service_ids = '[
   jsonb_build_object('id', 'p1', 'type', 'percentage', 'value', 10, 'active', true, 'name', '10 off'),
   jsonb_build_object('id', 'p2', 'type', 'percentage', 'value', 50, 'active', true, 'deleted_at', '2020-01-01T00:00:00Z', 'name', 'deleted'),
   jsonb_build_object('id', 'p3', 'type', 'percentage', 'value', 50, 'active', true, 'validUntil', '2020-01-01T00:00:00Z', 'name', 'expired'),
-  jsonb_build_object('id', 'p4', 'mode', 'package', 'type', 'fixed_package', 'value', 500, 'active', true, 'name', 'bundle'));
+  jsonb_build_object('id', 'p4', 'mode', 'package', 'type', 'fixed_package', 'value', 300, 'active', true, 'name', 'bundle'));
 set local role authenticated;
-select pg_temp.expect('a live percentage promo price is accepted', pg_temp.booking(135, 'Sedan', 'Regular Wash'));
-select pg_temp.expect('a live package price is accepted', pg_temp.booking(500, 'Sedan', 'Regular Wash', 'Supreme Wash'));
-select pg_temp.expect('below the best live promo/package is refused', pg_temp.booking(50, 'Sedan', 'Regular Wash', 'Supreme Wash'), 'does not match');
-select pg_temp.expect('a deleted or expired promo gives no extra room', pg_temp.booking(60, 'Sedan', 'Regular Wash'), 'does not match');
+select pg_temp.expect('a live percentage promo price is accepted', pg_temp.booking(153, 'Sedan', 'Basic Carwash'));
+select pg_temp.expect('a live package price is accepted', pg_temp.booking(300, 'Sedan', 'Basic Carwash', 'Premium All Carwash'));
+select pg_temp.expect('below the best live promo/package is refused', pg_temp.booking(50, 'Sedan', 'Basic Carwash', 'Premium All Carwash'), 'does not match');
+select pg_temp.expect('a deleted or expired promo gives no extra room', pg_temp.booking(60, 'Sedan', 'Basic Carwash'), 'does not match');
 
 set local role postgres;
 update business_config set promo_rules = '[]';
 insert into promo_codes (code, name, discount_type, discount_value) values ('GUARD25', 'guard', 'percentage', 25);
 set local role authenticated;
-select pg_temp.expect('a coded promotion price is accepted with its code', pg_temp.booking_code(112.5, 'Sedan', 'guard25', 'Regular Wash'));
-select pg_temp.expect('below the coded promotion is refused', pg_temp.booking_code(100, 'Sedan', 'GUARD25', 'Regular Wash'), 'does not match');
-select pg_temp.expect('the coded price is refused without the code', pg_temp.booking(112.5, 'Sedan', 'Regular Wash'), 'does not match');
+select pg_temp.expect('a coded promotion price is accepted with its code', pg_temp.booking_code(127.5, 'Sedan', 'guard25', 'Basic Carwash'));
+select pg_temp.expect('below the coded promotion is refused', pg_temp.booking_code(100, 'Sedan', 'GUARD25', 'Basic Carwash'), 'does not match');
+select pg_temp.expect('the coded price is refused without the code', pg_temp.booking(127.5, 'Sedan', 'Basic Carwash'), 'does not match');
 
 -- server jobs without a user session are not checked
 reset role;
 select set_config('request.jwt.claims', '', true);
-select pg_temp.expect('no session: not checked', pg_temp.booking(1, 'Sedan', 'Regular Wash'));
+select pg_temp.expect('no session: not checked', pg_temp.booking(1, 'Sedan', 'Basic Carwash'));
 
 \o
 select name, case when ok then 'PASS' else 'FAIL' end as result, detail from t_results order by 2 desc, 1;

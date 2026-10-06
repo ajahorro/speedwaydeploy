@@ -50,12 +50,20 @@ export const VEHICLE_STATUSES = {
 };
 
 export const VEHICLE_TYPE_OPTIONS = [
-  { value: 'Sedan', label: 'Sedan/Hatchback' },
-  { value: 'SUV', label: 'SUV/Crossover' },
-  { value: 'Van/L300', label: 'Pickup/Van' },
-  { value: 'Regular', label: 'Motorcycle' },
-  { value: 'Bigbike', label: 'Bigbike' }
+  { value: 'Hatch', label: 'Hatchback' },
+  { value: 'Sedan', label: 'Sedan' },
+  { value: 'AUV', label: 'AUV/MPV/Crossover' },
+  { value: 'SUV', label: 'SUV' },
+  { value: 'Pickup', label: 'Pickup' },
+  { value: 'Van Small', label: 'Van (Small)' },
+  { value: 'Van Medium', label: 'Van (Medium)' },
+  { value: 'Van Large', label: 'Van (Large)' },
+  { value: 'Regular', label: 'Motorcycle (400cc and below)' },
+  { value: 'Bigbike', label: 'Motorcycle (above 400cc)' }
 ];
+
+/** The price-list keys of every vehicle category, in display order. */
+export const VEHICLE_TYPE_KEYS = VEHICLE_TYPE_OPTIONS.map((option) => option.value);
 
 export const sanitizeVehiclePlate = (value = '') => value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 export const sanitizeVehicleText = (value = '') => value.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ');

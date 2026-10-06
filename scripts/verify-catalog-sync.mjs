@@ -13,12 +13,12 @@ import assert from 'node:assert/strict';
 import { SERVICES_DATA, setCatalogSource, getServiceCatalog, priceVehicleServices } from '../frontend/src/data/servicesCatalog.js';
 import { catalogInsertSql, catalogRows, catalogDurationSql } from './gen-catalog-seed.mjs';
 
-const MIGRATION = 'supabase/migrations/20261109000001_catalog_pricing_guard.sql';
+const MIGRATION = 'supabase/migrations/20261121000001_new_service_catalog.sql';
 const sql = fs.readFileSync(MIGRATION, 'utf8').replace(/\r\n/g, '\n');
 assert.ok(sql.includes(catalogInsertSql()), 'the migration\'s built-in catalog differs from frontend/src/data/servicesCatalog.js. Regenerate it with scripts/gen-catalog-seed.mjs');
 console.log(`static OK: migration catalog matches servicesCatalog.js (${catalogRows().length} service/vehicle prices)`);
 
-const durationSql = fs.readFileSync('supabase/migrations/20261111000001_add_service_with_payment.sql', 'utf8').replace(/\r\n/g, '\n');
+const durationSql = fs.readFileSync('supabase/migrations/20261121000001_new_service_catalog.sql', 'utf8').replace(/\r\n/g, '\n');
 assert.ok(durationSql.includes(catalogDurationSql()), 'the add-service migration service durations differ from servicesCatalog.js. Regenerate them with scripts/gen-catalog-seed.mjs');
 console.log('static OK: migration service durations match servicesCatalog.js');
 
@@ -50,17 +50,17 @@ assert.equal(mismatches, 0, 'database and browser catalog prices differ');
 console.log(`parity OK: ${rows.length} built-in prices identical in the browser and the database`);
 
 // ── (2) property test ───────────────────────────────────────────────────────
-const VEHICLES = ['Sedan', 'SUV', 'Van/L300', 'Regular', 'Bigbike'];
-const pkg = { id: 'pk', mode: 'package', type: 'fixed_package', value: 500, name: 'Bundle', active: true, vehicleTypes: ['Sedan'], serviceMatches: ['Regular Wash', 'Supreme Wash'] };
+const VEHICLES = ['Hatch', 'Sedan', 'AUV', 'SUV', 'Pickup', 'Van Small', 'Van Medium', 'Van Large', 'Regular', 'Bigbike'];
+const pkg = { id: 'pk', mode: 'package', type: 'fixed_package', value: 500, name: 'Bundle', active: true, vehicleTypes: ['Sedan'], serviceMatches: ['Basic Carwash', 'Premium All Carwash'] };
 const SETUPS = {
   none: [],
   ten_percent: [{ id: 'a', type: 'percentage', value: 10, name: '10', active: true }],
   fixed_100: [{ id: 'b', type: 'fixed', value: 100, name: '100', active: true }],
   stacked: [{ id: 'c', type: 'percentage', value: 10, name: '10', active: true }, { id: 'd', type: 'fixed', value: 50, name: '50', active: true }],
-  scoped_percent: [{ id: 'e', type: 'percentage', value: 25, name: 'wash', active: true, vehicleTypes: ['Sedan', 'SUV'], serviceMatches: ['Wash'] }],
+  scoped_percent: [{ id: 'e', type: 'percentage', value: 25, name: 'wash', active: true, vehicleTypes: ['Sedan', 'SUV'], serviceMatches: ['Carwash'] }],
   package: [pkg],
   package_and_percent: [pkg, { id: 'f', type: 'percentage', value: 20, name: '20', active: true }],
-  matrix: [{ id: 'g', type: 'percentage', value: 15, name: 'matrix', active: true, vehicleServiceMatrix: { Sedan: ['Regular Wash', 'Spot Removal'] } }]
+  matrix: [{ id: 'g', type: 'percentage', value: 15, name: 'matrix', active: true, vehicleServiceMatrix: { Sedan: ['Basic Carwash', 'Asphalt, Bug and Tar Removal'] } }]
 };
 let seed = 42;
 const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
@@ -81,7 +81,7 @@ for (const [label, rules] of Object.entries(SETUPS)) {
       const chosen = pick(offered, 1 + Math.floor(rnd() * Math.min(4, offered.length)));
       // package scenarios must sometimes hold the whole bundle
       if (label.startsWith('package') && type === 'Sedan' && rnd() < 0.6) {
-        for (const name of ['Regular Wash', 'Supreme Wash']) if (!chosen.some((c) => c.name === name)) chosen.push(offered.find((o) => o.name === name));
+        for (const name of ['Basic Carwash', 'Premium All Carwash']) if (!chosen.some((c) => c.name === name)) chosen.push(offered.find((o) => o.name === name));
       }
       return { type, services: chosen.filter(Boolean).map((c) => ({ name: c.name, price: c.price })) };
     });

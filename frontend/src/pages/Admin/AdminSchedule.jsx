@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { VEHICLE_TYPE_KEYS } from '../../config/constants';
 import { supabase } from '../../lib/supabase';
 import { subscribeTable } from '../../lib/realtimeHub';
 import { Calendar as CalendarIcon, ShieldAlert, Lock, Zap, CheckCircle2, RotateCw, ChevronDown, ChevronUp, ChevronRight, X, Check, Sliders } from 'lucide-react';
@@ -220,7 +221,7 @@ const AdminSchedule = () => {
     });
   };
 
-  const promoVehicleOptions = ['Sedan', 'SUV', 'Van/L300', 'Motorcycle Regular', 'Bigbike'];
+  const promoVehicleOptions = VEHICLE_TYPE_KEYS;
 
   const getAvailableServicesForVehicle = (vehicleType) => {
     const catalog = getServiceCatalog();
@@ -258,9 +259,9 @@ const AdminSchedule = () => {
       validFrom: '2026-09-21T00:00',
       validUntil: '2026-09-30T23:59',
       vehicleTypes: ['Sedan'],
-      serviceMatches: ['Full Detail', 'Regular Wash'],
+      serviceMatches: ['Package A', 'Basic Carwash'],
       vehicleServiceMatrix: {
-        Sedan: ['Full Detail', 'Regular Wash']
+        Sedan: ['Package A', 'Basic Carwash']
       },
       isOngoing: true
     },
@@ -273,9 +274,9 @@ const AdminSchedule = () => {
       validFrom: '2026-09-21T00:00',
       validUntil: '2026-09-30T23:59',
       vehicleTypes: ['SUV'],
-      serviceMatches: ['Paint Correction', 'Supreme Wash'],
+      serviceMatches: ['Exterior Detailing', 'Premium All Carwash'],
       vehicleServiceMatrix: {
-        SUV: ['Paint Correction', 'Supreme Wash']
+        SUV: ['Exterior Detailing', 'Premium All Carwash']
       },
       isOngoing: true
     }
@@ -296,7 +297,7 @@ const AdminSchedule = () => {
     validUntil: '',
     neverExpires: false,
     vehicleServiceMatrix: {
-      Sedan: ['Supreme Wash', 'Regular Wash']
+      Sedan: ['Premium All Carwash', 'Basic Carwash']
     }
   };
 

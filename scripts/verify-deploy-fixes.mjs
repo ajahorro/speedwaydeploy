@@ -90,7 +90,7 @@ const { data: created, error: createErr } = await db.rpc('create_booking_atomic'
     },
     vehicles: [{
       vehicle: { vehicle_type: 'sedan', brand: 'Test', model: 'Gate', plate_number: probeBooking, status: 'SCHEDULED' },
-      services: [{ service_name: 'Regular Wash', price: 500, final_price: 500, duration_minutes: 60, vehicle_type: 'sedan' }],
+      services: [{ service_name: 'Basic Carwash', price: 500, final_price: 500, duration_minutes: 60, vehicle_type: 'sedan' }],
     }],
     payment: { amount: 500, method: 'GCash', payment_type: 'Full', status: 'FOR_VERIFICATION' },
   },

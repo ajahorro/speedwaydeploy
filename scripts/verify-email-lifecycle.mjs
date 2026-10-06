@@ -85,7 +85,7 @@ const invoke = async (body) => {
       },
       vehicles: [{
         vehicle: { vehicle_type: 'sedan', brand: 'Toyota', model: 'Vios', plate_number: stamp, status: 'SCHEDULED' },
-        services: [{ service_name: 'Regular Wash', price: 250, final_price: 250, duration_minutes: 60, vehicle_type: 'sedan' }],
+        services: [{ service_name: 'Basic Carwash', price: 250, final_price: 250, duration_minutes: 60, vehicle_type: 'sedan' }],
       }],
       payment: {
         amount: 250,

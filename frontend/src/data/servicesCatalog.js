@@ -1,51 +1,58 @@
 export const SERVICES_DATA = {
-  "Exclusive Packages": [
-    { id: "pkg_1", name: "Showroom Shine (Pkg 1)", desc: "The ultimate refresh: VIP wash, engine wash, tire mags detailing, and hand glass watermarks removal.", prices: { Sedan: 2500, SUV: 3500 }, estTime: "4 Hours", durationMinutes: 240 },
-    { id: "pkg_2", name: "Ultimate Protection (Pkg 2)", desc: "Machine polish for swirl removal, paint protection wax, and BTZ interior disinfection.", prices: { Sedan: 3500, SUV: 4500 }, estTime: "5 Hours", durationMinutes: 300 },
+  "Car Wash": [
+    { id: "wash_basic", name: "Basic Carwash", desc: "Wash, vacuum, and tire black.", prices: { Hatch: 150, Sedan: 170, AUV: 200, SUV: 220, Pickup: 270, "Van Small": 300, "Van Medium": 320, "Van Large": 350 }, estTime: "45 Mins", durationMinutes: 45 },
+    { id: "wash_premium", name: "Premium All Carwash", desc: "Wash, vacuum, tire black, disinfectant spray, underwash, and engine bay cleaning.", prices: { Hatch: 230, Sedan: 250, AUV: 280, SUV: 300, Pickup: 350, "Van Small": 380, "Van Medium": 400, "Van Large": 430 }, estTime: "1.5 Hours", durationMinutes: 90 }
   ],
-  "Premium Car Wash": [
-    { id: "wash_1", name: "Regular Wash", desc: "Professional exterior cleaning using high-quality automotive soap and microfiber drying.", prices: { Sedan: 150, SUV: 180, "Van/L300": 300 }, estTime: "1 Hour", durationMinutes: 60 },
-    { id: "wash_2", name: "Supreme Wash", desc: "Advanced wash including high-gloss treatment, degreaser, and protective wax.", prices: { Sedan: 500, SUV: 600, "Van/L300": 800 }, estTime: "2 Hours", durationMinutes: 120 },
+  "Packages": [
+    { id: "pkg_a", name: "Package A", desc: "Premium wash, asphalt removal, and carnauba wax. Add the hydrophobic wax upgrade for a hydrophobic finish.", prices: { Hatch: 750, Sedan: 850, AUV: 950, SUV: 1050, Pickup: 1150, "Van Small": 1350, "Van Medium": 1350, "Van Large": 1350 }, estTime: "3 Hours", durationMinutes: 180 },
+    { id: "pkg_b", name: "Package B", desc: "Premium wash, asphalt removal, and buffing with wax.", prices: { Hatch: 1200, Sedan: 1300, AUV: 1400, SUV: 1600, Pickup: 1600, "Van Small": 1800, "Van Medium": 1800, "Van Large": 1800 }, estTime: "4 Hours", durationMinutes: 240 },
+    { id: "pkg_c", name: "Package C", desc: "Premium wash and glass acid rain removal.", prices: { Hatch: 800, Sedan: 900, AUV: 1000, SUV: 1200, Pickup: 1200, "Van Small": 1300, "Van Medium": 1300, "Van Large": 1300 }, estTime: "2.5 Hours", durationMinutes: 150 },
+    { id: "pkg_d", name: "Package D", desc: "Premium wash and Bac to Zero.", prices: { Hatch: 450, Sedan: 550, AUV: 650, SUV: 750, Pickup: 850, "Van Small": 1000, "Van Medium": 1000, "Van Large": 1000 }, estTime: "2 Hours", durationMinutes: 120 }
   ],
-  "Specialized Exterior Care": [
-    { id: "ext_1", name: "Spot Removal", desc: "Targeted removal of localized stains and blemishes from the paint surface.", prices: { Sedan: 1000, SUV: 1500, "Van/L300": 2000 }, estTime: "1-2 Hours", durationMinutes: 90 },
-    { id: "ext_2", name: "Acid Rain Removal (Hand)", desc: "Manual removal of water spots and acid rain marks to restore surface clarity.", prices: { Sedan: 600, SUV: 800, "Van/L300": 1000 }, estTime: "2 Hours", durationMinutes: 120 },
-    { id: "ext_3", name: "Acid Rain Removal (Machine)", desc: "Machine-buffed treatment for deep water spot and acid rain mark removal.", prices: { Sedan: 1000, SUV: 1500, "Van/L300": 2000 }, estTime: "3 Hours", durationMinutes: 180 },
-    { id: "ext_4", name: "Engine Wash", desc: "Safe and thorough cleaning of the engine bay to remove accumulated grease and dirt.", prices: { Sedan: 500, SUV: 800, "Van/L300": 1000 }, estTime: "1 Hour", durationMinutes: 60 },
-    { id: "ext_5", name: "Headlight Polish", desc: "Restores yellowed or hazy headlights to original factory clarity.", prices: { Sedan: 800, SUV: 1000, "Van/L300": 1300 }, estTime: "1.5 Hours", durationMinutes: 90 },
-    { id: "ext_6", name: "Asphalt Removal", desc: "Removes road tar and asphalt splatters without affecting the paint finish.", prices: { Sedan: 700, SUV: 900, "Van/L300": 1200 }, estTime: "2 Hours", durationMinutes: 120 },
-    { id: "ext_7", name: "Buff Wax (Machine)", desc: "Machine-applied premium wax for an ultra-smooth and protective finish.", prices: { Sedan: 1000, SUV: 1500, "Van/L300": 2500 }, estTime: "2-3 Hours", durationMinutes: 150 },
-    { id: "ext_8", name: "Mags Detailing", desc: "Deep cleaning and polishing of wheels and rims to remove brake dust and oxidation.", prices: { Sedan: 1200, SUV: 2000, "Van/L300": 2800 }, estTime: "2 Hours", durationMinutes: 120 },
+  "Exterior Care": [
+    { id: "ext_asphalt", name: "Asphalt, Bug and Tar Removal", desc: "Removes asphalt, bug splatter, and tar from the paint without harming the finish.", prices: { Hatch: 250, Sedan: 300, AUV: 400, SUV: 500, Pickup: 500, "Van Small": 600, "Van Medium": 600, "Van Large": 600 }, estTime: "1 Hour", durationMinutes: 60 },
+    { id: "ext_acid_full", name: "Acid Rain Removal (Front, Side, Rear)", desc: "Removes acid rain marks from the front, side, and rear glass.", prices: { Hatch: 650, Sedan: 700, AUV: 800, SUV: 900, Pickup: 900, "Van Small": 1100, "Van Medium": 1100, "Van Large": 1100 }, estTime: "1.5 Hours", durationMinutes: 90 },
+    { id: "ext_acid_wind", name: "Acid Rain Removal (Windshield only)", desc: "Removes acid rain marks from the windshield only.", prices: { Hatch: 200, Sedan: 200, AUV: 300, SUV: 350, Pickup: 350, "Van Small": 400, "Van Medium": 400, "Van Large": 400 }, estTime: "30 Mins", durationMinutes: 30 },
+    { id: "ext_hydro_glass", name: "Hydrophobic Glass Coating (Front, Side, Rear)", desc: "Water-repellent coating for the front, side, and rear glass.", prices: { Hatch: 550, Sedan: 600, AUV: 700, SUV: 800, Pickup: 800, "Van Small": 1000, "Van Medium": 1000, "Van Large": 1000 }, estTime: "1 Hour", durationMinutes: 60 },
+    { id: "ext_wax", name: "Hand/Spray Wax", desc: "Hand or spray wax for a protective shine.", prices: { Hatch: 550, Sedan: 650, AUV: 750, SUV: 850, Pickup: 850, "Van Small": 1100, "Van Medium": 1100, "Van Large": 1100 }, estTime: "1 Hour", durationMinutes: 60 },
+    { id: "ext_buff", name: "Buffing with Wax", desc: "Machine buffing followed by wax for a smooth, glossy finish.", prices: { Hatch: 800, Sedan: 900, AUV: 1000, SUV: 1100, Pickup: 1100, "Van Small": 1350, "Van Medium": 1350, "Van Large": 1350 }, estTime: "2 Hours", durationMinutes: 120 },
+    { id: "ext_engine", name: "Engine Wash + Carwash", desc: "Safe cleaning of the engine bay together with a car wash.", prices: { Hatch: 700, Sedan: 750, AUV: 800, SUV: 900, Pickup: 900, "Van Small": 1000, "Van Medium": 1000, "Van Large": 1000 }, estTime: "1.5 Hours", durationMinutes: 90 },
+    { id: "ext_headlight", name: "Headlight Exterior Polishing", desc: "Polishes the outside of the headlights to restore clarity.", prices: { Hatch: 500, Sedan: 500, AUV: 500, SUV: 500, Pickup: 500, "Van Small": 500, "Van Medium": 500, "Van Large": 500 }, estTime: "45 Mins", durationMinutes: 45 }
   ],
-  "Interior & Cabin Care": [
-    { id: "int_1", name: "Interior Detailing", desc: "Deep extraction, shampooing, and disinfection of all interior cabin surfaces.", prices: { Sedan: 4500, SUV: 5500, "Van/L300": 6500 }, estTime: "4-5 Hours", durationMinutes: 270 },
-    { id: "int_2", name: "Back to Zero", desc: "Ozone treatment and antibacterial fogging to eliminate odors and germs.", prices: { Sedan: 350, SUV: 400, "Van/L300": 600 }, estTime: "30 Mins", durationMinutes: 30 },
-    { id: "int_3", name: "Seat Cover In/Out", desc: "Professional removal, cleaning, and reinstallation of vehicle seat covers.", prices: { Sedan: 500, SUV: 800, "Van/L300": 1200 }, estTime: "2 Hours", durationMinutes: 120 },
-    { id: "int_4", name: "Ceiling Cleaning", desc: "Careful removal of stains and dust from the vehicle's interior headliner.", prices: { Sedan: 700, SUV: 1000, "Van/L300": 1300 }, estTime: "2 Hours", durationMinutes: 120 },
+  "Interior Care": [
+    { id: "int_armor", name: "Armor All Protectant (Interior)", desc: "Protectant for the dashboard and interior plastics.", prices: { Hatch: 200, Sedan: 200, AUV: 250, SUV: 250, Pickup: 300, "Van Small": 350, "Van Medium": 350, "Van Large": 350 }, estTime: "30 Mins", durationMinutes: 30 },
+    { id: "int_bac0", name: "Bac To Zero", desc: "Disinfecting treatment that removes odors and germs inside the cabin.", prices: { Hatch: 300, Sedan: 400, AUV: 500, SUV: 600, Pickup: 600, "Van Small": 700, "Van Medium": 700, "Van Large": 700 }, estTime: "1 Hour", durationMinutes: 60 },
+    { id: "int_seat", name: "Seat Shampoo (Per Seat)", desc: "Shampoo cleaning of one seat. Choose it once for each seat.", prices: { Hatch: 450, Sedan: 450, AUV: 450, SUV: 450, Pickup: 450, "Van Small": 450, "Van Medium": 450, "Van Large": 450 }, estTime: "30 Mins", durationMinutes: 30 },
+    { id: "int_ceiling", name: "Ceiling Cleaning", desc: "Careful cleaning of the interior ceiling.", prices: { Hatch: 500, Sedan: 500, AUV: 600, SUV: 600, Pickup: 600, "Van Small": 1000, "Van Medium": 1000, "Van Large": 1000 }, estTime: "1 Hour", durationMinutes: 60 },
+    { id: "int_carpet", name: "Carpet Cleaning", desc: "Cleaning of the interior carpet.", prices: { Hatch: 500, Sedan: 500, AUV: 600, SUV: 600, Pickup: 600, "Van Small": 1000, "Van Medium": 1000, "Van Large": 1000 }, estTime: "1 Hour", durationMinutes: 60 },
+    { id: "int_remove", name: "Carpet and Seats Removal", desc: "Removal and reinstallation of the carpet and seats.", prices: { Hatch: 1500, Sedan: 1500, AUV: 1700, SUV: 2000, Pickup: 2000, "Van Small": 2500, "Van Medium": 2500, "Van Large": 2500 }, estTime: "2 Hours", durationMinutes: 120 }
   ],
-  "Professional Detailing": [
-    { id: "det_1", name: "Ceramic Coating", desc: "Premium 3-step exterior detailing followed by long-term ceramic protection.", prices: { Sedan: 10000, SUV: 13000, "Van/L300": 16000 }, estTime: "2 Days", durationMinutes: 2880 },
-    { id: "det_2", name: "Exterior Detailing (3 Step)", desc: "Complete 3-step process: cutting cream, polishing, and high-gloss finishing.", prices: { Sedan: 5000, SUV: 6000, "Van/L300": 7000 }, estTime: "1 Day", durationMinutes: 1440 },
-    { id: "det_3", name: "1st Step Cutting", desc: "Intensive swirl and deep scratch removal process only.", prices: { Sedan: 2500, SUV: 3000, "Van/L300": 3500 }, estTime: "4 Hours", durationMinutes: 240 },
-    { id: "det_4", name: "Glass Detailing", desc: "Machine buffing for the windshield only to ensure perfect optical clarity.", prices: { Sedan: 3500, SUV: 4500, "Van/L300": 6000 }, estTime: "3 Hours", durationMinutes: 180 },
+  "Detailing": [
+    { id: "det_int_ord", name: "Interior Detailing Ordinary (No Baklas)", desc: "Premium wash, shampoo of the ceiling, seats, and carpet, and Armor All on the dashboard and sidings. Seats and carpet stay in the car.", prices: { Hatch: 3000, Sedan: 3000, AUV: 4000, SUV: 4500, Pickup: 4500, "Van Small": 5000, "Van Medium": 5000, "Van Large": 5000 }, estTime: "5 Hours", durationMinutes: 300 },
+    { id: "det_int_baklas", name: "Interior Detailing with Remove and Install (With Baklas)", desc: "Premium wash, shampoo of the ceiling, seats, and carpet, Armor All on the dashboard and sidings, and removal of the carpet and seats. Subject to schedule and slot availability.", prices: { Hatch: 4500, Sedan: 4500, AUV: 5700, SUV: 6500, Pickup: 6500, "Van Small": 7500, "Van Medium": 7500, "Van Large": 7500 }, estTime: "8 Hours", durationMinutes: 480 },
+    { id: "det_ext", name: "Exterior Detailing", desc: "Premium wash, asphalt removal, acid rain removal, and 3-step buffing (paint correction, polishing, and finishing).", prices: { Hatch: 4500, Sedan: 5500, AUV: 6500, SUV: 8000, Pickup: 8000, "Van Small": 9000, "Van Medium": 9000, "Van Large": 9000 }, estTime: "8 Hours", durationMinutes: 480 },
+    { id: "det_pkg", name: "Detailing Package", desc: "Ordinary interior detailing, exterior detailing, and acid rain removal (front, side, rear).", prices: { Hatch: 7000, Sedan: 8000, AUV: 10000, SUV: 12000, Pickup: 12000, "Van Small": 13500, "Van Medium": 13500, "Van Large": 13500 }, estTime: "12 Hours", durationMinutes: 720 }
+  ],
+  "Labor Only": [
+    { id: "lab_spray", name: "Labor Only - Spray and Wipe", desc: "Labor for spray and wipe. You supply the product.", prices: { Hatch: 150, Sedan: 200, AUV: 250, SUV: 300, Pickup: 300, "Van Small": 350, "Van Medium": 350, "Van Large": 350 }, estTime: "30 Mins", durationMinutes: 30 },
+    { id: "lab_wax", name: "Labor Only - Wax and Wipe", desc: "Labor for wax and wipe. You supply the product.", prices: { Hatch: 300, Sedan: 400, AUV: 500, SUV: 600, Pickup: 600, "Van Small": 850, "Van Medium": 850, "Van Large": 850 }, estTime: "1 Hour", durationMinutes: 60 },
+    { id: "lab_acid", name: "Labor Only - Acid Rain Removal (Glass - Front, Side, Rear)", desc: "Labor for acid rain removal on the front, side, and rear glass. You supply the product.", prices: { Hatch: 450, Sedan: 500, AUV: 600, SUV: 700, Pickup: 700, "Van Small": 800, "Van Medium": 800, "Van Large": 800 }, estTime: "1 Hour", durationMinutes: 60 },
+    { id: "lab_hydro", name: "Labor Only - Hydrophobic Water Repellent Protectant (Glass - Front, Side, Rear)", desc: "Labor for applying a hydrophobic water repellent on the front, side, and rear glass. You supply the product.", prices: { Hatch: 100, Sedan: 150, AUV: 200, SUV: 250, Pickup: 250, "Van Small": 300, "Van Medium": 300, "Van Large": 300 }, estTime: "30 Mins", durationMinutes: 30 }
   ],
   "Motorcycle Specialist": [
-    { id: "moto_1", name: "Moto Wash", desc: "Professional cleaning tailored specifically for motorcycle components.", prices: { Regular: 120, Bigbike: 150 }, estTime: "30 Mins", durationMinutes: 30 },
-    { id: "moto_2", name: "Moto VIP", desc: "Includes wash, high-gloss treatment, degreaser, and protective wax.", prices: { Regular: 250, Bigbike: 350 }, estTime: "1 Hour", durationMinutes: 60 },
-    { id: "moto_3", name: "Moto Detail", desc: "Full restoration of all visible motorcycle parts and surfaces.", prices: { Regular: 2500, Bigbike: 3000 }, estTime: "4 Hours", durationMinutes: 240 },
-    { id: "moto_4", name: "Moto Ceramic Coating", desc: "Hydrophobic ceramic shield for paint, plastics, and metal parts.", prices: { Regular: 3500, Bigbike: 5500 }, estTime: "1 Day", durationMinutes: 1440 },
-    { id: "moto_5", name: "Moto 3-Step Detailing", desc: "Comprehensive cutting, polishing, and finishing for bike paintwork.", prices: { Regular: 2500, Bigbike: 3500 }, estTime: "5 Hours", durationMinutes: 300 },
+    { id: "moto_wash_s", name: "Premium Bike Wash (Small)", desc: "Shampoo, chain cleaning, and degreaser for a small motorcycle (400cc and below).", prices: { Regular: 100 }, estTime: "45 Mins", durationMinutes: 45 },
+    { id: "moto_wash_m", name: "Premium Bike Wash (Medium)", desc: "Shampoo, chain cleaning, and degreaser for a medium motorcycle (400cc and below).", prices: { Regular: 130 }, estTime: "45 Mins", durationMinutes: 45 },
+    { id: "moto_wash_l", name: "Premium Bike Wash (Large)", desc: "Shampoo, chain cleaning, and degreaser for a large motorcycle (400cc and below).", prices: { Regular: 150 }, estTime: "1 Hour", durationMinutes: 60 },
+    { id: "moto_wash_big", name: "Premium Bike Wash (Above 400cc)", desc: "Shampoo, chain cleaning, and degreaser for a motorcycle above 400cc.", prices: { Bigbike: 250 }, estTime: "1 Hour", durationMinutes: 60 },
+    { id: "moto_armor", name: "Bike Armor All Protectant", desc: "Armor All protectant for the motorcycle.", prices: { Regular: 100, Bigbike: 150 }, estTime: "30 Mins", durationMinutes: 30 },
+    { id: "moto_wax", name: "Bike Spray Wax", desc: "Spray wax for a protective shine.", prices: { Regular: 150, Bigbike: 200 }, estTime: "45 Mins", durationMinutes: 45 },
+    { id: "moto_buff", name: "Bike Buff and Wax", desc: "Machine buffing followed by wax.", prices: { Regular: 250, Bigbike: 300 }, estTime: "2 Hours", durationMinutes: 120 }
   ],
   "Add-on Treatments": [
-    // 🛡️ SC-22 — SERVICE PREREQUISITES.
-    // `requires` lists sibling service NAMES that must be present on the SAME
-    // vehicle for this service to be valid. It is validated by
-    // validateServiceRequirements() at the checkout boundary (client AND the
-    // booking RPC), so an isolated dependent service (e.g. an add-on with no
-    // wash) is rejected with a clean message rather than silently accepted.
-    { id: "add_1", name: "Waxx Add-on", desc: "Extra layer of protective wax for an enhanced reflective shine.", prices: { Sedan: 200, SUV: 300, "Van/L300": 400 }, estTime: "30 Mins", durationMinutes: 30, requires: ["Regular Wash", "Supreme Wash"] },
-    { id: "add_2", name: "Highgloss Add-on", desc: "Intense gloss enhancer for that wet-look finish.", prices: { Sedan: 200, SUV: 300, "Van/L300": 400 }, estTime: "30 Mins", durationMinutes: 30, requires: ["Regular Wash", "Supreme Wash"] },
-    { id: "add_3", name: "Degreaser Add-on", desc: "Heavy-duty degreasing for underchassis or specific dirty areas.", prices: { Sedan: 200, SUV: 300, "Van/L300": 400 }, estTime: "30 Mins", durationMinutes: 30, requires: ["Regular Wash", "Supreme Wash"] },
+    // SC-22 — SERVICE PREREQUISITES.
+    // `requires` lists sibling service NAMES that must be present on the SAME vehicle for this service to be valid.
+    // It is validated by validateServiceRequirements() at the checkout boundary (client AND the booking RPC).
+    { id: "add_hydro_wax", name: "Hydrophobic Wax Upgrade (Package A)", desc: "Upgrades the carnauba wax of Package A to hydrophobic wax.", prices: { Hatch: 100, Sedan: 100, AUV: 100, SUV: 100, Pickup: 100, "Van Small": 100, "Van Medium": 100, "Van Large": 100 }, estTime: "30 Mins", durationMinutes: 30, requires: ["Package A"] }
   ]
 };
 
@@ -164,13 +171,25 @@ export const buildBookingServiceSnapshot = (service = {}, vehicleType = '', sour
 // The alias map duplicates BusinessHub's normalizeVehicleCategoryKey on purpose:
 // it is small and stable, and the cost of duplication is far lower than a cycle.
 const PRICE_VEHICLE_ALIASES = {
+  hatch: 'Hatch',
+  hatchback: 'Hatch',
+  'hatch back': 'Hatch',
   sedan: 'Sedan',
+  'sedan hatchback': 'Sedan',
+  auv: 'AUV',
+  mpv: 'AUV',
+  crossover: 'AUV',
+  'auv mpv crossover': 'AUV',
   suv: 'SUV',
-  'van/l300': 'Van/L300',
-  'van l300': 'Van/L300',
-  van: 'Van/L300',
-  pickup: 'Van/L300',
-  'pickup/van': 'Van/L300',
+  'suv crossover': 'SUV',
+  pickup: 'Pickup',
+  'pick up': 'Pickup',
+  'van small': 'Van Small',
+  'van medium': 'Van Medium',
+  'van large': 'Van Large',
+  van: 'Van Medium',
+  'van l300': 'Van Medium',
+  'pickup van': 'Van Medium',
   regular: 'Regular',
   motorcycle: 'Regular',
   'motorcycle regular': 'Regular',

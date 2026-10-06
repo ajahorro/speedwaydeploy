@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Tag, Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getServiceCatalog, getPackageStandaloneSum } from '../../data/servicesCatalog';
+import { VEHICLE_TYPE_KEYS } from '../../config/constants';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useUI } from '../../context/UIContext';
 import { logger } from '../../utils/logger';
@@ -27,7 +28,7 @@ import { isPromoRuleLive, setCatalogSource } from '../../data/servicesCatalog';
  * services/promoService.js) have been retired — this component must never
  * import them.
  */
-const promoVehicleOptions = ['Sedan', 'SUV', 'Van/L300', 'Motorcycle Regular', 'Bigbike'];
+const promoVehicleOptions = VEHICLE_TYPE_KEYS;
 
 const getAvailableServicesForVehicle = (vehicleType) => {
   const catalog = getServiceCatalog();
@@ -65,9 +66,9 @@ const defaultPromoRules = [
     validFrom: '2026-09-21T00:00',
     validUntil: '2026-09-30T23:59',
     vehicleTypes: ['Sedan'],
-    serviceMatches: ['Full Detail', 'Regular Wash'],
+    serviceMatches: ['Package A', 'Basic Carwash'],
     vehicleServiceMatrix: {
-      Sedan: ['Full Detail', 'Regular Wash']
+      Sedan: ['Package A', 'Basic Carwash']
     },
     isOngoing: true
   },
@@ -80,9 +81,9 @@ const defaultPromoRules = [
     validFrom: '2026-09-21T00:00',
     validUntil: '2026-09-30T23:59',
     vehicleTypes: ['SUV'],
-    serviceMatches: ['Paint Correction', 'Supreme Wash'],
+    serviceMatches: ['Exterior Detailing', 'Premium All Carwash'],
     vehicleServiceMatrix: {
-      SUV: ['Paint Correction', 'Supreme Wash']
+      SUV: ['Exterior Detailing', 'Premium All Carwash']
     },
     isOngoing: true
   }

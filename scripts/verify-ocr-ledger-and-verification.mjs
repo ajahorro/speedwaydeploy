@@ -88,7 +88,7 @@ const stamp = `OCR-LEDGER-${Date.now()}`;
       },
       vehicles: [{
         vehicle: { vehicle_type: 'sedan', brand: 'Toyota', model: 'Vios', plate_number: stamp, status: 'SCHEDULED' },
-        services: [{ service_name: 'Regular Wash', price: 1000, final_price: 1000, duration_minutes: 60, vehicle_type: 'sedan' }],
+        services: [{ service_name: 'Basic Carwash', price: 1000, final_price: 1000, duration_minutes: 60, vehicle_type: 'sedan' }],
       }],
       // The customer DECLARED 1000 but the receipt OCRs as 980 (a fee was taken
       // in transit). This divergence is exactly what the ledger must expose.

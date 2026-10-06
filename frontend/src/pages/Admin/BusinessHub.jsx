@@ -15,7 +15,7 @@ import { PromoCodesCard } from '../../features/business-hub/PromoCodesCard';
 import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
 import { validateQrRecipients } from '../../services/qrSecurityService';
 import { buildBusinessConfigUpdatePayload, stripUnsupportedBusinessConfigColumns } from '../../services/businessConfigPayload';
-import { sanitizeAlphaNum, sanitizeByFieldType, toTitleCase, VEHICLE_TYPE_OPTIONS } from '../../config/constants';
+import { sanitizeAlphaNum, sanitizeByFieldType, toTitleCase, VEHICLE_TYPE_OPTIONS, VEHICLE_TYPE_KEYS } from '../../config/constants';
 import { SERVICES_DATA, setCatalogSource, setArchivedServiceIds as setArchivedServiceIdsCache, setDeletedServiceIds as setDeletedServiceIdsCache } from '../../data/servicesCatalog';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
@@ -101,7 +101,7 @@ const WEEKDAYS = [
   { value: 6, short: 'Sat', long: 'Saturday' }
 ];
 
-const DEFAULT_VEHICLE_TYPES = ['Sedan', 'SUV', 'Van/L300', 'Regular', 'Bigbike'];
+const DEFAULT_VEHICLE_TYPES = VEHICLE_TYPE_KEYS;
 const VEHICLE_TYPE_CHOICES = DEFAULT_VEHICLE_TYPES;
 
 // A "general service" is the catalog category a specific service belongs to
@@ -121,24 +121,28 @@ const normalizeVehicleCategoryKey = (value = '') => {
   const raw = String(value ?? '').trim();
   if (!raw) return '';
 
+  const normalized = raw.toLowerCase().replace(/[_/-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  // A key or a label of one of the shop's vehicle categories finds that category ("Van (Small)" -> Van Small).
+  const flat = (text) => text.toLowerCase().replace(/[_/()-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const exact = VEHICLE_TYPE_OPTIONS.find((option) => flat(option.value) === flat(normalized) || flat(option.label) === flat(normalized));
+  if (exact) return exact.value;
+  // Same aliases as the price list (data/servicesCatalog.js and the database's catalog_vehicle_key).
   const aliasMap = {
-    sedan: 'Sedan',
-    'sedan/hatchback': 'Sedan',
-    hatchback: 'Sedan',
-    suv: 'SUV',
-    'suv/crossover': 'SUV',
-    crossover: 'SUV',
-    'pickup/van': 'Van/L300',
-    pickup: 'Van/L300',
-    van: 'Van/L300',
-    'van/l300': 'Van/L300',
+    hatch: 'Hatch',
+    'sedan hatchback': 'Sedan',
+    auv: 'AUV',
+    mpv: 'AUV',
+    crossover: 'AUV',
+    'suv crossover': 'SUV',
+    'pick up': 'Pickup',
+    van: 'Van Medium',
+    'van l300': 'Van Medium',
+    'pickup van': 'Van Medium',
     motorcycle: 'Regular',
     'motorcycle regular': 'Regular',
-    regular: 'Regular',
-    bigbike: 'Bigbike'
+    moto: 'Regular',
+    'big bike': 'Bigbike'
   };
-
-  const normalized = raw.toLowerCase().replace(/[_/-]+/g, ' ').replace(/\s+/g, ' ').trim();
   return aliasMap[normalized] || raw;
 };
 
@@ -1197,11 +1201,12 @@ export default function BusinessHub() {
     const base = String(id || '').trim();
     if (!base) return [];
     const expansions = [base];
-    const match = base.match(/^(.*?)-(Sedan|SUV|Van\/L300|Regular|Bigbike)$/);
+    const match = VEHICLE_TYPE_KEYS.map((type) => (base.endsWith(`-${type}`) ? base.slice(0, -(type.length + 1)) : null)).find(Boolean);
+    // `match` is the service part of an id that already names a vehicle category (e.g. `wash_basic-Sedan`).
     if (match) {
-      expansions.push(match[1]);
+      expansions.push(match);
     } else {
-      ['Sedan', 'SUV', 'Van/L300', 'Regular', 'Bigbike'].forEach((type) => expansions.push(`${base}-${type}`));
+      VEHICLE_TYPE_KEYS.forEach((type) => expansions.push(`${base}-${type}`));
     }
     return expansions;
   };
