@@ -7,6 +7,8 @@ import toast from 'react-hot-toast';
 import { emitEventToMany, EVENTS } from '../services/eventEngine';
 import { useGlobalChat } from '../context/ChatContext';
 import { useImagePreview } from '../context/ImagePreviewContext';
+import { useConfirmAction } from '../hooks/useConfirmAction';
+import BookingInviteCard from './BookingInviteCard';
 
 /**
  * BookingChat — the CUSTOMER's single real-time conversation.
@@ -20,6 +22,7 @@ import { useImagePreview } from '../context/ImagePreviewContext';
  */
 const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
   const { openImage } = useImagePreview();
+  const { confirmThen } = useConfirmAction();
   const { user, profile } = useAuth();
   const { refreshUnreadCount, reportThreadUnread } = useGlobalChat();
   const [messages, setMessages] = useState([]);
@@ -404,6 +407,23 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-md)', overflow: 'hidden' }}>
 
+      {/* Administrator: invite this customer to send their saved booking so the shop can book for them */}
+      {String(profile?.role || '').toUpperCase() === 'ADMIN' && customerId && (
+        <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={() => confirmThen({ title: 'Invite this customer?', message: 'The customer receives a message with a button to send their saved booking details. You can then book for them.', confirmText: 'Send invitation' }, async () => {
+              const { error: inviteError } = await supabase.rpc('send_booking_draft_invite', { p_customer_id: customerId });
+              if (inviteError) toast.error(inviteError.message || 'The invitation could not be sent.');
+              else { toast.success('Invitation sent.'); fetchMessages(customerId); }
+            })}
+            style={{ background: 'transparent', color: 'var(--admin-brand)', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', padding: '0.4rem 0.75rem', fontSize: '0.68rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', minHeight: '36px' }}
+          >
+            Ask for booking details
+          </button>
+        </div>
+      )}
+
       {/* Message Area */}
       <div ref={chatContainerRef} style={{ flex: 1, padding: '1rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         {messages.length === 0 ? (
@@ -416,6 +436,7 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
         ) : (
           messages.map((msg) => {
             const isMe = msg.sender_id === user?.id;
+            if (msg.message_type === 'booking_invite') return <BookingInviteCard key={msg.id} message={msg} />;
             const isSystem = msg.message_type === 'system';
             const inferredRole = isMe
               ? String(profile?.role || 'CUSTOMER').toUpperCase()
