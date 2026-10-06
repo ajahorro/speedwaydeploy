@@ -10,6 +10,7 @@ import { installGlobalErrorReporter } from './utils/globalErrorReporter';
 import { UIProvider } from './context/UIContext';
 import { ImagePreviewProvider } from './context/ImagePreviewContext';
 import { AuthProvider } from './context/AuthContext';
+import IdleSessionGuard from './components/IdleSessionGuard';
 import { UnifiedProvider } from './context/UnifiedContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ConfigProvider } from './context/ConfigContext';
@@ -121,6 +122,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               <BrowserRouter>
                 <UIProvider>
                 <ImagePreviewProvider>
+                {/* Ends a signed-in session after a period without activity (config/sessionPolicy.js). */}
+                <IdleSessionGuard />
                 {/* Proactive "backend offline" signal. Booking submission is
                     fail-closed, so surfacing an unreachable scheduling server
                     BEFORE the user fills in the wizard (instead of a scary

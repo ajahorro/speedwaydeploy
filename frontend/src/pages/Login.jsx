@@ -27,6 +27,16 @@ const Login = ({ isModal = false, onClose }) => {
     clearLoginError
   } = useAuthFlow();
 
+  // The automatic sign-out sends the user here with ?reason=idle: say why, once.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('reason') !== 'idle') return;
+    toast('You were signed out because there was no activity for a while. Please sign in again.', { duration: 8000 });
+    params.delete('reason');
+    const rest = params.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${rest ? `?${rest}` : ''}`);
+  }, []);
+
   const [registerPrefill, setRegisterPrefill] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('register') !== '1' || params.get('invite')) return null;

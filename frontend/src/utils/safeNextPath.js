@@ -13,6 +13,8 @@ export const safeNextPath = (next, role) => {
   const value = String(next || '').trim();
   const area = ROLE_AREAS[String(role || '').toUpperCase()];
   if (!value || !area) return null;
+  // The control-character test is deliberate: such characters are never allowed in a redirect path.
+  // eslint-disable-next-line no-control-regex
   if (!value.startsWith('/') || value.startsWith('//') || value.includes('\\') || /[\u0000-\u001f]/.test(value)) return null;
   return value === area || value.startsWith(area + '/') || value.startsWith(area + '?') ? value : null;
 };

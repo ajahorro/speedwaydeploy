@@ -24,6 +24,9 @@ import { matchesSearchText } from '../../utils/searchMatch';
 const ACTION_META = {
   INVITE_ACCOUNT: { category: 'ACCOUNTS', title: 'Account invited' },
   REVOKE_ACCESS: { category: 'ACCOUNTS', title: 'Access revoked' },
+  IDLE_SIGNOUT: { category: 'ACCOUNTS', title: 'Signed out for inactivity' },
+  AUTO_DEACTIVATE_STAFF: { category: 'ACCOUNTS', title: 'Staff deactivated for inactivity' },
+  REACTIVATE_STAFF: { category: 'ACCOUNTS', title: 'Staff account reactivated' },
   ACCOUNT_DEACTIVATION: { category: 'ACCOUNTS', title: 'Account deactivated' },
   ACCOUNT_DATA_DELETION_REQUESTED: { category: 'COMPLIANCE', title: 'Data deletion requested' },
   SUPPORT_ISSUE_REPORTED: { category: 'SUPPORT', title: 'Issue reported' },
