@@ -4277,7 +4277,7 @@ app.post('/api/bookings/undo-no-show', async (req, res) => {
 // the amount of a scanned receipt comes from the scan session, the payment minimum is recomputed from
 // the ledger, and for a customer the longer booking must still fit the schedule.
 app.post('/api/bookings/add-service', async (req, res) => {
-  const { bookingId, vehicleId, serviceName, price, paymentAmount, paymentMethod = 'Cash', referenceNumber = '', ocrScanId = null } = req.body || {};
+  const { bookingId, paymentAmount, paymentMethod = 'Cash', referenceNumber = '', ocrScanId = null } = req.body || {};
   // payments.payment_type is an enum (Full | Downpayment | Manual); accept any casing.
   const paymentType = { full: 'Full', downpayment: 'Downpayment', manual: 'Manual' }[String(req.body?.paymentType || 'Downpayment').trim().toLowerCase()] || 'Downpayment';
   const actor = await getAuthenticatedActor(req);
@@ -4291,8 +4291,21 @@ app.post('/api/bookings/add-service', async (req, res) => {
   if (deferToReceive && role !== 'ADMIN') {
     return res.status(403).json({ success: false, error: 'Only an administrator can defer a payment.' });
   }
+
+  // One service or several: `services: [{ serviceName, price, vehicleId }]`, or the older single
+  // serviceName / price / vehicleId. Several services are added together, with ONE payment for the
+  // combined price, and either all of them are added or none.
+  const requested = (Array.isArray(req.body?.services) && req.body.services.length
+    ? req.body.services
+    : [{ serviceName: req.body?.serviceName, price: req.body?.price, vehicleId: req.body?.vehicleId }])
+    .map((item) => ({
+      serviceName: String(item?.serviceName || '').trim(),
+      price: Number(item?.price),
+      vehicleId: item?.vehicleId || req.body?.vehicleId
+    }));
+  if (requested.length > 12) return res.status(400).json({ success: false, error: 'Add up to 12 services at a time.' });
+
   try {
-    const servicePrice = Number(price);
     const { data: booking, error: bookingError } = await supabaseAdmin
       .from('bookings')
       .select('id, status, total_amount, start_datetime, end_datetime, customer_id')
@@ -4307,30 +4320,53 @@ app.post('/api/bookings/add-service', async (req, res) => {
     if (!allowedStatuses.includes(status)) {
       return res.status(409).json({ success: false, error: isCustomer ? 'Services can only be added before the work starts.' : 'Services can only be added while the booking is scheduled, confirmed, or in progress.' });
     }
-    if (!serviceName || !Number.isFinite(servicePrice) || servicePrice <= 0) return res.status(400).json({ success: false, error: 'A valid service and price are required.' });
-    const { data: vehicle, error: vehicleError } = await supabaseAdmin.from('booking_vehicles').select('id, booking_id, vehicle_type, status').eq('id', vehicleId).eq('booking_id', bookingId).maybeSingle();
-    if (vehicleError) throw vehicleError;
-    if (!vehicle) return res.status(404).json({ success: false, error: 'Vehicle does not belong to this booking.' });
-    if (isCustomer && ['IN_PROGRESS', 'ONGOING', 'COMPLETED', 'RELEASED'].includes(String(vehicle.status || '').toUpperCase())) {
-      return res.status(409).json({ success: false, error: 'Work on this vehicle has already started, so a service cannot be added.' });
-    }
 
-    // The price is the shop's price for this service on this vehicle type, never the browser's word
-    // (same catalog the database checks new bookings against). The duration is the shop's, too.
-    const { data: catalogPrice, error: catalogError } = await supabaseAdmin.rpc('catalog_service_price', { p_name: serviceName, p_vehicle_type: vehicle.vehicle_type });
-    if (catalogError) throw catalogError;
-    if (catalogPrice === null || catalogPrice === undefined) {
-      return res.status(409).json({ success: false, error: `"${serviceName}" is not offered for this vehicle type.` });
-    }
-    if (Math.abs(Number(catalogPrice) - servicePrice) > 0.01) {
-      return res.status(409).json({ success: false, error: `The price of "${serviceName}" is now ₱${Number(catalogPrice).toLocaleString()}. Refresh and try again.` });
-    }
-    const { data: catalogDuration, error: durationError } = await supabaseAdmin.rpc('catalog_service_duration', { p_name: serviceName });
-    if (durationError) throw durationError;
-    const durationMinutes = Math.max(1, Number(catalogDuration) || 60);
+    // Check every service; the price and the duration are the shop's, never the browser's word
+    // (same catalog the database checks new bookings against).
+    const vehicles = new Map();
+    const items = [];
+    const seen = new Set();
+    for (const item of requested) {
+      if (!item.serviceName || !Number.isFinite(item.price) || item.price <= 0) return res.status(400).json({ success: false, error: 'A valid service and price are required.' });
+      if (!item.vehicleId) return res.status(400).json({ success: false, error: 'Choose the vehicle for each service.' });
+      if (!vehicles.has(item.vehicleId)) {
+        const { data: vehicle, error: vehicleError } = await supabaseAdmin.from('booking_vehicles').select('id, booking_id, vehicle_type, status').eq('id', item.vehicleId).eq('booking_id', bookingId).maybeSingle();
+        if (vehicleError) throw vehicleError;
+        if (!vehicle) return res.status(404).json({ success: false, error: 'Vehicle does not belong to this booking.' });
+        if (isCustomer && ['IN_PROGRESS', 'ONGOING', 'COMPLETED', 'RELEASED'].includes(String(vehicle.status || '').toUpperCase())) {
+          return res.status(409).json({ success: false, error: 'Work on this vehicle has already started, so a service cannot be added.' });
+        }
+        vehicles.set(item.vehicleId, vehicle);
+      }
+      const vehicle = vehicles.get(item.vehicleId);
+      const duplicateKey = `${item.vehicleId}|${item.serviceName.toLowerCase()}`;
+      if (seen.has(duplicateKey)) return res.status(409).json({ success: false, error: `"${item.serviceName}" was chosen twice for the same vehicle.` });
+      seen.add(duplicateKey);
 
-    const { data: existing } = await supabaseAdmin.from('booking_vehicle_services').select('id').eq('booking_vehicle_id', vehicleId).ilike('service_name', serviceName).maybeSingle();
-    if (existing) return res.status(409).json({ success: false, error: 'This service is already assigned to the vehicle.' });
+      const { data: catalogPrice, error: catalogError } = await supabaseAdmin.rpc('catalog_service_price', { p_name: item.serviceName, p_vehicle_type: vehicle.vehicle_type });
+      if (catalogError) throw catalogError;
+      if (catalogPrice === null || catalogPrice === undefined) {
+        return res.status(409).json({ success: false, error: `"${item.serviceName}" is not offered for this vehicle type.` });
+      }
+      if (Math.abs(Number(catalogPrice) - item.price) > 0.01) {
+        return res.status(409).json({ success: false, error: `The price of "${item.serviceName}" is now ₱${Number(catalogPrice).toLocaleString()}. Refresh and try again.` });
+      }
+      const { data: catalogDuration, error: durationError } = await supabaseAdmin.rpc('catalog_service_duration', { p_name: item.serviceName });
+      if (durationError) throw durationError;
+      const { data: existing } = await supabaseAdmin.from('booking_vehicle_services').select('id').eq('booking_vehicle_id', item.vehicleId).ilike('service_name', item.serviceName).maybeSingle();
+      if (existing) return res.status(409).json({ success: false, error: `"${item.serviceName}" is already assigned to the vehicle.` });
+
+      items.push({
+        vehicle_id: item.vehicleId,
+        service_name: item.serviceName,
+        price: item.price,
+        duration: Math.max(1, Number(catalogDuration) || 60),
+        vehicle_type: vehicle.vehicle_type
+      });
+    }
+    const servicePrice = items.reduce((sum, item) => sum + item.price, 0);
+    const durationMinutes = items.reduce((sum, item) => sum + item.duration, 0);
+    const serviceLabel = items.map((item) => item.service_name).join(' + ');
 
     // A customer's longer booking must still fit the shop's hours and bays (the admin screen checks
     // this in the browser and may override it after an explicit confirmation).
@@ -4349,7 +4385,7 @@ app.post('/api/bookings/add-service', async (req, res) => {
         skipLeadTime: true
       });
       if (!check.valid) {
-        return res.status(409).json({ success: false, code: check.code, error: `This service makes the booking longer than the shop can fit that day. ${check.message || ''}`.trim() });
+        return res.status(409).json({ success: false, code: check.code, error: `These services make the booking longer than the shop can fit that day. ${check.message || ''}`.trim() });
       }
     }
 
@@ -4361,7 +4397,7 @@ app.post('/api/bookings/add-service', async (req, res) => {
       Math.max(0, (await getRequiredDownpaymentFor(newBookingTotal)) - alreadyCovered)
     );
 
-    // ── the payment ───────────────────────────────────────────────────────
+    // ── the payment (one, for the combined price) ───────────────────────
     let payment = null;
     let scanId = null;
     const hasScan = Boolean(ocrScanId) && !deferToReceive;
@@ -4369,7 +4405,7 @@ app.post('/api/bookings/add-service', async (req, res) => {
     const needsPaymentNow = !deferToReceive && servicePrice >= 1000 && minimumDownpaymentNow > 0;
 
     if (isCustomer && needsPaymentNow && !hasScan) {
-      return res.status(409).json({ success: false, error: `Pay at least ₱${minimumDownpaymentNow.toLocaleString()} and upload the receipt to add this service.` });
+      return res.status(409).json({ success: false, error: `Pay at least ₱${minimumDownpaymentNow.toLocaleString()} and upload the receipt to add ${items.length > 1 ? 'these services' : 'this service'}.` });
     }
     if (isCustomer && hasManualAmount) {
       return res.status(403).json({ success: false, error: 'Customers add a payment by uploading the receipt.' });
@@ -4391,7 +4427,7 @@ app.post('/api/bookings/add-service', async (req, res) => {
       // A customer's unreadable receipt goes to the shop for manual verification at the amount due.
       const amountPaid = unreadable ? minimumDownpaymentNow : net;
       if (!(amountPaid > 0)) return res.status(409).json({ success: false, error: 'The amount could not be read from the receipt.' });
-      if (amountPaid > servicePrice + 0.01) return res.status(409).json({ success: false, error: `The receipt shows ₱${amountPaid.toLocaleString()}, more than this service's ₱${servicePrice.toLocaleString()}.` });
+      if (amountPaid > servicePrice + 0.01) return res.status(409).json({ success: false, error: `The receipt shows ₱${amountPaid.toLocaleString()}, more than the ₱${servicePrice.toLocaleString()} for ${items.length > 1 ? 'these services' : 'this service'}.` });
       if (needsPaymentNow && amountPaid < minimumDownpaymentNow - 1) {
         return res.status(409).json({ success: false, error: `The receipt shows ₱${amountPaid.toLocaleString()}, but at least ₱${minimumDownpaymentNow.toLocaleString()} is due now.` });
       }
@@ -4410,13 +4446,13 @@ app.post('/api/bookings/add-service', async (req, res) => {
         net_credit: unreadable ? null : net,
         verified_by: isCustomer ? null : actor.user.id,
         verified_at: isCustomer ? null : new Date().toISOString(),
-        notes: `PAYMENT_GCASH | ADDED_SERVICE:${serviceName} | ${isCustomer ? 'CUSTOMER_SUBMITTED' : 'RECORDED_BY_ADMIN'}${unreadable ? ' | MANUAL_REVIEW' : ''}`
+        notes: `PAYMENT_GCASH | ADDED_SERVICE:${serviceLabel} | ${isCustomer ? 'CUSTOMER_SUBMITTED' : 'RECORDED_BY_ADMIN'}${unreadable ? ' | MANUAL_REVIEW' : ''}`
       };
     } else if (hasManualAmount) {
       const amount = Number(paymentAmount);
       if (!Number.isFinite(amount) || amount <= 0 || amount > servicePrice) return res.status(400).json({ success: false, error: 'Invalid payment amount.' });
       if (needsPaymentNow && amount < minimumDownpaymentNow) {
-        return res.status(409).json({ success: false, error: `Payment must be at least ${minimumDownpaymentNow.toLocaleString()} and no more than the service price.` });
+        return res.status(409).json({ success: false, error: `Payment must be at least ${minimumDownpaymentNow.toLocaleString()} and no more than the price of the services.` });
       }
       const digital = String(paymentMethod).toLowerCase() === 'digital';
       if (digital && String(referenceNumber).trim().length < 4) return res.status(400).json({ success: false, error: 'A reference number is needed for a digital payment.' });
@@ -4428,26 +4464,23 @@ app.post('/api/bookings/add-service', async (req, res) => {
         reference_number: digital ? String(referenceNumber).trim() : null,
         verified_by: actor.user.id,
         verified_at: new Date().toISOString(),
-        notes: `PAYMENT_${digital ? 'DIGITAL' : 'CASH'} | ADDED_SERVICE:${serviceName} | TYPE:${paymentType}${digital ? ' | MANUAL_ENTRY' : ''}`
+        notes: `PAYMENT_${digital ? 'DIGITAL' : 'CASH'} | ADDED_SERVICE:${serviceLabel} | TYPE:${paymentType}${digital ? ' | MANUAL_ENTRY' : ''}`
       };
     } else if (needsPaymentNow) {
-      return res.status(409).json({ success: false, error: `Payment must be at least ${minimumDownpaymentNow.toLocaleString()} and no more than the service price.` });
+      return res.status(409).json({ success: false, error: `Payment must be at least ${minimumDownpaymentNow.toLocaleString()} and no more than the price of the services.` });
     }
 
-    // ONE locked step: service line, payment, scan, new total and end time, audit entry.
-    const { data: paymentId, error: rpcError } = await supabaseAdmin.rpc('apply_added_service', {
+    // ONE locked step: every service line, the payment, the scan, the new total and end time, one audit
+    // entry and one notice. If anything fails, nothing is added.
+    const { data: paymentId, error: rpcError } = await supabaseAdmin.rpc('apply_added_services', {
       p_booking_id: bookingId,
-      p_vehicle_id: vehicleId,
-      p_service_name: serviceName,
-      p_price: servicePrice,
-      p_duration: durationMinutes,
-      p_vehicle_type: vehicle.vehicle_type,
+      p_items: items,
       p_payment: payment,
       p_scan_id: scanId,
       p_actor_id: actor.user.id,
       p_actor_name: actor.user.email || actor.profile.full_name || (isCustomer ? 'Customer' : 'Admin'),
       p_actor_role: role,
-      p_note: `Added ${serviceName}; ${payment ? `recorded payment of ${payment.amount}` : 'no payment taken now'}.`
+      p_note: `Added ${serviceLabel}; ${payment ? `recorded payment of ${payment.amount}` : 'no payment taken now'}.`
     });
     if (rpcError) {
       if (/closed|terminal/i.test(rpcError.message || '')) {
@@ -4462,7 +4495,7 @@ app.post('/api/bookings/add-service', async (req, res) => {
       throw rpcError;
     }
 
-    // A verified payment taken with the added service gets its receipt like any other (once).
+    // A verified payment taken with the added services gets its receipt like any other (once).
     if (payment && payment.status === 'PAID' && paymentId) {
       try {
         await dispatchLifecycleEmail(bookingId, 'PAYMENT_VERIFIED', '', { event: 'payment_verified', paymentId });
@@ -4471,7 +4504,7 @@ app.post('/api/bookings/add-service', async (req, res) => {
       }
     }
 
-    return res.json({ success: true, paymentId: paymentId || null, awaitingVerification: Boolean(payment && payment.status === 'FOR_VERIFICATION') });
+    return res.json({ success: true, added: items.length, paymentId: paymentId || null, awaitingVerification: Boolean(payment && payment.status === 'FOR_VERIFICATION') });
   } catch (error) {
     console.error('Add service failed:', error.message);
     return res.status(500).json({ success: false, error: error.message });

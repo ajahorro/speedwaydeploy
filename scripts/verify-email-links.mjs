@@ -25,7 +25,7 @@ const checks = [
     /paidTransactions\[paidTransactions\.length - 1\]/.test(lifecycle)
     && /'payment_verified', 'booking_confirmed', 'booking_created'/.test(lifecycle)],
   ['receipts: a payment taken with an added service emails its receipt',
-    /ADDED_SERVICE:\$\{serviceName\}/.test(backend) && /event: 'payment_verified', paymentId \}/.test(backend)],
+    /ADDED_SERVICE:\$\{serviceLabel\}/.test(backend) && /event: 'payment_verified', paymentId \}/.test(backend)],
   ['reminder: skipped when the booking was made or confirmed inside the last hour; marked sent only when delivered',
     /madeInsideLastHour/.test(backend) && /confirmedInsideLastHour/.test(backend)
     && /Only a reminder that really went out is marked as sent/.test(backend)],
