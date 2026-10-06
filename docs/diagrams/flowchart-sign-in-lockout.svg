@@ -4,13 +4,13 @@
 <text x="620" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Flowchart: Sign-In and Account Lockout</text>
 <path d="M330,142 L330,180" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
 <path d="M330,246 L330,284" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
-<path d="M455,336 L501,336" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="329" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M455,336 L485,336" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="329" font-size="11.5" font-weight="700" fill="#111">Yes</text>
 <path d="M330,388 L330,426" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="406" font-size="11.5" font-weight="700" fill="#111">No</text>
 <path d="M330,492 L330,530" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
-<path d="M455,582 L501,582" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="575" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M455,582 L485,582" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="575" font-size="11.5" font-weight="700" fill="#111">No</text>
 <path d="M330,634 L330,672" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="652" font-size="11.5" font-weight="700" fill="#111">Yes</text>
 <path d="M330,738 L330,776" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
-<path d="M455,828 L501,828" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="821" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M455,828 L485,828" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="821" font-size="11.5" font-weight="700" fill="#111">No</text>
 <path d="M330,880 L330,918" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="898" font-size="11.5" font-weight="700" fill="#111">Yes</text>
 <path d="M330,984 L330,1022" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
 <path d="M330,1088 L330,1126" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
@@ -26,9 +26,9 @@
 <rect x="205" y="1022" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="1035.3333333333333">Terms gate: if the current terms</tspan><tspan x="330" y="1051.3333333333333">for this role are not accepted,</tspan><tspan x="330" y="1067.3333333333333">the user must scroll to the end</tspan><tspan x="330" y="1083.3333333333333">and accept</tspan></text>
 <rect x="205" y="1126" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="1139.3333333333333">Role check: Customer goes to the</tspan><tspan x="330" y="1155.3333333333333">customer portal, Staff to the</tspan><tspan x="330" y="1171.3333333333333">staff portal, Administrator to</tspan><tspan x="330" y="1187.3333333333333">the admin portal</tspan></text>
 <rect x="205" y="1230" width="250" height="52" rx="26" fill="#fff" stroke="#111" stroke-width="2"/><text text-anchor="middle" font-size="13" font-weight="700" fill="#111"><tspan x="330" y="1260.3333333333333">Signed in</tspan></text>
-<rect x="501" y="290" width="160" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="581" y="325.3333333333333">Refused: shows the</tspan><tspan x="581" y="339.8333333333333">minutes left, or</tspan><tspan x="581" y="354.3333333333333">"check your email"</tspan></text>
-<rect x="501" y="536" width="160" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="581" y="571.3333333333334">Failure is recorded</tspan><tspan x="581" y="585.8333333333334">(see the ladder on</tspan><tspan x="581" y="600.3333333333334">the right)</tspan></text>
-<rect x="501" y="782" width="160" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="581" y="802.8333333333334">Signed out (a</tspan><tspan x="581" y="817.3333333333334">self-deactivated</tspan><tspan x="581" y="831.8333333333334">account can be</tspan><tspan x="581" y="846.3333333333334">recovered within 15</tspan><tspan x="581" y="860.8333333333334">days)</tspan></text>
+<rect x="485" y="290" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="325.3333333333333">Refused: shows the</tspan><tspan x="560" y="339.8333333333333">minutes left, or</tspan><tspan x="560" y="354.3333333333333">"check your email"</tspan></text>
+<rect x="485" y="536" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="571.3333333333334">Failure is recorded</tspan><tspan x="560" y="585.8333333333334">(see the ladder on</tspan><tspan x="560" y="600.3333333333334">the right)</tspan></text>
+<rect x="485" y="782" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="802.8333333333334">Signed out (a</tspan><tspan x="560" y="817.3333333333334">self-deactivated</tspan><tspan x="560" y="831.8333333333334">account can be</tspan><tspan x="560" y="846.3333333333334">recovered within 15</tspan><tspan x="560" y="860.8333333333334">days)</tspan></text>
 <rect x="820" y="290" width="360" height="442" rx="10" fill="none" stroke="#111" stroke-width="1.8"/>
 <rect x="820" y="290" width="360" height="34" rx="10" fill="#111"/>
 <text x="1000" y="312" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">Lockout ladder (kept in the database)</text>
@@ -48,5 +48,5 @@
 <text x="834" y="662" font-size="12.5" font-weight="800" fill="#111">8th wrong password</text>
 <text font-size="12" fill="#111"><tspan x="834" y="682">Held for 60 minutes. A security notice with</tspan><tspan x="834" y="697">a password-reset link is emailed to the</tspan><tspan x="834" y="712">owner.</tspan></text>
 <text x="1000" y="744" text-anchor="middle" font-size="11" fill="#444">An unknown email gets the same answer as a wrong password.</text>
-<path d="M661,582 L796,582 L796,390 L820,390" fill="none" stroke="#111" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a)"/>
+<path d="M635,582 L796,582 L796,390 L820,390" fill="none" stroke="#111" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a)"/>
 </svg>

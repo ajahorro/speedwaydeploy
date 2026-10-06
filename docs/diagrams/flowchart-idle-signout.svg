@@ -4,7 +4,7 @@
 <text x="620" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Flowchart: Automatic Sign-Out After Inactivity</text>
 <path d="M330,142 L330,180" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
 <path d="M330,246 L330,284" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
-<path d="M455,336 L501,336" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="329" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M455,336 L485,336" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="329" font-size="11.5" font-weight="700" fill="#111">No</text>
 <path d="M330,388 L330,426" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="406" font-size="11.5" font-weight="700" fill="#111">Yes</text>
 <path d="M330,492 L330,530" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
 <path d="M330,634 L330,672" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="652" font-size="11.5" font-weight="700" fill="#111">No: the countdown ends, or "Sign out now"</text>
@@ -20,7 +20,7 @@
 <rect x="205" y="776" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="797.3333333333334">The session is ended in the</tspan><tspan x="330" y="813.3333333333334">sign-in service, so every open</tspan><tspan x="330" y="829.3333333333334">tab is signed out</tspan></text>
 <rect x="205" y="880" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="901.3333333333334">The login page opens with the</tspan><tspan x="330" y="917.3333333333334">message: "You were signed out</tspan><tspan x="330" y="933.3333333333334">because there was no activity"</tspan></text>
 <rect x="205" y="984" width="250" height="52" rx="26" fill="#fff" stroke="#111" stroke-width="2"/><text text-anchor="middle" font-size="13" font-weight="700" fill="#111"><tspan x="330" y="1006.3333333333334">The user signs in again; a fresh</tspan><tspan x="330" y="1022.3333333333334">idle period starts</tspan></text>
-<rect x="501" y="290" width="160" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="581" y="332.5833333333333">Keep working. The</tspan><tspan x="581" y="347.0833333333333">check repeats</tspan></text>
+<rect x="485" y="290" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="332.5833333333333">Keep working. The</tspan><tspan x="560" y="347.0833333333333">check repeats</tspan></text>
 <path d="M205,582 L135,582 L135,213 L205,213" fill="none" stroke="#111" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a)"/>
 <text x="129" y="397.5" text-anchor="end" font-size="11.5" font-weight="700" fill="#111" transform="rotate(-90 129 397.5)">Yes: idle time resets, the warning closes</text>
 <rect x="800" y="90" width="400" height="448" rx="10" fill="none" stroke="#111" stroke-width="1.8"/>

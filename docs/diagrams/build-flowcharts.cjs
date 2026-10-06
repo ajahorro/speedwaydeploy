@@ -24,7 +24,7 @@ const SIZE = {
   end: { w: 250, h: 52, chars: 34 },
   step: { w: 250, h: 66, chars: 33 },
   decision: { w: 250, h: 104, chars: 24 },
-  side: { w: 160, h: 92, chars: 21 }
+  side: { w: 150, h: 92, chars: 20 }
 };
 
 const shape = (n) => {
@@ -62,7 +62,7 @@ const layLane = (laneX, startY, steps) => {
       links.push(arrow([[laneX, prev.y + SIZE[prev.type].h / 2], [laneX, cy - h / 2]], lab, [laneX + 8, prev.y + SIZE[prev.type].h / 2 + 18]));
     }
     if (s.type === 'decision' && s.no) {
-      const sx = laneX + 125 + 46 + SIZE.side.w / 2;
+      const sx = laneX + 125 + 30 + SIZE.side.w / 2;
       const side = { type: 'side', label: s.no, x: sx, y: cy };
       sides.push(side);
       links.push(arrow([[laneX + SIZE[s.type].w / 2, cy], [sx - SIZE.side.w / 2, cy]], s.noLabel || 'No', [laneX + 131, cy - 7]));
@@ -317,8 +317,114 @@ const idleLogout = () => {
   return svgWrap(W, H, parts.join('\n'));
 };
 
+
+// ───────────────────────── Flowchart 6: customer booking flow ─────────────────────────
+const bookingFlow = () => {
+  const laneW = 480, left = 20, W = laneW * 4 + 40, top = 176;
+  const cx = (i) => left + i * laneW + 150;
+  const A = [
+    { type: 'start', label: 'Customer opens Book Appointment' },
+    { type: 'step', label: 'For each vehicle: choose a saved vehicle, or enter its type, brand, model, and plate' },
+    { type: 'step', label: 'Choose services for each vehicle; prices follow the vehicle type' },
+    { type: 'decision', label: 'Does each vehicle have services and its own plate?', no: 'Fix the highlighted item (for example a missing required service)', noLabel: 'No', yesLabel: 'Yes' },
+    { type: 'step', label: 'Eligible promotions apply on their own; the customer may also enter a promo code (see the panel)', promo: true },
+    { type: 'step', label: 'Customer picks a date' },
+    { type: 'decision', label: 'Is the date open? (not closed, blocked, past, or too far ahead)', no: 'Date is greyed out with the reason; pick another', noLabel: 'No', yesLabel: 'Yes' },
+    { type: 'step', label: 'System lists the times that fit the longest job plus a buffer, the bays needed, the free technicians, and the shop hours' },
+    { type: 'decision', label: 'Is any time slot free on that day?', no: 'Told there is no space; choose another date', noLabel: 'No', yesLabel: 'Yes' },
+    { type: 'step', label: 'Customer picks a time; the list refreshes live if someone else takes it' }
+  ];
+  const P = [
+    { type: 'step', label: 'Customer types a promo code' },
+    { type: 'decision', label: 'Does the server accept the code now?', no: 'Message says why (not found, not started, expired, used up, or sign in); no discount', noLabel: 'No', yesLabel: 'Yes' },
+    { type: 'step', label: 'The promotion the code unlocks is added to the matching services or package' },
+    { type: 'end', label: 'Totals update; the customer continues in Step 1' }
+  ];
+  const B = [
+    { type: 'step', label: 'Step 3, fleet review: check, edit, add (if bays allow), or remove vehicles; totals update' },
+    { type: 'step', label: 'Step 4: review schedule, services, discount, and total; accept the terms if not yet accepted' },
+    { type: 'decision', label: 'Pay in cash? (offered only when the total is under \u20B11,000)', no: 'Booking is unpaid until paid at the shop; no receipt needed', noLabel: 'Yes', yesLabel: 'No', cash: true },
+    { type: 'step', label: 'Digital payment: choose Full or the downpayment (the minimum follows the shop\'s rule)' },
+    { type: 'step', label: 'Pay with the shop QR code, then upload the receipt photo' },
+    { type: 'step', label: 'The receipt is read: amount, reference number, recipient, and transfer fee' },
+    { type: 'decision', label: 'Is the receipt real, for enough, and not used before?', no: 'Blocked with the reason; upload a correct receipt', noLabel: 'No', yesLabel: 'Yes' },
+    { type: 'step', label: 'Customer presses Submit (only one submission can run at a time)' }
+  ];
+  const C = [
+    { type: 'step', label: 'The server re-checks the date, time, shop capacity, and every price' },
+    { type: 'decision', label: 'Is everything still valid?', no: 'Guided message (for example the slot was just taken); back to the schedule step', noLabel: 'No', yesLabel: 'Yes' },
+    { type: 'step', label: 'The booking is saved in one all-or-nothing step: vehicles, services, total, discount, and payment record' },
+    { type: 'step', label: 'Status is Scheduled. A digital payment waits for verification; a cash booking is marked unpaid' },
+    { type: 'step', label: 'Success page and confirmation email for the customer; administrators are notified' },
+    { type: 'end', label: 'Once the payment is verified and a technician is assigned, the booking is Confirmed' }
+  ];
+
+  const laneA = layLane(cx(0), top, A);
+  const promoIdx = A.findIndex((n) => n.promo);
+  const promoNode = laneA.nodes[promoIdx];
+  const laneP = layLane(cx(1), promoNode.y - SIZE.step.h / 2, P);
+  const laneB = layLane(cx(2), top, B);
+  const laneC = layLane(cx(3), top, C);
+  const lanes = [
+    { title: 'Steps 1 and 2: Services, vehicles, and schedule', lane: laneA },
+    { title: 'Promo code (optional, in Step 1)', lane: laneP },
+    { title: 'Steps 3 and 4: Review and pay', lane: laneB },
+    { title: 'Submit and confirmation', lane: laneC }
+  ];
+  const bottomY = Math.max(...lanes.map((l) => l.lane.endY)) + 80;
+  const H = bottomY + 70;
+  const parts = [];
+  parts.push(`<text x="${W / 2}" y="32" text-anchor="middle" font-size="22" font-weight="800" fill="#111">Flowchart: Customer Booking Flow</text>`);
+  parts.push(`<text x="${W / 2}" y="56" text-anchor="middle" font-size="13" fill="#444">From choosing services to a saved booking. A saved draft or Book Again details can pre-fill the first steps; administrator walk-in bookings follow the same steps but are confirmed at once and take payment at the desk</text>`);
+
+  lanes.forEach(({ title, lane }, i) => {
+    const x = cx(i);
+    const fx = left + i * laneW + 6;
+    parts.push(`<rect x="${fx}" y="84" width="${laneW - 12}" height="${bottomY - 84}" rx="10" fill="none" stroke="#777" stroke-width="1.2" stroke-dasharray="6 5"/>`);
+    const headTop = 98, headH = 50;
+    parts.push(`<rect x="${x - 145}" y="${headTop}" width="290" height="${headH}" rx="6" fill="#111"/>`);
+    const lines = wrap(title, 36);
+    parts.push(`<text text-anchor="middle" font-size="13" font-weight="800" fill="#fff">${lines.map((t, k) => `<tspan x="${x}" y="${headTop + headH / 2 + 4 - ((lines.length - 1) * 8) + k * 16}">${esc(t)}</tspan>`).join('')}</text>`);
+    if (i !== 1) {
+      const first = lane.nodes[0];
+      parts.push(arrow([[x, headTop + headH], [x, first.y - SIZE[first.type].h / 2]]));
+    }
+    parts.push(...lane.links, ...lane.nodes.map(shape), ...lane.sides.map(shape));
+  });
+
+  // optional promo code: from the promotions step into the panel
+  parts.push(arrow([[cx(0) + 125, promoNode.y], [cx(1) - 125, promoNode.y]], 'optional', [cx(0) + 150, promoNode.y - 8]));
+  // header of the promo panel notes it is a sub-flow (no incoming arrow from the header)
+
+  // route from the end of one lane to the header of a later lane, along the frame gap and above the frames
+  const route = (fromLane, fromIdx, toIdx, gapOffset = -8) => {
+    const last = fromLane.last;
+    const xFrom = cx(fromIdx);
+    const gapX = left + (fromIdx + 1) * laneW + gapOffset;
+    const yJoin = bottomY - 24 + (fromIdx === 0 ? 0 : 10);
+    return arrow([[xFrom, last.y + SIZE[last.type].h / 2], [xFrom, yJoin], [gapX, yJoin], [gapX, 72], [cx(toIdx), 72], [cx(toIdx), 98]]);
+  };
+  parts.push(route(laneA, 0, 2));
+  parts.push(route(laneB, 2, 3));
+
+  // cash path: from its side box to the first step of the submit lane
+  const cashDecision = laneB.nodes[B.findIndex((n) => n.cash)];
+  const cashSide = laneB.sides.find((n) => n.y === cashDecision.y);
+  const gapBC = left + 3 * laneW;
+  const firstC = laneC.nodes[0];
+  parts.push(`<path d="M${cashSide.x + SIZE.side.w / 2},${cashSide.y} L${gapBC + 10},${cashSide.y} L${gapBC + 10},${firstC.y} L${cx(3) - 125},${firstC.y}" fill="none" stroke="#111" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a)"/>`);
+
+  // note about unreadable receipts
+  const readStep = laneB.nodes[B.findIndex((n) => /receipt is read/.test(n.label))];
+  const noteX = cx(2) + 125 + 30 + 75;
+  parts.push(`<rect x="${noteX - 75}" y="${readStep.y - 46}" width="150" height="92" rx="14" fill="#fff" stroke="#111" stroke-width="1.3" stroke-dasharray="6 4"/>`);
+  parts.push(text(noteX, readStep.y, 'If the text cannot be read at all, the receipt is accepted for the administrator to check by hand', 20, 11, 600));
+  parts.push(`<path d="M${cx(2) + 125},${readStep.y} L${noteX - 75},${readStep.y}" fill="none" stroke="#111" stroke-width="1.3" stroke-dasharray="6 4"/>`);
+  return svgWrap(W, H, parts.join('\n'));
+};
+
 (async () => {
-  const out = { 'flowchart-account-creation': accountCreation(), 'flowchart-password-recovery': recovery(), 'flowchart-sign-in-lockout': signIn(), 'flowchart-access-control': accessControl(), 'flowchart-idle-signout': idleLogout() };
+  const out = { 'flowchart-account-creation': accountCreation(), 'flowchart-password-recovery': recovery(), 'flowchart-sign-in-lockout': signIn(), 'flowchart-access-control': accessControl(), 'flowchart-idle-signout': idleLogout(), 'flowchart-customer-booking': bookingFlow() };
   for (const [name, svg] of Object.entries(out)) {
     fs.writeFileSync(path.join(__dirname, `${name}.svg`), svg);
     await sharp(Buffer.from(svg), { density: 150 }).png().toFile(path.join(__dirname, `${name}.png`));
