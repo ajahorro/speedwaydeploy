@@ -423,8 +423,85 @@ const bookingFlow = () => {
   return svgWrap(W, H, parts.join('\n'));
 };
 
+
+// ───────────────────────── Flowcharts 7-9: reschedule, cancel, add service ─────────────────────────
+const laneChart = (title, steps, rules) => {
+  const W = 1240, cx = 330;
+  const lane = layLane(cx, 90, steps);
+  const parts = [];
+  parts.push(`<text x="${W / 2}" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">${esc(title)}</text>`);
+  parts.push(...lane.links, ...lane.nodes.map(shape), ...lane.sides.map(shape));
+  const px = 800, pw = 400, py = 130;
+  const heights = rules.map(([, body]) => 44 + wrap(body, 52).length * 15);
+  const total = heights.reduce((a, b) => a + b, 0) + 52;
+  parts.push(`<rect x="${px}" y="${py - 40}" width="${pw}" height="${total}" rx="10" fill="none" stroke="#111" stroke-width="1.8"/>`);
+  parts.push(`<rect x="${px}" y="${py - 40}" width="${pw}" height="34" rx="10" fill="#111"/>`);
+  parts.push(`<text x="${px + pw / 2}" y="${py - 18}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">Rules</text>`);
+  let y = py + 6;
+  rules.forEach(([head, body], i) => {
+    parts.push(`<line x1="${px}" y1="${y - 6}" x2="${px + pw}" y2="${y - 6}" stroke="#bbb"/>`);
+    parts.push(`<text x="${px + 14}" y="${y + 14}" font-size="13" font-weight="800" fill="#111">${esc(head)}</text>`);
+    parts.push(`<text font-size="12" fill="#111">${wrap(body, 52).map((t, k) => `<tspan x="${px + 14}" y="${y + 34 + k * 15}">${esc(t)}</tspan>`).join('')}</text>`);
+    y += heights[i];
+  });
+  return svgWrap(W, Math.max(lane.endY + 110, y + 60), parts.join('\n'));
+};
+
+const rescheduleFlow = () => laneChart('Flowchart: Customer Reschedules a Booking', [
+  { type: 'start', label: 'Customer opens their booking' },
+  { type: 'decision', label: 'Is the booking Scheduled or Confirmed, with no vehicle started?', no: 'Reschedule is not offered', noLabel: 'No', yesLabel: 'Yes' },
+  { type: 'step', label: 'Customer taps Reschedule and picks a new date and time' },
+  { type: 'decision', label: 'Is the new time in the future and within shop hours?', no: 'Message shown; pick another time', noLabel: 'No', yesLabel: 'Yes' },
+  { type: 'decision', label: 'Is the day open, not blocked, and the minimum notice met?', no: 'Message shown; pick another time', noLabel: 'No', yesLabel: 'Yes' },
+  { type: 'decision', label: 'Is there room in the shop for the new time?', no: 'Time is full; pick another time', noLabel: 'No', yesLabel: 'Yes' },
+  { type: 'step', label: 'The new date and time are saved, and the booking keeps its status' },
+  { type: 'decision', label: 'Did the booking move to a different day?', yesLabel: 'No: the same day', no: 'The old shop allocation is cleared and re-assigned', noLabel: 'Yes' },
+  { type: 'step', label: 'The change is recorded, and the customer and the shop are notified' },
+  { type: 'end', label: 'Booking shows the new schedule' }
+], [
+  ['Same checks as booking', 'The database re-checks hours, closed days, blocked times, advance limit, minimum notice, and capacity. The screen check is only a convenience.'],
+  ['Payments are kept', 'Rescheduling never changes the price or the payments already made.'],
+  ['Who can do it', 'Only the customer who owns the booking, or an administrator. Once any vehicle has started, the booking can no longer be rescheduled.']
+]);
+
+const cancelFlow = () => laneChart('Flowchart: Customer Cancels a Booking', [
+  { type: 'start', label: 'Customer opens their booking' },
+  { type: 'decision', label: 'Is the booking Scheduled or Confirmed, with no vehicle started?', no: 'Cancel is not offered', noLabel: 'No', yesLabel: 'Yes' },
+  { type: 'step', label: 'Customer taps Cancel booking (Danger Zone) and is asked for a reason' },
+  { type: 'decision', label: 'Did the customer type a reason and confirm?', no: 'Nothing changes; booking stays', noLabel: 'No', yesLabel: 'Yes' },
+  { type: 'step', label: 'The server checks the customer is signed in and owns the booking' },
+  { type: 'step', label: 'The booking is cancelled, and its time slot and technicians are released' },
+  { type: 'decision', label: 'Was any payment made or submitted?', yesLabel: 'Yes', no: 'No refund is needed', noLabel: 'No' },
+  { type: 'step', label: 'The amount is queued as a refund for the administrator to review in the Refund Hub' },
+  { type: 'step', label: 'The cancellation is recorded, and the customer is emailed with the refund status' },
+  { type: 'end', label: 'Booking shows Cancelled' }
+], [
+  ['When it is allowed', 'Only before any vehicle has started work. After that, the shop must be contacted.'],
+  ['Reason is required', 'The reason is kept with the booking and shown to the shop.'],
+  ['Refunds', 'Nothing is paid back automatically. The administrator decides and records the refund, and the customer receives a refund receipt.'],
+  ['Atomic', 'Cancelling and queuing the refund happen together, so one cannot happen without the other.']
+]);
+
+const addServiceFlow = () => laneChart('Flowchart: Adding a Service to an Existing Booking', [
+  { type: 'start', label: 'Customer or administrator opens a booking and taps Add service' },
+  { type: 'decision', label: 'Is the booking still active (not cancelled or completed)?', no: 'Add service is not offered', noLabel: 'No', yesLabel: 'Yes' },
+  { type: 'step', label: 'Pick the vehicle and the service. The price and extra time are shown' },
+  { type: 'step', label: 'If the price is above what is already paid, pay the difference by GCash or bank and upload the receipt (read automatically)' },
+  { type: 'decision', label: 'If a receipt was uploaded, does it match the amount and shop account?', no: 'Admin can enter it by hand for checking', noLabel: 'No', yesLabel: 'Yes, or no receipt needed' },
+  { type: 'step', label: 'The server looks up the real price and duration itself (the screen values are ignored)' },
+  { type: 'decision', label: 'Does the extra time still fit the schedule?', no: 'Service not added; choose another time', noLabel: 'No', yesLabel: 'Yes' },
+  { type: 'step', label: 'Service, new total, and payment are saved together in one step' },
+  { type: 'step', label: 'The customer, the administrators, and the assigned staff are notified' },
+  { type: 'end', label: 'Booking shows the new service and updated total' }
+], [
+  ['Price is not trusted', 'The price and duration come from the shop catalog on the server, never from the browser.'],
+  ['Payment rules', 'The usual rules apply: a total of 1,000 or more cannot be paid in cash, and digital payments are verified by the administrator.'],
+  ['All or nothing', 'If any step fails, nothing is added and no payment is recorded.'],
+  ['Who can do it', 'The customer who owns the booking, or an administrator for walk-ins and phone requests.']
+]);
+
 (async () => {
-  const out = { 'flowchart-account-creation': accountCreation(), 'flowchart-password-recovery': recovery(), 'flowchart-sign-in-lockout': signIn(), 'flowchart-access-control': accessControl(), 'flowchart-idle-signout': idleLogout(), 'flowchart-customer-booking': bookingFlow() };
+  const out = { 'flowchart-account-creation': accountCreation(), 'flowchart-password-recovery': recovery(), 'flowchart-sign-in-lockout': signIn(), 'flowchart-access-control': accessControl(), 'flowchart-idle-signout': idleLogout(), 'flowchart-customer-booking': bookingFlow(), 'flowchart-reschedule': rescheduleFlow(), 'flowchart-cancel': cancelFlow(), 'flowchart-add-service': addServiceFlow() };
   for (const [name, svg] of Object.entries(out)) {
     fs.writeFileSync(path.join(__dirname, `${name}.svg`), svg);
     await sharp(Buffer.from(svg), { density: 150 }).png().toFile(path.join(__dirname, `${name}.png`));

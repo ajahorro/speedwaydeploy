@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 1288" width="1240" height="1288" font-family="Arial, Helvetica, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker></defs>
+<rect width="1240" height="1288" fill="#fff"/>
+<text x="620" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Flowchart: Adding a Service to an Existing Booking</text>
+<path d="M330,142 L330,180" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M455,232 L485,232" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="225" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,284 L330,322" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="302" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M330,388 L330,426" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M330,492 L330,530" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M455,582 L485,582" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="575" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,634 L330,672" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="652" font-size="11.5" font-weight="700" fill="#111">Yes, or no receipt needed</text>
+<path d="M330,738 L330,776" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M455,828 L485,828" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="821" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,880 L330,918" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="898" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M330,984 L330,1022" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M330,1088 L330,1126" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="205" y="90" width="250" height="52" rx="26" fill="#fff" stroke="#111" stroke-width="2"/><text text-anchor="middle" font-size="13" font-weight="700" fill="#111"><tspan x="330" y="112.33333333333333">Customer or administrator opens a</tspan><tspan x="330" y="128.33333333333331">booking and taps Add service</tspan></text>
+<polygon points="330,180 455,232 330,284 205,232" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="220.66666666666666">Is the booking still</tspan><tspan x="330" y="236.16666666666666">active (not cancelled or</tspan><tspan x="330" y="251.66666666666666">completed)?</tspan></text>
+<rect x="205" y="322" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="343.3333333333333">Pick the vehicle and the service.</tspan><tspan x="330" y="359.3333333333333">The price and extra time are</tspan><tspan x="330" y="375.3333333333333">shown</tspan></text>
+<rect x="205" y="426" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="439.3333333333333">If the price is above what is</tspan><tspan x="330" y="455.3333333333333">already paid, pay the difference</tspan><tspan x="330" y="471.3333333333333">by GCash or bank and upload the</tspan><tspan x="330" y="487.3333333333333">receipt (read automatically)</tspan></text>
+<polygon points="330,530 455,582 330,634 205,582" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="562.9166666666666">If a receipt was</tspan><tspan x="330" y="578.4166666666666">uploaded, does it match</tspan><tspan x="330" y="593.9166666666666">the amount and shop</tspan><tspan x="330" y="609.4166666666666">account?</tspan></text>
+<rect x="205" y="672" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="693.3333333333334">The server looks up the real</tspan><tspan x="330" y="709.3333333333334">price and duration itself (the</tspan><tspan x="330" y="725.3333333333334">screen values are ignored)</tspan></text>
+<polygon points="330,776 455,828 330,880 205,828" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="824.4166666666666">Does the extra time</tspan><tspan x="330" y="839.9166666666666">still fit the schedule?</tspan></text>
+<rect x="205" y="918" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="947.3333333333334">Service, new total, and payment</tspan><tspan x="330" y="963.3333333333334">are saved together in one step</tspan></text>
+<rect x="205" y="1022" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="1043.3333333333333">The customer, the administrators,</tspan><tspan x="330" y="1059.3333333333333">and the assigned staff are</tspan><tspan x="330" y="1075.3333333333333">notified</tspan></text>
+<rect x="205" y="1126" width="250" height="52" rx="26" fill="#fff" stroke="#111" stroke-width="2"/><text text-anchor="middle" font-size="13" font-weight="700" fill="#111"><tspan x="330" y="1148.3333333333333">Booking shows the new service and</tspan><tspan x="330" y="1164.3333333333333">updated total</tspan></text>
+<rect x="485" y="186" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="228.58333333333334">Add service is not</tspan><tspan x="560" y="243.08333333333334">offered</tspan></text>
+<rect x="485" y="536" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="578.5833333333334">Admin can enter it</tspan><tspan x="560" y="593.0833333333334">by hand for checking</tspan></text>
+<rect x="485" y="782" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="824.5833333333334">Service not added;</tspan><tspan x="560" y="839.0833333333334">choose another time</tspan></text>
+<rect x="800" y="90" width="400" height="363" rx="10" fill="none" stroke="#111" stroke-width="1.8"/>
+<rect x="800" y="90" width="400" height="34" rx="10" fill="#111"/>
+<text x="1000" y="112" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">Rules</text>
+<line x1="800" y1="130" x2="1200" y2="130" stroke="#bbb"/>
+<text x="814" y="150" font-size="13" font-weight="800" fill="#111">Price is not trusted</text>
+<text font-size="12" fill="#111"><tspan x="814" y="170">The price and duration come from the shop catalog on</tspan><tspan x="814" y="185">the server, never from the browser.</tspan></text>
+<line x1="800" y1="204" x2="1200" y2="204" stroke="#bbb"/>
+<text x="814" y="224" font-size="13" font-weight="800" fill="#111">Payment rules</text>
+<text font-size="12" fill="#111"><tspan x="814" y="244">The usual rules apply: a total of 1,000 or more</tspan><tspan x="814" y="259">cannot be paid in cash, and digital payments are</tspan><tspan x="814" y="274">verified by the administrator.</tspan></text>
+<line x1="800" y1="293" x2="1200" y2="293" stroke="#bbb"/>
+<text x="814" y="313" font-size="13" font-weight="800" fill="#111">All or nothing</text>
+<text font-size="12" fill="#111"><tspan x="814" y="333">If any step fails, nothing is added and no payment</tspan><tspan x="814" y="348">is recorded.</tspan></text>
+<line x1="800" y1="367" x2="1200" y2="367" stroke="#bbb"/>
+<text x="814" y="387" font-size="13" font-weight="800" fill="#111">Who can do it</text>
+<text font-size="12" fill="#111"><tspan x="814" y="407">The customer who owns the booking, or an</tspan><tspan x="814" y="422">administrator for walk-ins and phone requests.</tspan></text>
+</svg>

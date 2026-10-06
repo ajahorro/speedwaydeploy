@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 1288" width="1240" height="1288" font-family="Arial, Helvetica, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker></defs>
+<rect width="1240" height="1288" fill="#fff"/>
+<text x="620" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Flowchart: Customer Cancels a Booking</text>
+<path d="M330,142 L330,180" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M455,232 L485,232" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="225" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,284 L330,322" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="302" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M330,388 L330,426" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M455,478 L485,478" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="471" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,530 L330,568" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="548" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M330,634 L330,672" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M330,738 L330,776" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M455,828 L485,828" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="821" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,880 L330,918" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="898" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M330,984 L330,1022" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M330,1088 L330,1126" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="205" y="90" width="250" height="52" rx="26" fill="#fff" stroke="#111" stroke-width="2"/><text text-anchor="middle" font-size="13" font-weight="700" fill="#111"><tspan x="330" y="120.33333333333333">Customer opens their booking</tspan></text>
+<polygon points="330,180 455,232 330,284 205,232" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="220.66666666666666">Is the booking Scheduled</tspan><tspan x="330" y="236.16666666666666">or Confirmed, with no</tspan><tspan x="330" y="251.66666666666666">vehicle started?</tspan></text>
+<rect x="205" y="322" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="343.3333333333333">Customer taps Cancel booking</tspan><tspan x="330" y="359.3333333333333">(Danger Zone) and is asked for a</tspan><tspan x="330" y="375.3333333333333">reason</tspan></text>
+<polygon points="330,426 455,478 330,530 205,478" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="474.4166666666667">Did the customer type a</tspan><tspan x="330" y="489.9166666666667">reason and confirm?</tspan></text>
+<rect x="205" y="568" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="597.3333333333334">The server checks the customer is</tspan><tspan x="330" y="613.3333333333334">signed in and owns the booking</tspan></text>
+<rect x="205" y="672" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="693.3333333333334">The booking is cancelled, and its</tspan><tspan x="330" y="709.3333333333334">time slot and technicians are</tspan><tspan x="330" y="725.3333333333334">released</tspan></text>
+<polygon points="330,776 455,828 330,880 205,828" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="824.4166666666666">Was any payment made or</tspan><tspan x="330" y="839.9166666666666">submitted?</tspan></text>
+<rect x="205" y="918" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="939.3333333333334">The amount is queued as a refund</tspan><tspan x="330" y="955.3333333333334">for the administrator to review</tspan><tspan x="330" y="971.3333333333334">in the Refund Hub</tspan></text>
+<rect x="205" y="1022" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="1043.3333333333333">The cancellation is recorded, and</tspan><tspan x="330" y="1059.3333333333333">the customer is emailed with the</tspan><tspan x="330" y="1075.3333333333333">refund status</tspan></text>
+<rect x="205" y="1126" width="250" height="52" rx="26" fill="#fff" stroke="#111" stroke-width="2"/><text text-anchor="middle" font-size="13" font-weight="700" fill="#111"><tspan x="330" y="1156.3333333333333">Booking shows Cancelled</tspan></text>
+<rect x="485" y="186" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="228.58333333333334">Cancel is not</tspan><tspan x="560" y="243.08333333333334">offered</tspan></text>
+<rect x="485" y="432" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="474.5833333333333">Nothing changes;</tspan><tspan x="560" y="489.0833333333333">booking stays</tspan></text>
+<rect x="485" y="782" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="831.8333333333334">No refund is needed</tspan></text>
+<rect x="800" y="90" width="400" height="363" rx="10" fill="none" stroke="#111" stroke-width="1.8"/>
+<rect x="800" y="90" width="400" height="34" rx="10" fill="#111"/>
+<text x="1000" y="112" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">Rules</text>
+<line x1="800" y1="130" x2="1200" y2="130" stroke="#bbb"/>
+<text x="814" y="150" font-size="13" font-weight="800" fill="#111">When it is allowed</text>
+<text font-size="12" fill="#111"><tspan x="814" y="170">Only before any vehicle has started work. After</tspan><tspan x="814" y="185">that, the shop must be contacted.</tspan></text>
+<line x1="800" y1="204" x2="1200" y2="204" stroke="#bbb"/>
+<text x="814" y="224" font-size="13" font-weight="800" fill="#111">Reason is required</text>
+<text font-size="12" fill="#111"><tspan x="814" y="244">The reason is kept with the booking and shown to the</tspan><tspan x="814" y="259">shop.</tspan></text>
+<line x1="800" y1="278" x2="1200" y2="278" stroke="#bbb"/>
+<text x="814" y="298" font-size="13" font-weight="800" fill="#111">Refunds</text>
+<text font-size="12" fill="#111"><tspan x="814" y="318">Nothing is paid back automatically. The</tspan><tspan x="814" y="333">administrator decides and records the refund, and</tspan><tspan x="814" y="348">the customer receives a refund receipt.</tspan></text>
+<line x1="800" y1="367" x2="1200" y2="367" stroke="#bbb"/>
+<text x="814" y="387" font-size="13" font-weight="800" fill="#111">Atomic</text>
+<text font-size="12" fill="#111"><tspan x="814" y="407">Cancelling and queuing the refund happen together,</tspan><tspan x="814" y="422">so one cannot happen without the other.</tspan></text>
+</svg>

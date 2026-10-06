@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 1364" width="1240" height="1364" font-family="Arial, Helvetica, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker></defs>
+<rect width="1240" height="1364" fill="#fff"/>
+<text x="620" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Flowchart: Customer Reschedules a Booking</text>
+<path d="M330,142 L330,180" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M455,232 L485,232" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="225" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,284 L330,322" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="302" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M330,388 L330,426" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M455,478 L485,478" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="471" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,530 L330,568" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="548" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M455,620 L485,620" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="613" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,672 L330,710" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="690" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M455,762 L485,762" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="755" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,814 L330,852" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="832" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M330,918 L330,956" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M455,1008 L485,1008" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="1001" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M330,1060 L330,1098" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="1078" font-size="11.5" font-weight="700" fill="#111">No: the same day</text>
+<path d="M330,1164 L330,1202" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="205" y="90" width="250" height="52" rx="26" fill="#fff" stroke="#111" stroke-width="2"/><text text-anchor="middle" font-size="13" font-weight="700" fill="#111"><tspan x="330" y="120.33333333333333">Customer opens their booking</tspan></text>
+<polygon points="330,180 455,232 330,284 205,232" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="220.66666666666666">Is the booking Scheduled</tspan><tspan x="330" y="236.16666666666666">or Confirmed, with no</tspan><tspan x="330" y="251.66666666666666">vehicle started?</tspan></text>
+<rect x="205" y="322" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="351.3333333333333">Customer taps Reschedule and</tspan><tspan x="330" y="367.3333333333333">picks a new date and time</tspan></text>
+<polygon points="330,426 455,478 330,530 205,478" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="466.6666666666667">Is the new time in the</tspan><tspan x="330" y="482.1666666666667">future and within shop</tspan><tspan x="330" y="497.6666666666667">hours?</tspan></text>
+<polygon points="330,568 455,620 330,672 205,620" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="608.6666666666666">Is the day open, not</tspan><tspan x="330" y="624.1666666666666">blocked, and the minimum</tspan><tspan x="330" y="639.6666666666666">notice met?</tspan></text>
+<polygon points="330,710 455,762 330,814 205,762" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="758.4166666666666">Is there room in the</tspan><tspan x="330" y="773.9166666666666">shop for the new time?</tspan></text>
+<rect x="205" y="852" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="881.3333333333334">The new date and time are saved,</tspan><tspan x="330" y="897.3333333333334">and the booking keeps its status</tspan></text>
+<polygon points="330,956 455,1008 330,1060 205,1008" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="1004.4166666666666">Did the booking move to</tspan><tspan x="330" y="1019.9166666666666">a different day?</tspan></text>
+<rect x="205" y="1098" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="1119.3333333333333">The change is recorded, and the</tspan><tspan x="330" y="1135.3333333333333">customer and the shop are</tspan><tspan x="330" y="1151.3333333333333">notified</tspan></text>
+<rect x="205" y="1202" width="250" height="52" rx="26" fill="#fff" stroke="#111" stroke-width="2"/><text text-anchor="middle" font-size="13" font-weight="700" fill="#111"><tspan x="330" y="1232.3333333333333">Booking shows the new schedule</tspan></text>
+<rect x="485" y="186" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="228.58333333333334">Reschedule is not</tspan><tspan x="560" y="243.08333333333334">offered</tspan></text>
+<rect x="485" y="432" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="474.5833333333333">Message shown; pick</tspan><tspan x="560" y="489.0833333333333">another time</tspan></text>
+<rect x="485" y="574" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="616.5833333333334">Message shown; pick</tspan><tspan x="560" y="631.0833333333334">another time</tspan></text>
+<rect x="485" y="716" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="758.5833333333334">Time is full; pick</tspan><tspan x="560" y="773.0833333333334">another time</tspan></text>
+<rect x="485" y="962" width="150" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="560" y="990.0833333333334">The old shop</tspan><tspan x="560" y="1004.5833333333334">allocation is</tspan><tspan x="560" y="1019.0833333333334">cleared and</tspan><tspan x="560" y="1033.5833333333335">re-assigned</tspan></text>
+<rect x="800" y="90" width="400" height="304" rx="10" fill="none" stroke="#111" stroke-width="1.8"/>
+<rect x="800" y="90" width="400" height="34" rx="10" fill="#111"/>
+<text x="1000" y="112" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">Rules</text>
+<line x1="800" y1="130" x2="1200" y2="130" stroke="#bbb"/>
+<text x="814" y="150" font-size="13" font-weight="800" fill="#111">Same checks as booking</text>
+<text font-size="12" fill="#111"><tspan x="814" y="170">The database re-checks hours, closed days, blocked</tspan><tspan x="814" y="185">times, advance limit, minimum notice, and capacity.</tspan><tspan x="814" y="200">The screen check is only a convenience.</tspan></text>
+<line x1="800" y1="219" x2="1200" y2="219" stroke="#bbb"/>
+<text x="814" y="239" font-size="13" font-weight="800" fill="#111">Payments are kept</text>
+<text font-size="12" fill="#111"><tspan x="814" y="259">Rescheduling never changes the price or the payments</tspan><tspan x="814" y="274">already made.</tspan></text>
+<line x1="800" y1="293" x2="1200" y2="293" stroke="#bbb"/>
+<text x="814" y="313" font-size="13" font-weight="800" fill="#111">Who can do it</text>
+<text font-size="12" fill="#111"><tspan x="814" y="333">Only the customer who owns the booking, or an</tspan><tspan x="814" y="348">administrator. Once any vehicle has started, the</tspan><tspan x="814" y="363">booking can no longer be rescheduled.</tspan></text>
+</svg>
