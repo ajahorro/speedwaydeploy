@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 1146" width="1240" height="1146" font-family="Arial, Helvetica, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker></defs>
+<rect width="1240" height="1146" fill="#fff"/>
+<text x="620" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Flowchart: Automatic Sign-Out After Inactivity</text>
+<path d="M330,142 L330,180" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M330,246 L330,284" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M455,336 L501,336" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="461" y="329" font-size="11.5" font-weight="700" fill="#111">No</text>
+<path d="M330,388 L330,426" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="406" font-size="11.5" font-weight="700" fill="#111">Yes</text>
+<path d="M330,492 L330,530" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M330,634 L330,672" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/><text x="338" y="652" font-size="11.5" font-weight="700" fill="#111">No: the countdown ends, or "Sign out now"</text>
+<path d="M330,738 L330,776" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M330,842 L330,880" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M330,946 L330,984" fill="none" stroke="#111" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="205" y="90" width="250" height="52" rx="26" fill="#fff" stroke="#111" stroke-width="2"/><text text-anchor="middle" font-size="13" font-weight="700" fill="#111"><tspan x="330" y="112.33333333333333">A user is signed in and using the</tspan><tspan x="330" y="128.33333333333331">system</tspan></text>
+<rect x="205" y="180" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="193.33333333333334">Every click, key press, scroll,</tspan><tspan x="330" y="209.33333333333334">or touch updates a shared "last</tspan><tspan x="330" y="225.33333333333334">activity" time (all open tabs of</tspan><tspan x="330" y="241.33333333333334">the browser share it)</tspan></text>
+<polygon points="330,284 455,336 330,388 205,336" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="324.6666666666667">Idle for the limit minus</tspan><tspan x="330" y="340.1666666666667">60 seconds? (checked</tspan><tspan x="330" y="355.6666666666667">every second)</tspan></text>
+<rect x="205" y="426" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="439.3333333333333">A warning appears with a</tspan><tspan x="330" y="455.3333333333333">60-second countdown. Clicks</tspan><tspan x="330" y="471.3333333333333">elsewhere on the page do not</tspan><tspan x="330" y="487.3333333333333">count now</tspan></text>
+<polygon points="330,530 455,582 330,634 205,582" fill="#fff" stroke="#111" stroke-width="1.8"/><text text-anchor="middle" font-size="12.5" font-weight="600" fill="#111"><tspan x="330" y="570.6666666666666">Does the user press</tspan><tspan x="330" y="586.1666666666666">"Stay signed in" before</tspan><tspan x="330" y="601.6666666666666">the countdown ends?</tspan></text>
+<rect x="205" y="672" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="693.3333333333334">For administrator and staff</tspan><tspan x="330" y="709.3333333333334">accounts, the automatic sign-out</tspan><tspan x="330" y="725.3333333333334">is first written to the audit log</tspan></text>
+<rect x="205" y="776" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="797.3333333333334">The session is ended in the</tspan><tspan x="330" y="813.3333333333334">sign-in service, so every open</tspan><tspan x="330" y="829.3333333333334">tab is signed out</tspan></text>
+<rect x="205" y="880" width="250" height="66" rx="6" fill="#fff" stroke="#111" stroke-width="1.6"/><text text-anchor="middle" font-size="13" font-weight="400" fill="#111"><tspan x="330" y="901.3333333333334">The login page opens with the</tspan><tspan x="330" y="917.3333333333334">message: "You were signed out</tspan><tspan x="330" y="933.3333333333334">because there was no activity"</tspan></text>
+<rect x="205" y="984" width="250" height="52" rx="26" fill="#fff" stroke="#111" stroke-width="2"/><text text-anchor="middle" font-size="13" font-weight="700" fill="#111"><tspan x="330" y="1006.3333333333334">The user signs in again; a fresh</tspan><tspan x="330" y="1022.3333333333334">idle period starts</tspan></text>
+<rect x="501" y="290" width="160" height="92" rx="35.38461538461539" fill="#fff" stroke="#111" stroke-width="1.6" stroke-dasharray="1 0"/><text text-anchor="middle" font-size="11.5" font-weight="600" fill="#111"><tspan x="581" y="332.5833333333333">Keep working. The</tspan><tspan x="581" y="347.0833333333333">check repeats</tspan></text>
+<path d="M205,582 L135,582 L135,213 L205,213" fill="none" stroke="#111" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a)"/>
+<text x="129" y="397.5" text-anchor="end" font-size="11.5" font-weight="700" fill="#111" transform="rotate(-90 129 397.5)">Yes: idle time resets, the warning closes</text>
+<rect x="800" y="90" width="400" height="448" rx="10" fill="none" stroke="#111" stroke-width="1.8"/>
+<rect x="800" y="90" width="400" height="34" rx="10" fill="#111"/>
+<text x="1000" y="112" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">Rules</text>
+<line x1="800" y1="130" x2="1200" y2="130" stroke="#bbb"/>
+<text x="814" y="150" font-size="13" font-weight="800" fill="#111">Idle limits</text>
+<text font-size="12" fill="#111"><tspan x="814" y="170">Administrator and staff: 15 minutes. Customer: 60</tspan><tspan x="814" y="185">minutes. They are set in one place and can be</tspan><tspan x="814" y="200">changed.</tspan></text>
+<line x1="800" y1="226" x2="1200" y2="226" stroke="#bbb"/>
+<text x="814" y="246" font-size="13" font-weight="800" fill="#111">Several tabs</text>
+<text font-size="12" fill="#111"><tspan x="814" y="266">Activity in any tab keeps every tab signed in. If</tspan><tspan x="814" y="281">another tab presses "Stay signed in", this tab's</tspan><tspan x="814" y="296">warning closes.</tspan></text>
+<line x1="800" y1="336" x2="1200" y2="336" stroke="#bbb"/>
+<text x="814" y="356" font-size="13" font-weight="800" fill="#111">Reopened browser</text>
+<text font-size="12" fill="#111"><tspan x="814" y="376">If the limit has already passed (for example the</tspan><tspan x="814" y="391">computer was asleep or closed), the user is signed</tspan><tspan x="814" y="406">out at once, with no warning.</tspan></text>
+<line x1="800" y1="446" x2="1200" y2="446" stroke="#bbb"/>
+<text x="814" y="466" font-size="13" font-weight="800" fill="#111">Nothing is lost</text>
+<text font-size="12" fill="#111"><tspan x="814" y="486">Booking forms are saved as they are typed, so the</tspan><tspan x="814" y="501">draft is there after signing in again.</tspan></text>
+</svg>

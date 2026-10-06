@@ -266,8 +266,59 @@ const accessControl = () => {
   return svgWrap(W, H, parts.join('\n'));
 };
 
+
+// ───────────────────────── Flowchart 5: automatic sign-out after inactivity ─────────────────────────
+const idleLogout = () => {
+  const W = 1240, cx = 330;
+  const steps = [
+    { type: 'start', label: 'A user is signed in and using the system' },
+    { type: 'step', label: 'Every click, key press, scroll, or touch updates a shared "last activity" time (all open tabs of the browser share it)' },
+    { type: 'decision', label: 'Idle for the limit minus 60 seconds? (checked every second)', no: 'Keep working. The check repeats', noLabel: 'No', yesLabel: 'Yes' },
+    { type: 'step', label: 'A warning appears with a 60-second countdown. Clicks elsewhere on the page do not count now' },
+    { type: 'decision', label: 'Does the user press "Stay signed in" before the countdown ends?', yesLabel: 'No: the countdown ends, or "Sign out now"' },
+    { type: 'step', label: 'For administrator and staff accounts, the automatic sign-out is first written to the audit log' },
+    { type: 'step', label: 'The session is ended in the sign-in service, so every open tab is signed out' },
+    { type: 'step', label: 'The login page opens with the message: "You were signed out because there was no activity"' },
+    { type: 'end', label: 'The user signs in again; a fresh idle period starts' }
+  ];
+  const lane = layLane(cx, 90, steps);
+  const H = Math.max(lane.endY + 110, 900);
+  const parts = [];
+  parts.push(`<text x="${W / 2}" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#111">Flowchart: Automatic Sign-Out After Inactivity</text>`);
+  parts.push(...lane.links, ...lane.nodes.map(shape), ...lane.sides.map(shape));
+
+  // "Stay signed in" returns to normal use: loop arrow from the Yes branch back up to the activity step
+  const stay = lane.nodes[4];
+  const activity = lane.nodes[1];
+  const loopX = cx - 125 - 70;
+  parts.push(`<path d="M${cx - 125},${stay.y} L${loopX},${stay.y} L${loopX},${activity.y} L${cx - 125},${activity.y}" fill="none" stroke="#111" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a)"/>`);
+  parts.push(`<text x="${loopX - 6}" y="${(stay.y + activity.y) / 2}" text-anchor="end" font-size="11.5" font-weight="700" fill="#111" transform="rotate(-90 ${loopX - 6} ${(stay.y + activity.y) / 2})">Yes: idle time resets, the warning closes</text>`);
+
+  // limits and rules panel
+  const px = 800, pw = 400, py = 130;
+  const rows = [
+    ['Idle limits', 'Administrator and staff: 15 minutes. Customer: 60 minutes. They are set in one place and can be changed.'],
+    ['Several tabs', 'Activity in any tab keeps every tab signed in. If another tab presses "Stay signed in", this tab\'s warning closes.'],
+    ['Reopened browser', 'If the limit has already passed (for example the computer was asleep or closed), the user is signed out at once, with no warning.'],
+    ['Nothing is lost', 'Booking forms are saved as they are typed, so the draft is there after signing in again.']
+  ];
+  const heights = [96, 110, 110, 80];
+  const total = heights.reduce((a, b) => a + b, 0) + 52;
+  parts.push(`<rect x="${px}" y="${py - 40}" width="${pw}" height="${total}" rx="10" fill="none" stroke="#111" stroke-width="1.8"/>`);
+  parts.push(`<rect x="${px}" y="${py - 40}" width="${pw}" height="34" rx="10" fill="#111"/>`);
+  parts.push(`<text x="${px + pw / 2}" y="${py - 18}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">Rules</text>`);
+  let y = py + 6;
+  rows.forEach(([head, body], i) => {
+    parts.push(`<line x1="${px}" y1="${y - 6}" x2="${px + pw}" y2="${y - 6}" stroke="#bbb"/>`);
+    parts.push(`<text x="${px + 14}" y="${y + 14}" font-size="13" font-weight="800" fill="#111">${esc(head)}</text>`);
+    parts.push(`<text font-size="12" fill="#111">${wrap(body, 52).map((t, k) => `<tspan x="${px + 14}" y="${y + 34 + k * 15}">${esc(t)}</tspan>`).join('')}</text>`);
+    y += heights[i];
+  });
+  return svgWrap(W, H, parts.join('\n'));
+};
+
 (async () => {
-  const out = { 'flowchart-account-creation': accountCreation(), 'flowchart-password-recovery': recovery(), 'flowchart-sign-in-lockout': signIn(), 'flowchart-access-control': accessControl() };
+  const out = { 'flowchart-account-creation': accountCreation(), 'flowchart-password-recovery': recovery(), 'flowchart-sign-in-lockout': signIn(), 'flowchart-access-control': accessControl(), 'flowchart-idle-signout': idleLogout() };
   for (const [name, svg] of Object.entries(out)) {
     fs.writeFileSync(path.join(__dirname, `${name}.svg`), svg);
     await sharp(Buffer.from(svg), { density: 150 }).png().toFile(path.join(__dirname, `${name}.png`));
