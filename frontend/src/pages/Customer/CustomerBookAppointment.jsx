@@ -133,6 +133,27 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
   setRedeemedPromoRule(bookingData.promoRule || null);
   React.useEffect(() => () => setRedeemedPromoRule(null), []);
 
+  // The accepted receipt (and its reading) stays while the person moves between steps, for example back to change the
+  // time. It is dropped only after 2 minutes without any click, tap or key press.
+  const lastActivityRef = useRef(Date.now());
+  const hasProof = Boolean(bookingData.payment?.proofOfPayment);
+  React.useEffect(() => {
+    const touch = () => { lastActivityRef.current = Date.now(); };
+    const events = ['pointerdown', 'keydown', 'touchstart'];
+    events.forEach((name) => window.addEventListener(name, touch, { passive: true }));
+    return () => events.forEach((name) => window.removeEventListener(name, touch));
+  }, []);
+  React.useEffect(() => {
+    if (!hasProof) return undefined;
+    lastActivityRef.current = Date.now();
+    const timer = setInterval(() => {
+      if (Date.now() - lastActivityRef.current > 2 * 60 * 1000) {
+        setBookingData((prev) => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null, ocrData: null } }));
+      }
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [hasProof]);
+
   const updateBookingData = updater => {
     setHasDraftChanges(true);
     setBookingData(updater);

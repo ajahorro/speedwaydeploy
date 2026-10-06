@@ -25,7 +25,12 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   const { settings } = useConfig();
   const { profile: signedInProfile } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
-  const [receiptDetails, setReceiptDetails] = useState(null);
+  // Coming back to this step after changing the time keeps the receipt that was already read and accepted.
+  const [receiptDetails, setReceiptDetails] = useState(() => (bookingData.payment?.proofOfPayment && bookingData.payment?.ocrData) || null);
+  useEffect(() => {
+    // the receipt was removed (or dropped after 2 idle minutes): clear its reading too
+    if (!bookingData.payment?.proofOfPayment) setReceiptDetails(null);
+  }, [bookingData.payment?.proofOfPayment]);
   const [adminDigitalMode, setAdminDigitalMode] = useState('ocr'); // 'ocr' | 'reference'
   const [manualRefInput, setManualRefInput] = useState(bookingData.payment?.manualRefNumber || bookingData.payment?.referenceNumber || '');
   // A customer who already accepted the current customer terms when opening their account is
