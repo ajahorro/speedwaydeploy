@@ -3952,7 +3952,7 @@ const deactivateInactiveStaff = async () => {
     console.warn('🕒 [INACTIVE STAFF] Sweep failed:', err.message);
   }
 };
-setInterval(deactivateInactiveStaff, 60 * 60000);
+setInterval(deactivateInactiveStaff, 24 * 60 * 60000);
 setTimeout(deactivateInactiveStaff, 2 * 60000);
 releaseExpiredUnpaidHolds();
 
