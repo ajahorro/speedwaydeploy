@@ -19,6 +19,7 @@ import { EmailInput } from '../../components/common/ContactInputs';
 import { emailError } from '../../utils/contactValidation';
 import EditStaffDialog from '../../features/accounts/EditStaffDialog';
 import InactiveStaffPanel from '../../features/accounts/InactiveStaffPanel';
+import StaffTables from '../../features/accounts/StaffTables';
 import { matchesSearchText } from '../../utils/searchMatch';
 
 const AdminAccountsManagement = () => {
@@ -253,9 +254,9 @@ const AdminAccountsManagement = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <PageHeader
-        badge="ACCOUNT INFRASTRUCTURE"
-        title="Accounts Management"
-        subtitle="Manage system access levels and administrative privileges via secure invitation."
+        badge="ACCOUNTS"
+        title="Accounts"
+        subtitle="Your staff and admin accounts."
         onRefresh={fetchAccounts}
       />
 
@@ -319,6 +320,16 @@ const AdminAccountsManagement = () => {
           </button>
         </div>
 
+        {activeTab === 'STAFF' ? (
+          <StaffTables
+            members={filteredAccounts}
+            loading={loading}
+            isSubmitting={isSubmitting}
+            onEdit={setEditingMember}
+            onDeactivate={handleDeactivate}
+            isProtected={(member) => isDefaultAdmin(member) || isSelf(member) || isLastAdmin(member)}
+          />
+        ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {loading ? (
             [1,2,3].map(i => (
@@ -402,6 +413,7 @@ const AdminAccountsManagement = () => {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* INVITATION MODAL */}

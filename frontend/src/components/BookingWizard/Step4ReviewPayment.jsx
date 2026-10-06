@@ -540,7 +540,15 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   const adminRefNumberValid = adminDigitalMode === 'reference' ? Boolean(manualRefInput.trim().length >= 4) : true;
   const adminOcrProofValid = adminDigitalMode === 'ocr' ? Boolean(bookingData.payment?.proofOfPayment !== null && !isUploading) : true;
 
-  const adminPaymentValid = !adminMode || isReceivable || (
+  // Admin walk-in with a receipt photo: the amount read from the receipt must be exactly the amount being recorded
+  // (downpayment, full or typed). A different or unreadable amount is not accepted.
+  const adminReceiptAmount = Number(receiptDetails?.amount);
+  const adminReceiptRead = Boolean(receiptDetails) && receiptDetails.amountDetected === true && Number.isFinite(adminReceiptAmount);
+  const adminAmountMismatch = adminMode && !isReceivable && isGcash && adminDigitalMode === 'ocr'
+    && Boolean(bookingData.payment?.proofOfPayment) && !isUploading
+    && (!adminReceiptRead || Math.abs(adminReceiptAmount - adminChosenAmount) > 0.5);
+
+  const adminPaymentValid = !adminMode || isReceivable || !adminAmountMismatch && (
     ['Downpayment', 'Full', 'Manual'].includes(bookingData.payment.type) &&
     (bookingData.payment.type !== 'Manual' || (manualAmount >= manualMinimum && manualAmount <= grandTotal)) &&
     (!isGcash || (adminDigitalMode === 'reference' ? adminRefNumberValid : adminOcrProofValid))
@@ -1335,6 +1343,14 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
         </div>
       </div>
+
+      {adminAmountMismatch && (
+        <div role="alert" style={{ padding: '0.85rem 1rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--status-danger)', color: 'var(--status-danger)', fontSize: '0.82rem', fontWeight: 800, lineHeight: 1.5 }}>
+          {adminReceiptRead
+            ? `The receipt shows ₱${adminReceiptAmount.toLocaleString()} but you entered ₱${Number(adminChosenAmount).toLocaleString()}. They must be the same. Change the amount or upload the right receipt.`
+            : 'The amount on the receipt could not be read. Upload a clearer photo, or use the reference number instead.'}
+        </div>
+      )}
 
       {/* Action Footer */}
       <div className="review-action-footer" style={{ borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem', marginTop: '1rem' }}>

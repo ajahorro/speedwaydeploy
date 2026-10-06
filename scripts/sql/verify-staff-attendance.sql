@@ -85,6 +85,8 @@ end $$;
 select set_config('request.jwt.claims', json_build_object('sub', :'ad', 'role', 'authenticated')::text, true);
 insert into t_results select 'admin can read a staff history', (select jsonb_array_length(public.staff_work_history(:'sb', null, 3) -> 'days')) = 3, '';
 insert into t_results select 'second page starts older', (select (public.staff_work_history(:'sb', (select (h -> 'days' -> 2 ->> 'day')::date from t_h), 3) -> 'days' -> 0 ->> 'day')::date < (select (h -> 'days' -> 2 ->> 'day')::date from t_h)), '';
+insert into t_results select 'staff_today lists who clocked in today', exists (select 1 from jsonb_array_elements(public.staff_today() -> 'staff') e where (e ->> 'id')::uuid = :'sa'), '';
+insert into t_results select 'staff_today carries the clock-out time', exists (select 1 from jsonb_array_elements(public.staff_today() -> 'staff') e where (e ->> 'id')::uuid = :'sa' and (e -> 'sessions' -> 0 ->> 'clock_out_at') is not null), '';
 reset role;
 
 select name, case when ok then 'PASS' else 'FAIL' end, detail from t_results order by 1;

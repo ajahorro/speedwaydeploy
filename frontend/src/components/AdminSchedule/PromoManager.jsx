@@ -114,6 +114,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
   const [promoDraft, setPromoDraft] = useState(defaultPromoDraft);
   const [promoValidationError, setPromoValidationError] = useState('');
   const [showPastPromos, setShowPastPromos] = useState(false);
+  const [pastVisible, setPastVisible] = useState(5);
   const [promoPublishing, setPromoPublishing] = useState(false);
   const [activeVehiclePopover, setActiveVehiclePopover] = useState(null);
 
@@ -391,39 +392,6 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
     setPromoPublishing(false);
   };
 
-  const handleRemovePromo = (promoId) => {
-    const target = promoRules.find(rule => rule.id === promoId);
-    if (!target) return;
-
-    openModal({
-      title: 'Delete this promo?',
-      message: `"${target.name}" will be permanently deleted. It stops applying immediately, including in carts that are still open. Past bookings keep their own discount record.`,
-      confirmText: 'Delete Promo',
-      cancelText: 'Cancel',
-      type: 'danger',
-      onConfirm: async () => {
-        const nextRules = promoRules.filter(rule => rule.id !== promoId);
-        const session = (await supabase.auth.getSession()).data.session;
-        const response = await fetch(`${BACKEND_URL}/api/admin/promos/${encodeURIComponent(promoId)}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${session?.access_token || ''}` }
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.success) {
-          toast.error(result.error || 'The promotion could not be removed.');
-          return;
-        }
-        syncPromoRules(nextRules);
-        await writeAdminAuditLog({
-          actionType: 'PROMO_DELETED',
-          details: `Deleted promo "${target.name}".`,
-          metadata: { promo_id: promoId }
-        });
-        toast.success(`Promo "${target.name}" deleted.`);
-      }
-    });
-  };
-
   // A running or upcoming promotion is archived, never deleted: it stops applying at once and moves to the archive list.
   const handleArchivePromo = (promoId) => {
     const target = promoRules.find(rule => rule.id === promoId);
@@ -455,7 +423,8 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
   const isPastPromo = (rule) => Boolean(rule?.archived_at) || getPromoStatus(rule) === 'EXPIRED';
   const currentRules = promoRules.filter((rule) => !isPastPromo(rule));
   const pastRules = promoRules.filter(isPastPromo);
-  const shownRules = showPastPromos ? pastRules : currentRules;
+  // archived and expired promos load 5 at a time
+  const shownRules = showPastPromos ? pastRules.slice(0, pastVisible) : currentRules;
 
   return (
     <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '1.25rem', marginTop: '0.5rem' }}>
@@ -844,7 +813,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
         </div>
         <button
           type="button"
-          onClick={() => setShowPastPromos((value) => !value)}
+          onClick={() => { setShowPastPromos((value) => !value); setPastVisible(5); }}
           style={{ marginLeft: 'auto', padding: '0.45rem 0.8rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.72rem', cursor: 'pointer' }}
         >
           {showPastPromos ? 'Back to current promos' : `View archived and expired promos (${pastRules.length})`}
@@ -931,9 +900,9 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                     DELETE only. The Edit action is removed entirely so a historical
                     financial record can never be mutated after the fact. To change a
                     promotion, delete it and create a new one. */}
-                <button
+                {!showPastPromos && <button
                   type="button"
-                  onClick={() => (showPastPromos ? handleRemovePromo(rule.id) : handleArchivePromo(rule.id))}
+                  onClick={() => handleArchivePromo(rule.id)}
                   style={{
                     border: '1px solid var(--status-danger)',
                     background: 'transparent',
@@ -945,13 +914,22 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                     fontSize: 'clamp(0.68rem, 0.35vw + 0.58rem, 0.8rem)'
                   }}
                 >
-                  {showPastPromos ? 'Delete' : 'Archive'}
-                </button>
+                  Archive
+                </button>}
               </div>
             </div>
           );
         })}
       </div>
+      {showPastPromos && pastRules.length > pastVisible && (
+        <button
+          type="button"
+          onClick={() => setPastVisible((n) => n + 5)}
+          style={{ display: 'block', margin: '1rem auto 0', padding: '0.6rem 1.5rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.75rem', textTransform: 'uppercase', cursor: 'pointer' }}
+        >
+          See more
+        </button>
+      )}
     </div>
   );
 };

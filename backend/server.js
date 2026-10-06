@@ -3376,6 +3376,9 @@ app.post('/api/admin/promos/:promoId/archive', async (req, res) => {
 
 app.delete('/api/admin/promos/:promoId', async (req, res) => {
   if (!(await requireAdmin(req))) return res.status(403).json({ success: false, error: 'Authorized administrator required.' });
+  // Promotions are never deleted (owner decision): archive them instead.
+  return res.status(405).json({ success: false, error: 'Promotions cannot be deleted. Archive the promotion instead.' });
+  // eslint-disable-next-line no-unreachable
   const promoId = String(req.params.promoId || '').trim();
   if (!promoId) return res.status(400).json({ success: false, error: 'Promo ID is required.' });
   try {

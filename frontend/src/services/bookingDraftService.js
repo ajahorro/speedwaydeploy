@@ -77,6 +77,11 @@ export const deleteDraft = async (userId, kind) => {
 /** Drop what is not booking data (older saved drafts still carry the QR image). */
 export const slimDraftData = (data) => {
   const { qrSnapshot, payment, ...rest } = data || {};
+  // only the booking itself (vehicles, services, date, time, promo code and the like) is shared: anything
+  // unusually large is not booking data and is left out
+  for (const key of Object.keys(rest)) {
+    if (JSON.stringify(rest[key] ?? null).length > 20000) delete rest[key];
+  }
   return rest;
 };
 

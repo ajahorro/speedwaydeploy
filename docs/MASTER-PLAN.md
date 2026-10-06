@@ -512,3 +512,4 @@ The original plan is archived unchanged in `docs/MASTER-PLAN-v1-original.md`. It
 - **Admin payments:** manual top-up input only while money is owed and no payment waits for verification; "Fully paid" stays the status with "Overpaid by" under it.
 - **Promos:** running or upcoming promos can only be archived; archived and expired ones sit behind "View archived and expired promos" (Delete remains only there).
 - **Mobile:** Back is shown on the fleet page (it was hidden under 640 px) and Back, Cancel and Next use one font size.
+- Accounts, staff tab: two small tables (staff; working today with clock in/out, name opens that day's bookings) via `staff_today` (migration 20261126000001). Admin walk-in: the receipt amount must equal the amount recorded.
