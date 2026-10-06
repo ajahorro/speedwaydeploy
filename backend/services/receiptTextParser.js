@@ -120,7 +120,7 @@ const normalizeAmountValue = (value) => {
 
 /** Labels for the amount actually paid/received, most specific first. */
 const AMOUNT_LABELS = [
-  { key: 'net', pattern: /(total\s*amount\s*(received|sent)|amount\s*received|net\s*amount|received\s*amount)/i },
+  { key: 'net', pattern: /(total\s*amount\s*(received|sent)|total\s*amount(?!\s*paid)|amount\s*received|net\s*amount|received\s*amount)/i },
   { key: 'gross', pattern: /(total\s*amount\s*paid|total\s*paid|amount\s*paid|paid\s*amount|total\s*sent|grand\s*total|\bpaid\b|\bamount\b)/i },
   { key: 'fee', pattern: /(transfer\s*fee|convenience\s*fee|service\s*fee|instapay\s*fee|pesonet\s*fee|transaction\s*fee|fee)/i },
   { key: 'generic', pattern: /(^|\b)total(\b|:)/i },
@@ -463,6 +463,9 @@ const parseReceiptText = (rawText) => {
   // and the fee was subtracted a second time (net 495).
   if (fee > 0 && amounts.net !== null && amounts.gross !== null && Math.abs(amounts.gross + fee - amounts.net) < 0.015) {
     gross = amounts.net;
+  } else if (fee > 0 && amounts.generic !== null && amounts.gross !== null && Math.abs(amounts.gross + fee - amounts.generic) < 0.015) {
+    // the same, with a plain "Total" line
+    gross = amounts.generic;
   }
   const net = gross !== null ? Math.max(0, Math.round((gross - fee) * 100) / 100) : null;
 

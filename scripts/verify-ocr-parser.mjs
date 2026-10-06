@@ -19,6 +19,8 @@ const cases = [
   ['GCash, labels not read (reference and recipient found by their shape)', '1:04 2 we @\n< Payment Successful\n{Ill oct26.2023 1430PM P231026A812345\n$2,500.00\nBunny Monera\n09275718000\nSend Money\nGCash **+* 8000\nSample payment for OCR testing', { amount: 2500, fee: 0, ref: 'P231026A812345', recipient: 'Bunny Monera' }],
   ['a time next to the amount label is never an amount', 'GCash\nAmount Sent\nOct 5, 2026, 11:45 AM\nPHP 1,750.00\nRef No. 4821 556 019283', { amount: 1750, fee: 0, ref: '4821556019283' }],
   ['a long reference number is never an amount', 'GCash\nPayment Successful\nPHP 900.00\nReference No. P231026AB12345', { amount: 900, fee: 0, ref: 'P231026AB12345' }],
+  ['GCash, Amount 1,170 + Fee 15 = Total Amount 1,185 (was read as 1,155)', 'Payment Successful\nP1,170.00\nPaid via GCash\nBiller Online Booking\nRecipient Name Bunny Monera\nAccount Number 09275718000\nBank GoTyme Bank\nAmount Details\nAmount P1,170.00\nFee P15.00\nTotal Amount P1,185.00\nReference Number GC1234567890', { amount: 1170, fee: 15, ref: 'GC1234567890' }],
+  ['amount + fee = a plain "Total" line', 'GCash\nAmount 800.00\nFee 10.00\nTotal 810.00\nRef No. 1234 567 890123', { amount: 800, fee: 10, ref: '1234567890123' }],
   ['the "Recipient Details" heading is not the recipient', 'GCash\nAmount 500.00\nRecipient Details\nRecipient Name\nCOMAR GARAGE\nRef No. 1111 222 333444', { amount: 500, fee: 0, ref: '1111222333444', recipient: 'COMAR GARAGE' }]
 ];
 
