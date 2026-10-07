@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { fetchStaffBookingsReport } from '@/services/staffReportService';
 import { RangeFilter, formatRangeLabel } from '@/features/financial-reports/RangeFilter';
 import { useReportRange, toDateParam } from '@/features/financial-reports/useReportRange';
-import { downloadStaffBookingsCsv, downloadStaffBookingsPdf, statusWords } from './staffBookingsExport';
+import { downloadStaffBookingsCsv, downloadStaffBookingsPdf, statusGroup, statusWords } from './staffBookingsExport';
 
 // The assistant loads only when it is opened, so the report's first paint is unchanged.
 const AssistantPanel = lazy(() => import('@/features/financial-reports/AssistantPanel'));
@@ -33,16 +33,9 @@ const STATUS_FILTERS = [
   { value: 'all', label: 'All statuses' },
   { value: 'upcoming', label: 'Scheduled or confirmed' },
   { value: 'in_progress', label: 'In progress' },
-  { value: 'completed', label: 'Completed' },
+  { value: 'completed', label: 'Finished (completed or released)' },
   { value: 'cancelled', label: 'Cancelled or no-show' }
 ];
-const statusGroup = (status) => {
-  const key = String(status || '').toLowerCase();
-  if (['cancelled', 'flagged_noshow', 'no_show'].includes(key)) return 'cancelled';
-  if (key === 'in_progress') return 'in_progress';
-  if (key === 'completed') return 'completed';
-  return 'upcoming';
-};
 const statusVariant = (status) => {
   const group = statusGroup(status);
   if (group === 'cancelled') return 'outline';
@@ -141,7 +134,7 @@ export default function StaffBookingsReport() {
 
   const kpis = [
     ['Bookings', totals.bookings], ['Vehicles', totals.vehicles], ['Scheduled or confirmed', totals.upcoming],
-    ['In progress', totals.in_progress], ['Completed', totals.completed], ['Cancelled or no-show', totals.cancelled]
+    ['In progress', totals.in_progress], ['Finished', totals.completed], ['Cancelled or no-show', totals.cancelled]
   ];
 
   return (

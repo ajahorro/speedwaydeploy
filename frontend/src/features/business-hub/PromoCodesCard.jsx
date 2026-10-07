@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from '@/lib/toast';
-import { Plus, Trash2 } from 'lucide-react';
+import { Archive, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +18,7 @@ const toIso = (local) => (local ? new Date(local).toISOString() : null);
 const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
 
 const statusOf = (row, now = Date.now()) => {
-  if (!row.is_active) return { label: 'Inactive', variant: 'outline' };
+  if (!row.is_active) return { label: 'Archived', variant: 'outline' };
   if (row.valid_from && new Date(row.valid_from).getTime() > now) return { label: 'Scheduled', variant: 'secondary' };
   if (row.valid_until && new Date(row.valid_until).getTime() < now) return { label: 'Expired', variant: 'outline' };
   if (row.max_uses && row.uses_count >= row.max_uses) return { label: 'Used up', variant: 'outline' };
@@ -27,8 +27,9 @@ const statusOf = (row, now = Date.now()) => {
 
 /**
  * Business Hub › Promos › Promo codes. Codes live in the admin-only promo_codes table; the
- * customer redeems one on the last booking page through redeem_promo_code(). Delete is a real
- * delete: past bookings keep their own copy of the code and the discount they received.
+ * customer redeems one on the last booking page through redeem_promo_code(). A code is never deleted: a current
+ * code can only be archived (it stops working at once and moves to the archived list); past bookings keep the
+ * discount they received.
  */
 export function PromoCodesCard() {
   const { confirmThen } = useConfirmAction();
@@ -93,13 +94,22 @@ export function PromoCodesCard() {
     }
   };
 
-  const remove = async (row) => {
-    const { error } = await supabase.from('promo_codes').delete().eq('id', row.id);
-    if (error) { toast.error(error.message || 'Could not delete the code.'); return; }
-    await writeAdminAuditLog({ actionType: 'PROMO_CODE_DELETED', details: `Deleted promo code ${row.code}.`, metadata: { code: row.code } });
-    toast.success(`Promo code ${row.code} deleted.`);
+  const archive = async (row) => {
+    const { error } = await supabase.from('promo_codes').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', row.id);
+    if (error) { toast.error(error.message || 'Could not archive the code.'); return; }
+    await writeAdminAuditLog({ actionType: 'PROMO_CODE_ARCHIVED', details: `Archived promo code ${row.code}.`, metadata: { code: row.code } });
+    toast.success(`Promo code ${row.code} archived.`);
     await load();
   };
+
+  // Expired codes remain visible with their status; only archived and used-up
+  // codes are moved behind the secondary list.
+  const isPast = (row) => ['Archived', 'Used up'].includes(statusOf(row).label);
+  const [showPast, setShowPast] = useState(false);
+  const [pastVisible, setPastVisible] = useState(5);
+  const currentRows = rows.filter((row) => !isPast(row));
+  const pastRows = rows.filter(isPast);
+  const shownRows = showPast ? pastRows.slice(0, pastVisible) : currentRows;
 
   const discountLabel = (row) => (row.discount_type === 'percentage' ? `${Number(row.discount_value)}% off` : `${formatPeso(Number(row.discount_value))} off`);
   const scopeLabel = (row) => (row.vehicle_types?.length ? row.vehicle_types.join(', ') : 'All vehicles');
@@ -108,7 +118,7 @@ export function PromoCodesCard() {
     <Card className="ui-root mt-4">
       <CardHeader>
         <CardTitle>Promo codes</CardTitle>
-        <CardDescription>Optional codes a customer can type on the last booking page. Deleting a code removes it for good; past bookings keep the discount they already received.</CardDescription>
+        <CardDescription>Optional codes a customer can type on the last booking page. A code can be archived, never deleted; past bookings keep the discount they already received.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-6">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -171,8 +181,8 @@ export function PromoCodesCard() {
             </thead>
             <tbody>
               {loading && <tr><td colSpan={7} className="py-4 text-muted-foreground">Loading…</td></tr>}
-              {!loading && rows.length === 0 && <tr><td colSpan={7} className="py-4 text-muted-foreground">No promo codes yet.</td></tr>}
-              {rows.map((row) => {
+              {!loading && shownRows.length === 0 && <tr><td colSpan={7} className="py-4 text-muted-foreground">{showPast ? 'No archived or used-up codes.' : 'No current promo codes.'}</td></tr>}
+              {shownRows.map((row) => {
                 const status = statusOf(row);
                 return (
                   <tr key={row.id} className="border-b">
@@ -183,16 +193,26 @@ export function PromoCodesCard() {
                     <td className="pr-3 tabular-nums">{row.uses_count}{row.max_uses ? ` / ${row.max_uses}` : ''}</td>
                     <td className="pr-3"><Badge variant={status.variant}>{status.label}</Badge></td>
                     <td className="text-right">
-                      <Button size="sm" variant="outline" aria-label={`Delete ${row.code}`}
-                        onClick={() => confirmThen({ title: `Delete ${row.code}?`, message: 'The code is removed permanently and stops working immediately. Past bookings keep the discount they received.', confirmText: 'Delete code' }, () => remove(row))}>
-                        <Trash2 /> Delete
-                      </Button>
+                      {!showPast && status.label !== 'Expired' && (
+                        <Button size="sm" variant="outline" aria-label={`Archive ${row.code}`}
+                          onClick={() => confirmThen({ title: `Archive ${row.code}?`, message: 'The code stops working immediately and moves to the archived list. Past bookings keep the discount they received.', confirmText: 'Archive code', type: 'danger' }, () => archive(row))}>
+                          <Archive /> Archive
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => { setShowPast((v) => !v); setPastVisible(5); }}>
+            {showPast ? 'Back to current codes' : `View archived and used-up codes (${pastRows.length})`}
+          </Button>
+          {showPast && pastRows.length > pastVisible && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setPastVisible((n) => n + 5)}>See more</Button>
+          )}
         </div>
       </CardContent>
     </Card>

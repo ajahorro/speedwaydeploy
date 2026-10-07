@@ -27,6 +27,7 @@ const StaffDashboard = () => {
   const [stats, setStats] = useState({ pending: 0, active: 0, completed: 0 });
   const [broadcasts, setBroadcasts] = useState([]);
   const [shiftTimer, setShiftTimer] = useState('OFF DUTY');
+  const [shiftOverdue, setShiftOverdue] = useState(false);
   const [isClockingIn, setIsClockingIn] = useState(false);
   const [soundHapticChime, setSoundHapticChime] = useState(false);
   const soundHapticChimeRef = useRef(false);
@@ -51,6 +52,7 @@ const StaffDashboard = () => {
   useEffect(() => {
     if (!profile?.is_clocked_in) {
       setShiftTimer('OFF DUTY');
+      setShiftOverdue(false);
       return;
     }
 
@@ -62,11 +64,14 @@ const StaffDashboard = () => {
 
     const updateTimer = () => {
       const now = Date.now();
-      const diffSecs = Math.min(Math.max(0, Math.floor((now - startTime) / 1000)), MAX_SHIFT_SECONDS);
+      const elapsedSecs = Math.max(0, Math.floor((now - startTime) / 1000));
+      const isOverdue = elapsedSecs > MAX_SHIFT_SECONDS;
+      const diffSecs = Math.min(elapsedSecs, MAX_SHIFT_SECONDS);
       const hrs = String(Math.floor(diffSecs / 3600)).padStart(2, '0');
       const mins = String(Math.floor((diffSecs % 3600) / 60)).padStart(2, '0');
       const secs = String(diffSecs % 60).padStart(2, '0');
-      setShiftTimer(`${hrs}:${mins}:${secs}`);
+      setShiftOverdue(isOverdue);
+      setShiftTimer(`${hrs}:${mins}:${secs}${isOverdue ? '+' : ''}`);
     };
 
     updateTimer();
@@ -211,12 +216,17 @@ const StaffDashboard = () => {
             </div>
             <div style={{ width: '1px', height: '30px', background: 'var(--admin-border)' }}></div>
             <div style={{ textAlign: 'center', flex: 1 }}>
-              <div style={{ fontSize: '1.1rem', fontWeight: '950', color: profile?.is_clocked_in ? 'var(--status-success)' : 'var(--admin-brand)', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '1.1rem', fontWeight: '950', color: shiftOverdue ? 'var(--status-warning)' : (profile?.is_clocked_in ? 'var(--status-success)' : 'var(--admin-brand)'), textTransform: 'uppercase' }}>
                 {shiftTimer}
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '950', textTransform: 'uppercase', marginTop: '0.25rem' }}>Current Shift</div>
             </div>
           </div>
+          {shiftOverdue && (
+            <p role="alert" style={{ margin: 0, color: 'var(--status-warning)', fontSize: '0.75rem', fontWeight: '700' }}>
+              Shift exceeds 24 hours; duration is capped. Check your shift status with an administrator.
+            </p>
+          )}
           {!profile?.is_clocked_in && (
             <button
               type="button"

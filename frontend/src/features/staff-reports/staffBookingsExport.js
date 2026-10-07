@@ -1,12 +1,21 @@
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const when = (iso) => (iso ? new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
 
+export const statusGroup = (status) => {
+  const key = String(status || '').toLowerCase();
+  if (['cancelled', 'flagged_noshow', 'no_show'].includes(key)) return 'cancelled';
+  if (key === 'in_progress') return 'in_progress';
+  if (['completed', 'released'].includes(key)) return 'completed';
+  return 'upcoming';
+};
+
 /** Plain words for a booking status. */
 export const statusWords = (status) => {
   const key = String(status || '').toLowerCase();
   if (['cancelled'].includes(key)) return 'Cancelled';
   if (['flagged_noshow', 'no_show'].includes(key)) return 'No-show';
   if (key === 'in_progress') return 'In progress';
+  if (key === 'released') return 'Finished';
   if (key === 'completed') return 'Completed';
   if (key === 'confirmed') return 'Confirmed';
   return 'Scheduled';
@@ -55,7 +64,7 @@ export const buildStaffBookingsHtml = ({ report, rangeLabel }) => {
     <h1 style="margin:0 0 2px;font-size:20px">Comar Garage — Bookings report</h1>
     <p style="margin:0 0 12px;color:#444">${esc(rangeLabel)} · generated ${esc(new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila' }))}</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-      ${stat('Bookings', t.bookings ?? 0)}${stat('Vehicles', t.vehicles ?? 0)}${stat('Upcoming', t.upcoming ?? 0)}${stat('In progress', t.in_progress ?? 0)}${stat('Completed', t.completed ?? 0)}${stat('Cancelled', t.cancelled ?? 0)}
+      ${stat('Bookings', t.bookings ?? 0)}${stat('Vehicles', t.vehicles ?? 0)}${stat('Upcoming', t.upcoming ?? 0)}${stat('In progress', t.in_progress ?? 0)}${stat('Finished', t.completed ?? 0)}${stat('Cancelled', t.cancelled ?? 0)}
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:10.5px">
       <thead><tr style="background:#f1f1f1">${['Start', 'Customer', 'Vehicles, services and technician', 'Status'].map((h) => `<th style="border:1px solid #ccc;padding:5px;text-align:left">${h}</th>`).join('')}</tr></thead>

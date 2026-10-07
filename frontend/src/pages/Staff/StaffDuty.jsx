@@ -28,6 +28,7 @@ const StaffDuty = () => {
   const { profile, toggleShift } = useAuth();
   const { openModal } = useUI();
   const [elapsed, setElapsed] = useState(0);
+  const [shiftOverdue, setShiftOverdue] = useState(false);
   // Guards against a double-submit (double-click / re-entrancy while the relay
   // call is in flight), which previously could fire two conflicting clock ops.
   const [isShiftBusy, setIsShiftBusy] = useState(false);
@@ -41,6 +42,7 @@ const StaffDuty = () => {
   useEffect(() => {
     if (!isClockedIn || !startTs) {
       setElapsed(0);
+      setShiftOverdue(false);
       return undefined;
     }
     const start = new Date(startTs).getTime();
@@ -48,6 +50,7 @@ const StaffDuty = () => {
       const diff = Math.floor((Date.now() - start) / 1000);
       // Cap at 24h: a shift that has silently run longer is almost certainly a
       // missed clock-out, so we surface the ceiling rather than 37:56:54.
+      setShiftOverdue(diff > MAX_SHIFT_SECONDS);
       setElapsed(Math.min(Math.max(0, diff), MAX_SHIFT_SECONDS));
     };
     tick();
@@ -143,10 +146,16 @@ const StaffDuty = () => {
           <div>
             <div style={{ fontSize: '0.72rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-secondary)' }}>Current Shift Duration</div>
             <div style={{ fontSize: '1.4rem', fontWeight: '900', fontVariantNumeric: 'tabular-nums' }}>
-              {isClockedIn ? formatDuration(elapsed) : '00:00:00'}
+              {isClockedIn ? `${formatDuration(elapsed)}${shiftOverdue ? '+' : ''}` : '00:00:00'}
             </div>
           </div>
         </div>
+
+        {shiftOverdue && (
+          <div role="alert" style={{ padding: '1rem 1.25rem', border: '1px solid var(--status-warning)', borderRadius: 'var(--admin-radius)', fontSize: '0.8rem', fontWeight: 700, lineHeight: 1.6, color: 'var(--admin-text-primary)' }}>
+            This shift has exceeded 24 hours. The displayed duration is capped; check your shift status with an administrator.
+          </div>
+        )}
 
         {isClockedIn && blockers.length > 0 && (
           <div role="alert" style={{ padding: '1rem 1.25rem', border: '1px solid var(--status-warning)', borderRadius: 'var(--admin-radius)', fontSize: '0.8rem', fontWeight: 700, lineHeight: 1.6, color: 'var(--admin-text-primary)' }}>

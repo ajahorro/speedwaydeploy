@@ -8,6 +8,7 @@ const multer = require('multer');
 require('dotenv').config();
 
 const { normalizeStatus, shouldRestoreGraceWindow } = require('./noShowRestoreLogic');
+const { blockedSlotsOverlap, blockWindow } = require('./services/blockedSlotRules');
 // FAIL-FAST BOOT CHECK. Runs before any module reads process.env, so a missing
 // SUPABASE_SERVICE_ROLE_KEY cannot silently degrade the server (or, worse, fall
 // back to the literal 'development-key' cipher) as it did previously.
@@ -5305,10 +5306,13 @@ app.post('/api/admin/blocked-slots', async (req, res) => {
       }));
     } else if (start_date && end_date) {
       // Multi-day date range provided
-      const curr = new Date(start_date);
-      const last = new Date(end_date);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(start_date) || !/^\d{4}-\d{2}-\d{2}$/.test(end_date) || start_date > end_date) {
+        return res.status(400).json({ success: false, error: 'Choose a valid start and end date.' });
+      }
+      const curr = new Date(`${start_date}T00:00:00.000Z`);
+      const last = new Date(`${end_date}T00:00:00.000Z`);
       while (curr <= last) {
-        const dStr = curr.toISOString().split('T')[0];
+        const dStr = curr.toISOString().slice(0, 10);
         rowsToInsert.push({
           block_date: dStr,
           start_time,
@@ -5316,7 +5320,7 @@ app.post('/api/admin/blocked-slots', async (req, res) => {
           reason: reason || 'ADMIN BLOCK',
           created_by: createdBy || null
         });
-        curr.setDate(curr.getDate() + 1);
+        curr.setUTCDate(curr.getUTCDate() + 1);
       }
     } else if (block_date) {
       // Single day
@@ -5331,17 +5335,41 @@ app.post('/api/admin/blocked-slots', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Target date or date range is required' });
     }
 
+    if (rowsToInsert.length === 0) {
+      return res.status(400).json({ success: false, error: 'At least one closure date is required.' });
+    }
+    for (const row of rowsToInsert) blockWindow(row);
+
+    const blockDates = [...new Set(rowsToInsert.map((row) => row.block_date))];
+    const { data: existingBlocks, error: blockError } = await supabaseAdmin
+      .from('blocked_slots')
+      .select('id, block_date, start_time, end_time')
+      .in('block_date', blockDates);
+    if (blockError) throw blockError;
+    const overlappingBlocks = rowsToInsert.flatMap((row) =>
+      (existingBlocks || [])
+        .filter((existing) => blockedSlotsOverlap(row, existing))
+        .map((existing) => ({ id: existing.id, block_date: existing.block_date }))
+    );
+    if (overlappingBlocks.length > 0) {
+      return res.status(409).json({
+        success: false,
+        code: 'BLOCK_OVERLAP',
+        error: 'A shop closure already overlaps this date or time.',
+        blocks: overlappingBlocks,
+      });
+    }
+
     const activeStatuses = ['scheduled', 'confirmed', 'in_progress', 'pending', 'SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'PENDING'];
     const conflicts = new Map();
     for (const row of rowsToInsert) {
-      const blockStart = new Date(`${row.block_date}T${row.start_time || '00:00:00'}`);
-      const blockEnd = new Date(`${row.block_date}T${row.end_time || '23:59:59'}`);
+      const { start: blockStart, end: blockEnd } = blockWindow(row);
       const { data: bookings, error: bookingError } = await supabaseAdmin
         .from('bookings')
         .select('id, customer_name, start_datetime, end_datetime, status')
         .in('status', activeStatuses)
-        .lt('start_datetime', blockEnd.toISOString())
-        .gt('end_datetime', blockStart.toISOString());
+        .lt('start_datetime', blockEnd)
+        .gt('end_datetime', blockStart);
       if (bookingError) throw bookingError;
       for (const booking of bookings || []) conflicts.set(booking.id, booking);
     }

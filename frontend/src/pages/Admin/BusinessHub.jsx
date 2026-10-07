@@ -16,7 +16,7 @@ import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
 import { validateQrRecipients } from '../../services/qrSecurityService';
 import { buildBusinessConfigUpdatePayload, stripUnsupportedBusinessConfigColumns } from '../../services/businessConfigPayload';
 import { sanitizeAlphaNum, sanitizeByFieldType, toTitleCase, VEHICLE_TYPE_OPTIONS, VEHICLE_TYPE_KEYS } from '../../config/constants';
-import { SERVICES_DATA, setCatalogSource, setArchivedServiceIds as setArchivedServiceIdsCache, setDeletedServiceIds as setDeletedServiceIdsCache } from '../../data/servicesCatalog';
+import { SERVICES_DATA, getServiceCatalog, setCatalogSource, setArchivedServiceIds as setArchivedServiceIdsCache, setDeletedServiceIds as setDeletedServiceIdsCache } from '../../data/servicesCatalog';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
 import SegmentedTimePicker from '../../components/AdminSchedule/SegmentedTimePicker';
@@ -440,7 +440,7 @@ export default function BusinessHub() {
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState('All');
   const [newServiceForm, setNewServiceForm] = useState({
     targetVehicleCategory: 'Sedan',
-    generalService: GENERAL_SERVICE_DEFAULT,
+    generalService: '',
     newGeneralService: '',
     name: '',
     price: '',
@@ -562,7 +562,7 @@ export default function BusinessHub() {
       setBlockedSlots(data || []);
     } catch (err) {
       console.error('Failed to load blocked slots:', err);
-      setBlockedSlots([]);
+      toast.error('Could not refresh shop closures for the selected date.');
     }
   };
 
@@ -786,8 +786,25 @@ export default function BusinessHub() {
     || restrictionForm.endTime !== '17:00:00'
   );
 
+  const canAddRestriction = hasRestrictionChanges
+    && Boolean(restrictionDate)
+    && (restrictionForm.scope !== 'range'
+      || (Boolean(restrictionForm.startDate)
+        && Boolean(restrictionForm.endDate)
+        && restrictionForm.startDate <= restrictionForm.endDate))
+    && (restrictionForm.scope !== 'window'
+      || (Boolean(restrictionForm.startTime)
+        && Boolean(restrictionForm.endTime)
+        && restrictionForm.startTime < restrictionForm.endTime));
+
   const handleCommitBlock = async () => {
     if (!hasRestrictionChanges) return;
+    if (!canAddRestriction) {
+      toast.error(restrictionForm.scope === 'range'
+        ? 'Choose a valid start and end date for the closure.'
+        : 'Choose a valid closure time range.');
+      return;
+    }
     const dateForBlock = restrictionForm.scope === 'range' ? restrictionForm.startDate : restrictionDate;
     const payload = restrictionForm.scope === 'range'
       ? {
@@ -812,33 +829,34 @@ export default function BusinessHub() {
           };
 
     if (restrictionForm.scope === 'range' && (!restrictionForm.startDate || !restrictionForm.endDate)) {
-      setMessage({ type: 'error', text: 'Please choose both start and end dates.' });
+      toast.error('Please choose both start and end dates.');
       return;
     }
 
     if (restrictionForm.scope === 'range' && restrictionForm.startDate > restrictionForm.endDate) {
-      setMessage({ type: 'error', text: 'Start date cannot be after the end date.' });
+      toast.error('Start date cannot be after the end date.');
       return;
     }
 
-    const scopeLabel = restrictionForm.scope === 'range'
-      ? 'a date range'
-      : restrictionForm.scope === 'window'
-        ? 'a time window'
-        : 'a full day';
+    const scope = restrictionForm.scope;
+    const scopeLabel = scope === 'range'
+      ? 'date range'
+      : scope === 'window'
+        ? 'time window'
+        : 'full day';
 
     // Styled confirmation modal (replaces the unstyled native window.confirm).
     openModal({
       title: 'Apply This Restriction?',
-      message: `This will block ${scopeLabel} and immediately stop new bookings from landing on the affected slot(s). Any existing bookings in the way will be flagged. Continue?`,
+      message: `This will block the ${scopeLabel} and prevent new bookings during that time. Existing bookings are never changed; the closure will be rejected if it overlaps an active booking or another closure. Continue?`,
       confirmText: 'Apply Restriction',
       cancelText: 'Cancel',
       type: 'warning',
-      onConfirm: () => commitBlock(payload, dateForBlock),
+      onConfirm: () => commitBlock({ payload, dateForBlock, scope, scopeLabel }),
     });
   };
 
-  const commitBlock = async (payload, dateForBlock) => {
+  const commitBlock = async ({ payload, dateForBlock, scope, scopeLabel }) => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/blocked-slots`, {
         method: 'POST',
@@ -849,26 +867,35 @@ export default function BusinessHub() {
 
       if (!res.ok || !result.success) {
         const affected = (result.bookings || []).map((booking) => `#${String(booking.id).slice(0, 8).toUpperCase()}`).join(', ');
-        throw new Error(affected ? `${result.error} Affected bookings: ${affected}.` : (result.error || 'Failed to create restriction'));
+        throw new Error(affected ? `${result.error} Affected bookings: ${affected}.` : (result.error || 'Failed to create closure.'));
       }
 
-      setMessage({ type: 'success', text: 'Resource restriction saved and now enforced in the booking rules.' });
+      const refreshDate = dateForBlock;
+      setRestrictionDate(refreshDate);
+      setRestrictionForm((prev) => ({
+        ...prev,
+        scope: 'day',
+        startDate: refreshDate,
+        endDate: refreshDate,
+        startTime: '08:00:00',
+        endTime: '17:00:00',
+        reason: ''
+      }));
+      const insertedForDate = (result.data || []).filter((block) => block.block_date === refreshDate);
+      setBlockedSlots(insertedForDate);
+      toast.success('Done — shop closure added.');
       await writeAdminAuditLog({
         actionType: 'SCHEDULE_SLOT_BLOCKED',
         details: `Created a ${scopeLabel} shop closure for ${dateForBlock}.`,
-        metadata: { scope: restrictionForm.scope, date: dateForBlock, payload }
+        metadata: { scope, date: dateForBlock, payload }
       });
-      setRestrictionForm((prev) => ({ ...prev, reason: '', scope: prev.scope === 'range' ? 'day' : prev.scope }));
-      await fetchBlockedSlotsForDate(restrictionForm.scope === 'range' ? dateForBlock : restrictionDate);
+      await fetchBlockedSlotsForDate(refreshDate);
     } catch (err) {
       console.error('Block create failed:', err);
       const unreachable = /failed to fetch|networkerror|load failed|err_connection_refused/i.test(String(err?.message || ''));
-      setMessage({
-        type: 'error',
-        text: unreachable
-          ? 'Could not reach the scheduling service. Make sure the backend server is running, then try again.'
-          : (err.message || 'Failed to create resource restriction.')
-      });
+      toast.error(unreachable
+        ? 'Could not reach the scheduling service. Make sure the backend server is running, then try again.'
+        : (err.message || 'Failed to create shop closure.'));
     }
   };
 
@@ -1074,6 +1101,17 @@ export default function BusinessHub() {
       if (label && !seen.has(label.toLowerCase())) seen.set(label.toLowerCase(), label);
     });
     return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  };
+
+  const getGeneralServicesForVehicle = (vehicleType) => {
+    const target = normalizeVehicleCategoryKey(vehicleType);
+    if (!target) return [];
+    return Object.entries(getServiceCatalog())
+      .filter(([, services]) => services.some((service) =>
+        Object.keys(service?.prices || {}).some((type) => normalizeVehicleCategoryKey(type) === target)
+      ))
+      .map(([label]) => label)
+      .sort((a, b) => a.localeCompare(b));
   };
 
   const getUnmappedVehicleTypes = () => {
@@ -1721,15 +1759,14 @@ export default function BusinessHub() {
     const target = String(newServiceForm.targetVehicleCategory || '').trim();
     const price = Number(newServiceForm.price);
     const duration = Number(newServiceForm.duration);
-    // When "Create a new general service" is chosen, a non-empty title is required.
-    const generalServiceLabel = resolveGeneralServiceLabel(newServiceForm.generalService, newServiceForm.newGeneralService);
-    const needsNewGeneralServiceTitle = newServiceForm.generalService === GENERAL_SERVICE_NEW;
+    const generalService = String(newServiceForm.generalService || '').trim();
+    const generalServicesForVehicle = getGeneralServicesForVehicle(target);
 
     return Boolean(target)
+      && generalServicesForVehicle.includes(generalService)
       && name.length > 0
       && sanitizeBusinessHubValue('name', name) === name
       && sanitizeBusinessHubValue('description', description) === description
-      && (!needsNewGeneralServiceTitle || generalServiceLabel.length > 0)
       && Number.isFinite(price)
       && price >= 0
       && Number.isFinite(duration)
@@ -1745,7 +1782,7 @@ export default function BusinessHub() {
     const name = sanitizeBusinessHubValue('name', newServiceForm.name).trim();
     const price = Number(newServiceForm.price);
     const duration = Number(newServiceForm.duration);
-    const generalService = resolveGeneralServiceLabel(newServiceForm.generalService, newServiceForm.newGeneralService);
+    const generalService = String(newServiceForm.generalService || '').trim();
 
     const nextService = {
       id: `custom_${Date.now()}`,
@@ -2406,8 +2443,8 @@ export default function BusinessHub() {
                           title={`${day.long} — ${statusText}`}
                           style={{
                             borderRadius: '0.75rem',
-                            border: `1px solid ${isClosed ? 'rgba(244, 63, 94, 0.45)' : 'var(--admin-border)'}`,
-                            background: isClosed ? 'rgba(244, 63, 94, 0.09)' : 'var(--admin-input-bg, var(--admin-bg))',
+                            border: `1px solid ${isClosed ? 'var(--status-danger)' : 'var(--admin-border)'}`,
+                            background: isClosed ? 'rgba(239, 68, 68, 0.09)' : 'var(--admin-input-bg, var(--admin-bg))',
                             color: 'var(--admin-text-primary)',
                             padding: '0.7rem 0.45rem',
                             textAlign: 'center',
@@ -2435,9 +2472,9 @@ export default function BusinessHub() {
                               fontWeight: 800,
                               letterSpacing: '0.04em',
                               textTransform: 'uppercase',
-                              border: `1px solid ${isClosed ? 'rgba(244, 63, 94, 0.3)' : 'rgba(16, 185, 129, 0.35)'}`,
-                              background: isClosed ? 'rgba(244, 63, 94, 0.12)' : 'rgba(16, 185, 129, 0.10)',
-                              color: isClosed ? '#fda4af' : '#a7f3d0'
+                              border: `1px solid ${isClosed ? 'var(--status-danger)' : 'var(--status-success-border)'}`,
+                              background: isClosed ? 'rgba(239, 68, 68, 0.12)' : 'var(--status-success-soft)',
+                              color: isClosed ? 'var(--status-danger)' : 'var(--status-success)'
                             }}
                           >
                             {statusText}
@@ -2587,15 +2624,15 @@ export default function BusinessHub() {
                   <button
                     type="button"
                     onClick={handleCommitBlock}
-                    disabled={!hasRestrictionChanges}
-                    aria-disabled={!hasRestrictionChanges}
+                    disabled={!canAddRestriction}
+                    aria-disabled={!canAddRestriction}
                     style={{
                       ...buttonBase,
-                      background: hasRestrictionChanges ? 'var(--admin-brand)' : 'var(--admin-input-bg, var(--admin-bg))',
-                      color: hasRestrictionChanges ? '#fff' : 'var(--admin-text-secondary)',
-                      border: `1px solid ${hasRestrictionChanges ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
-                      cursor: hasRestrictionChanges ? 'pointer' : 'not-allowed',
-                      opacity: hasRestrictionChanges ? 1 : 0.6,
+                      background: canAddRestriction ? 'var(--admin-brand)' : 'var(--admin-input-bg, var(--admin-bg))',
+                      color: canAddRestriction ? '#fff' : 'var(--admin-text-secondary)',
+                      border: `1px solid ${canAddRestriction ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
+                      cursor: canAddRestriction ? 'pointer' : 'not-allowed',
+                      opacity: canAddRestriction ? 1 : 0.6,
                       minWidth: '180px'
                     }}
                   >
@@ -2931,7 +2968,15 @@ export default function BusinessHub() {
                       id="new-service-vehicle-category"
                       name="target_vehicle_category"
                       value={newServiceForm.targetVehicleCategory}
-                      onChange={(e) => setNewServiceForm((prev) => ({ ...prev, targetVehicleCategory: e.target.value }))}
+                      onChange={(e) => setNewServiceForm((prev) => {
+                        const targetVehicleCategory = e.target.value;
+                        const options = getGeneralServicesForVehicle(targetVehicleCategory);
+                        return {
+                          ...prev,
+                          targetVehicleCategory,
+                          generalService: options.includes(prev.generalService) ? prev.generalService : (options[0] || '')
+                        };
+                      })}
                       style={inputStyle}
                     >
                       {getAvailableVehicleTypes().map((type) => (
@@ -2945,33 +2990,19 @@ export default function BusinessHub() {
                       id="new-service-general-service"
                       name="general_service"
                       value={newServiceForm.generalService}
-                      onChange={(e) => setNewServiceForm((prev) => ({
-                        ...prev,
-                        generalService: e.target.value,
-                        newGeneralService: e.target.value === GENERAL_SERVICE_NEW ? prev.newGeneralService : ''
-                      }))}
+                      onChange={(e) => setNewServiceForm((prev) => ({ ...prev, generalService: e.target.value }))}
                       style={inputStyle}
                     >
-                      <option value={GENERAL_SERVICE_DEFAULT}>Custom Services (default)</option>
-                      {getAvailableGeneralServices().map((label) => (
+                      <option value="" disabled>Select a general service</option>
+                      {getGeneralServicesForVehicle(newServiceForm.targetVehicleCategory).map((label) => (
                         <option key={label} value={label}>{label}</option>
                       ))}
-                      <option value={GENERAL_SERVICE_NEW}>+ Create New General Service</option>
                     </select>
                   </div>
-                  {newServiceForm.generalService === GENERAL_SERVICE_NEW && (
-                    <div style={{ gridColumn: '1 / -1' }}>
-                      <label htmlFor="new-general-service-title" style={labelStyle}>New General Service Title</label>
-                      <input
-                        id="new-general-service-title"
-                        name="new_general_service_title"
-                        type="text"
-                        value={newServiceForm.newGeneralService}
-                        onChange={(e) => setNewServiceForm((prev) => ({ ...prev, newGeneralService: toTitleCase(sanitizeBusinessHubValue('name', e.target.value)) }))}
-                        placeholder="e.g. Ceramic & Coating"
-                        style={inputStyle}
-                      />
-                    </div>
+                  {getGeneralServicesForVehicle(newServiceForm.targetVehicleCategory).length === 0 && (
+                    <p style={{ gridColumn: '1 / -1', margin: 0, color: 'var(--admin-text-secondary)', fontSize: '0.75rem' }}>
+                      No general service categories are currently available for this vehicle type.
+                    </p>
                   )}
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label htmlFor="new-service-name" style={labelStyle}>Service Name</label>

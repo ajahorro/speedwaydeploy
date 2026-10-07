@@ -5,6 +5,8 @@ select set_config('request.jwt.claims', '{"role":"service_role"}', true) \g /dev
 set local session_replication_role = replica;
 create temp table t_results (name text, ok boolean, detail text) on commit drop;
 grant all on t_results to authenticated;
+create temp table t_report_baseline (completed int, upcoming int, finished_vehicles int) on commit drop;
+grant all on t_report_baseline to authenticated;
 select id as sa from public.profiles where role = 'STAFF' and is_active order by created_at limit 1 \gset
 select id as sb from public.profiles where role = 'STAFF' and is_active and id <> :'sa' order by created_at limit 1 \gset
 select id as cu from public.profiles where role = 'CUSTOMER' order by created_at limit 1 \gset
@@ -43,6 +45,32 @@ select pg_temp.try('switch on: allowed', $$select public.staff_bookings_report(n
 select pg_temp.try('sees the whole shop, including another technician''s vehicle', $$select (public.staff_bookings_report(now() - interval '1 day', now() + interval '1 day'))::text like '%SBR222%' and (public.staff_bookings_report(now() - interval '1 day', now() + interval '1 day'))::text like '%SBR111%'$$);
 select pg_temp.try('shows no money or contact details', $$select ((public.staff_bookings_report(now() - interval '1 day', now() + interval '1 day'))::text !~* '(amount|price|paid|balance|peso|payment|fee|refund|09171234567|secret@example|contact|email)')$$);
 select pg_temp.try('counts the booking and its two vehicles', $$select (public.staff_bookings_report(now() - interval '1 day', now() + interval '1 day') -> 'totals' ->> 'bookings')::int >= 1 and (public.staff_bookings_report(now() - interval '1 day', now() + interval '1 day') -> 'totals' ->> 'vehicles')::int >= 2$$);
+with report as (
+  select public.staff_bookings_report(now() - interval '1 day', now() + interval '1 day') as data
+)
+insert into t_report_baseline
+select (data -> 'totals' ->> 'completed')::int,
+       (data -> 'totals' ->> 'upcoming')::int,
+       coalesce((select sum((technician ->> 'finished')::int)
+                   from jsonb_array_elements(data -> 'by_technician') technician), 0)
+  from report;
+reset role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true) \g /dev/null
+update public.bookings set status = 'released' where id = '98100000-0000-0000-0000-000000000001';
+update public.booking_vehicles set status = 'RELEASED' where booking_id = '98100000-0000-0000-0000-000000000001';
+set local role authenticated;
+select pg_temp.as_user(:'sa');
+select pg_temp.try('released booking is included in finished totals, not upcoming', $$
+  with report as (
+    select public.staff_bookings_report(now() - interval '1 day', now() + interval '1 day') as data
+  )
+  select (data -> 'totals' ->> 'completed')::int = baseline.completed + 1
+     and (data -> 'totals' ->> 'upcoming')::int = baseline.upcoming - 1
+     and coalesce((select sum((technician ->> 'finished')::int)
+                     from jsonb_array_elements(data -> 'by_technician') technician), 0) = baseline.finished_vehicles + 2
+    from report cross join t_report_baseline baseline
+$$);
+select pg_temp.try('released booking status is returned', $$select exists (select 1 from jsonb_array_elements(public.staff_bookings_report(now() - interval '1 day', now() + interval '1 day') -> 'bookings') booking where booking ->> 'reference' = '98100000' and booking ->> 'status' = 'released')$$);
 select pg_temp.try('range over 93 days refused', $$select public.staff_bookings_report(now() - interval '100 days', now())$$, 'too long');
 select pg_temp.try('empty range refused', $$select public.staff_bookings_report(now(), now())$$, 'valid date range');
 select pg_temp.as_user(:'cu');
