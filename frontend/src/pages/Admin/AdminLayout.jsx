@@ -36,6 +36,11 @@ const AdminLayout = () => {
   const { openModal, closeModal } = useUI();
 
   useEffect(() => {
+    document.body.classList.add('admin-account-active');
+    return () => document.body.classList.remove('admin-account-active');
+  }, []);
+
+  useEffect(() => {
     const handleClickOutside = (event) => {
       if (notifRef.current && !notifRef.current.contains(event.target)) {
         setShowNotifPopover(false);
@@ -203,7 +208,7 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="admin-theme" data-theme={resolvedTheme} style={{ display: 'flex', width: '100vw', height: '100vh', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', position: 'relative', overflow: 'hidden' }}>
+    <div className="admin-theme admin-account-theme" data-theme={resolvedTheme} style={{ display: 'flex', width: '100vw', height: '100vh', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', position: 'relative', overflow: 'hidden' }}>
 
       {/* Mobile Overlay */}
       <div style={overlayStyle} onClick={() => setIsSidebarOpen(false)} />

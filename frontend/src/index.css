@@ -498,3 +498,23 @@ img, video {
   --admin-radius-md: 2px;
   color: var(--foreground);
 }
+
+.admin-account-theme {
+  --admin-radius: 4px;
+  --admin-radius-sm: 4px;
+  --admin-radius-md: 4px;
+  --admin-radius-lg: 4px;
+  --radius: 4px;
+  --radius-sm: 4px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --radius-xl: 4px;
+}
+
+body.admin-account-active :where(*:not(svg):not(img):not([style*="border-radius: 50%"]):not([style*="border-radius:50%"]):not([class*="rounded-full"])) {
+  border-radius: 4px !important;
+}
+
+body.admin-account-active :where(button, input, select, textarea, [role="button"]) {
+  border-radius: 4px !important;
+}
