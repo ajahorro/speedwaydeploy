@@ -36,7 +36,7 @@ function VehicleRow({ vehicle, isAdmin, onViewBooking }) {
       {open && (
         <div className="grid gap-3 border-t px-3 py-3">
           <dl className="grid gap-3 sm:grid-cols-2">
-            <Row label="Customer">{vehicle.customer_name || '—'}</Row>
+            {isAdmin && <Row label="Customer">{vehicle.customer_name || '—'}</Row>}
             <Row label="Vehicle type">{vehicle.vehicle_type || '—'}</Row>
             <Row label="Scheduled">{dateTimeLabel(vehicle.start_datetime)}</Row>
             <Row label="Status">{statusWords(vehicle.status)}</Row>

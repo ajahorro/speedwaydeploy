@@ -22,6 +22,7 @@ import Login from './Login';
 import { useAuth } from '../hooks/useAuth';
 import { useConfig } from '../context/ConfigContext';
 import { getServiceCatalog } from '../data/servicesCatalog';
+import { AuthButtons, MobileMenu, ServiceCard, FaqList, ContactCards, ContactForm, HeroActions, AboutFeatures, SiteFooter } from '../features/landing/LandingParts';
 
 // ─── Smooth Cinematic Scroll-Reveal Component ────────────────────────────────
 // Slow, luxurious transition (1.4s, cubic-bezier ease-out + soft focal blur)
@@ -182,17 +183,6 @@ const Landing = () => {
     }, 100);
   }, []);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e) => {
-      if (!e.target.closest('.menu-drawer') && !e.target.closest('.three-lines-btn')) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [menuOpen]);
-
   const NAV_LINKS = [
     { label: 'Home',     id: 'home' },
     { label: 'About',    id: 'about' },
@@ -216,7 +206,7 @@ const Landing = () => {
         }
         .lp-card-hover:hover {
           transform: translateY(-4px);
-          border-color: rgba(230, 30, 42, 0.4) !important;
+          border-color: rgba(196, 31, 43, 0.4) !important;
           box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
         }
 
@@ -263,7 +253,7 @@ const Landing = () => {
           text-align: left;
         }
         .menu-link-item:hover {
-          background: rgba(230, 30, 42, 0.12);
+          background: rgba(196, 31, 43, 0.12);
           color: #fff;
           transform: translateX(6px);
         }
@@ -370,7 +360,7 @@ const Landing = () => {
           cursor: pointer;
           transition: color 0.25s ease;
         }
-        .nav-link:hover { color: #E61E2A !important; }
+        .nav-link:hover { color: #C41F2B !important; }
 
         /* Fluid text - refined desktop sizes so it is not oversized */
         .text-fluid-h1 {
@@ -437,58 +427,7 @@ const Landing = () => {
 
         {/* DESKTOP ACTIONS (Right) - Hidden on Mobile */}
         <div className="desktop-actions" style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', alignItems: 'center' }}>
-          {user && (
-            <button
-              onClick={() => signOut()}
-              style={{
-                padding: '0.65rem 1.25rem',
-                background: 'transparent',
-                color: 'rgba(255,255,255,0.7)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: '6px',
-                fontWeight: '800',
-                fontSize: '0.78rem',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem'
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#ef4444'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-            >
-              <LogOut size={15} />
-              <span>SIGN OUT</span>
-            </button>
-          )}
-
-          <button
-            onClick={handleAuthAction}
-            style={{
-              padding: '0.7rem 1.65rem',
-              background: '#E61E2A',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              fontWeight: '950',
-              fontSize: '0.82rem',
-              textTransform: 'uppercase',
-              letterSpacing: '1.2px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              boxShadow: '0 4px 16px rgba(230, 30, 42, 0.35)',
-              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-            }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(230, 30, 42, 0.5)'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(230, 30, 42, 0.35)'; }}
-          >
-            {user ? <LayoutDashboard size={16} /> : <LogIn size={16} />}
-            <span>{authActionPending ? 'SYNCING...' : (user ? 'DASHBOARD' : 'LOGIN')}</span>
-          </button>
+          <AuthButtons user={user} pending={authActionPending} onAuth={handleAuthAction} onSignOut={() => signOut()} />
         </div>
 
         {/* THREE-LINES BUTTON - Mobile View Only (media_1790708236894.png) */}
@@ -509,101 +448,17 @@ const Landing = () => {
         </button>
       </header>
 
-      {/* ── 2. MENU DRAWER ── */}
-      <div
-        className={`menu-drawer-backdrop ${menuOpen ? 'is-open' : ''}`}
-        onClick={() => setMenuOpen(false)}
+      {/* ── 2. MENU DRAWER (shadcn Sheet) ── */}
+      <MobileMenu
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        links={NAV_LINKS}
+        onNavigate={scrollToSection}
+        user={user}
+        pending={authActionPending}
+        onAuth={handleAuthAction}
+        onSignOut={() => { signOut(); setMenuOpen(false); }}
       />
-
-      <aside className={`menu-drawer ${menuOpen ? 'is-open' : ''}`}>
-        {/* Drawer header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'rgba(255,255,255,0.5)' }}>
-            Navigation
-          </span>
-          <button
-            onClick={() => setMenuOpen(false)}
-            aria-label="Close menu"
-            style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', padding: '4px', display: 'flex' }}
-          >
-            <XIcon size={20} />
-          </button>
-        </div>
-
-        {/* Nav links */}
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1 }}>
-          {NAV_LINKS.map(link => (
-            <button
-              key={link.id}
-              onClick={() => scrollToSection(link.id)}
-              className="menu-link-item"
-            >
-              <span>{link.label}</span>
-              <ChevronRight size={16} opacity={0.4} />
-            </button>
-          ))}
-        </nav>
-
-        {/* Footer actions */}
-        <div style={{ marginTop: 'auto', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <button
-            onClick={handleAuthAction}
-            style={{
-              width: '100%',
-              padding: '0.9rem 1.25rem',
-              background: '#E61E2A',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: '950',
-              fontSize: '0.85rem',
-              textTransform: 'uppercase',
-              letterSpacing: '1.2px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.6rem',
-              boxShadow: '0 6px 18px rgba(230, 30, 42, 0.35)',
-              transition: 'transform 0.15s ease'
-            }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-          >
-            {user ? <LayoutDashboard size={18} /> : <LogIn size={18} />}
-            <span>{authActionPending ? 'SYNCING...' : (user ? 'DASHBOARD' : 'LOGIN')}</span>
-          </button>
-
-          {user && (
-            <button
-              onClick={() => { signOut(); setMenuOpen(false); }}
-              style={{
-                width: '100%',
-                padding: '0.75rem 1rem',
-                background: 'transparent',
-                color: 'rgba(255,255,255,0.7)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: '8px',
-                fontWeight: '800',
-                fontSize: '0.78rem',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#ef4444'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-            >
-              <LogOut size={16} />
-              <span>SIGN OUT</span>
-            </button>
-          )}
-        </div>
-      </aside>
 
       {/* ── 3. HERO SECTION ── */}
       <section
@@ -645,7 +500,7 @@ const Landing = () => {
           <Reveal delay={250} direction="up">
             <h1 className="text-fluid-h1" style={{ fontWeight: '950', textTransform: 'uppercase', marginBottom: '1.25rem' }}>
               TURN THE COLOR <br />
-              <span style={{ color: '#E61E2A' }}>TO THE MAXIMUM</span>
+              <span style={{ color: '#C41F2B' }}>TO THE MAXIMUM</span>
             </h1>
           </Reveal>
 
@@ -656,27 +511,7 @@ const Landing = () => {
           </Reveal>
 
           <Reveal delay={1050} direction="up">
-            <button
-              onClick={handleAuthAction}
-              style={{
-                padding: '1.15rem 3.25rem',
-                background: '#E61E2A',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                fontWeight: '950',
-                fontSize: '0.88rem',
-                textTransform: 'uppercase',
-                letterSpacing: '2px',
-                cursor: 'pointer',
-                boxShadow: '0 10px 30px rgba(230, 30, 42, 0.38)',
-                transition: 'transform 0.3s ease, box-shadow 0.3s ease'
-              }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 14px 34px rgba(230, 30, 42, 0.52)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 10px 30px rgba(230, 30, 42, 0.38)'; }}
-            >
-              {authActionPending ? 'SYNCING...' : (user ? 'DASHBOARD' : 'BOOK NOW')}
-            </button>
+            <HeroActions user={user} pending={authActionPending} onAuth={handleAuthAction} />
           </Reveal>
         </div>
       </section>
@@ -693,30 +528,14 @@ const Landing = () => {
             </p>
           </Reveal>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-            {[
-              { icon: Shield, title: 'PROTECTION',  desc: 'Premium ceramic coatings', delay: 50 },
-              { icon: Zap,    title: 'PERFORMANCE', desc: 'Expert technicians',       delay: 150 },
-              { icon: Star,   title: 'QUALITY',     desc: 'Satisfaction guaranteed',  delay: 250 },
-              { icon: Clock,  title: 'RELIABILITY', desc: 'Punctual service',         delay: 350 },
-            ].map((item) => (
-              <Reveal key={item.title} delay={item.delay} direction="up">
-                <div
-                  className="lp-card-hover"
-                  style={{
-                    background: '#15171A',
-                    padding: '2rem 1.5rem',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(255,255,255,0.06)'
-                  }}
-                >
-                  <item.icon style={{ color: '#E61E2A', marginBottom: '1rem' }} size={32} />
-                  <h4 style={{ fontSize: '0.9rem', fontWeight: '950', marginBottom: '0.5rem', textTransform: 'uppercase' }}>{item.title}</h4>
-                  <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', margin: 0 }}>{item.desc}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
+          <Reveal direction="up" delay={150}>
+            <AboutFeatures items={[
+              { icon: Shield, title: 'Protection', desc: 'Premium ceramic coatings' },
+              { icon: Zap, title: 'Performance', desc: 'Expert technicians' },
+              { icon: Star, title: 'Quality', desc: 'Satisfaction guaranteed' },
+              { icon: Clock, title: 'Reliability', desc: 'Punctual service' },
+            ]} />
+          </Reveal>
         </div>
       </section>
 
@@ -726,7 +545,7 @@ const Landing = () => {
           <Reveal direction="up">
             <div style={{ textAlign: 'center', marginBottom: '4.5rem' }}>
               <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '1rem', fontWeight: 950 }}>OUR SERVICES</h2>
-              <div style={{ width: '80px', height: '4px', background: '#E61E2A', margin: '0 auto', borderRadius: '2px' }} />
+              <div style={{ width: '80px', height: '4px', background: '#C41F2B', margin: '0 auto', borderRadius: '2px' }} />
             </div>
           </Reveal>
 
@@ -759,10 +578,10 @@ const Landing = () => {
                       aria-label={isCatCollapsed ? 'Expand' : 'Collapse'}
                       style={{
                         display: 'none', // shown via CSS on mobile
-                        background: 'rgba(230,30,42,0.1)',
-                        border: '1px solid rgba(230,30,42,0.25)',
-                        borderRadius: '6px',
-                        color: '#E61E2A',
+                        background: 'rgba(196, 31, 43,0.1)',
+                        border: '1px solid rgba(196, 31, 43,0.25)',
+                        borderRadius: '2px',
+                        color: '#C41F2B',
                         padding: '0.35rem 0.65rem',
                         cursor: 'pointer',
                         fontSize: '0.7rem',
@@ -796,69 +615,7 @@ const Landing = () => {
                     const serviceKey = `${catIndex}-${i}`;
                     return (
                       <Reveal key={i} delay={Math.min(i * 60, 280)} direction="up">
-                        <div
-                          className="lp-card-hover"
-                          onClick={() => setOpenService(openService === serviceKey ? null : serviceKey)}
-                          style={{
-                            background: '#15171A',
-                            padding: '2rem',
-                            borderRadius: '8px',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            flexDirection: 'column'
-                          }}
-                        >
-                          <div style={{ width: '40px', height: '40px', background: 'rgba(230, 30, 42, 0.12)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
-                            <ChevronRight
-                              style={{
-                                color: '#E61E2A',
-                                transform: openService === serviceKey ? 'rotate(90deg)' : 'rotate(0deg)',
-                                transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)'
-                              }}
-                              size={20}
-                            />
-                          </div>
-
-                          <h4 style={{ fontSize: '1.05rem', fontWeight: '950', marginBottom: '0.65rem', textTransform: 'uppercase' }}>
-                            {service.name}
-                          </h4>
-
-                          <p style={{ fontSize: '0.84rem', color: 'rgba(255,255,255,0.55)', lineHeight: '1.6', margin: 0 }}>
-                            {service.desc}
-                          </p>
-
-                          <div
-                            style={{
-                              maxHeight: openService === serviceKey ? '400px' : '0',
-                              overflow: 'hidden',
-                              transition: 'all 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
-                              opacity: openService === serviceKey ? 1 : 0,
-                              marginTop: openService === serviceKey ? '1.5rem' : '0'
-                            }}
-                          >
-                            <div
-                              style={{
-                                padding: '1rem',
-                                background: 'rgba(230, 30, 42, 0.05)',
-                                border: '1px dashed rgba(230, 30, 42, 0.25)',
-                                borderRadius: '6px',
-                              }}
-                            >
-                              <span style={{ fontSize: '0.7rem', fontWeight: '950', color: '#E61E2A', display: 'block', marginBottom: '10px', letterSpacing: '1px', textAlign: 'center', textTransform: 'uppercase' }}>
-                                Vehicle Pricing
-                              </span>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                {Object.entries(service.prices).map(([type, price]) => (
-                                  <div key={type} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>{type}</span>
-                                    <span style={{ fontSize: '0.9rem', fontWeight: '950', color: 'white' }}>₱{formatPrice(price)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                        <ServiceCard service={service} formatPrice={formatPrice} />
                       </Reveal>
                     );
                   })}
@@ -878,62 +635,7 @@ const Landing = () => {
             </h2>
           </Reveal>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {displayFaqs.map((faq, i) => (
-              <Reveal key={i} delay={i * 60} direction="up">
-                <div
-                  className="lp-card-hover"
-                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  style={{
-                    background: '#15171A',
-                    padding: '1.5rem 2rem',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    cursor: 'pointer',
-                    transition: 'all 0.35s ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-                    <span style={{ fontWeight: '800', fontSize: '0.92rem' }}>{faq.question}</span>
-                    <ChevronRight
-                      size={20}
-                      style={{
-                        color: 'rgba(255,255,255,0.3)',
-                        transform: openFaq === i ? 'rotate(90deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
-                        flexShrink: 0
-                      }}
-                    />
-                  </div>
-
-                  {faq.answer && (
-                    <div
-                      style={{
-                        maxHeight: openFaq === i ? '400px' : '0',
-                        overflow: 'hidden',
-                        transition: 'all 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
-                        opacity: openFaq === i ? 1 : 0,
-                        marginTop: openFaq === i ? '1rem' : '0'
-                      }}
-                    >
-                      <p
-                        style={{
-                          fontSize: '0.85rem',
-                          color: 'rgba(255,255,255,0.55)',
-                          lineHeight: '1.65',
-                          paddingTop: '0.75rem',
-                          borderTop: '1px solid rgba(255,255,255,0.06)',
-                          margin: 0
-                        }}
-                      >
-                        {faq.answer}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </Reveal>
-            ))}
-          </div>
+          <FaqList faqs={displayFaqs} />
         </div>
       </section>
 
@@ -947,98 +649,22 @@ const Landing = () => {
             <p style={{ color: 'rgba(255,255,255,0.55)', marginBottom: '2.5rem', lineHeight: '1.8' }}>
               Ready to give your car the Comar Garage treatment? Get in touch with us for quotes, appointments, or any inquiries.
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              {contactItems.map((item, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    gap: '1.25rem',
-                    alignItems: 'center',
-                    padding: '1.1rem 1.25rem',
-                    background: '#15171A',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(255,255,255,0.06)'
-                  }}
-                >
-                  <div style={{ width: '46px', height: '46px', background: '#0A0B0D', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
-                    <item.icon size={20} style={{ color: '#E61E2A' }} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.68rem', fontWeight: '950', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                      {item.label}
-                    </div>
-                    <div style={{ fontSize: '0.88rem', fontWeight: '800', marginTop: '0.15rem' }}>
-                      {item.val}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ContactCards items={contactItems} />
           </Reveal>
 
           <Reveal direction="left" delay={150}>
-            <div style={{ background: '#15171A', padding: 'clamp(1.5rem, 5vw, 3rem)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <form style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }} onSubmit={(e) => e.preventDefault()}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.5px' }}>Name</label>
-                    <input type="text" style={{ background: '#0A0B0D', border: '1px solid rgba(255,255,255,0.1)', padding: '0.9rem 1rem', borderRadius: '6px', color: 'white', fontWeight: '700', outline: 'none' }} placeholder="John Doe" />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.5px' }}>Email</label>
-                    <input type="email" style={{ background: '#0A0B0D', border: '1px solid rgba(255,255,255,0.1)', padding: '0.9rem 1rem', borderRadius: '6px', color: 'white', fontWeight: '700', outline: 'none' }} placeholder="john@example.com" />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.5px' }}>Message</label>
-                  <textarea rows="5" style={{ background: '#0A0B0D', border: '1px solid rgba(255,255,255,0.1)', padding: '1rem', borderRadius: '6px', color: 'white', fontWeight: '700', resize: 'none', outline: 'none' }} placeholder="Tell us about your project..." />
-                </div>
-                <button
-                  type="submit"
-                  style={{
-                    padding: '1.15rem',
-                    background: '#E61E2A',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontWeight: '950',
-                    fontSize: '0.9rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '1px',
-                    cursor: 'pointer',
-                    boxShadow: '0 8px 24px rgba(230, 30, 42, 0.3)',
-                    transition: 'transform 0.15s ease'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-                >
-                  SEND MESSAGE
-                </button>
-              </form>
-            </div>
+            <ContactForm />
           </Reveal>
         </div>
       </section>
 
       {/* ── 8. FOOTER ── */}
-      <footer style={{ padding: '3.5rem 2rem', background: '#0A0B0D', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '2rem' }}>
-          <div>
-            <div style={{ fontWeight: '950', fontSize: '1.2rem', letterSpacing: '-0.5px', fontStyle: 'italic', color: '#E61E2A', textTransform: 'uppercase' }}>
-              {businessName}
-            </div>
-            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.35)', marginTop: '0.4rem' }}>
-              © 2024 COMAR GARAGE. ALL RIGHTS RESERVED.
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '1.5rem' }}>
-            <Facebook size={18} style={{ color: 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#fff'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'} />
-            <Instagram size={18} style={{ color: 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#fff'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'} />
-            <Twitter size={18} style={{ color: 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#fff'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'} />
-          </div>
-        </div>
-      </footer>
+      <SiteFooter
+        businessName={businessName}
+        links={NAV_LINKS}
+        onNavigate={scrollToSection}
+        socials={[{ label: 'Facebook', icon: Facebook }, { label: 'Instagram', icon: Instagram }, { label: 'Twitter', icon: Twitter }]}
+      />
 
       {/* LOGIN MODAL */}
       {showLoginModal && <Login isModal onClose={() => setShowLoginModal(false)} />}

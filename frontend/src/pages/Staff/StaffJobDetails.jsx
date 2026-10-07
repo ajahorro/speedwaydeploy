@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { subscribeTables } from '../../lib/realtimeHub';
 import {
-  Car, Clock, CheckCircle2, ChevronLeft, Play, Save, ShieldCheck, User
+  Car, Clock, CheckCircle2, ChevronLeft, Play, Save, ShieldCheck
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
@@ -15,7 +15,6 @@ import { useConfirmAction } from '../../hooks/useConfirmAction';
 import PhotoProofUploader from '../../components/Photos/PhotoProofUploader';
 import StartChecklist from '../../components/Photos/StartChecklist';
 import IntakeWarningBadge from '../../components/Photos/IntakeWarningBadge';
-import CustomerContact from '../../components/Staff/CustomerContact';
 import { startReadiness } from '../../utils/staffStart';
 import { fetchStaffBookings } from '../../utils/notificationRouting';
 import { BACKEND_URL } from '../../config/api';
@@ -174,33 +173,21 @@ const StaffJobDetails = () => {
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '1.5rem', alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0, width: '100%', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <section style={card}>
-            <h3 style={heading}><Car size={18} color="var(--admin-brand)" /> Vehicle and customer</h3>
+            <h3 style={heading}><Car size={18} color="var(--admin-brand)" /> Vehicle and services</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
               <div><div style={label}>Vehicle</div><div style={value}>{unit.brand} {unit.model}</div></div>
               <div><div style={label}>Plate</div><div style={{ ...value, color: 'var(--admin-brand)' }}>{unit.plate_number || 'N/A'}</div></div>
               <div><div style={label}>Type</div><div style={value}>{unit.vehicle_type || 'Standard'}</div></div>
               <div><div style={label}>Status</div><div style={{ ...value, color: statusColor }}>{status.replace(/_/g, ' ')}</div></div>
+              <div><div style={label}>Started</div><div style={value}>{time(unit.started_at)}</div></div>
+              <div><div style={label}>Finished</div><div style={value}>{time(unit.completed_at)}</div></div>
             </div>
-            {(unit.booking?.customer_name || unit.booking?.contact_number) && (
-              <div>
-                <div style={{ ...label, display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}><User size={13} /> Customer</div>
-                <CustomerContact name={unit.booking?.customer_name} phone={unit.booking?.contact_number} />
-              </div>
-            )}
-          </section>
-
-          <section style={card}>
-            <h3 style={heading}><ShieldCheck size={18} color="var(--status-success)" /> Services</h3>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
               {(unit.services || []).map((s, i) => (
                 <span key={i} style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: '0.4rem 0.7rem' }}>
                   {s.service_name}
                 </span>
               ))}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
-              <div><div style={label}>Started</div><div style={value}>{time(unit.started_at)}</div></div>
-              <div><div style={label}>Finished</div><div style={value}>{time(unit.completed_at)}</div></div>
             </div>
           </section>
         </div>

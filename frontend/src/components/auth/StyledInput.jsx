@@ -1,11 +1,13 @@
 import React from 'react';
+import { Input } from '@/components/ui/input';
 
+/** Auth-screen input: shadcn Input with a leading icon. Every prop (name, type, autoComplete, readOnly, pattern...) passes straight through. */
 const StyledInput = ({ icon: Icon, type, placeholder, value, onChange, required = false, autoComplete, name, readOnly = false, ...rest }) => (
-  <div style={{ position: 'relative', width: '100%' }}>
-    <div aria-hidden="true" style={{ position: 'absolute', inset: '0 auto 0 0', display: 'flex', alignItems: 'center', paddingLeft: '1rem', pointerEvents: 'none', color: 'var(--admin-text-secondary)', zIndex: 1 }}>
+  <div className="relative w-full">
+    <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 z-10 flex items-center pl-4 text-muted-foreground">
       <Icon size={18} />
     </div>
-    <input
+    <Input
       name={name}
       type={type}
       value={value}
@@ -16,7 +18,7 @@ const StyledInput = ({ icon: Icon, type, placeholder, value, onChange, required 
       readOnly={readOnly}
       aria-readonly={readOnly || undefined}
       {...rest}
-      style={{ width: '100%', boxSizing: 'border-box', background: readOnly ? 'var(--admin-input-bg)' : 'var(--admin-bg)', border: '1px solid var(--admin-border)', padding: '1rem 1rem 1rem 2.75rem', borderRadius: '0.85rem', color: 'var(--admin-text-primary)', fontSize: '0.95rem', outline: 'none', transition: 'all 0.2s ease', cursor: readOnly ? 'not-allowed' : undefined }}
+      className={`h-12 pl-11 text-sm font-semibold shadow-none ${readOnly ? 'bg-muted' : 'bg-background'}`}
     />
   </div>
 );

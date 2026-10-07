@@ -366,7 +366,7 @@ const AdminAccountsManagement = () => {
                   </div>
                 </div>
 
-                <button
+                {member.role !== 'ADMIN' && <button
                   type="button"
                   onClick={() => setEditingMember(member)}
                   aria-label={`Edit ${member.full_name || member.email}`}
@@ -378,7 +378,7 @@ const AdminAccountsManagement = () => {
                   }}
                 >
                   Edit
-                </button>
+                </button>}
                 {!isDefaultAdmin(member) && !isSelf(member) && !isLastAdmin(member) && (
                   <button
                     onClick={() => handleDeactivate(member)}

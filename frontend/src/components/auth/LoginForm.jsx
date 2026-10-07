@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock, AlertCircle } from 'lucide-react';
 import StyledInput from './StyledInput';
+import { Button } from '@/components/ui/button';
 import { sanitizeEmail } from '../../config/constants';
 
 const LoginForm = ({ onLogin, onSwitchMode, isLoading, error, onClearError, initialEmail = '', onEmailChange }) => {
@@ -12,22 +13,6 @@ const LoginForm = ({ onLogin, onSwitchMode, isLoading, error, onClearError, init
     onLogin(email.trim(), password);
   };
 
-  const buttonStyle = {
-    width: '100%',
-    background: 'var(--admin-brand)',
-    color: '#FFFFFF',
-    padding: '1.1rem',
-    borderRadius: '0.85rem',
-    border: 'none',
-    fontWeight: '900',
-    fontSize: '0.95rem',
-    cursor: 'pointer',
-    marginTop: '1.5rem',
-    transition: 'all 0.2s ease',
-    boxShadow: '0 8px 25px rgba(169, 27, 24, 0.25)',
-    textTransform: 'uppercase',
-    letterSpacing: '1px'
-  };
 
   return (
     <form onSubmit={handleSubmit}>
@@ -43,16 +28,16 @@ const LoginForm = ({ onLogin, onSwitchMode, isLoading, error, onClearError, init
       <div style={{ position: 'relative', marginBottom: '1.25rem' }}>
         <StyledInput icon={Lock} type="password" placeholder="Password" required value={password} onChange={e => { setPassword(e.target.value); onClearError?.(); }} autoComplete="current-password" />
       </div>
-      <button type="submit" disabled={isLoading} style={buttonStyle}>
+      <Button type="submit" disabled={isLoading} className="mt-6 h-12 w-full text-sm font-black uppercase tracking-wider">
         {isLoading ? 'Processing...' : 'Login'}
-      </button>
+      </Button>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', marginTop: '1.5rem', fontSize: '0.85rem' }}>
         <p style={{ margin: 0, color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
-          Don't have an account? <span onClick={() => onSwitchMode('REGISTER')} style={{ color: 'var(--admin-brand)', cursor: 'pointer', fontWeight: '900' }}>Register</span>
+          Don't have an account? <Button type="button" variant="link" className="h-auto p-0 font-black text-primary" onClick={() => onSwitchMode('REGISTER')}>Register</Button>
         </p>
-        <span onClick={() => onSwitchMode('RECOVER', email)} style={{ color: 'var(--admin-text-secondary)', cursor: 'pointer', fontWeight: '700', opacity: 0.6 }}>Forgot Password?</span>
+        <Button type="button" variant="link" className="h-auto p-0 font-bold text-muted-foreground" onClick={() => onSwitchMode('RECOVER', email)}>Forgot Password?</Button>
         {/* Section 1.2: reach the email-OTP unlock flow without waiting out the lock. */}
-        <span onClick={() => onSwitchMode('RECOVER_OTP', email)} style={{ color: 'var(--admin-text-secondary)', cursor: 'pointer', fontWeight: '700', opacity: 0.6 }}>Account locked? Recover it</span>
+        <Button type="button" variant="link" className="h-auto p-0 font-bold text-muted-foreground" onClick={() => onSwitchMode('RECOVER_OTP', email)}>Account locked? Recover it</Button>
       </div>
     </form>
   );

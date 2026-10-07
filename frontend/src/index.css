@@ -470,3 +470,31 @@ img, video {
 .hero-toast-overlay {
   z-index: var(--z-toast);
 }
+
+/* Landing page: shadcn/ui parts always use the landing's dark palette, whatever the app theme is. */
+.landing-ui {
+  --background: #0A0B0D;
+  --foreground: #ffffff;
+  --card: #15171A;
+  --card-foreground: #ffffff;
+  --popover: #15171A;
+  --popover-foreground: #ffffff;
+  --primary: #C41F2B;
+  --primary-foreground: #ffffff;
+  --secondary: #1d2024;
+  --secondary-foreground: #ffffff;
+  --muted: #1d2024;
+  --muted-foreground: rgba(255, 255, 255, 0.55);
+  --accent: #1d2024;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: #C41F2B;
+  /* sharp corners on the landing page */
+  --radius: 2px;
+  --admin-radius: 2px;
+  --admin-radius-sm: 1px;
+  --admin-radius-md: 2px;
+  color: var(--foreground);
+}

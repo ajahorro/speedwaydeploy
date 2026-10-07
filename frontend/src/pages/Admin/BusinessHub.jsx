@@ -296,6 +296,11 @@ const gridStyle = {
 const inputStyle = {
   width: '100%',
   minWidth: 0,
+  maxWidth: '100%',
+  boxSizing: 'border-box',
+  minHeight: '44px',
+  WebkitAppearance: 'none',
+  appearance: 'none',
   padding: '0.7rem 0.9rem',
   background: 'var(--admin-input-bg, var(--admin-bg))',
   border: '1px solid var(--admin-input-border, var(--admin-border))',
@@ -2401,8 +2406,8 @@ export default function BusinessHub() {
                           title={`${day.long} — ${statusText}`}
                           style={{
                             borderRadius: '0.75rem',
-                            border: `1px solid ${isClosed ? 'rgba(244, 63, 94, 0.35)' : 'rgba(148, 163, 184, 0.28)'}`,
-                            background: isClosed ? 'rgba(244, 63, 94, 0.09)' : 'rgba(15, 23, 42, 0.8)',
+                            border: `1px solid ${isClosed ? 'rgba(244, 63, 94, 0.45)' : 'var(--admin-border)'}`,
+                            background: isClosed ? 'rgba(244, 63, 94, 0.09)' : 'var(--admin-input-bg, var(--admin-bg))',
                             color: 'var(--admin-text-primary)',
                             padding: '0.7rem 0.45rem',
                             textAlign: 'center',

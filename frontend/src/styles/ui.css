@@ -21,6 +21,8 @@
 @import 'tw-animate-css';
 
 @source '../components/ui';
+@source '../components/auth';
+@source '../pages/Login.jsx';
 @source '../features';
 /* Files outside features/ that are written with utility classes (nothing else in their folders is). */
 @source '../pages/Admin/AdminChat.jsx';

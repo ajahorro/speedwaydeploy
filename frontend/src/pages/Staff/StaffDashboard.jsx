@@ -254,7 +254,7 @@ const StaffDashboard = () => {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '1rem', fontWeight: 950, textTransform: 'uppercase', overflowWrap: 'anywhere' }}>{task.brand} {task.model}</div>
                     <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--admin-text-secondary)', marginTop: '0.2rem', overflowWrap: 'anywhere' }}>
-                      {task.plate_number || 'No plate'} · {task.customer_name || 'Customer'} · {(task.services || []).map((s) => s.service_name).join(', ') || 'No services'}
+                      {task.plate_number || 'No plate'} · {(task.services || []).map((s) => s.service_name).join(', ') || 'No services'}
                     </div>
                   </div>
                 </div>

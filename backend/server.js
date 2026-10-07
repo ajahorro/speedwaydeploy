@@ -1065,46 +1065,14 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     const identity = `ocr:${req.body.rateKey || req.body.bookingId || 'unknown'}:${req.ip || req.headers['x-forwarded-for'] || 'anon'}`;
 
     if (ocrGuard.isAutomationLocked(identity)) {
-      console.warn(`⛔ [OCR] ${identity} is LOCKED after repeated failures — routing to manual review.`);
-      const imageHash = ocrGuard.computeImageHash(req.file.buffer);
-      const receiptUrl = await storeOcrReceiptImage(req.file, imageHash);
-      const manualMetadata = {
-        amount: null,
-        grossAmount: null,
-        transferFee: 0,
-        referenceNumber: null,
-        referenceNo: null,
-        recipient: null,
-        isValidReceipt: false,
-        isReceipt: false,
-        payment_verdict: 'FOR_VERIFICATION',
-        status: 'MANUAL_REVIEW',
-        image_hash: imageHash,
-          receipt_url: receiptUrl,
-        extraction_unavailable: true,
-        auditedAt: new Date().toISOString(),
-      };
-      const ocrScanId = await registerOcrScanSession(imageHash, manualMetadata);
-      return res.json({
+      // Too many unreadable uploads in a row: wait a few minutes and upload a clearer photo.
+      console.warn(`⛔ [OCR] ${identity} is LOCKED after repeated failures.`);
+      return res.status(429).json({
+        success: false,
         valid: false,
         reason: 'VERIFICATION_LOCKED',
-        status: 'MANUAL_REVIEW',
-        success: true,
-        isNameMatch: null,
-        isAmountMatch: null,
-        isDuplicate: false,
-        isManualReview: true,
-        manualReviewAllowed: true,
-        ocrScanId,
-          receiptUrl,
-          receipt_url: await storeOcrReceiptImage(req.file, imageHash),
-        data: {
-          referenceNo: 'MANUAL_AUDIT_PENDING',
-          amount: 0,
-          recipient: 'N/A',
-          isReceipt: true,
-          description: 'Automated OCR is temporarily locked after repeated unreadable uploads. Your payment proof was saved for manual admin verification.',
-        },
+        manualReviewAllowed: false,
+        error: 'Too many receipts could not be read. Please wait a few minutes, then upload a clear photo of the whole receipt.'
       });
     }
 
@@ -1378,89 +1346,44 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // amount did not match" — a readable receipt with the wrong amount is still a
     // rejection, because that is a real signal.
     const extractionUnavailable = !rawExtractedText.trim()
-      || !extractedData.isReceipt
-      || !extractedData.recipient;
+      || !extractedData.isReceipt;
 
     if (extractionUnavailable && !isDuplicate) {
-      console.warn('⚠️ [OCR] Extraction unavailable — routing receipt to MANUAL REVIEW (not rejecting).');
-
-      const manualMetadata = {
-        ...extractedData,
-        payment_verdict: PAYMENT_STATUS_FOR_VERIFICATION,
-        status: 'MANUAL_REVIEW',
-        isMatch: null,
-        isNameMatch: expectedRecipientName ? isNameMatch : null,
-        receipt_is_trustworthy: false,
-        extraction_unavailable: true,
-        requiredAmount,
-        fullAmount,
-        isAmountMatch,
-        isReferenceValid,
-        isReferenceUnique,
-        validationErrors,
-        isDuplicate: false,
-        image_hash: imageHash,
-        qrConfigVersion: expectedQrVersion || null,
-        liveQrVersion: liveQrVersion || null,
-        qrVersionMismatch,
-        auditedAt: new Date().toISOString(),
-      };
-      const ocrScanId = await registerOcrScanSession(imageHash, manualMetadata);
-
-      // Persist what little we have so the admin can adjudicate, then return a
-      // verdict the client treats as "accepted, pending human review".
-      if (bookingId && bookingId !== 'PENDING' && paymentId && supabaseAdmin) {
-        const { error: reviewError } = await supabaseAdmin.rpc('persist_ocr_result', {
-          p_booking_id: bookingId,
-          p_payment_id: paymentId,
-          p_detected_amount: extractedAmount,
-          p_detected_ref: referenceNo || null,
-          p_payment_status: 'pending',
-          p_ocr_metadata: {
-            ...manualMetadata,
-            status: 'MANUAL_REVIEW',
-            isMatch: null,
-            // UI-CONTRACT KEYS. The admin UI reads these straight off the stored
-            // record (AdminBookingDetails `ocr_metadata.isMatch`,
-            // AdminRefunds `ocr_metadata.status`). A manually-reviewed booking
-            // must present as an explicit "needs a human" state rather than
-            // `undefined`, which would render as an unexplained blank.
-          }
-        });
-        if (reviewError) {
-          console.error('⚠️ Could not persist manual-review OCR result:', reviewError.message);
-        }
-      }
-
+      // Strict rule: a receipt that cannot be read is NOT accepted and not queued for later review. The person is
+      // asked for a clearer photo of the whole receipt.
+      console.warn('⚠️ [OCR] Receipt unreadable — refused (strict rule).');
       return res.json({
         success: true,
         valid: false,
-        reason: 'VERIFICATION_UNAVAILABLE',
-        status: 'MANUAL_REVIEW',
-        isNameMatch: null,
-        isAmountMatch: null,
+        reason: 'UNREADABLE_RECEIPT',
+        status: 'REJECTED',
+        isNameMatch: false,
+        isAmountMatch: false,
         isDuplicate: false,
-        isManualReview: true,
-        verificationUnavailable: true,
-        // The ONLY case that leaves submit enabled. The customer is told the
-        // receipt is queued for manual verification rather than blocked.
-        manualReviewAllowed: true,
-        ocrScanId,
-        receiptUrl: manualMetadata.receipt_url,
+        isManualReview: false,
+        manualReviewAllowed: false,
+        ocrScanId: null,
         data: {
           ...extractedData,
           amount: extractedAmount,
-          amountDetected: extractedData.amount !== null && extractedData.amount !== undefined,
-          referenceNo: referenceNo || 'MANUAL_AUDIT_PENDING',
+          amountDetected: false,
+          referenceNo: referenceNo || null,
           expectedRecipientName,
           expectedAmount: { minimum: requiredAmount, full: fullAmount },
-          isNameMatch,
-          isAmountMatch,
-          isReferenceValid,
-          isReferenceUnique,
-          validationErrors,
-          description: 'The receipt could not be read automatically on this device. It has been saved for manual admin verification.'
-        }
+          isNameMatch: false,
+          isAmountMatch: false,
+          validationErrors: [{
+            code: 'UNREADABLE_RECEIPT',
+            label: 'Receipt could not be read',
+            message: 'We could not read this receipt. Upload a clear photo of the whole receipt (the amount, recipient and reference number must be visible).'
+          }],
+          description: 'We could not read this receipt. Upload a clear photo of the whole receipt.'
+        },
+        validationErrors: [{
+          code: 'UNREADABLE_RECEIPT',
+          label: 'Receipt could not be read',
+          message: 'We could not read this receipt. Upload a clear photo of the whole receipt (the amount, recipient and reference number must be visible).'
+        }]
       });
     }
 

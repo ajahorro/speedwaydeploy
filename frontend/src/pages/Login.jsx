@@ -3,6 +3,7 @@ import { useAuthFlow } from '../hooks/useAuthFlow';
 import AuthHeader from '../components/auth/AuthHeader';
 import LoginForm from '../components/auth/LoginForm';
 import RegisterForm from '../components/auth/RegisterForm';
+import { Button } from '@/components/ui/button';
 import RecoverForm from '../components/auth/RecoverForm';
 import EmergencyRecoveryForm from '../components/auth/EmergencyRecoveryForm';
 import { useMediaQuery } from '../hooks/useMediaQuery';
@@ -135,22 +136,7 @@ const Login = ({ isModal = false, onClose }) => {
               We've sent a activation link to <strong style={{ color: 'var(--admin-text-primary)' }}>{verificationEmail}</strong>.
               Please click the link to activate your account.
             </p>
-            <button
-              onClick={() => switchMode('LOGIN')}
-              style={{
-                background: 'transparent',
-                border: '1px solid var(--admin-border)',
-                color: 'var(--admin-text-primary)',
-                padding: '0.75rem 1.5rem',
-                borderRadius: '0.85rem',
-                fontWeight: '900',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                textTransform: 'uppercase'
-              }}
-            >
-              Back to Login
-            </button>
+            <Button type="button" variant="outline" onClick={() => switchMode('LOGIN')} className="font-black uppercase">Back to Login</Button>
           </div>
         );
       default:
@@ -214,9 +200,7 @@ const Login = ({ isModal = false, onClose }) => {
 
       <div style={cardStyle} onClick={e => e.stopPropagation()}>
         {isModal && (
-          <button onClick={onClose} style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer', padding: '0.5rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <X size={20} />
-          </button>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 text-muted-foreground"><X size={20} /></Button>
         )}
         <AuthHeader mode={mode} email={prefillEmail} />
         {renderForm()}

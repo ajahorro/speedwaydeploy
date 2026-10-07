@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock, KeyRound, ShieldQuestion, ArrowLeft } from 'lucide-react';
 import StyledInput from './StyledInput';
+import { Button } from '@/components/ui/button';
 import { sanitizeEmail } from '../../config/constants';
 
 /**
@@ -44,22 +45,6 @@ const EmergencyRecoveryForm = ({ onRequest, onComplete, onSwitchMode, isLoading,
     await onComplete(otp.trim(), newPassword);
   };
 
-  const buttonStyle = {
-    width: '100%',
-    background: 'var(--admin-brand)',
-    color: '#FFFFFF',
-    padding: '1.1rem',
-    borderRadius: '0.85rem',
-    border: 'none',
-    fontWeight: '900',
-    fontSize: '0.95rem',
-    cursor: 'pointer',
-    marginTop: '1.5rem',
-    transition: 'all 0.2s ease',
-    boxShadow: '0 8px 25px rgba(169, 27, 24, 0.25)',
-    textTransform: 'uppercase',
-    letterSpacing: '1px'
-  };
 
   const errorBox = localError && (
     <div role="alert" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '1rem', padding: '0.75rem', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '0.65rem', color: '#fca5a5', fontSize: '0.8rem', fontWeight: '700', lineHeight: 1.4 }}>
@@ -78,16 +63,16 @@ const EmergencyRecoveryForm = ({ onRequest, onComplete, onSwitchMode, isLoading,
         <div style={{ marginBottom: '1.5rem' }}>
           <StyledInput icon={Mail} type="email" placeholder="Email Address" required value={email} onChange={e => setEmail(sanitizeEmail(e.target.value))} autoComplete="email" autoFocus />
         </div>
-        <button type="submit" disabled={isLoading} style={buttonStyle}>
+        <Button type="submit" disabled={isLoading} className="mt-6 h-12 w-full text-sm font-black uppercase tracking-wider">
           {isLoading ? 'Sending Code...' : 'Send Recovery Code'}
-        </button>
+        </Button>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', marginTop: '1.5rem', fontSize: '0.85rem' }}>
-          <span onClick={() => onSwitchMode('LOGIN')} style={{ color: 'var(--admin-text-secondary)', cursor: 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <Button type="button" variant="link" className="h-auto p-0 font-bold text-muted-foreground" onClick={() => onSwitchMode('LOGIN')}>
             <ArrowLeft size={14} /> Back to Login
-          </span>
-          <span onClick={() => onSwitchMode('RECOVER')} style={{ color: 'var(--admin-text-secondary)', cursor: 'pointer', fontWeight: '700', opacity: 0.6 }}>
+          </Button>
+          <Button type="button" variant="link" className="h-auto p-0 font-bold text-muted-foreground" onClick={() => onSwitchMode('RECOVER')}>
             Just forgot your password?
-          </span>
+          </Button>
         </div>
       </form>
     );
@@ -109,16 +94,16 @@ const EmergencyRecoveryForm = ({ onRequest, onComplete, onSwitchMode, isLoading,
       <div style={{ marginBottom: '1.25rem' }}>
         <StyledInput icon={Lock} type="password" placeholder="Confirm New Password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" />
       </div>
-      <button type="submit" disabled={isLoading} style={buttonStyle}>
+      <Button type="submit" disabled={isLoading} className="mt-6 h-12 w-full text-sm font-black uppercase tracking-wider">
         {isLoading ? 'Recovering...' : 'Unlock & Set Password'}
-      </button>
+      </Button>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', marginTop: '1.5rem', fontSize: '0.85rem' }}>
-        <span onClick={() => setStep('REQUEST')} style={{ color: 'var(--admin-text-secondary)', cursor: 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <Button type="button" variant="link" className="h-auto p-0 font-bold text-muted-foreground" onClick={() => setStep('REQUEST')}>
           <ArrowLeft size={14} /> Use a different email
-        </span>
-        <span onClick={() => onSwitchMode('LOGIN')} style={{ color: 'var(--admin-text-secondary)', cursor: 'pointer', fontWeight: '700', opacity: 0.6 }}>
+        </Button>
+        <Button type="button" variant="link" className="h-auto p-0 font-bold text-muted-foreground" onClick={() => onSwitchMode('LOGIN')}>
           Back to Login
-        </span>
+        </Button>
       </div>
     </form>
   );

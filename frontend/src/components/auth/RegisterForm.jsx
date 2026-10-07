@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock, User, Phone, Loader2, AlertCircle } from 'lucide-react';
 import StyledInput from './StyledInput';
+import { Button } from '@/components/ui/button';
 import { sanitizeByFieldType } from '../../config/constants';
 import { PhoneInput, EmailInput } from '../common/ContactInputs';
 import { emailError, phoneError } from '../../utils/contactValidation';
@@ -44,22 +45,6 @@ const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '', 
     if (error) setError('');
   };
 
-  const buttonStyle = {
-    width: '100%',
-    background: 'var(--admin-brand)',
-    color: '#FFFFFF',
-    padding: '1.1rem',
-    borderRadius: '0.85rem',
-    border: 'none',
-    fontWeight: '900',
-    fontSize: '0.95rem',
-    cursor: 'pointer',
-    marginTop: '1rem',
-    transition: 'all 0.2s ease',
-    boxShadow: '0 8px 25px rgba(169, 27, 24, 0.25)',
-    textTransform: 'uppercase',
-    letterSpacing: '1px'
-  };
 
   return (
     <form onSubmit={handleSubmit}>
@@ -98,12 +83,12 @@ const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '', 
         <StyledInput icon={Lock} type="password" placeholder="Confirm Password" required value={formData.confirmPassword} onChange={e => updateField('confirmPassword', e.target.value)} autoComplete="new-password" />
       </div>
 
-      <button type="submit" disabled={isLoading} style={buttonStyle}>
+      <Button type="submit" disabled={isLoading} className="mt-6 h-12 w-full text-sm font-black uppercase tracking-wider">
         {isLoading ? <><Loader2 size={16} style={{ verticalAlign: 'middle', marginRight: '0.4rem', animation: 'spin 1s linear infinite' }} /> Creating Account...</> : 'Register'}
-      </button>
+      </Button>
       
       <p style={{ textAlign: 'center', marginTop: '1.5rem', color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '600' }}>
-        Already have an account? <span onClick={() => onSwitchMode('LOGIN')} style={{ color: 'var(--admin-brand)', cursor: 'pointer', fontWeight: '900' }}>Login</span>
+        Already have an account? <Button type="button" variant="link" className="h-auto p-0 font-black text-primary" onClick={() => onSwitchMode('LOGIN')}>Login</Button>
       </p>
     </form>
   );
