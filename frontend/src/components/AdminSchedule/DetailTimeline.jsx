@@ -175,7 +175,7 @@ const DetailTimeline = ({
                       borderRadius: '3px',
                       border: `1px solid ${accentColor}`,
                       background: backgroundColor,
-                      color: 'var(--admin-text-on-brand)',
+                      color: 'var(--admin-text-primary)',
                       fontSize: '0.52rem',
                       fontWeight: '950',
                       display: 'flex',
@@ -191,8 +191,8 @@ const DetailTimeline = ({
                 }}
               >
                 <strong style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{booking.customer?.full_name || 'System/Guest User'}</strong>
-                <span style={{ maxWidth: '100%', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.48rem', fontWeight: '700', color: 'rgba(255,255,255,0.82)' }}>{getBookingService(booking)}</span>
-                <span style={{ maxWidth: '100%', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.45rem', fontWeight: '700', color: 'rgba(255,255,255,0.68)' }}>#{String(booking.id).slice(0, 8).toUpperCase()}</span>
+                <span style={{ maxWidth: '100%', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.48rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>{getBookingService(booking)}</span>
+                <span style={{ maxWidth: '100%', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.45rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>#{String(booking.id).slice(0, 8).toUpperCase()}</span>
               </div>
             );
           })}

@@ -640,7 +640,7 @@ const AdminSchedule = () => {
       </PageHeader>
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '350px 1fr', gap: '2rem', alignItems: 'start' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', ...(isMobile ? {} : { position: 'sticky', top: '1rem', alignSelf: 'start', maxHeight: 'calc(100vh - 2rem)', overflowY: 'auto' }) }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', ...(isMobile ? {} : { position: 'sticky', top: 'calc(var(--app-shell-header-height, 76px) + 1rem)', alignSelf: 'start' }) }}>
           <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.25rem', borderBottom: '1px solid var(--admin-border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -744,7 +744,7 @@ const AdminSchedule = () => {
 
         </div>
 
-        <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', ...(isMobile ? { overflow: 'hidden' } : { overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(100vh - 2rem)' }) }}>
+        <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', ...(isMobile ? { overflow: 'hidden' } : { overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(100vh - var(--app-shell-header-height, 76px) - 2rem)', overscrollBehavior: 'contain' }) }}>
           <div style={{ padding: '1.5rem' }}>
             <OccupancyShelf
               bookings={bookings}
