@@ -13,6 +13,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from '@/lib/toast';
 import { logger } from '../../utils/logger';
 import { fetchBookingLedgers } from '../../services/ledgerService';
+import { getRefundRequestLimit } from '../../utils/refundRequestUtils';
 import { matchesSearchText } from '../../utils/searchMatch';
 
 const AdminRefunds = () => {
@@ -101,7 +102,7 @@ const AdminRefunds = () => {
             && String(p.notes || '').startsWith('OVERPAYMENT_CREDIT_REFUND:'))
           .reduce((sum, p) => sum + Math.abs(Number(p.amount)), 0); // single-source-ok: matches overpayment-credit refund rows by note; not a paid total
         const overpaymentRefundRemaining = Math.max(0, queuedOverpayment - processedOverpaymentRefunds);
-        const refundLimit = overpaymentRefundRemaining > 0 ? overpaymentRefundRemaining : totalPaid;
+        const refundLimit = getRefundRequestLimit({ totalPaid, overpaymentRefundRemaining });
 
         return {
           ...b,

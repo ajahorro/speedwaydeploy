@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { fetchBookingLedgers, fetchSalesReport } from '../../services/ledgerService';
+import { isPendingRefundRequest, getRefundRequestLimit } from '../../utils/refundRequestUtils';
 
 // MEMOIZED SUB-COMPONENTS: Prevent entire dashboard from re-rendering on single metric change
 const AttentionCard = React.memo(({ count, label, icon: Icon, color, bg, onClick }) => {
@@ -228,17 +229,43 @@ const AdminDashboard = () => {
         .in('status', ['completed', 'COMPLETED']);
 
       // 8. Needs Attention - Refund Requests (REQ-ADM-05)
-      const { data: refundData } = await supabase
+      const { data: refundData, error: refundError } = await supabase
         .from('bookings')
-        .select('id, refund_status')
-        .in('status', ['cancelled', 'FLAGGED_NOSHOW']);
+        .select('id, refund_status, payments:payments!payments_booking_id_fkey(amount, method, notes)')
+        .or('status.in.(cancelled,FLAGGED_NOSHOW),refund_status.in.(QUEUED,PROCESSING,PROCESSED,EMAIL_PENDING)');
+      if (refundError) throw refundError;
 
-      // A refund is owed when the ledger still holds money for the booking.
-      const refundCandidates = (refundData || []).filter(b => b.refund_status !== 'PROCESSED');
-      const refundLedgers = await fetchBookingLedgers(refundCandidates.map(b => b.id));
-      const refundRequestsCount = refundCandidates
-        .filter(b => Number(refundLedgers.get(b.id)?.net_settled || 0) > 0)
-        .length;
+      const refundBookingIds = (refundData || []).map(booking => booking.id);
+      const refundLedgers = await fetchBookingLedgers(refundBookingIds);
+      let queuedCreditRows = [];
+      if (refundBookingIds.length) {
+        const { data: creditRows, error: creditError } = await supabase
+          .from('customer_credit_ledger')
+          .select('booking_id, amount')
+          .in('booking_id', refundBookingIds)
+          .eq('entry_type', 'REFUND_QUEUED');
+        if (creditError) throw creditError;
+        queuedCreditRows = creditRows || [];
+      }
+
+      const refundRequestsCount = (refundData || []).filter(booking => {
+        const payments = booking.payments || [];
+        const queuedOverpayment = queuedCreditRows
+          .filter(entry => entry.booking_id === booking.id)
+          .reduce((sum, entry) => sum + Math.max(0, -Number(entry.amount || 0)), 0);
+        const processedOverpaymentRefunds = payments
+          .filter(payment => Number(payment.amount) < 0
+            && String(payment.method || '').trim().toUpperCase() === 'SYSTEM_REFUND'
+            && String(payment.notes || '').startsWith('OVERPAYMENT_CREDIT_REFUND:'))
+          .reduce((sum, payment) => sum + Math.abs(Number(payment.amount)), 0);
+        const overpaymentRefundRemaining = Math.max(0, queuedOverpayment - processedOverpaymentRefunds);
+        const refundLimit = getRefundRequestLimit({
+          totalPaid: refundLedgers.get(booking.id)?.net_settled,
+          overpaymentRefundRemaining
+        });
+
+        return isPendingRefundRequest({ refundStatus: booking.refund_status, refundLimit });
+      }).length;
 
       const { data: activeQueue } = await supabase
         .from('bookings')
@@ -321,7 +348,10 @@ const AdminDashboard = () => {
       debounceRef.current = setTimeout(fetchDashboardData, 500);
     };
 
-    const stopRealtime = subscribeTables([{ table: 'bookings' }, { table: 'payments' }], debouncedRefresh);
+    const stopRealtime = subscribeTables(
+      [{ table: 'bookings' }, { table: 'payments' }, { table: 'customer_credit_ledger' }],
+      debouncedRefresh
+    );
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
