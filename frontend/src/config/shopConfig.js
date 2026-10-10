@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { setBikeVehicleTypes } from './vehicleTypes';
 import { setCatalogSource } from '../data/servicesCatalog';
 import { setDownpaymentPolicy } from '../utils/paymentUtils';
 
@@ -41,6 +42,7 @@ const applyRow = (incoming) => {
     promoRules: Array.isArray(row?.promo_rules) ? row.promo_rules : [],
     vehicleTypes: Array.isArray(row?.vehicle_types) ? row.vehicle_types : []
   });
+  setBikeVehicleTypes(row?.bike_vehicle_types);
   setDownpaymentPolicy({
     min_total: row?.downpayment_min_total,
     rate: row?.downpayment_rate,

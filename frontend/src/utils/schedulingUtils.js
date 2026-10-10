@@ -1,3 +1,4 @@
+import { getVehicleWeight, isBikeVehicleType } from '../config/vehicleTypes';
 import { CAPACITY_THRESHOLD, COLORS, SHOP_CONFIG } from '../config/constants';
 
 /**
@@ -69,18 +70,8 @@ export const segregateBookings = (bookings = [], config = SHOP_CONFIG) => {
   return { fullDay, transient };
 };
 
-/**
- * Returns the bay weight for a given vehicle type.
- * Motorcycles and big bikes = 0.5 bays (2 of them share 1 bay).
- * All other vehicle types = 1.0 bay.
- */
-export const getVehicleWeight = (vehicleType = '') => {
-  const type = (vehicleType || '').toUpperCase();
-  if (['REGULAR', 'BIGBIKE', 'MOTORCYCLE', 'BIG_BIKE', 'MOTORBIKE'].includes(type)) return 0.5;
-  return 1.0;
-};
-
-export const isBikeVehicleType = (vehicleType = '') => getVehicleWeight(vehicleType) === 0.5;
+// Bay weight (bike = 0.5, everything else 1) is defined once in config/vehicleTypes.js.
+export { getVehicleWeight, isBikeVehicleType };
 
 /**
  * Counts occupied bays without allowing a car to share a half-used bike bay.

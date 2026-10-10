@@ -223,11 +223,7 @@ const normalizeStatus = (status) => String(status || '').toLowerCase();
 const NON_BLOCKING_STATUSES = ['cancelled', 'completed', 'flagged_noshow', 'released'];
 
 /** How many bay-units a single booking occupies (bikes = 0.5, cars = 1). */
-const vehicleUnits = (vehicle) => {
-  const type = String(vehicle?.vehicle_type || vehicle?.type || vehicle?.vehicleType || '').toUpperCase();
-  if (['REGULAR', 'BIGBIKE', 'MOTORCYCLE', 'BIG_BIKE', 'MOTORBIKE'].includes(type)) return 0.5;
-  return 1;
-};
+const vehicleUnits = (vehicle) => getVehicleWeight(vehicle?.vehicle_type || vehicle?.type || vehicle?.vehicleType);
 
 /** Total bays consumed by the vehicles attached to one booking (min 1). */
 const bookingBayUsage = (booking) => {

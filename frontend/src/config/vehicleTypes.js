@@ -88,3 +88,24 @@ export const canonicalVehicleKey = (value) => {
   const normalized = raw.toLowerCase().replace(/[_/-]+/g, ' ').replace(/\s+/g, ' ').trim();
   return VEHICLE_ALIASES[normalized] || VEHICLE_ALIASES_NO_SPACES[normalized.replace(/\s+/g, '')] || raw;
 };
+
+// ── Which categories count as a bike (two share one bay) ───────────────────
+// Source of truth: business_config.bike_vehicle_types (set in the Business Hub
+// data), applied through setBikeVehicleTypes by config/shopConfig.js. The
+// built-in motorcycle categories and the legacy names below are always bikes,
+// so an unset or empty list behaves exactly as before. The database keeps the
+// matching rule in vehicle_bay_weight(); capacity must agree on both sides.
+const ALWAYS_BIKE = ['regular', 'bigbike', 'motorcycle', 'big_bike', 'motorbike'];
+let configuredBikeTypes = new Set();
+
+export const setBikeVehicleTypes = (list) => {
+  configuredBikeTypes = new Set((Array.isArray(list) ? list : []).map((t) => String(t ?? '').trim().toLowerCase()).filter(Boolean));
+};
+
+/** Bay-units one vehicle of this category occupies: 0.5 for a bike, 1 otherwise. */
+export const getVehicleWeight = (vehicleType = '') => {
+  const type = String(vehicleType ?? '').trim().toLowerCase();
+  return ALWAYS_BIKE.includes(type) || configuredBikeTypes.has(type) ? 0.5 : 1.0;
+};
+
+export const isBikeVehicleType = (vehicleType = '') => getVehicleWeight(vehicleType) === 0.5;
