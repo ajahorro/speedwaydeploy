@@ -16,10 +16,8 @@ const PAGE_SIZE = 25;
 
 const METHOD_OPTIONS = [
   { value: 'ALL', label: 'All methods' },
-  { value: 'GCASH', label: 'GCash' },
   { value: 'CASH', label: 'Cash' },
-  { value: 'BANK_TRANSFER', label: 'Bank transfer' },
-  { value: 'MAYA', label: 'Maya' }
+  { value: 'DIGITAL', label: 'Digital Bank' }
 ];
 
 const formatDateTime = (value) => (value

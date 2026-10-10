@@ -8,7 +8,7 @@ import { formatPeso } from '@/features/finance/money';
  * in the browser, so these cards always match booking balances and receipts.
  */
 const KPIS = [
-  { key: 'net_revenue', label: 'Net revenue', hint: 'Net received minus refunds', emphasis: true },
+  { key: 'net_revenue', label: 'Net revenue', hint: 'Net received minus refunds', emphasis: true, tone: 'text-emerald-500' },
   { key: 'net_received', label: 'Net received', hint: 'Money that reached the shop' },
   { key: 'refunds', label: 'Refunds', hint: 'Posted refund transactions', tone: 'text-chart-2' },
   { key: 'pending_verification', label: 'Pending verification', hint: 'Receipts awaiting an admin', tone: 'text-warning' },
@@ -29,7 +29,7 @@ export function KpiCards({ report, loading, compact = false }) {
             {loading || !report ? (
               <Skeleton className="h-8 w-32" />
             ) : (
-              <CardTitle className={cn('text-2xl font-bold tabular-nums', kpi.emphasis && 'text-primary', kpi.tone)}>
+              <CardTitle className={cn('text-2xl font-bold tabular-nums', kpi.tone)}>
                 {formatPeso(report[kpi.key])}
               </CardTitle>
             )}

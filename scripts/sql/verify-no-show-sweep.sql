@@ -26,6 +26,9 @@ insert into public.booking_vehicles (id, booking_id, vehicle_type, brand, model,
 select ('9d1000bb-0000-0000-0000-00000000000' || n)::uuid, ('9d1000aa-0000-0000-0000-00000000000' || n)::uuid, 'Sedan', 'A', 'B', 'NS00' || n, 'SCHEDULED', '9d100000-0000-0000-0000-000000000002'::uuid from generate_series(1, 4) n;
 insert into public.service_photos (booking_id, booking_vehicle_id, phase, storage_path, source, uploaded_by)
 values ('9d1000aa-0000-0000-0000-000000000001', '9d1000bb-0000-0000-0000-000000000001', 'before', 'x/before.png', 'upload', '9d100000-0000-0000-0000-000000000002');
+insert into public.bookings (id, customer_id, customer_name, status, payment_status, total_amount, start_datetime, end_datetime, staff_id) values ('9d1000aa-0000-0000-0000-000000000005', '9d100000-0000-0000-0000-000000000001', 'N S', 'confirmed', 'paid', 500, now() - interval '20 minutes', now() + interval '40 minutes', '9d100000-0000-0000-0000-000000000003');
+insert into public.booking_vehicles (id, booking_id, vehicle_type, brand, model, plate_number, status, staff_id) values ('9d1000bb-0000-0000-0000-000000000005', '9d1000aa-0000-0000-0000-000000000005', 'Sedan', 'A', 'B', 'NS005', 'SCHEDULED', '9d100000-0000-0000-0000-000000000003');
+insert into public.service_photos (booking_id, booking_vehicle_id, phase, storage_path, source, uploaded_by) values ('9d1000aa-0000-0000-0000-000000000005', '9d1000bb-0000-0000-0000-000000000005', 'before', 'x/before5.png', 'upload', '9d100000-0000-0000-0000-000000000003');
 insert into public.payments (booking_id, amount, method, payment_type, status) values ('9d1000aa-0000-0000-0000-000000000001', 500, 'GCash', 'Full', 'PAID');
 set local session_replication_role = origin;
 
@@ -56,6 +59,13 @@ insert into t_results select 'the payment on a flagged booking is queued for ref
 select public.run_no_show_lifecycle();
 insert into t_results select 'running the sweep again does not repeat the failure entry', (select count(*) from public.audit_logs where action_type = 'NO_SHOW_SWEEP_FAILED' and booking_id = '9d1000aa-0000-0000-0000-000000000004') = 1, '';
 insert into t_results select 'only the service account can record a sweep failure', not has_function_privilege('authenticated', 'public.record_no_show_sweep_failure(uuid,text,text)', 'execute'), '';
+
+-- reminders: booking 5 has its before photo, its time has come, and it is not started
+insert into t_results select 'the technician is told to start a booking whose intake is done', (select count(*) from public.notifications where booking_id = '9d1000aa-0000-0000-0000-000000000005' and user_id = '9d100000-0000-0000-0000-000000000003' and notification_type = 'START_SERVICE_PROMPT') = 1, '';
+insert into t_results select 'the administrators are told too', exists (select 1 from public.notifications where booking_id = '9d1000aa-0000-0000-0000-000000000005' and notification_type = 'UNSTARTED_SERVICE'), '';
+insert into t_results select 'a booking with no before photo gets no reminder', not exists (select 1 from public.notifications where booking_id = '9d1000aa-0000-0000-0000-000000000003' and notification_type in ('START_SERVICE_PROMPT', 'UNSTARTED_SERVICE')), '';
+insert into t_results select 'a booking that was flagged gets no reminder', not exists (select 1 from public.notifications where booking_id = '9d1000aa-0000-0000-0000-000000000001' and notification_type in ('START_SERVICE_PROMPT', 'UNSTARTED_SERVICE')), '';
+insert into t_results select 'running the sweep again does not remind twice', (select count(*) from public.notifications where booking_id = '9d1000aa-0000-0000-0000-000000000005' and notification_type = 'START_SERVICE_PROMPT') = 1, '';
 
 select name, case when ok then 'PASS' else 'FAIL' end, detail from t_results order by 1;
 rollback;

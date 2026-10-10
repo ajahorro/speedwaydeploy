@@ -80,7 +80,6 @@ const AdminDashboard = () => {
       totalBookings: 0,
       totalRevenue: 0,
       pendingPayments: 0,
-      flaggedBookings: 0,
       unassignedBookings: 0,
       overdueServices: 0,
       refundRequests: 0,
@@ -210,12 +209,6 @@ const AdminDashboard = () => {
       // 5. Needs Attention - Unassigned Bookings
       const unassigned = (await fetchBookingsWithUnassignedVehicles()).length;
 
-      // 6. Needs Attention - Flagged for Review: the same bookings the "Flagged" filter in Booking Management lists
-      // (one definition in the database: a rejected payment nothing has replaced while money is owed, or a booking
-      // marked for attention). Not every rejected payment row.
-      const { data: flaggedRows } = await supabase.rpc('flagged_bookings_for_review');
-      const flaggedCount = (flaggedRows || []).length;
-
       // 7. Needs Attention - No-Show Flagged (REQ-ADM-02)
       const { count: overdue } = await supabase
         .from('bookings')
@@ -284,7 +277,6 @@ const AdminDashboard = () => {
           totalBookings: totalCount || 0,
           totalRevenue: revenue,
           pendingPayments: pendingPay || 0,
-          flaggedBookings: flaggedCount || 0,
           unassignedBookings: unassigned || 0,
           overdueServices: overdue || 0,
           refundRequests: refundRequestsCount || 0,
@@ -379,14 +371,6 @@ const AdminDashboard = () => {
             color="var(--status-warning)"
             bg="rgba(245, 158, 11, 0.1)"
             onClick={() => navigate('/admin/payments')}
-          />
-          <AttentionCard
-            count={state.stats.flaggedBookings}
-            label="Flagged for Review"
-            icon={ShieldAlert}
-            color="var(--status-danger)"
-            bg="rgba(239, 68, 68, 0.1)"
-            onClick={() => navigate('/admin/bookings?filter=flagged')}
           />
           <AttentionCard
             count={state.stats.unassignedBookings}

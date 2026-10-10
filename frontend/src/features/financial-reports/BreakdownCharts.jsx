@@ -4,7 +4,8 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatMethod, formatPeso, formatPesoCompact } from '@/features/finance/money';
 
-const SLICE_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'];
+// green first (digital bank), blue second (cash)
+const SLICE_COLORS = ['#10b981', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'];
 
 function EmptyState({ children }) {
   return <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">{children}</div>;
@@ -12,12 +13,16 @@ function EmptyState({ children }) {
 
 /** Net received by payment method (from sales_report().by_method). */
 export function MethodBreakdownChart({ rows = [], total = 0, loading }) {
-  const data = rows.map((row, index) => ({
-    method: formatMethod(row.method),
-    value: Number(row.net_received || 0),
-    count: row.count,
-    fill: SLICE_COLORS[index % SLICE_COLORS.length]
-  }));
+  // GCash, Maya and bank transfers are all "Digital Bank": rows with the same label are added together.
+  const merged = new Map();
+  rows.forEach((row) => {
+    const label = formatMethod(row.method);
+    const entry = merged.get(label) || { method: label, value: 0, count: 0 };
+    entry.value += Number(row.net_received || 0);
+    entry.count += Number(row.count || 0);
+    merged.set(label, entry);
+  });
+  const data = [...merged.values()].sort((a, b) => b.value - a.value).map((row, index) => ({ ...row, fill: SLICE_COLORS[index % SLICE_COLORS.length] }));
   const config = Object.fromEntries(data.map((row) => [row.method, { label: row.method, color: row.fill }]));
 
   return (
@@ -70,7 +75,7 @@ export function MethodBreakdownChart({ rows = [], total = 0, loading }) {
 /** Most-booked services among paying bookings (from sales_report().top_services). */
 export function TopServicesChart({ rows = [], loading }) {
   const data = rows.map((row) => ({ name: row.name, count: Number(row.count || 0) }));
-  const config = { count: { label: 'Bookings', color: 'var(--chart-1)' } };
+  const config = { count: { label: 'Bookings', color: '#10b981' } };
 
   return (
     <Card className="gap-2">

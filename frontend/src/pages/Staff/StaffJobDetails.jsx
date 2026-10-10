@@ -270,6 +270,11 @@ const StaffJobDetails = () => {
               {isStartable && (
                 <>
                   <StartChecklist taskId={unit.id} clockedIn={clockedIn} beforePhotos={photoCounts.before} startDatetime={unit.booking?.start_datetime} earlyStart={earlyStart} photoUploadEnabled={startOpen} />
+                  {canStart && (
+                    <p role="status" style={{ margin: 0, width: '100%', padding: '0.6rem 0.8rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--status-success-border)', background: 'var(--status-success-soft)', color: 'var(--status-success)', fontSize: '0.78rem', fontWeight: 800 }}>
+                      Everything is ready. Press Start service now. If it is not started within an hour of its scheduled time, the booking is marked a no-show.
+                    </p>
+                  )}
                   <Button type="button" onClick={() => requestStatus('IN_PROGRESS')} disabled={!canStart || busy} variant="default" className="w-full uppercase">
                     <Play size={16} /> Start service
                   </Button>

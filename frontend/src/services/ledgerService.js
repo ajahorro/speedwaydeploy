@@ -141,7 +141,10 @@ export const fetchLedgerTransactions = async ({ from, to, kind = 'settled', meth
       .order('created_at', { ascending: false });
   }
 
-  if (method && method !== 'ALL') query = query.eq('method', method);
+  // Two kinds of payment: cash, or a digital bank transfer (GCash, Maya, bank: the system does not tell them apart).
+  if (method === 'CASH') query = query.ilike('method', 'cash');
+  else if (method === 'DIGITAL') query = query.in('method', ['GCASH', 'GCash', 'MAYA', 'Maya', 'BANK_TRANSFER', 'BANK TRANSFER', 'Bank Transfer', 'DIGITAL', 'Digital', 'PAYMAYA']);
+  else if (method && method !== 'ALL') query = query.eq('method', method);
   if (pageSize) query = query.range(page * pageSize, page * pageSize + pageSize - 1);
 
   const { data, error, count } = await query;

@@ -32,10 +32,14 @@ export const PAID_STATUS_LABELS = {
 };
 
 export const PAYMENT_METHOD_LABELS = {
-  GCASH: 'GCash',
+  // The system records how the money arrived, not which bank or wallet: cash, or a digital bank transfer.
   CASH: 'Cash',
-  BANK_TRANSFER: 'Bank transfer',
-  MAYA: 'Maya',
+  GCASH: 'Digital Bank',
+  DIGITAL: 'Digital Bank',
+  BANK_TRANSFER: 'Digital Bank',
+  'BANK TRANSFER': 'Digital Bank',
+  MAYA: 'Digital Bank',
+  PAYMAYA: 'Digital Bank',
   SYSTEM_REFUND: 'Refund',
   CREDIT: 'Store credit'
 };
