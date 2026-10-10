@@ -1,3 +1,5 @@
+import { canonicalVehicleKey } from '../config/vehicleTypes.js';
+
 export const SERVICES_DATA = {
   "Car Wash": [
     { id: "wash_basic", name: "Basic Carwash", desc: "Wash, vacuum, and tire black.", prices: { Hatch: 150, Sedan: 170, AUV: 200, SUV: 220, Pickup: 270, "Van Small": 300, "Van Medium": 320, "Van Large": 350 }, estTime: "45 Mins", durationMinutes: 45 },
@@ -155,7 +157,7 @@ export const buildBookingServiceSnapshot = (service = {}, vehicleType = '', sour
 // ── Local helpers ──────────────────────────────────────────────────────────
 //
 // Declared HERE, above first use, and deliberately NOT imported from
-// BusinessHub.jsx.
+// BusinessHub.jsx (vehicle matching comes from config/vehicleTypes.js).
 //
 // Two reasons, both of which were live defects in the first draft of this code:
 //
@@ -168,46 +170,8 @@ export const buildBookingServiceSnapshot = (service = {}, vehicleType = '', sour
 //      a helper back from BusinessHub would create a circular dependency whose
 //      failure mode depends on evaluation order — the hardest kind to diagnose.
 //
-// The alias map duplicates BusinessHub's normalizeVehicleCategoryKey on purpose:
-// it is small and stable, and the cost of duplication is far lower than a cycle.
-const PRICE_VEHICLE_ALIASES = {
-  hatch: 'Hatch',
-  hatchback: 'Hatch',
-  'hatch back': 'Hatch',
-  sedan: 'Sedan',
-  'sedan hatchback': 'Sedan',
-  auv: 'AUV',
-  mpv: 'AUV',
-  crossover: 'AUV',
-  'auv mpv crossover': 'AUV',
-  suv: 'SUV',
-  'suv crossover': 'SUV',
-  pickup: 'Pickup',
-  'pick up': 'Pickup',
-  'van small': 'Van Small',
-  'van medium': 'Van Medium',
-  'van large': 'Van Large',
-  van: 'Van Medium',
-  'van l300': 'Van Medium',
-  'pickup van': 'Van Medium',
-  regular: 'Regular',
-  motorcycle: 'Regular',
-  'motorcycle regular': 'Regular',
-  moto: 'Regular',
-  bigbike: 'Bigbike',
-  'big bike': 'Bigbike',
-};
-
-/** Canonical vehicle-category key, matching the keys used in SERVICES_DATA.prices. */
-const priceVehicleKey = (value) => {
-  const raw = String(value ?? '').trim();
-  if (!raw) return '';
-  const normalized = raw.toLowerCase().replace(/[_/-]+/g, ' ').replace(/\s+/g, ' ').trim();
-  return PRICE_VEHICLE_ALIASES[normalized]
-    || PRICE_VEHICLE_ALIASES[normalized.replace(/\s+/g, '')]
-    || raw;
-};
-
+// Vehicle-category matching comes from config/vehicleTypes.js (a leaf module, so
+// importing it here cannot create a cycle).
 /** Case-insensitive service-name key, safe to call at module scope. */
 const priceServiceName = (name) => String(name || '').trim().toLowerCase();
 
@@ -274,7 +238,7 @@ const customServiceVehicleTypes = (service) => {
     || (service?.vehicleType ? [service.vehicleType] : [])
     || (service?.vehicle_type ? [service.vehicle_type] : []);
   return (Array.isArray(list) ? list : [list])
-    .map((t) => priceVehicleKey(t))
+    .map((t) => canonicalVehicleKey(t))
     .filter(Boolean);
 };
 
@@ -388,7 +352,7 @@ const buildServiceCatalog = () => {
         const types = Object.keys(builtIn.prices || {});
         // Suppress only when EVERY vehicle category it serves is suppressed —
         // archiving 'Regular Wash' for Sedan must not remove the SUV variant.
-        if (types.length && types.every((t) => suppressedNameTypes.has(`${priceServiceName(builtIn.name)}|${priceVehicleKey(t)}`))) {
+        if (types.length && types.every((t) => suppressedNameTypes.has(`${priceServiceName(builtIn.name)}|${canonicalVehicleKey(t)}`))) {
           return false;
         }
         return true;
@@ -401,7 +365,7 @@ const buildServiceCatalog = () => {
         // built-in id (the admin UI creates a fresh id on save).
         let patched = null;
         for (const type of Object.keys(builtIn.prices || {})) {
-          const hit = overridesByNameType.get(`${priceServiceName(builtIn.name)}|${priceVehicleKey(type)}`);
+          const hit = overridesByNameType.get(`${priceServiceName(builtIn.name)}|${canonicalVehicleKey(type)}`);
           if (hit) {
             patched = patched || { ...builtIn };
             patched.prices = { ...patched.prices, [type]: hit.prices[type] ?? patched.prices[type] };
@@ -429,8 +393,8 @@ const buildServiceCatalog = () => {
         if (priceServiceName(existing.name) !== priceServiceName(adapted.name)) return false;
         // Same name AND an overlapping vehicle category means this is the
         // service the admin edited, not a new one to add.
-        const existingTypes = Object.keys(existing.prices || {}).map(priceVehicleKey);
-        return adaptedTypes.some((t) => existingTypes.includes(priceVehicleKey(t)));
+        const existingTypes = Object.keys(existing.prices || {}).map(canonicalVehicleKey);
+        return adaptedTypes.some((t) => existingTypes.includes(canonicalVehicleKey(t)));
       });
       if (!alreadyPresent && !merged[category].some((s) => s.id === adapted.id)) {
         merged[category].push(adapted);

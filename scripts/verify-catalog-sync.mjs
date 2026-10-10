@@ -22,6 +22,43 @@ const durationSql = fs.readFileSync('supabase/migrations/20261121000001_new_serv
 assert.ok(durationSql.includes(catalogDurationSql()), 'the add-service migration service durations differ from servicesCatalog.js. Regenerate them with scripts/gen-catalog-seed.mjs');
 console.log('static OK: migration service durations match servicesCatalog.js');
 
+// ── Vehicle-category aliases: the SQL copy must agree with the one JS rule ──
+// catalog_vehicle_key (SQL) is the database's copy of canonicalVehicleKey
+// (frontend/src/config/vehicleTypes.js). Parse the SQL `when ... then 'Key'`
+// lines, evaluate them the way Postgres would, and compare over every alias the
+// SQL lists plus the built-in keys and case/separator variants.
+{
+  const { canonicalVehicleKey } = await import('../frontend/src/config/vehicleTypes.js');
+  const { VEHICLE_TYPE_KEYS } = await import('../frontend/src/config/constants.js');
+  const fn = sql.slice(sql.indexOf('function public.catalog_vehicle_key'));
+  const body = fn.slice(fn.indexOf('return case'), fn.indexOf('else v_raw'));
+  const rules = [...body.matchAll(/when\s+(.+?)\s+then\s+'([^']+)'/g)].map((m) => ({
+    key: m[2],
+    tests: [...m[1].matchAll(/(v_norm|v_flat)\s+(?:in\s*\(([^)]*)\)|=\s*'([^']*)')/g)].map((t) => ({
+      col: t[1],
+      vals: t[2] ? [...t[2].matchAll(/'([^']*)'/g)].map((v) => v[1]) : [t[3]]
+    }))
+  }));
+  assert.ok(rules.length >= 9, 'could not parse catalog_vehicle_key; update this check if its shape changed');
+  const sqlKey = (value) => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    const norm = raw.toLowerCase().replace(/[_/-]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const flat = norm.replace(/ /g, '');
+    const hit = rules.find((r) => r.tests.some((t) => t.vals.includes(t.col === 'v_norm' ? norm : flat)));
+    return hit ? hit.key : raw;
+  };
+  const corpus = new Set(VEHICLE_TYPE_KEYS);
+  rules.forEach((r) => r.tests.forEach((t) => t.vals.forEach((v) => corpus.add(v))));
+  [...corpus].forEach((v) => { corpus.add(v.toUpperCase()); corpus.add(v.replace(/ /g, '_')); corpus.add(v.replace(/ /g, '-')); corpus.add(`  ${v} `); });
+  corpus.add('Trike'); corpus.add('Jeep Wrangler');
+  for (const value of corpus) {
+    assert.equal(canonicalVehicleKey(value), sqlKey(value),
+      `vehicle alias drift for "${value}": JS canonicalVehicleKey gives "${canonicalVehicleKey(value)}", SQL catalog_vehicle_key gives "${sqlKey(value)}". Keep config/vehicleTypes.js and the SQL function in step.`);
+  }
+  console.log(`static OK: JS canonicalVehicleKey agrees with SQL catalog_vehicle_key (${corpus.size} samples)`);
+}
+
 const dbIndex = process.argv.indexOf('--db');
 if (dbIndex < 0) process.exit(0);
 const container = process.argv[dbIndex + 1];

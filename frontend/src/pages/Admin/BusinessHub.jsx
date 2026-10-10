@@ -16,7 +16,7 @@ import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
 import { validateQrRecipients } from '../../services/qrSecurityService';
 import { buildBusinessConfigUpdatePayload, stripUnsupportedBusinessConfigColumns } from '../../services/businessConfigPayload';
 import { sanitizeAlphaNum, sanitizeByFieldType, toTitleCase, VEHICLE_TYPE_OPTIONS, VEHICLE_TYPE_KEYS } from '../../config/constants';
-import { resolveVehicleTypeKeys } from '../../config/vehicleTypes';
+import { canonicalVehicleKey, resolveVehicleTypeKeys } from '../../config/vehicleTypes';
 import { SERVICES_DATA, getServiceCatalog, setCatalogSource, setArchivedServiceIds as setArchivedServiceIdsCache, setDeletedServiceIds as setDeletedServiceIdsCache } from '../../data/servicesCatalog';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
@@ -117,38 +117,9 @@ const DEFAULT_VEHICLE_CATEGORY_OPTIONS = VEHICLE_TYPE_OPTIONS.map((option) => ({
   label: option.label
 }));
 
-const normalizeVehicleCategoryKey = (value = '') => {
-  const raw = String(value ?? '').trim();
-  if (!raw) return '';
-
-  const normalized = raw.toLowerCase().replace(/[_/-]+/g, ' ').replace(/\s+/g, ' ').trim();
-  // A key or a label of one of the shop's vehicle categories finds that category ("Van (Small)" -> Van Small).
-  const flat = (text) => text.toLowerCase().replace(/[_/()-]+/g, ' ').replace(/\s+/g, ' ').trim();
-  const exact = VEHICLE_TYPE_OPTIONS.find((option) => flat(option.value) === flat(normalized) || flat(option.label) === flat(normalized));
-  if (exact) return exact.value;
-  // Same aliases as the price list (data/servicesCatalog.js and the database's catalog_vehicle_key).
-  const aliasMap = {
-    hatch: 'Hatch',
-    'sedan hatchback': 'Sedan',
-    auv: 'AUV',
-    mpv: 'AUV',
-    crossover: 'AUV',
-    'suv crossover': 'SUV',
-    'pick up': 'Pickup',
-    van: 'Van Medium',
-    'van l300': 'Van Medium',
-    'pickup van': 'Van Medium',
-    motorcycle: 'Regular',
-    'motorcycle regular': 'Regular',
-    moto: 'Regular',
-    'big bike': 'Bigbike'
-  };
-  return aliasMap[normalized] || raw;
-};
-
 const getVehicleTypeLabel = (value = '') => {
-  const normalized = normalizeVehicleCategoryKey(value);
-  const match = VEHICLE_TYPE_OPTIONS.find((option) => normalizeVehicleCategoryKey(option.value) === normalized);
+  const normalized = canonicalVehicleKey(value);
+  const match = VEHICLE_TYPE_OPTIONS.find((option) => canonicalVehicleKey(option.value) === normalized);
   return match ? match.label : normalized || 'Vehicle';
 };
 
@@ -168,7 +139,7 @@ const flattenDefaultServices = (archivedIds = [], deletedIds = []) => {
     (services || []).forEach((service) => {
       const priceMap = service?.prices || {};
       Object.entries(priceMap).forEach(([vehicleKey, price]) => {
-        const normalizedType = normalizeVehicleCategoryKey(vehicleKey);
+        const normalizedType = canonicalVehicleKey(vehicleKey);
         const id = `${service.id || service.name}-${normalizedType}`;
         // A tombstone may be recorded against EITHER id form:
         //   * the raw built-in id (`wash_1`) — what the archive/delete handlers
@@ -1073,18 +1044,18 @@ export default function BusinessHub() {
 
     const available = new Set(resolveVehicleTypeKeys(businessForm.vehicle_types));
     const normalized = rawTypes
-      .map((type) => normalizeVehicleCategoryKey(type))
+      .map((type) => canonicalVehicleKey(type))
       .filter(Boolean)
-      .filter((type) => available.has(type) || available.has(normalizeVehicleCategoryKey(type)));
+      .filter((type) => available.has(type) || available.has(canonicalVehicleKey(type)));
 
-    return [...new Set(normalized.map((type) => normalizeVehicleCategoryKey(type)))];
+    return [...new Set(normalized.map((type) => canonicalVehicleKey(type)))];
   };
 
   // The same list every other screen reads (config/vehicleTypes.js), computed
   // from the form so a category added here but not yet saved is already offered.
   const getAvailableVehicleTypes = () => [...new Set(
     resolveVehicleTypeKeys(businessForm.vehicle_types)
-      .map((type) => normalizeVehicleCategoryKey(type))
+      .map((type) => canonicalVehicleKey(type))
       .filter(Boolean)
   )];
 
@@ -1104,11 +1075,11 @@ export default function BusinessHub() {
   };
 
   const getGeneralServicesForVehicle = (vehicleType) => {
-    const target = normalizeVehicleCategoryKey(vehicleType);
+    const target = canonicalVehicleKey(vehicleType);
     if (!target) return [];
     return Object.entries(getServiceCatalog())
       .filter(([, services]) => services.some((service) =>
-        Object.keys(service?.prices || {}).some((type) => normalizeVehicleCategoryKey(type) === target)
+        Object.keys(service?.prices || {}).some((type) => canonicalVehicleKey(type) === target)
       ))
       .map(([label]) => label)
       .sort((a, b) => a.localeCompare(b));
@@ -1561,8 +1532,8 @@ export default function BusinessHub() {
     const services = selectedVehicleFilter === 'All'
       ? allLoadedServices
       : allLoadedServices.filter((service) => {
-          const serviceTypes = normalizeVehicleTypes(service).map((type) => normalizeVehicleCategoryKey(type));
-          return serviceTypes.includes(normalizeVehicleCategoryKey(selectedVehicleFilter));
+          const serviceTypes = normalizeVehicleTypes(service).map((type) => canonicalVehicleKey(type));
+          return serviceTypes.includes(canonicalVehicleKey(selectedVehicleFilter));
         });
     return services.filter((s) => s.is_active !== false && s.archived !== true);
   }, [allLoadedServices, selectedVehicleFilter]);
@@ -1596,8 +1567,8 @@ export default function BusinessHub() {
     const services = selectedVehicleFilter === 'All'
       ? allLoadedServices
       : allLoadedServices.filter((service) => {
-          const serviceTypes = normalizeVehicleTypes(service).map((type) => normalizeVehicleCategoryKey(type));
-          return serviceTypes.includes(normalizeVehicleCategoryKey(selectedVehicleFilter));
+          const serviceTypes = normalizeVehicleTypes(service).map((type) => canonicalVehicleKey(type));
+          return serviceTypes.includes(canonicalVehicleKey(selectedVehicleFilter));
         });
     return services.filter((s) => s.is_active === false || s.archived === true);
   }, [allLoadedServices, selectedVehicleFilter]);
@@ -1613,9 +1584,9 @@ export default function BusinessHub() {
       businessForm.deleted_service_ids || []
     );
     if (selectedVehicleFilter === 'All') return services;
-    const targetKey = normalizeVehicleCategoryKey(selectedVehicleFilter);
+    const targetKey = canonicalVehicleKey(selectedVehicleFilter);
     return services.filter((service) => {
-      const serviceTypes = normalizeVehicleTypes(service).map((type) => normalizeVehicleCategoryKey(type));
+      const serviceTypes = normalizeVehicleTypes(service).map((type) => canonicalVehicleKey(type));
       return serviceTypes.includes(targetKey);
     });
   }, [businessForm.custom_services, businessForm.archived_service_ids, businessForm.deleted_service_ids, selectedVehicleFilter]);
