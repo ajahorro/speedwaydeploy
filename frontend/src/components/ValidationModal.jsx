@@ -1,7 +1,9 @@
 import React from 'react';
 import {
-  X, CalendarX2, CalendarOff, Ban, CalendarClock, Timer, Clock3, Users, AlertTriangle,
+  CalendarX2, CalendarOff, Ban, CalendarClock, Timer, Clock3, Users, AlertTriangle,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 /**
  * <ValidationModal>
@@ -148,200 +150,44 @@ const ValidationModal = ({
   // Only render an action when its handler exists — keeps the modal honest.
   const showPickTime = typeof onPickAnotherTime === 'function';
   const showNextDate = typeof onSelectNextAvailable === 'function';
+  const dismissible = typeof onClose === 'function';
 
   return (
-    <div
-      className="app-modal-backdrop validation-modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="validation-modal-title"
-      onClick={onClose || undefined}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 999999,
-        background: 'var(--modal-overlay)', backdropFilter: 'blur(6px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '1rem',
-      }}
-    >
-      <div
-        className="validation-modal-card"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: 'var(--admin-card)',
-          border: '1px solid var(--admin-border)',
-          borderRadius: 'var(--admin-radius-lg, var(--admin-radius))',
-          boxShadow: 'var(--modal-shadow)',
-          width: '100%',
-          maxWidth: '460px',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          position: 'relative',
-        }}
+    <Dialog open onOpenChange={(next) => { if (!next && dismissible) onClose(); }}>
+      <DialogContent
+        className="ui-root sm:max-w-md"
+        showCloseButton={dismissible}
+        onInteractOutside={(event) => { if (!dismissible) event.preventDefault(); }}
+        onEscapeKeyDown={(event) => { if (!dismissible) event.preventDefault(); }}
       >
-        {/* Header band */}
-        <div
-          style={{
-            display: 'flex', alignItems: 'flex-start', gap: '1rem',
-            padding: '1.5rem 1.5rem 1.25rem',
-            borderBottom: '1px solid var(--admin-border)',
-            background: `rgba(${presentation.accentRgb}, 0.06)`,
-          }}
-        >
-          <div
-            style={{
-              width: '48px', height: '48px', flexShrink: 0,
-              borderRadius: 'var(--admin-radius-md, 10px)',
-              background: `rgba(${presentation.accentRgb}, 0.14)`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            <Icon size={24} color={presentation.accent} aria-hidden="true" />
-          </div>
+        <DialogHeader>
+          <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: presentation.accent }}>{presentation.eyebrow}</p>
+          <DialogTitle className="flex items-center gap-2">
+            <Icon className="size-5 shrink-0" style={{ color: presentation.accent }} aria-hidden="true" />
+            {presentation.title}
+          </DialogTitle>
+          <DialogDescription>{presentation.guidance}</DialogDescription>
+        </DialogHeader>
 
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <span
-              style={{
-                display: 'block', fontSize: '0.62rem', fontWeight: 950,
-                color: presentation.accent, textTransform: 'uppercase',
-                letterSpacing: '1px', marginBottom: '0.3rem',
-              }}
-            >
-              {presentation.eyebrow}
-            </span>
-            <h3
-              id="validation-modal-title"
-              style={{
-                margin: 0, fontSize: '1.15rem', fontWeight: 950,
-                color: 'var(--admin-text-primary)', lineHeight: 1.3,
-              }}
-            >
-              {presentation.title}
-            </h3>
-          </div>
+        {/* Server explanation — only when it adds something beyond the guidance. */}
+        {serverMessage && serverMessage !== presentation.guidance && (
+          <p className="text-sm text-muted-foreground">{serverMessage}</p>
+        )}
 
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              style={{
-                background: 'none', border: 'none', padding: '0.25rem',
-                color: 'var(--admin-text-secondary)', cursor: 'pointer',
-                flexShrink: 0, lineHeight: 0,
-              }}
-            >
-              <X size={20} />
-            </button>
-          )}
-        </div>
+        {attempted && (
+          <p className="rounded-md border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Requested: <span className="text-foreground">{attempted}</span>
+          </p>
+        )}
 
-        {/* Body */}
-        <div style={{ padding: '1.5rem' }}>
-          <div
-            style={{
-              display: 'flex', gap: '0.6rem', alignItems: 'flex-start',
-              fontSize: '0.92rem', fontWeight: 600,
-              color: 'var(--admin-text-primary)', lineHeight: 1.6,
-            }}
-          >
-            <span style={{ color: presentation.accent, lineHeight: 0, marginTop: '3px' }}>→</span>
-            <span>{presentation.guidance}</span>
-          </div>
-
-          {/* Server explanation — only when it adds something beyond the guidance. */}
-          {serverMessage && serverMessage !== presentation.guidance && (
-            <p
-              style={{
-                margin: '0.85rem 0 0', fontSize: '0.85rem', fontWeight: 600,
-                color: 'var(--admin-text-secondary)', lineHeight: 1.6,
-              }}
-            >
-              {serverMessage}
-            </p>
-          )}
-
-          {attempted && (
-            <div
-              style={{
-                marginTop: '1rem', padding: '0.75rem 1rem',
-                background: 'var(--admin-bg)',
-                border: '1px solid var(--admin-border)',
-                borderRadius: 'var(--admin-radius-sm)',
-                fontSize: '0.72rem', fontWeight: 800,
-                color: 'var(--admin-text-secondary)',
-                textTransform: 'uppercase', letterSpacing: '0.5px',
-              }}
-            >
-              Requested: <span style={{ color: 'var(--admin-text-primary)' }}>{attempted}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div
-          className="validation-modal-actions"
-          style={{
-            display: 'flex', gap: '0.75rem', flexWrap: 'wrap',
-            padding: '1.25rem 1.5rem 1.5rem',
-            borderTop: '1px solid var(--admin-border)',
-          }}
-        >
-          {showNextDate && (
-            <button
-              type="button"
-              onClick={onSelectNextAvailable}
-              style={{
-                flex: '1 1 160px', minHeight: '2.75rem',
-                padding: '0.85rem 1.25rem',
-                background: 'var(--admin-bg)',
-                color: 'var(--admin-text-primary)',
-                border: '1px solid var(--admin-border)',
-                borderRadius: 'var(--admin-radius-sm)',
-                fontWeight: 950, fontSize: '0.78rem',
-                textTransform: 'uppercase', letterSpacing: '0.5px',
-                cursor: 'pointer',
-              }}
-            >
-              Select Next Available Date
-            </button>
-          )}
-
-          {showPickTime && (
-            <button
-              type="button"
-              onClick={onPickAnotherTime}
-              style={{
-                flex: '1 1 160px', minHeight: '2.75rem',
-                padding: '0.85rem 1.25rem',
-                background: 'var(--admin-brand)',
-                color: 'var(--admin-text-on-brand)',
-                border: '1px solid var(--admin-brand)',
-                borderRadius: 'var(--admin-radius-sm)',
-                fontWeight: 950, fontSize: '0.78rem',
-                textTransform: 'uppercase', letterSpacing: '0.5px',
-                cursor: 'pointer',
-              }}
-            >
-              Pick Another Time
-            </button>
-          )}
-        </div>
-      </div>
-
-      <style>{`
-        /* 375px-safe: stack actions full-width and tighten padding. */
-        @media (max-width: 420px) {
-          .validation-modal-card { max-width: 100%; }
-          .validation-modal-actions {
-            flex-direction: column;
-          }
-          .validation-modal-actions button {
-            flex: 1 1 auto !important;
-            width: 100%;
-          }
-        }
-      `}</style>
-    </div>
+        {(showNextDate || showPickTime) && (
+          <DialogFooter>
+            {showNextDate && <Button type="button" variant="outline" onClick={onSelectNextAvailable}>Select Next Available Date</Button>}
+            {showPickTime && <Button type="button" onClick={onPickAnotherTime}>Pick Another Time</Button>}
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 };
 

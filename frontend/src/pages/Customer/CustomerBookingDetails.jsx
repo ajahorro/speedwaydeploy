@@ -29,6 +29,11 @@ import { getAvailableSlots, getBusinessHours } from '../../services/scheduleServ
 import { useImagePreview } from '../../context/ImagePreviewContext';
 import PaymentProofModal from '../../components/payments/PaymentProofModal';
 import AddServiceDialog from '../../components/payments/AddServiceDialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const CustomerBookingDetails = () => {
   const { openImage } = useImagePreview();
@@ -383,25 +388,15 @@ const CustomerBookingDetails = () => {
 
       {/* HEADER */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <button onClick={() => navigate(-1)} style={{ background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--admin-text-primary)' }}>
-          <ArrowLeft size={20} />
-        </button>
+        <Button type="button" variant="outline" size="icon" onClick={() => navigate(-1)} aria-label="Go back"><ArrowLeft /></Button>
         <div>
           <div style={{ fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Booking Reference</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '950', color: 'var(--admin-text-primary)', fontFamily: 'monospace' }}>#{id.substring(0, 8).toUpperCase()}</h1>
             {['confirmed', 'completed'].includes(booking.status) && (
-              <button
-                onClick={() => navigate(`/customer/receipt/${id}`)}
-                style={{
-                  padding: '0.4rem 0.8rem', background: 'rgba(var(--admin-success-rgb), 0.1)',
-                  border: '1px solid var(--admin-success)', color: 'var(--admin-success)',
-                  borderRadius: 'var(--admin-radius-sm)', fontSize: '0.65rem', fontWeight: '950',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', textTransform: 'uppercase'
-                }}
-              >
+              <Button onClick={() => navigate(`/customer/receipt/${id}`)} variant="outline" size="sm" className="uppercase">
                 <Printer size={12} /> Print Official Receipt
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -440,13 +435,9 @@ const CustomerBookingDetails = () => {
 
           {canAddService && (
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => setAddServiceOpen(true)}
-                style={{ padding: '0.65rem 1rem', background: 'transparent', color: 'var(--admin-brand)', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', fontWeight: 900, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', minHeight: '44px' }}
-              >
+              <Button type="button" onClick={() => setAddServiceOpen(true)} variant="outline" size="sm" className="border-primary text-primary hover:text-primary uppercase">
                 + Add a service
-              </button>
+              </Button>
             </div>
           )}
 
@@ -513,21 +504,12 @@ const CustomerBookingDetails = () => {
                 {true && (
                   <div style={{ display: 'flex', gap: '1.5rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
-                      <button
-                        type="button"
-                        onClick={() => {
+                      <Button type="button" onClick={() => {
                           setPhotoGalleryVehicleId(v.id);
                           setPhotoGalleryOpen(true);
-                        }}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
-                          padding: '0.4rem 0.6rem', background: 'transparent', color: 'var(--admin-brand)',
-                          border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)',
-                          fontSize: '0.62rem', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer'
-                        }}
-                      >
+                        }} variant="outline" size="sm" className="border-primary text-primary hover:text-primary uppercase">
                         View Service Photos
-                      </button>
+                      </Button>
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ ...labelStyle, color: 'var(--admin-brand)', marginBottom: '0.4rem' }}>Staff Notes</div>
@@ -606,9 +588,9 @@ const CustomerBookingDetails = () => {
               {balance === 0 ? 'FULLY SETTLED' : `OUTSTANDING BALANCE: ₱${balance.toLocaleString()}`}
             </div>
             {canPayBalance && (
-              <button type="button" onClick={() => setPayBalanceOpen(true)} style={{ width: '100%', marginTop: '0.75rem', padding: '0.9rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-md)', fontWeight: 950, fontSize: '0.8rem', letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer' }}>
+              <Button type="button" onClick={() => setPayBalanceOpen(true)} className="mt-3 w-full uppercase">
                 Pay remaining balance ({formatCurrency(payableBalance)})
-              </button>
+              </Button>
             )}
             {balance > 0 && payableBalance <= 0 && awaitingVerification > 0 && (
               <p role="status" style={{ margin: '0.75rem 0 0', textAlign: 'center', fontSize: '0.75rem', fontWeight: 800, color: 'var(--admin-text-secondary)' }}>
@@ -670,21 +652,14 @@ const CustomerBookingDetails = () => {
                     <span style={{ fontSize: '0.65rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>{new Date(p.created_at).toLocaleDateString()}</span>
                     <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     {p.receipt_url && ['GCASH', 'DIGITAL'].includes(String(p.method || '').toUpperCase()) && (
-                      <button
-                        type="button"
-                        onClick={() => openImage(p.receipt_url, { alt: 'Proof of payment' })}
-                        style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', padding: '0.35rem 0.6rem', borderRadius: '4px', fontSize: '0.6rem', fontWeight: '950', cursor: 'pointer' }}
-                      >
+                      <Button type="button" onClick={() => openImage(p.receipt_url, { alt: 'Proof of payment' })} variant="outline" size="sm">
                         VIEW PROOF OF PAYMENT
-                      </button>
+                      </Button>
                     )}
                     {p.status === 'PAID' && (
-                      <button
-                        onClick={() => { setSelectedPayment(p); setReceiptModal(true); }}
-                        style={{ background: 'transparent', border: '1px solid var(--admin-brand)', color: 'var(--admin-brand)', padding: '0.35rem 0.6rem', borderRadius: '4px', fontSize: '0.6rem', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                      >
+                      <Button onClick={() => { setSelectedPayment(p); setReceiptModal(true); }} variant="outline" size="sm" className="border-primary text-primary hover:text-primary">
                         <Printer size={12} /> RECEIPT
-                      </button>
+                      </Button>
                     )}
                     </div>
                   </div>
@@ -718,9 +693,9 @@ const CustomerBookingDetails = () => {
               {canPayBalance ? (
                 <>
                   <div style={{ fontSize: '.75rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5, marginBottom: '.75rem' }}>Pay the rest, then upload your receipt so the shop can verify it.</div>
-                  <button type="button" onClick={() => setPayBalanceOpen(true)} style={{ width: '100%', padding: '0.85rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-md)', fontWeight: 950, fontSize: '0.75rem', letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  <Button type="button" onClick={() => setPayBalanceOpen(true)} className="w-full uppercase">
                     Pay remaining balance
-                  </button>
+                  </Button>
                 </>
               ) : (
                 <div style={{ fontSize: '.75rem', color: 'var(--admin-text-secondary)', lineHeight: 1.5 }}>
@@ -739,61 +714,53 @@ const CustomerBookingDetails = () => {
               <p style={{ margin: '0.5rem 0 1rem 0', fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
                 You may cancel before service starts. Any eligible payment will be queued in the Refund Hub for review.
               </p>
-              <button
-                onClick={() => setShowCancelModal(true)}
-                style={{
-                  width: '100%', padding: '0.85rem',
-                  background: 'transparent',
-                  border: '1px solid #ef4444',
-                  color: '#ef4444',
-                  borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', fontSize: '0.75rem',
-                  cursor: 'pointer',
-                  textTransform: 'uppercase'
-                }}
-              >
+              <Button onClick={() => setShowCancelModal(true)} variant="outline" className="border-destructive/60 text-destructive hover:text-destructive w-full uppercase">
                 Cancel Appointment
-              </button>
-              <button
-                onClick={openRescheduleModal}
-                style={{ width: '100%', padding: '0.85rem', marginTop: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-brand)', color: 'var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer', textTransform: 'uppercase' }}
-              >
+              </Button>
+              <Button onClick={openRescheduleModal} variant="outline" className="border-primary text-primary hover:text-primary w-full mt-3 uppercase">
                 Reschedule Appointment
-              </button>
+              </Button>
             </div>
           )}
 
-          {showRescheduleModal && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)', padding: '1rem' }}>
-              <div style={{ background: 'var(--admin-card)', padding: 'clamp(1.25rem, 4vw, 2rem)', borderRadius: 'var(--admin-radius-lg)', border: '1px solid var(--admin-border)', maxWidth: '520px', width: '100%', maxHeight: '92vh', overflowY: 'auto', boxSizing: 'border-box', position: 'relative' }}>
-                <button onClick={() => setShowRescheduleModal(false)} style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}><X size={20} /></button>
-                <h3 style={{ margin: '0 0 0.75rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>Reschedule Appointment</h3>
-                <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.8rem', lineHeight: 1.5 }}>Your payment is preserved. The current staff and bay allocation will be released and the booking will return to Scheduled.</p>
-                <label style={{ ...labelStyle, display: 'block', marginTop: '1rem' }}>New Date</label>
+          <Dialog open={showRescheduleModal} onOpenChange={setShowRescheduleModal}>
+            <DialogContent className="ui-root max-h-[92dvh] overflow-y-auto sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Reschedule Appointment</DialogTitle>
+                <DialogDescription>Your payment is preserved. The current staff and bay allocation will be released and the booking will return to Scheduled.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-1.5">
+                <Label>New Date</Label>
                 <CustomCalendar selectedDate={rescheduleDate} onDateSelect={setRescheduleDate} />
-                <div style={{ marginTop: '1rem', padding: '.75rem 1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-secondary)', fontSize: '.75rem', fontWeight: '800' }}>
-                  Working hours: {businessHours ? `${businessHours.opening} - ${businessHours.closing}` : 'Loading...'}
-                </div>
-                <label style={{ ...labelStyle, display: 'block', marginTop: '1rem' }}>Available Time Slots</label>
+              </div>
+              <p className="rounded-md border px-3 py-2 text-xs font-semibold text-muted-foreground">
+                Working hours: {businessHours ? `${businessHours.opening} - ${businessHours.closing}` : 'Loading...'}
+              </p>
+              <div className="grid gap-1.5">
+                <Label>Available Time Slots</Label>
                 {rescheduleSlotsLoading ? (
-                  <div style={{ padding: '1rem', color: 'var(--admin-brand)', fontWeight: '900', textAlign: 'center' }}>Checking available bays...</div>
+                  <div className="grid grid-cols-3 gap-2" aria-busy="true">
+                    <Skeleton className="h-12" /><Skeleton className="h-12" /><Skeleton className="h-12" />
+                  </div>
                 ) : rescheduleSlots.length === 0 ? (
-                  <div style={{ padding: '1rem', color: 'var(--status-danger)', background: 'rgba(239,68,68,.06)', border: '1px solid rgba(239,68,68,.25)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '800' }}>No available slots for this date. Choose another date.</div>
+                  <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs font-semibold text-destructive">No available slots for this date. Choose another date.</p>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '.5rem', maxHeight: 'clamp(150px, 28vh, 240px)', overflowY: 'auto', paddingRight: '.25rem' }}>
+                  <div className="grid max-h-[28dvh] grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-2 overflow-y-auto pr-1">
                     {rescheduleSlots.map(slot => (
-                      <button key={slot.time} type="button" onClick={() => setRescheduleTime(slot.time)} style={{ padding: '.65rem .4rem', background: rescheduleTime === slot.time ? 'var(--admin-brand)' : 'var(--admin-bg)', color: rescheduleTime === slot.time ? '#fff' : 'var(--admin-text-primary)', border: `1px solid ${rescheduleTime === slot.time ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', fontSize: '.75rem' }}>
-                        {slot.time}<small style={{ display: 'block', marginTop: '.25rem', opacity: .75 }}>{slot.availableBays} bay{slot.availableBays === 1 ? '' : 's'} open</small>
-                      </button>
+                      <Button key={slot.time} type="button" variant={rescheduleTime === slot.time ? 'default' : 'outline'} onClick={() => setRescheduleTime(slot.time)} className="h-auto flex-col gap-0 py-2">
+                        {slot.time}
+                        <small className="text-[0.65rem] font-normal opacity-75">{slot.availableBays} bay{slot.availableBays === 1 ? '' : 's'} open</small>
+                      </Button>
                     ))}
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-                  <button onClick={() => setShowRescheduleModal(false)} style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900' }}>GO BACK</button>
-                  <button type="button" onClick={confirmReschedule} disabled={!rescheduleDate || !selectedRescheduleSlot || isRescheduling} title={!selectedRescheduleSlot ? 'Select an available time slot first' : 'Confirm reschedule'} style={{ flex: 1, padding: '1rem', background: selectedRescheduleSlot && !isRescheduling ? 'var(--admin-brand)' : 'var(--admin-border)', border: 'none', color: selectedRescheduleSlot && !isRescheduling ? 'white' : 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', opacity: 1, cursor: selectedRescheduleSlot && !isRescheduling ? 'pointer' : 'not-allowed' }}>{isRescheduling ? 'Processing...' : selectedRescheduleSlot ? 'CONFIRM' : 'SELECT A TIME'}</button>
-                </div>
               </div>
-            </div>
-          )}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowRescheduleModal(false)}>Go back</Button>
+                <Button type="button" onClick={confirmReschedule} disabled={!rescheduleDate || !selectedRescheduleSlot || isRescheduling} title={!selectedRescheduleSlot ? 'Select an available time slot first' : 'Confirm reschedule'}>{isRescheduling ? 'Processing...' : selectedRescheduleSlot ? 'Confirm' : 'Select a time'}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* Batch 7 / Step 7.3: reschedule schedule-conflicts surface here as a
               guided decision (pick another time/date) rather than a toast. */}
@@ -811,50 +778,28 @@ const CustomerBookingDetails = () => {
             }}
           />
 
-          {/* CANCELLATION MODAL */}
-          {showCancelModal && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)' }}>
-              <div style={{ background: 'var(--admin-card)', padding: '2.5rem', borderRadius: 'var(--admin-radius-lg)', border: '1px solid var(--admin-border)', maxWidth: '450px', width: '90%', position: 'relative' }}>
-                <button onClick={() => setShowCancelModal(false)} style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}><X size={20} /></button>
-                <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                  <AlertCircle size={40} color="var(--status-danger)" style={{ marginBottom: '1rem' }} />
-                  <h3 style={{ margin: 0, fontWeight: '950', fontSize: '1.25rem', color: 'var(--admin-text-primary)' }}>Confirm Cancellation?</h3>
-                  <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.85rem', marginTop: '0.5rem', fontWeight: '600' }}>
-                    Please provide a reason for cancelling this appointment.
-                    {booking.totalPaid > 0 && " A refund request will be initiated automatically."}
-                  </p>
-                </div>
-
-                <textarea
-                  placeholder="e.g. Change of plans / Conflict in schedule..."
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  style={{ width: '100%', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', minHeight: '100px', resize: 'none', outline: 'none', fontSize: '0.9rem', fontWeight: '600', marginBottom: '1.5rem' }}
-                />
-
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  <button onClick={() => setShowCancelModal(false)} style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer' }}>GO BACK</button>
-                  <button
-                    disabled={!cancelReason.trim() || isCancelling}
-                    onClick={confirmCancellation}
-                    style={{
-                      flex: 1,
-                      padding: '1rem',
-                      background: 'var(--status-danger)',
-                      border: 'none',
-                      color: 'var(--admin-text-primary)',
-                      borderRadius: 'var(--admin-radius-sm)',
-                      fontWeight: '900',
-                      cursor: (!cancelReason.trim() || isCancelling) ? 'not-allowed' : 'pointer',
-                      opacity: (!cancelReason.trim() || isCancelling) ? 0.5 : 1
-                    }}
-                  >
-                    {isCancelling ? 'Processing...' : 'CONFIRM'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* CANCELLATION */}
+          <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
+            <DialogContent className="ui-root sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-destructive"><AlertCircle className="size-5" aria-hidden="true" />Confirm Cancellation?</DialogTitle>
+                <DialogDescription>
+                  Please provide a reason for cancelling this appointment.
+                  {booking.totalPaid > 0 && " A refund request will be initiated automatically."}
+                </DialogDescription>
+              </DialogHeader>
+              <Textarea
+                placeholder="e.g. Change of plans / Conflict in schedule..."
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="min-h-24 resize-none"
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowCancelModal(false)}>Go back</Button>
+                <Button type="button" variant="destructive" disabled={!cancelReason.trim() || isCancelling} onClick={confirmCancellation}>{isCancelling ? 'Processing...' : 'Confirm'}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
         </div>
       </div>

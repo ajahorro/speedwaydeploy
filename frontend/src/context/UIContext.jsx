@@ -1,7 +1,11 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { X, CheckCircle, AlertTriangle, AlertCircle, Info } from 'lucide-react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { CheckCircle, AlertTriangle, AlertCircle, Info } from 'lucide-react';
 import toastManager from '../utils/toastManager';
 import { toastChrome } from '../utils/toastChrome';
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 const UIContext = createContext();
 
@@ -10,6 +14,10 @@ export const UIProvider = ({ children }) => {
   // Tier 3 / Task 15: the value typed into a prompt-style modal. Kept in its own
   // state so re-renders of the modal don't wipe what the user is typing.
   const [promptValue, setPromptValue] = useState('');
+  // The last box stays drawn while it fades out, so it never flashes empty.
+  const lastModal = useRef(null);
+  if (modal) lastModal.current = modal;
+  const shown = modal || lastModal.current;
 
   // Modal actions
   const openModal = useCallback((options) => {
@@ -134,236 +142,72 @@ export const UIProvider = ({ children }) => {
     <UIContext.Provider value={{ openModal, closeModal, showToast, modal }}>
       {children}
 
-      {/* Category A: Blocking Center-Screen Modals */}
-      {modal && (
-        <div className="app-modal-overlay" style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'var(--modal-overlay)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 99999,
-          padding: 'clamp(0.75rem, 4vw, 1.5rem)',
-          // dvh, not vh: on mobile browsers `100vh` excludes the retractable URL
-          // bar, so a full-height overlay can sit partly BEHIND it. `dvh` tracks
-          // the visible area, and `100%` is the fallback for older engines.
-          height: '100dvh',
-          boxSizing: 'border-box',
-          animation: 'fadeIn 0.25s ease-out'
-        }}>
-          <div className="app-modal" style={{
-            background: 'var(--admin-card)',
-            border: `1px solid ${getModalStyles(modal.type).brandColor}40`,
-            borderRadius: 'var(--admin-radius)',
-            maxWidth: '500px',
-            width: '100%',
-            // ── Height discipline ─────────────────────────────────────────
-            // Previously the card had NO max-height and `overflow: hidden`, while
-            // only the inner content was capped at a hard `65vh`. So a long modal
-            // grew the card past the viewport and the overlay — which cannot
-            // scroll — clipped the actions off the bottom with no way to reach
-            // them. The card is now the scroll boundary and is always shorter
-            // than the overlay, so the action row stays reachable.
-            maxHeight: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: 'var(--modal-shadow)',
-            position: 'relative',
-            overflow: 'hidden',
-            animation: 'modalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
-          }}>
-            {/* Top right X close icon - acts as cancel/dismiss */}
-            <button
-              onClick={() => closeModal(true)}
-              style={{
-                position: 'absolute',
-                top: '1rem',
-                right: '1rem',
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--admin-text-secondary)',
-                cursor: 'pointer',
-                padding: '0.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '4px',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = 'var(--admin-text-primary)';
-                e.currentTarget.style.background = 'var(--modal-hover-bg)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'var(--admin-text-secondary)';
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              <X size={18} />
-            </button>
+      {/* The app's one confirmation box (shadcn AlertDialog, so it can sit on top of any other pop-up). */}
+      <AlertDialog open={Boolean(modal)} onOpenChange={(open) => { if (!open) closeModal(true); }}>
+        <AlertDialogContent className="ui-root max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
+          {shown && (
+            <>
+              <AlertDialogHeader className="pr-6">
+                <AlertDialogTitle className="flex items-center gap-2" style={{ color: getModalStyles(shown.type).brandColor }}>
+                  {getModalStyles(shown.type).icon}
+                  <span className="text-foreground">{shown.title}</span>
+                </AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="whitespace-pre-line text-sm leading-relaxed">{shown.message}</div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
 
-            {/* Modal Content */}
-            {/* `minHeight: 0` is required for a flex child to actually scroll
-                rather than expand its parent. `65vh` was a fixed cap that left a
-                huge dead area on tall screens and still overflowed on short ones;
-                flexing to the remaining space adapts to both. */}
-            <div className="app-modal-content" style={{ padding: '2rem 2rem 1.5rem 2rem', flex: '1 1 auto', minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                {getModalStyles(modal.type).icon}
-                <div style={{ flex: 1 }}>
-                  <h3 style={{
-                    margin: 0,
-                    fontSize: '1.25rem',
-                    fontWeight: '900',
-                    color: 'var(--admin-text-primary)',
-                    letterSpacing: '0.5px',
-                    textTransform: 'uppercase'
-                  }}>
-                    {modal.title}
-                  </h3>
-                  <div style={{
-                    marginTop: '0.75rem',
-                    fontSize: '0.9rem',
-                    color: 'var(--admin-text-secondary)',
-                    lineHeight: '1.6',
-                    fontWeight: '500'
-                  }}>
-                    {modal.message}
-                  </div>
-
-                  {/* Tier 3 / Task 15: inline reason input, replacing window.prompt(). */}
-                  {modal.prompt && (
-                    <div style={{ marginTop: '1rem' }}>
-                      {modal.inputLabel && (
-                        <label style={{
-                          display: 'block',
-                          fontSize: '0.65rem',
-                          fontWeight: '900',
-                          color: 'var(--admin-text-secondary)',
-                          textTransform: 'uppercase',
-                          letterSpacing: '1px',
-                          marginBottom: '0.5rem'
-                        }}>
-                          {modal.inputLabel}
-                        </label>
-                      )}
-                      <textarea
-                        autoFocus
-                        value={promptValue}
-                        onChange={(e) => setPromptValue(e.target.value)}
-                        placeholder={modal.inputPlaceholder}
-                        rows={3}
-                        style={{
-                          width: '100%',
-                          boxSizing: 'border-box',
-                          padding: '0.75rem 1rem',
-                          background: 'var(--admin-input-bg, var(--admin-bg))',
-                          color: 'var(--admin-text-primary)',
-                          border: '1px solid var(--admin-input-border, var(--admin-border))',
-                          borderRadius: '6px',
-                          fontSize: '0.85rem',
-                          fontWeight: '600',
-                          fontFamily: 'inherit',
-                          resize: 'vertical',
-                          outline: 'none'
-                        }}
-                      />
-                    </div>
-                  )}
+              {/* Inline reason input (replaces window.prompt). */}
+              {shown.prompt && (
+                <div className="grid gap-1.5">
+                  {shown.inputLabel && <Label htmlFor="app-modal-prompt">{shown.inputLabel}</Label>}
+                  <Textarea
+                    id="app-modal-prompt"
+                    autoFocus
+                    value={promptValue}
+                    onChange={(e) => setPromptValue(e.target.value)}
+                    placeholder={shown.inputPlaceholder}
+                    rows={3}
+                  />
                 </div>
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="app-modal-actions" style={{
-              background: 'var(--admin-sidebar)',
-              padding: '1rem 2rem',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: '0.75rem',
-              // Never let the action row be squeezed or scrolled away: it is the
-              // only way to dismiss the modal.
-              flex: '0 0 auto',
-              flexWrap: 'wrap',
-              borderTop: '1px solid var(--admin-border)'
-            }}>
-              {modal.cancelText !== null && (
-              <button
-                onClick={() => {
-                  if (modal.onCancel) modal.onCancel();
-                  closeModal();
-                }}
-                style={{
-                  padding: '0.6rem 1.25rem',
-                  borderRadius: '4px',
-                  background: 'transparent',
-                  border: '1px solid var(--admin-input-border)',
-                  color: 'var(--admin-text-secondary)',
-                  fontWeight: '700',
-                  fontSize: '0.8rem',
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = 'var(--admin-text-primary)';
-                  e.currentTarget.style.borderColor = 'var(--admin-text-secondary)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = 'var(--admin-text-secondary)';
-                  e.currentTarget.style.borderColor = 'var(--admin-input-border)';
-                }}
-              >
-                {modal.cancelText}
-              </button>
               )}
-              <button
-                onClick={() => {
-                  // Tier 3 / Task 15: a prompt modal refuses to submit an empty
-                  // value so the reason can never be silently blank.
-                  if (modal.prompt && modal.inputRequired !== false && !promptValue.trim()) {
-                    showToast('Please enter a reason before continuing.', 'error');
-                    return;
-                  }
-                  const onConfirm = modal.onConfirm;
-                  const value = modal.prompt ? promptValue.trim() : undefined;
-                  setModal(null);
-                  setPromptValue('');
-                  if (onConfirm) onConfirm(value);
-                }}
-                style={{
-                  padding: '0.6rem 1.25rem',
-                  borderRadius: '4px',
-                  background: getModalStyles(modal.type).buttonBg,
-                  border: 'none',
-                  color: 'var(--admin-text-on-brand)',
-                  fontWeight: '700',
-                  fontSize: '0.8rem',
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.filter = 'brightness(1.1)';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.filter = 'brightness(1)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-              >
-                {modal.confirmText}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
+              <AlertDialogFooter>
+                {shown.cancelText !== null && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (!modal) return; // already closing: ignore a second click while it fades out
+                      if (shown.onCancel) shown.onCancel();
+                      closeModal();
+                    }}
+                  >
+                    {shown.cancelText}
+                  </Button>
+                )}
+                <Button
+                  variant={shown.type === 'danger' ? 'destructive' : 'default'}
+                  onClick={() => {
+                    if (!modal) return; // already closing: ignore a second click while it fades out
+                    // A prompt modal refuses to submit an empty value so the reason can never be silently blank.
+                    if (shown.prompt && shown.inputRequired !== false && !promptValue.trim()) {
+                      showToast('Please enter a reason before continuing.', 'error');
+                      return;
+                    }
+                    const onConfirm = modal.onConfirm;
+                    const value = modal.prompt ? promptValue.trim() : undefined;
+                    setModal(null);
+                    setPromptValue('');
+                    if (onConfirm) onConfirm(value);
+                  }}
+                >
+                  {shown.confirmText}
+                </Button>
+              </AlertDialogFooter>
+            </>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Toasts are NO LONGER rendered here. Batch 7 / Step 7.3 consolidated all
           toast output onto react-hot-toast, hosted by the single <Toaster/> in

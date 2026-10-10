@@ -1,11 +1,12 @@
 import React from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { X, ExternalLink, Info, Calendar, Star, Megaphone, Bell, MessageSquare } from 'lucide-react';
+import { ExternalLink, Info, Calendar, Star, Megaphone, Bell, MessageSquare } from 'lucide-react';
 import toast from '@/lib/toast';
 import { parseChatNotification } from './NotificationPopover';
 import { supabase } from '../lib/supabase';
 import { resolveBookingId, resolveStaffJobId } from '../utils/notificationRouting';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const TYPE_ICONS = {
   ANNOUNCEMENT: Megaphone,
@@ -119,111 +120,43 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
     ] : []);
   };
 
-  return createPortal((
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 999999,
-      background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: '1rem'
-    }} onClick={onClose}>
-      <div style={{
-        background: 'var(--admin-card)',
-        border: '1px solid var(--admin-border)',
-        borderRadius: 'var(--admin-radius)',
-        padding: '2rem',
-        maxWidth: '500px',
-        width: '100%',
-        maxHeight: '90vh',
-        overflowY: 'auto',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
-        position: 'relative'
-      }} onClick={e => e.stopPropagation()}>
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}
-        >
-          <X size={20} />
-        </button>
+  const canViewBooking = Boolean(notification.booking_id || notification.message?.match(/#[A-Za-z0-9_-]{8}/));
 
-        {/* Modal Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-          <div style={{
-            width: '40px', height: '40px', borderRadius: '12px',
-            background: 'rgba(var(--admin-brand-rgb), 0.15)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0
-          }}>
-            <Icon size={20} color="var(--admin-brand)" />
-          </div>
-          <div>
-            <span style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-              {notification.notification_type || 'SYSTEM'}
-            </span>
-            <div style={{ fontSize: '0.7rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
-              {new Date(notification.created_at).toLocaleString()}
-            </div>
-          </div>
-        </div>
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="ui-root max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+            <Icon className="size-4" aria-hidden="true" />
+            {notification.notification_type || 'SYSTEM'}
+          </p>
+          <DialogTitle>{notification.title || 'Notification Details'}</DialogTitle>
+          <DialogDescription>{new Date(notification.created_at).toLocaleString()}</DialogDescription>
+        </DialogHeader>
 
-        {/* Title */}
-        <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '1.15rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>
-          {notification.title || 'Notification Details'}
-        </h3>
-
-        {/* Full Elaboration Message with Clickable Booking IDs.
-            Chat notifications show WHO wrote the message above the body. */}
+        {/* Full message with clickable booking references. Chat notifications show who wrote it. */}
         {chatNotification?.sender && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.5rem' }}>
-            <MessageSquare size={14} color="var(--admin-brand)" />
-            <span style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              {chatNotification.sender}
-            </span>
-          </div>
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+            <MessageSquare className="size-3.5" aria-hidden="true" />
+            {chatNotification.sender}
+          </p>
         )}
-        <div style={{
-          background: 'var(--admin-bg)',
-          border: '1px solid var(--admin-border)',
-          borderRadius: 'var(--admin-radius-sm)',
-          padding: '1rem',
-          marginBottom: '1.5rem',
-          fontSize: '0.9rem',
-          color: 'var(--admin-text-primary)',
-          lineHeight: 1.6,
-          fontWeight: '600',
-          wordBreak: 'break-word'
-        }}>
+        <div className="break-words rounded-md border bg-muted/40 p-4 text-sm leading-relaxed">
           {renderFormattedMessage(chatNotification ? (chatNotification.body || 'Attachment') : notification.message)}
         </div>
 
-        {/* Modal Actions */}
-        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-          {(notification.booking_id || notification.message?.match(/#[A-Za-z0-9_-]{8}/)) && (
-            <button
-              onClick={handleViewBooking}
-              style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: '950', fontSize: '0.75rem', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-            >
-              View Booking <ExternalLink size={14} />
-            </button>
+        <DialogFooter>
+          {canViewBooking && (
+            <Button type="button" onClick={handleViewBooking}>View Booking <ExternalLink /></Button>
           )}
           {!notification.is_read && onMarkRead && (
-            <button
-              onClick={() => { onMarkRead(notification.id); }}
-              style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: '950', fontSize: '0.75rem', textTransform: 'uppercase', cursor: 'pointer' }}
-            >
-              Mark as Read
-            </button>
+            <Button type="button" variant="outline" onClick={() => { onMarkRead(notification.id); }}>Mark as Read</Button>
           )}
-          <button
-            onClick={onClose}
-            style={{ padding: '0.75rem 1.5rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: '950', fontSize: '0.75rem', textTransform: 'uppercase', cursor: 'pointer' }}
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  ), document.body);
+          <Button type="button" variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 };
 
 export default NotificationDetailsModal;

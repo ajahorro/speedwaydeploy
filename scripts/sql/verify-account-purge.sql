@@ -25,6 +25,7 @@ insert into public.bookings (id, customer_id, customer_name, status, total_amoun
 values ('9f0000aa-0000-0000-0000-000000000001', '9f000000-0000-0000-0000-000000000001', 'Gone', 'completed', 500, now() - interval '40 days', now() - interval '40 days' + interval '1 hour'),
        ('9f0000aa-0000-0000-0000-000000000002', '9f000000-0000-0000-0000-000000000002', 'Stays', 'completed', 500, now() - interval '30 days', now() - interval '30 days' + interval '1 hour');
 insert into public.payments (booking_id, amount, method, payment_type, status) values ('9f0000aa-0000-0000-0000-000000000001', 500, 'GCash', 'Full', 'PAID');
+insert into public.customer_credit_ledger (customer_id, booking_id, entry_type, amount, balance_after) values ('9f000000-0000-0000-0000-000000000001', '9f0000aa-0000-0000-0000-000000000001', 'EXCESS', 50, 50);
 insert into public.booking_vehicles (id, booking_id, vehicle_type, brand, model, plate_number, status, staff_id)
 values ('9f0000bb-0000-0000-0000-000000000001', '9f0000aa-0000-0000-0000-000000000002', 'Sedan', 'A', 'B', 'PRG111', 'COMPLETED', '9f000000-0000-0000-0000-000000000003');
 set local session_replication_role = origin;
@@ -61,7 +62,12 @@ update public.profiles set deactivated_at = now() - interval '16 days' where id 
 select public.purge_deactivated_accounts() as purged \gset
 insert into t_results select 'only accounts past the grace period are deleted', :purged = 3, 'purged ' || :'purged';
 insert into t_results select 'the old customer is gone from the database entirely', not exists (select 1 from public.profiles where id = '9f000000-0000-0000-0000-000000000001') and not exists (select 1 from auth.users where id = '9f000000-0000-0000-0000-000000000001'), '';
-insert into t_results select 'the old customer''s vehicles and bookings are gone with it', not exists (select 1 from public.vehicles where plate_number = 'PRG999') and not exists (select 1 from public.bookings where id = '9f0000aa-0000-0000-0000-000000000001'), '';
+insert into t_results select 'the old customer''s vehicles are deleted with the account', not exists (select 1 from public.vehicles where plate_number = 'PRG999'), '';
+insert into t_results select 'the old customer''s booking stays, with no account behind it', exists (select 1 from public.bookings where id = '9f0000aa-0000-0000-0000-000000000001' and customer_id is null and total_amount = 500 and status = 'completed'), '';
+insert into t_results select 'the booking still says who it was for', exists (select 1 from public.bookings where id = '9f0000aa-0000-0000-0000-000000000001' and customer_name = 'Gone' and customer_email = 'purge-cust-old@test.local'), '';
+insert into t_results select 'the payment on that booking stays', exists (select 1 from public.payments where booking_id = '9f0000aa-0000-0000-0000-000000000001' and amount = 500), '';
+insert into t_results select 'the credit history stays', exists (select 1 from public.customer_credit_ledger where booking_id = '9f0000aa-0000-0000-0000-000000000001' and customer_id is null and amount = 50), '';
+insert into t_results select 'the financial ledger still counts the kept booking', (select (public.booking_financial_ledger('9f0000aa-0000-0000-0000-000000000001')->>'net_settled')::numeric) = 500 and exists (select 1 from public.booking_ledger_v where booking_id = '9f0000aa-0000-0000-0000-000000000001'), '';
 insert into t_results select 'the old technician is gone and their bookings stay', not exists (select 1 from public.profiles where id = '9f000000-0000-0000-0000-000000000003') and exists (select 1 from public.bookings where id = '9f0000aa-0000-0000-0000-000000000002') and (select staff_id is null from public.booking_vehicles where id = '9f0000bb-0000-0000-0000-000000000001'), '';
 insert into t_results select 'the old administrator is gone', not exists (select 1 from public.profiles where id = '9f000000-0000-0000-0000-000000000004'), '';
 insert into t_results select 'a customer deactivated 3 days ago is still there', exists (select 1 from public.profiles where id = '9f000000-0000-0000-0000-000000000002'), '';

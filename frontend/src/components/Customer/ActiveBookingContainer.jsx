@@ -2,6 +2,7 @@ import React from 'react';
 import { Clock, User, FileText, ChevronRight, Car, CalendarOff, Wallet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { describeLedgerState } from '../../services/bookingService';
+import { Button } from '@/components/ui/button';
 
 const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
@@ -55,12 +56,9 @@ const ActiveBookingContainer = ({ booking, loading }) => {
         <CalendarOff size={48} color="var(--admin-text-secondary)" style={{ opacity: 0.3 }} />
         <div style={{ color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '1.1rem' }}>No Active Booking</div>
         <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>You don't have any ongoing or scheduled appointments right now.</div>
-        <button
-          onClick={() => navigate('/customer/book')}
-          style={{ marginTop: '0.5rem', padding: '0.85rem 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: 900, cursor: 'pointer' }}
-        >
+        <Button onClick={() => navigate('/customer/book')} variant="default" className="mt-2">
           + Book Appointment
-        </button>
+        </Button>
       </div>
     );
   }
@@ -177,12 +175,9 @@ const ActiveBookingContainer = ({ booking, loading }) => {
           </div>
         </div>
 
-        <button
-          onClick={() => navigate(`/customer/bookings/${booking.id}`)}
-          style={{ width: '100%', padding: '0.85rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: 900, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer' }}
-        >
+        <Button onClick={() => navigate(`/customer/bookings/${booking.id}`)} variant="default" className="w-full">
           <FileText size={16} /> View full booking <ChevronRight size={16} />
-        </button>
+        </Button>
       </div>
     </div>
   );

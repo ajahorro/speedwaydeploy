@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
-import { Calendar, Search, ChevronRight, Car, RotateCw, X } from 'lucide-react';
+import { Calendar, Search, ChevronRight, Car, RotateCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useBookings } from '../../hooks/useBookings';
 import { matchesSearchText } from '../../utils/searchMatch';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 const CustomerMyBookings = () => {
   const navigate = useNavigate();
@@ -57,212 +64,151 @@ const CustomerMyBookings = () => {
   };
 
   return (
-    <div style={{ paddingBottom: '5rem' }}>
-      
-      {/* Rebook Confirmation Modal */}
-      {showRebookModal && (
-        <div className="hero-toast-overlay">
-          <div className="hero-toast-content" style={{ position: 'relative' }}>
-            <button onClick={() => setShowRebookModal(false)} aria-label="Close confirmation" style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}>
-              <X size={20} />
-            </button>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-              <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(var(--admin-brand-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <RotateCw size={32} color="var(--admin-brand)" />
-              </div>
-            </div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: '950', color: 'var(--admin-text-primary)', margin: '0 0 0.5rem 0', textTransform: 'uppercase' }}>{['scheduled', 'confirmed'].includes(selectedRebook?.status?.toLowerCase()) ? 'Reschedule Booking?' : 'Fast-Track Rebook?'}</h2>
-            <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.9rem', margin: '0 0 2rem 0', fontWeight: '600' }}>
+    <div className="ui-root pb-20">
+
+      {/* Rebook / reschedule confirmation */}
+      <AlertDialog open={showRebookModal} onOpenChange={setShowRebookModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RotateCw className="size-5 text-primary" aria-hidden="true" />
+              {['scheduled', 'confirmed'].includes(selectedRebook?.status?.toLowerCase()) ? 'Reschedule Booking?' : 'Fast-Track Rebook?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
               {['scheduled', 'confirmed'].includes(selectedRebook?.status?.toLowerCase())
                 ? 'Your existing booking will return to Scheduled, release its staff allocation, and keep its payment history.'
                 : <>Copying services and vehicle details. You will jump directly to the <strong>Schedule Selection</strong> step.</>}
-            </p>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button 
-                onClick={() => setShowRebookModal(false)}
-                style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '8px', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase' }}
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={confirmRebook}
-                style={{ flex: 1, padding: '1rem', background: 'var(--admin-brand)', border: 'none', color: 'var(--admin-text-primary)', borderRadius: '8px', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase', boxShadow: '0 4px 15px rgba(var(--admin-brand-rgb), 0.3)' }}
-              >
-                Let's Go
-              </button>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowRebookModal(false)}>Cancel</Button>
+            <Button type="button" onClick={confirmRebook}>Let's Go</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <div className="flex flex-col gap-8">
+
+        {/* Header */}
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-black uppercase tracking-tight">My Bookings</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Track and manage all your past and upcoming service appointments.</p>
+          </div>
+          <Button type="button" onClick={() => navigate('/customer/book')}>+ Book Appointment</Button>
+        </div>
+
+        {/* Controls */}
+        <div className="flex flex-wrap gap-3">
+          <div className="relative min-w-[260px] flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input
+              type="text"
+              placeholder="Search by Booking ID or Vehicle..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Tabs value={filter} onValueChange={setFilter}>
+            <TabsList>
+              {['ALL', 'UPCOMING', 'PAST'].map(f => (
+                <TabsTrigger key={f} value={f} className="px-4 text-xs font-bold">{f}</TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {/* Bookings list */}
+        <div className="flex flex-col gap-3">
+          {loading ? (
+            <div className="grid gap-3" aria-busy="true">
+              <Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" />
             </div>
-          </div>
-        </div>
-      )}
+          ) : filteredBookings.length === 0 ? (
+            <div className="rounded-md border border-dashed px-6 py-14 text-center">
+              <Calendar className="mx-auto mb-3 size-10 text-muted-foreground opacity-50" aria-hidden="true" />
+              <p className="font-bold">No bookings found</p>
+              <p className="text-sm text-muted-foreground">You don't have any {filter.toLowerCase()} appointments matching this criteria.</p>
+            </div>
+          ) : (
+            filteredBookings.map(b => {
+              const dt = b.start_datetime ? new Date(b.start_datetime) : null;
+              const dateStr = dt ? dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD';
+              const timeStr = dt ? dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
+              const vehicleLabel = b.vehicles?.length > 1
+                ? `Fleet (${b.vehicles.length} units)`
+                : b.vehicles?.[0] ? `${b.vehicles[0].brand} ${b.vehicles[0].model}` : 'N/A';
+              const balance = Number(b.ledger?.outstanding_amount ?? b.total_amount ?? 0);
+              const isCancelled = b.status?.toUpperCase() === 'CANCELLED';
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
-
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 style={{ fontSize: 'clamp(1.8rem, 5vw, 2.5rem)', fontWeight: '950', margin: '0 0 0.5rem 0', textTransform: 'uppercase', color: 'var(--admin-text-primary)', letterSpacing: '-1.5px' }}>My Bookings</h1>
-          <p style={{ margin: 0, color: 'var(--admin-text-secondary)', fontSize: '0.95rem', fontWeight: '600', opacity: 0.8 }}>
-            Track and manage all your past and upcoming service appointments.
-          </p>
-        </div>
-        <button
-          onClick={() => navigate('/customer/book')}
-          className="admin-card-hover"
-          style={{ padding: '0.85rem 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}
-        >
-          + Book Appointment
-        </button>
-      </div>
-
-      {/* Controls */}
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 300px', position: 'relative' }}>
-          <Search size={18} color="var(--admin-text-secondary)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
-          <input
-            type="text"
-            placeholder="Search by Booking ID or Vehicle..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: '100%', padding: '0.85rem 1rem 0.85rem 2.75rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', outline: 'none', boxSizing: 'border-box' }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--admin-card)', padding: '0.5rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
-          {['ALL', 'UPCOMING', 'PAST'].map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              style={{
-                padding: '0.5rem 1rem',
-                background: filter === f ? 'var(--admin-brand)' : 'transparent',
-                color: filter === f ? '#fff' : 'var(--admin-text-secondary)',
-                border: 'none',
-                borderRadius: '4px',
-                fontWeight: '900',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                textTransform: 'uppercase'
-              }}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Bookings List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {loading ? (
-          <div style={{ padding: '4rem 2rem', textAlign: 'center', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-md)' }}>
-            <div style={{ color: 'var(--admin-brand)', fontWeight: '900', fontSize: '0.9rem' }}>Loading bookings...</div>
-          </div>
-        ) : filteredBookings.length === 0 ? (
-          <div style={{ padding: '4rem 2rem', textAlign: 'center', background: 'var(--admin-card)', border: '1px dashed var(--admin-border)', borderRadius: 'var(--admin-radius-md)' }}>
-            <Calendar size={48} color="var(--admin-text-secondary)" style={{ marginBottom: '1rem', opacity: 0.5 }} />
-            <div style={{ color: 'var(--admin-text-primary)', fontWeight: '900', fontSize: '1.1rem', marginBottom: '0.5rem' }}>No bookings found</div>
-            <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.9rem', fontWeight: '600' }}>You don't have any {filter.toLowerCase()} appointments matching this criteria.</div>
-          </div>
-        ) : (
-          filteredBookings.map(b => {
-            const dt = b.start_datetime ? new Date(b.start_datetime) : null;
-            const dateStr = dt ? dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD';
-            const timeStr = dt ? dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
-            const vehicleLabel = b.vehicles?.length > 1
-              ? `Fleet (${b.vehicles.length} units)`
-              : b.vehicles?.[0] ? `${b.vehicles[0].brand} ${b.vehicles[0].model}` : 'N/A';
-
-            return (
-              <div
-                key={b.id}
-                onClick={() => navigate(`/customer/bookings/${b.id}`)}
-                className="admin-card-hover"
-                style={{
-                  background: 'var(--admin-card)',
-                  border: '1px solid var(--admin-border)',
-                  borderRadius: 'var(--admin-radius-md)',
-                  padding: '1.5rem',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                  gap: '1.5rem',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                {/* ID & Status */}
-                <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Booking ID</div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: '950', color: 'var(--admin-text-primary)', fontFamily: 'monospace' }}>#{b.id.substring(0, 8).toUpperCase()}</div>
-                  <div style={{ display: 'inline-block', marginTop: '0.5rem', fontSize: '0.7rem', fontWeight: '950', color: getStatusColor(b.status), background: `rgba(var(--admin-brand-rgb), 0.05)`, padding: '0.2rem 0.5rem', borderRadius: '4px', textTransform: 'uppercase' }}>
-                    {b.status?.toLowerCase() === 'flagged_noshow' ? 'FLAGGED NO-SHOW' : b.status?.replace(/_/g, ' ')}
+              return (
+                <Card
+                  key={b.id}
+                  onClick={() => navigate(`/customer/bookings/${b.id}`)}
+                  className="grid cursor-pointer grid-cols-[repeat(auto-fit,minmax(150px,1fr))] items-center gap-5 rounded-md p-5 transition-colors hover:border-primary"
+                >
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-muted-foreground">Booking ID</p>
+                    <p className="font-mono text-base font-bold">#{b.id.substring(0, 8).toUpperCase()}</p>
+                    <Badge variant="outline" className="mt-2 uppercase" style={{ color: getStatusColor(b.status) }}>
+                      {b.status?.toLowerCase() === 'flagged_noshow' ? 'FLAGGED NO-SHOW' : b.status?.replace(/_/g, ' ')}
+                    </Badge>
                   </div>
-                </div>
 
-                {/* Schedule */}
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
-                    <Calendar size={14} /> Schedule
+                  <div>
+                    <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground"><Calendar className="size-3.5" aria-hidden="true" /> Schedule</p>
+                    <p className="text-sm font-semibold">{dateStr}</p>
+                    <p className="text-sm text-muted-foreground">{timeStr}</p>
                   </div>
-                  <div style={{ fontSize: '0.95rem', fontWeight: '800', color: 'var(--admin-text-primary)' }}>{dateStr}</div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--admin-text-secondary)' }}>{timeStr}</div>
-                </div>
 
-                {/* Vehicle */}
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
-                    <Car size={14} /> Vehicle
+                  <div>
+                    <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground"><Car className="size-3.5" aria-hidden="true" /> Vehicle</p>
+                    <p className="text-sm font-semibold">{vehicleLabel}</p>
                   </div>
-                  <div style={{ fontSize: '0.95rem', fontWeight: '800', color: 'var(--admin-text-primary)' }}>{vehicleLabel}</div>
-                </div>
 
-                {/* Total & Action */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Status</div>
-                    {(() => {
-                      if (b.status?.toUpperCase() === 'CANCELLED') {
-                        return <div style={{ fontSize: '0.8rem', fontWeight: '950', color: 'var(--status-danger)' }}>CANCELLED</div>;
-                      }
-                      const balance = Number(b.ledger?.outstanding_amount ?? b.total_amount ?? 0);
-                      return (
-                        <div style={{ fontSize: '0.8rem', fontWeight: '950', color: balance === 0 ? 'var(--admin-success)' : 'var(--admin-brand)' }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">Status</p>
+                      {isCancelled ? (
+                        <p className="text-sm font-bold text-destructive">CANCELLED</p>
+                      ) : (
+                        <p className={`text-sm font-bold ${balance === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary'}`}>
                           {balance === 0 ? 'FULLY PAID' : `BALANCE: ₱${balance.toLocaleString()}`}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                  
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {['scheduled', 'confirmed', 'completed', 'cancelled'].includes(b.status?.toLowerCase()) && (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleBookAgainClick(b);
-                        }}
-                        style={{ 
-                          width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(169, 27, 24, 0.1)', 
-                          border: '1px solid var(--admin-brand)', display: 'flex', alignItems: 'center', 
-                          justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' 
-                        }}
-                        title={['scheduled', 'confirmed'].includes(b.status?.toLowerCase()) ? 'Reschedule Booking' : 'Book Again'}
-                      >
-                        <RotateCw size={18} color="var(--admin-brand)" />
-                      </button>
-                    )}
-                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <ChevronRight size={18} color="var(--admin-text-primary)" />
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      {['scheduled', 'confirmed', 'completed', 'cancelled'].includes(b.status?.toLowerCase()) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          className="border-primary/60 text-primary hover:text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleBookAgainClick(b);
+                          }}
+                          title={['scheduled', 'confirmed'].includes(b.status?.toLowerCase()) ? 'Reschedule Booking' : 'Book Again'}
+                          aria-label={['scheduled', 'confirmed'].includes(b.status?.toLowerCase()) ? 'Reschedule Booking' : 'Book Again'}
+                        >
+                          <RotateCw />
+                        </Button>
+                      )}
+                      <span className="grid size-8 place-items-center rounded-md border" aria-hidden="true">
+                        <ChevronRight className="size-4" />
+                      </span>
                     </div>
                   </div>
-                </div>
-              </div>
-            );
-          })
-        )}
+                </Card>
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
 };
 
 export default CustomerMyBookings;

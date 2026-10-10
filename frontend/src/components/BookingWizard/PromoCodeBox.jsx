@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Tag, Loader2, CheckCircle2, X } from 'lucide-react';
 import toast from '@/lib/toast';
 import { redeemPromoCode } from '../../services/promoCodeService';
+import { Button } from '@/components/ui/button';
 
 /**
  * Optional promo code, entered on the first booking page (with the services) so the total is final before payment.
@@ -62,9 +63,7 @@ const PromoCodeBox = ({ promoCode, promoRule, onApplied, onRemoved, customerId =
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
             <CheckCircle2 size={16} /> {promoRule.code}: {promoRule.name} applied
           </span>
-          <button type="button" onClick={onRemoved} disabled={disabled} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'transparent', border: 0, color: 'var(--admin-text-secondary)', fontWeight: 800, fontSize: '0.72rem', cursor: 'pointer' }}>
-            <X size={14} /> Remove
-          </button>
+          <Button type="button" variant="ghost" size="xs" onClick={onRemoved} disabled={disabled}><X /> Remove</Button>
         </div>
       ) : (
         <>

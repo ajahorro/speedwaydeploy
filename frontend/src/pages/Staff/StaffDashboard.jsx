@@ -17,6 +17,7 @@ import { playJobAssignmentChime } from '../../utils/jobAssignmentChime';
 import { isNotificationActionable, isRedundantStaffTechnicianAssignment } from '../../utils/notificationRouting';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import CustomerContact from '../../components/Staff/CustomerContact';
+import { Button } from '@/components/ui/button';
 const StaffDashboard = () => {
   const { confirmThen } = useConfirmAction();
   const { profile, toggleShift } = useAuth();
@@ -228,14 +229,9 @@ const StaffDashboard = () => {
             </p>
           )}
           {!profile?.is_clocked_in && (
-            <button
-              type="button"
-              onClick={() => confirmThen({ title: 'Start your shift?', message: 'You will be marked on duty and can receive assignments.', confirmText: 'Start shift' }, handleClockIn)}
-              disabled={!profile?.id || isClockingIn}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', padding: '0.75rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius)', fontWeight: '900', textTransform: 'uppercase', cursor: isClockingIn ? 'wait' : 'pointer', opacity: !profile?.id || isClockingIn ? 0.65 : 1 }}
-            >
+            <Button type="button" onClick={() => confirmThen({ title: 'Start your shift?', message: 'You will be marked on duty and can receive assignments.', confirmText: 'Start shift' }, handleClockIn)} disabled={!profile?.id || isClockingIn} variant="default" className="w-full uppercase">
               <LogIn size={16} /> {isClockingIn ? 'Clocking In...' : 'Clock In'}
-            </button>
+            </Button>
           )}
         </div>
       </div>

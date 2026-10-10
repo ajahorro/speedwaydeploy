@@ -19,6 +19,7 @@ import LeaveGuardModal from '../../components/LeaveGuardModal';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { loadDraft, saveServerDraft, writeLocalDraft, deleteDraft, toDraftData, hasMeaningfulDraft } from '../../services/bookingDraftService';
 import { redeemPromoCode } from '../../services/promoCodeService';
+import { Button } from '@/components/ui/button';
 
 // Utility for Data Integrity: Find service in catalog by name and get current price
 const getCatalogServiceByName = (name, type) => {
@@ -542,7 +543,7 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
       {draftRestored && (
         <div role="status" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.75rem 1rem', marginBottom: '1rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderLeft: '3px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: 700 }}>
           <span>We restored the booking you were working on.</span>
-          <button type="button" onClick={handleCancelBooking} style={{ background: 'transparent', border: '1px solid var(--status-danger)', color: 'var(--status-danger)', padding: '0.4rem 0.8rem', borderRadius: '6px', fontWeight: 900, fontSize: '0.7rem', cursor: 'pointer', textTransform: 'uppercase' }}>Start over</button>
+          <Button type="button" variant="outline" size="xs" onClick={handleCancelBooking} className="border-destructive/60 text-destructive uppercase hover:text-destructive">Start over</Button>
         </div>
       )}
 

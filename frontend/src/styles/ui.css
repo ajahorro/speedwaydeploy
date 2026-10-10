@@ -30,6 +30,34 @@
 @source '../pages/Admin/AdminDashboard.jsx';
 @source '../pages/Admin/AdminPayments.jsx';
 @source '../pages/Admin/AdminRefunds.jsx';
+/* Customer and staff screens converted to shadcn (pop-ups, settings controls, duty page). */
+@source '../context/UIContext.jsx';
+@source '../components/ValidationModal.jsx';
+@source '../components/NotificationDetailsModal.jsx';
+@source '../components/Settings/SettingsPrimitives.jsx';
+@source '../components/BookingChat.jsx';
+@source '../components/BookingWizard/Step3FleetEditing.jsx';
+@source '../components/BookingWizard/Step4ReviewPayment.jsx';
+@source '../pages/Customer/CustomerProfile.jsx';
+@source '../pages/Customer/CustomerGarage.jsx';
+@source '../pages/Customer/CustomerBookingDetails.jsx';
+@source '../pages/Staff/StaffDuty.jsx';
+@source '../pages/Staff/StaffNotifications.jsx';
+@source '../components/LanguageGate.jsx';
+@source '../components/TermsGate.jsx';
+@source '../pages/Customer/CustomerMyBookings.jsx';
+@source '../pages/Customer/CustomerBilling.jsx';
+@source '../pages/Customer/CustomerBookAppointment.jsx';
+@source '../pages/Customer/CustomerReceipt.jsx';
+@source '../pages/Staff/StaffJobDetails.jsx';
+@source '../pages/Staff/StaffDashboard.jsx';
+@source '../pages/Staff/StaffProfile.jsx';
+@source '../components/BookingWizard/Step1Schedule.jsx';
+@source '../components/BookingWizard/PromoCodeBox.jsx';
+@source '../components/Customer/RecentNotifications.jsx';
+@source '../components/Customer/UpcomingAppointments.jsx';
+@source '../components/Customer/ActiveBookingContainer.jsx';
+@source '../components/LeaveGuardModal.jsx';
 
 /* ThemeContext sets <html data-theme="light|dark">; dark is the default. */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));

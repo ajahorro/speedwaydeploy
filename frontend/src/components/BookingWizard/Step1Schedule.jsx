@@ -10,6 +10,8 @@ import DateTimePicker from './DateTimePicker';
 import { ensureShopConfig } from '../../config/shopConfig';
 import { PhoneInput } from '../common/ContactInputs';
 import { isValidPhPhone } from '../../utils/contactValidation';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 
 const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, onNext, onBack, onCancel, customerDetailsLocked = false, adminMode = false, selectedCustomerId = null }) => {
   const [availableSlots, setAvailableSlots] = useState([]);
@@ -197,13 +199,11 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
           <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
             Special Instructions / Notes (Optional)
           </label>
-          <textarea
+          <Textarea
             value={bookingData.notes || ''}
             onChange={(e) => setBookingData({ ...bookingData, notes: sanitizeVehicleText(e.target.value) })}
-            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--admin-brand)'; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--admin-input-border)'; }}
             placeholder="e.g. Please take extra care of the leather seats..."
-            style={{ ...inputStyle, minHeight: '80px', resize: 'none' }}
+            className="min-h-20 resize-none"
           />
         </div>
       </div>
@@ -229,70 +229,19 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
         paddingTop: '1.5rem',
         marginTop: '0.25rem'
       }}>
-        <button
-          onClick={onBack}
-          style={{
-            flex: '1 1 150px',
-            padding: '1rem 2rem',
-            background: 'var(--admin-bg)',
-            color: 'var(--admin-text-primary)',
-            border: '1px solid var(--admin-border)',
-            borderRadius: 'var(--admin-radius-md)',
-            fontWeight: '950',
-            fontSize: '1rem',
-            cursor: 'pointer',
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            textAlign: 'center'
-          }}
-        >
+        <Button onClick={onBack} variant="outline" className="uppercase">
           Back: Adjust Services
-        </button>
+        </Button>
 
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            style={{
-              flex: '1 1 150px',
-              background: 'transparent',
-              border: '1px solid #ef4444',
-              color: 'var(--status-danger)',
-              padding: '1rem 2rem',
-              borderRadius: 'var(--admin-radius-md)',
-              fontWeight: '950',
-              fontSize: '1rem',
-              cursor: 'pointer',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
-              textAlign: 'center'
-            }}
-          >
+          <Button type="button" onClick={onCancel} variant="outline" className="border-destructive/60 text-destructive hover:text-destructive uppercase">
             Cancel
-          </button>
+          </Button>
         )}
 
-        <button
-          onClick={onNext}
-          disabled={!isValid}
-          style={{
-            flex: '1 1 150px',
-            padding: '1rem 2rem',
-            background: isValid ? 'var(--admin-brand)' : 'var(--admin-bg)',
-            color: isValid ? '#fff' : 'var(--admin-text-secondary)',
-            border: `1px solid ${isValid ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
-            borderRadius: 'var(--admin-radius-md)',
-            fontWeight: '950',
-            fontSize: '1rem',
-            cursor: isValid ? 'pointer' : 'not-allowed',
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            transition: 'all 0.3s ease',
-            textAlign: 'center'
-          }}
-        >
+        <Button onClick={onNext} disabled={!isValid} variant="default" className="uppercase">
           Next: Fleet Editing
-        </button>
+        </Button>
       </div>
 
     </div>

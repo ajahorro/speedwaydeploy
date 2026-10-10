@@ -130,7 +130,7 @@ const AppMetadataFooter = ({ onRequestDeletion = null, role = 'customer' }) => {
     }
     openModal({
       title: 'Request Account Data Deletion',
-      message: 'This raises a data-deletion request with our team. Your account is retained for a 15-day recovery window, after which all personal data is permanently purged. Do you want to continue?',
+      message: 'This raises a data-deletion request with our team. Your account is retained for a 15-day recovery window, after which your account and personal details are permanently deleted. The shop keeps your booking and payment records. Do you want to continue?',
       type: 'danger',
       confirmText: 'Request Deletion',
       cancelText: 'Keep My Account',

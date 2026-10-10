@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Clock, LogIn, LogOut, MapPin, CheckCircle2, Timer } from 'lucide-react';
+import { AlertTriangle, Clock, LogIn, LogOut, MapPin, CheckCircle2, Timer } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { useUI } from '../../context/UIContext';
 import PageHeader from '../../components/PageHeader';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 /**
  * Duty & Shift
@@ -103,15 +107,6 @@ const StaffDuty = () => {
     });
   };
 
-  const cardStyle = {
-    background: 'var(--admin-card)',
-    border: '1px solid var(--admin-border)',
-    borderRadius: 'var(--admin-radius)',
-    padding: 'clamp(1.5rem, 4vw, 2rem)',
-    color: 'var(--admin-text-primary)',
-    boxShadow: 'var(--admin-card-shadow)'
-  };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
       <PageHeader
@@ -120,88 +115,92 @@ const StaffDuty = () => {
         subtitle="Clock in to start receiving detailing assignments, and clock out when you are done."
       />
 
-      <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '640px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: 'var(--admin-radius)', background: isClockedIn ? 'rgba(16, 185, 129, 0.12)' : 'rgba(169, 27, 24, 0.12)', border: `1px solid ${isClockedIn ? 'var(--status-success)' : 'var(--admin-brand)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isClockedIn ? 'var(--status-success)' : 'var(--admin-brand)' }}>
-              <Clock size={24} />
+      <Card className="ui-root max-w-2xl gap-5 rounded-md p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className={`grid size-12 place-items-center rounded-md border ${isClockedIn ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'border-primary/50 bg-primary/10 text-primary'}`}>
+              <Clock className="size-6" aria-hidden="true" />
             </div>
             <div>
-              <div style={{ fontSize: '1rem', fontWeight: '900' }}>{isClockedIn ? 'On Duty' : 'Off Duty'}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
+              <p className="font-semibold">{isClockedIn ? 'On Duty' : 'Off Duty'}</p>
+              <p className="text-xs text-muted-foreground">
                 {isClockedIn ? 'You are available for new assignments.' : 'Clock in to receive new assignments.'}
-              </div>
+              </p>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.85rem', background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)', borderRadius: '999px' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isClockedIn ? 'var(--status-success)' : 'var(--status-danger)' }} />
-            <span style={{ fontSize: '0.72rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', color: isClockedIn ? 'var(--status-success)' : 'var(--status-danger)' }}>
-              {isClockedIn ? 'ON DUTY' : 'OFF DUTY'}
-            </span>
-          </div>
+          <Badge variant="outline" className={`gap-2 uppercase ${isClockedIn ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400' : 'border-destructive/40 text-destructive'}`}>
+            <span className={`size-2 rounded-full ${isClockedIn ? 'bg-emerald-500' : 'bg-destructive'}`} aria-hidden="true" />
+            {isClockedIn ? 'ON DUTY' : 'OFF DUTY'}
+          </Badge>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)' }}>
-          <Timer size={18} color="var(--admin-text-secondary)" />
+        <div className="flex items-center gap-3 rounded-md border px-4 py-3">
+          <Timer className="size-[18px] text-muted-foreground" aria-hidden="true" />
           <div>
-            <div style={{ fontSize: '0.72rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--admin-text-secondary)' }}>Current Shift Duration</div>
-            <div style={{ fontSize: '1.4rem', fontWeight: '900', fontVariantNumeric: 'tabular-nums' }}>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Current Shift Duration</p>
+            <p className="text-2xl font-bold tabular-nums">
               {isClockedIn ? `${formatDuration(elapsed)}${shiftOverdue ? '+' : ''}` : '00:00:00'}
-            </div>
+            </p>
           </div>
         </div>
 
         {shiftOverdue && (
-          <div role="alert" style={{ padding: '1rem 1.25rem', border: '1px solid var(--status-warning)', borderRadius: 'var(--admin-radius)', fontSize: '0.8rem', fontWeight: 700, lineHeight: 1.6, color: 'var(--admin-text-primary)' }}>
-            This shift has exceeded 24 hours. The displayed duration is capped; check your shift status with an administrator.
-          </div>
+          <Alert variant="warning">
+            <AlertTriangle aria-hidden="true" />
+            <AlertDescription>This shift has exceeded 24 hours. The displayed duration is capped; check your shift status with an administrator.</AlertDescription>
+          </Alert>
         )}
 
         {isClockedIn && blockers.length > 0 && (
-          <div role="alert" style={{ padding: '1rem 1.25rem', border: '1px solid var(--status-warning)', borderRadius: 'var(--admin-radius)', fontSize: '0.8rem', fontWeight: 700, lineHeight: 1.6, color: 'var(--admin-text-primary)' }}>
-            <strong>You cannot clock out yet.</strong>
-            <ul style={{ margin: '0.4rem 0', paddingLeft: '1.1rem' }}>
-              {blockers.map((b) => (
-                <li key={b.vehicle_id}>{b.vehicle_label || 'Assigned vehicle'} — {b.reason === 'STARTS_SOON' ? 'starts within 5 minutes' : 'already under way'}</li>
-              ))}
-            </ul>
-            If you really need to clock out, ask an admin to assign another staff member to it.
-          </div>
+          <Alert variant="warning">
+            <AlertTriangle aria-hidden="true" />
+            <AlertTitle>You cannot clock out yet.</AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc pl-4">
+                {blockers.map((b) => (
+                  <li key={b.vehicle_id}>{b.vehicle_label || 'Assigned vehicle'} — {b.reason === 'STARTS_SOON' ? 'starts within 5 minutes' : 'already under way'}</li>
+                ))}
+              </ul>
+              <p>If you really need to clock out, ask an admin to assign another staff member to it.</p>
+            </AlertDescription>
+          </Alert>
         )}
 
         {isClockedIn ? (
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="lg"
             onClick={handleClockOut}
             disabled={!shiftActionAvailable || blockers.length > 0}
-            style={{ opacity: blockers.length > 0 ? 0.45 : 1, cursor: blockers.length > 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--status-danger)', color: 'var(--status-danger)', borderRadius: 'var(--admin-radius)', fontWeight: '900', fontSize: '0.85rem', cursor: shiftActionAvailable ? 'pointer' : 'not-allowed', opacity: shiftActionAvailable ? 1 : 0.55, textTransform: 'uppercase' }}
+            className="border-destructive text-destructive hover:text-destructive"
           >
-            <LogOut size={18} /> Clock Out
-          </button>
+            <LogOut /> Clock Out
+          </Button>
         ) : (
-          <button
+          <Button
             type="button"
+            size="lg"
             onClick={() => confirmThen({ title: 'Start your shift?', message: 'You will be marked on duty and can receive assignments.', confirmText: 'Start shift' }, handleClockIn)}
             disabled={!shiftActionAvailable}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '1rem', background: 'var(--admin-brand)', border: 'none', color: 'var(--admin-text-on-brand)', borderRadius: 'var(--admin-radius)', fontWeight: '900', fontSize: '0.85rem', cursor: shiftActionAvailable ? 'pointer' : 'not-allowed', opacity: shiftActionAvailable ? 1 : 0.55, textTransform: 'uppercase' }}
           >
-            <LogIn size={18} /> Clock In
-          </button>
+            <LogIn /> Clock In
+          </Button>
         )}
-      </section>
+      </Card>
 
-      <section style={{ ...cardStyle, maxWidth: '640px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <MapPin size={18} color="var(--admin-brand)" />
-          <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: '900' }}>Station Preference</h2>
+      <Card className="ui-root max-w-2xl gap-3 rounded-md p-5 sm:p-6">
+        <div className="flex items-center gap-2">
+          <MapPin className="size-[18px] text-primary" aria-hidden="true" />
+          <h2 className="text-base font-semibold">Station Preference</h2>
         </div>
-        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--admin-text-secondary)', lineHeight: 1.6, fontWeight: '600' }}>
+        <p className="text-sm text-muted-foreground">
           Your primary bay or station assignment is set by the shop. When you clock in you become available for the bays you are assigned to.
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>
-          <CheckCircle2 size={16} color="var(--status-success)" /> Assigned stations are managed by your administrator.
-        </div>
-      </section>
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <CheckCircle2 className="size-4 text-emerald-500" aria-hidden="true" /> Assigned stations are managed by your administrator.
+        </p>
+      </Card>
     </div>
   );
 };

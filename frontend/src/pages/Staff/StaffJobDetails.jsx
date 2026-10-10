@@ -19,6 +19,8 @@ import IntakeWarningBadge from '../../components/Photos/IntakeWarningBadge';
 import { startReadiness } from '../../utils/staffStart';
 import { fetchStaffBookings } from '../../utils/notificationRouting';
 import { BACKEND_URL } from '../../config/api';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 
 /**
  * The one page for a single assigned vehicle. Everything a technician does on a job happens here:
@@ -169,13 +171,9 @@ const StaffJobDetails = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
-      <button
-        type="button"
-        onClick={() => navigate('/staff')}
-        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'none', border: 'none', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: 950, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px', alignSelf: 'flex-start', padding: 0 }}
-      >
+      <Button type="button" onClick={() => navigate('/staff')} variant="ghost" className="self-start uppercase">
         <ChevronLeft size={16} /> My assignments
-      </button>
+      </Button>
 
       <PageHeader
         badge={`${unit.plate_number || 'NO PLATE'}`}
@@ -242,7 +240,7 @@ const StaffJobDetails = () => {
             {!isDone && (
               <div>
                 <div style={{ ...label, marginBottom: '0.4rem' }}>Notes</div>
-                <textarea
+                <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Service steps or vehicle condition..."
@@ -251,16 +249,11 @@ const StaffJobDetails = () => {
                   spellCheck={false}
                   data-no-auto-capitalize=""
                   disabled={!clockedIn}
-                  style={{ width: '100%', boxSizing: 'border-box', minHeight: '90px', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: '0.75rem', color: 'var(--admin-text-primary)', fontSize: '0.85rem', fontFamily: 'inherit', resize: 'vertical' }}
+                  className="min-h-24"
                 />
-                <button
-                  type="button"
-                  onClick={() => confirmThen({ title: 'Save notes?', message: 'The notes are saved to this job for the admin and customer record.', confirmText: 'Save notes' }, saveNotes)}
-                  disabled={!clockedIn}
-                  style={{ marginTop: '0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.72rem', textTransform: 'uppercase', cursor: clockedIn ? 'pointer' : 'not-allowed', opacity: clockedIn ? 1 : 0.5 }}
-                >
+                <Button type="button" onClick={() => confirmThen({ title: 'Save notes?', message: 'The notes are saved to this job for the admin and customer record.', confirmText: 'Save notes' }, saveNotes)} disabled={!clockedIn} variant="outline" size="sm" className="mt-2 uppercase">
                   <Save size={14} /> Save notes
-                </button>
+                </Button>
               </div>
             )}
             {isDone && unit.service_notes && (
@@ -277,28 +270,18 @@ const StaffJobDetails = () => {
               {isStartable && (
                 <>
                   <StartChecklist taskId={unit.id} clockedIn={clockedIn} beforePhotos={photoCounts.before} startDatetime={unit.booking?.start_datetime} earlyStart={earlyStart} photoUploadEnabled={startOpen} />
-                  <button
-                    type="button"
-                    onClick={() => requestStatus('IN_PROGRESS')}
-                    disabled={!canStart || busy}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', padding: '0.9rem', background: canStart ? 'var(--admin-brand)' : 'var(--admin-border)', color: canStart ? 'var(--admin-text-on-brand)' : 'var(--admin-text-secondary)', border: 'none', borderRadius: 'var(--admin-radius)', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '1px', cursor: canStart && !busy ? 'pointer' : 'not-allowed' }}
-                  >
+                  <Button type="button" onClick={() => requestStatus('IN_PROGRESS')} disabled={!canStart || busy} variant="default" className="w-full uppercase">
                     <Play size={16} /> Start service
-                  </button>
+                  </Button>
                 </>
               )}
               {isRunning && (
                 <>
                   {missingAfter && <IntakeWarningBadge tone="danger" compact>Completion photo required</IntakeWarningBadge>}
                   {!clockedIn && <IntakeWarningBadge tone="warning" compact>Clock in to finish</IntakeWarningBadge>}
-                  <button
-                    type="button"
-                    onClick={() => requestStatus('COMPLETED')}
-                    disabled={!canFinish || busy}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', padding: '0.9rem', background: canFinish ? 'var(--status-success)' : 'var(--admin-border)', color: canFinish ? 'white' : 'var(--admin-text-secondary)', border: 'none', borderRadius: 'var(--admin-radius)', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '1px', cursor: canFinish && !busy ? 'pointer' : 'not-allowed' }}
-                  >
+                  <Button type="button" onClick={() => requestStatus('COMPLETED')} disabled={!canFinish || busy} className="w-full bg-emerald-600 uppercase text-white hover:bg-emerald-600/90">
                     <CheckCircle2 size={16} /> Mark as finished
-                  </button>
+                  </Button>
                 </>
               )}
             </section>

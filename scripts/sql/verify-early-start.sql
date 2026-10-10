@@ -11,11 +11,11 @@ select id as ad from public.profiles where role = 'ADMIN' order by created_at li
 -- A: later today (30 min away), sa     B: time already reached, sa     C: two days away, sa
 -- D: later today, sa, will be moved    E: later today, sa; admin allows it
 insert into public.bookings (id, customer_id, customer_name, status, total_amount, start_datetime, end_datetime) values
- ('9d000000-0000-0000-0000-00000000000a', :'cu', 'A', 'confirmed', 500, now() + interval '30 minutes', now() + interval '2 hours'),
+ ('9d000000-0000-0000-0000-00000000000a', :'cu', 'A', 'confirmed', 500, least(now() + interval '30 minutes', (date_trunc('day', now() at time zone 'Asia/Manila') + interval '23 hours 58 minutes') at time zone 'Asia/Manila'), now() + interval '2 hours'),
  ('9d000000-0000-0000-0000-00000000000b', :'cu', 'B', 'confirmed', 500, now() - interval '10 minutes', now() + interval '1 hour'),
  ('9d000000-0000-0000-0000-00000000000c', :'cu', 'C', 'confirmed', 500, now() + interval '2 days', now() + interval '2 days 1 hour'),
- ('9d000000-0000-0000-0000-00000000000d', :'cu', 'D', 'confirmed', 500, now() + interval '30 minutes', now() + interval '2 hours'),
- ('9d000000-0000-0000-0000-00000000000e', :'cu', 'E', 'confirmed', 500, now() + interval '30 minutes', now() + interval '2 hours');
+ ('9d000000-0000-0000-0000-00000000000d', :'cu', 'D', 'confirmed', 500, least(now() + interval '30 minutes', (date_trunc('day', now() at time zone 'Asia/Manila') + interval '23 hours 58 minutes') at time zone 'Asia/Manila'), now() + interval '2 hours'),
+ ('9d000000-0000-0000-0000-00000000000e', :'cu', 'E', 'confirmed', 500, least(now() + interval '30 minutes', (date_trunc('day', now() at time zone 'Asia/Manila') + interval '23 hours 58 minutes') at time zone 'Asia/Manila'), now() + interval '2 hours');
 insert into public.payments (booking_id, amount, method, payment_type, status)
 select id, 500, 'GCash', 'Full', 'PAID' from public.bookings where id::text like '9d000000%';
 insert into public.booking_vehicles (id, booking_id, vehicle_type, brand, model, plate_number, status, staff_id)

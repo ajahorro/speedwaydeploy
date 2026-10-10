@@ -8,6 +8,11 @@ import { fetchScheduleOccupancy } from '../../services/scheduleService';
 import { SHOP_CONFIG, sanitizeVehiclePlate, sanitizeVehicleText } from '../../config/constants';
 import { getBayCapacity } from '../../config/shopConfig';
 import { useConfig } from '../../context/ConfigContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 const NON_OCCUPYING_BOOKING_STATUSES = ['CANCELLED', 'RELEASED', 'COMPLETED'];
 const NON_OCCUPYING_VEHICLE_STATUSES = ['COMPLETED', 'RELEASED'];
@@ -280,21 +285,12 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
               </div>
 
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                {canAddTypeFromSnapshot(v.type || 'Sedan') && <button 
-                  onClick={(e) => handleCopyVehicle(e, idx)}
-                  style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer', color: 'var(--admin-text-secondary)' }}
-                  title="Copy Vehicle"
-                >
+                {canAddTypeFromSnapshot(v.type || 'Sedan') && <Button onClick={(e) => handleCopyVehicle(e, idx)} title="Copy Vehicle" variant="outline" size="icon">
                   <Copy size={16} />
-                </button>}
-                <button 
-                  onClick={(e) => handleDeleteVehicle(e, idx)}
-                  disabled={vehicles.length <= 1}
-                  style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '0.5rem', cursor: idx === 0 && vehicles.length === 1 ? 'not-allowed' : 'pointer', color: 'var(--status-danger)' }}
-                  title="Remove Vehicle"
-                >
+                </Button>}
+                <Button onClick={(e) => handleDeleteVehicle(e, idx)} disabled={vehicles.length <= 1} title="Remove Vehicle" variant="outline" size="icon" className="border-destructive/60 text-destructive hover:text-destructive">
                   <Trash2 size={16} />
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -375,24 +371,9 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
         </button>
 
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--status-danger)',
-              color: 'var(--status-danger)',
-              padding: '1rem 2rem',
-              borderRadius: 'var(--admin-radius-md)',
-              fontWeight: '950',
-              fontSize: '1rem',
-              cursor: 'pointer',
-              textTransform: 'uppercase',
-              letterSpacing: '1px'
-            }}
-          >
+          <Button type="button" onClick={onCancel} variant="outline" className="border-destructive/60 text-destructive hover:text-destructive uppercase">
             Cancel
-          </button>
+          </Button>
         )}
         <div style={{ position: 'relative' }}>
           {vehicles.length === 0 && (
@@ -400,162 +381,87 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
               At least one vehicle required to proceed
             </div>
           )}
-          <button
-            onClick={onNext}
-            disabled={vehicles.length === 0}
-            style={{
-              padding: '1rem 2rem',
-              background: vehicles.length === 0 ? 'var(--admin-card)' : 'var(--admin-brand)',
-              color: vehicles.length === 0 ? 'var(--admin-text-secondary)' : '#fff',
-              border: `1px solid ${vehicles.length === 0 ? 'var(--admin-border)' : 'var(--admin-brand)'}`,
-              borderRadius: 'var(--admin-radius-md)',
-              fontWeight: '950',
-              fontSize: '1rem',
-              cursor: vehicles.length === 0 ? 'not-allowed' : 'pointer',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
-              transition: 'all 0.3s ease',
-              opacity: vehicles.length === 0 ? 0.5 : 1
-            }}
-          >
+          <Button onClick={onNext} disabled={vehicles.length === 0} className="uppercase">
             Next: Review & Payment
-          </button>
+          </Button>
         </div>
       </div>
-      {/* Delete Confirmation Modal */}
-      {duplicateSourceIndex !== null && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem', backdropFilter: 'blur(8px)' }}>
-          <div style={{ width: 'min(100%, 440px)', background: 'var(--admin-card)', padding: 'clamp(1.25rem, 5vw, 2rem)', borderRadius: 'var(--admin-radius-lg)', border: '1px solid var(--admin-border)', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
-            <h3 style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '1.25rem', fontWeight: '950' }}>Duplicate vehicle</h3>
-            <p style={{ margin: '.35rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '.85rem', lineHeight: 1.5 }}>Enter the new vehicle details. Its services will match the vehicle you duplicated.</p>
-            <div style={{ display: 'grid', gap: '.8rem', marginTop: '.4rem' }}>
-              <input aria-label="New vehicle brand" placeholder="Brand" value={duplicateDetails.brand} onChange={event => setDuplicateDetails(current => ({ ...current, brand: sanitizeVehicleText(event.target.value) }))} style={{ width: '100%', boxSizing: 'border-box', padding: '.8rem', background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-input-border)', borderRadius: '6px', fontWeight: '700' }} />
-              <input aria-label="New vehicle model" placeholder="Model" value={duplicateDetails.model} onChange={event => setDuplicateDetails(current => ({ ...current, model: sanitizeVehicleText(event.target.value) }))} style={{ width: '100%', boxSizing: 'border-box', padding: '.8rem', background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-input-border)', borderRadius: '6px', fontWeight: '700' }} />
-              <input aria-label="New vehicle plate number" minLength={4} pattern="[A-Za-z0-9]{4,}" placeholder="Plate number" value={duplicateDetails.plateNumber} onChange={event => setDuplicateDetails(current => ({ ...current, plateNumber: sanitizeVehiclePlate(event.target.value) }))} style={{ width: '100%', boxSizing: 'border-box', padding: '.8rem', background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-input-border)', borderRadius: '6px', fontWeight: '700' }} />
-            </div>
-            <div style={{ display: 'flex', gap: '.75rem', justifyContent: 'flex-end', marginTop: '1.5rem', flexWrap: 'wrap' }}>
-              <button type="button" onClick={() => setDuplicateSourceIndex(null)} style={{ padding: '.8rem 1rem', background: 'transparent', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}>CANCEL</button>
-              <button type="button" onClick={confirmDuplicate} style={{ padding: '.8rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: '1px solid var(--admin-brand)', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}>ADD VEHICLE</button>
-            </div>
+      {/* Duplicate vehicle */}
+      <Dialog open={duplicateSourceIndex !== null} onOpenChange={(open) => { if (!open) setDuplicateSourceIndex(null); }}>
+        <DialogContent className="ui-root sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Duplicate vehicle</DialogTitle>
+            <DialogDescription>Enter the new vehicle details. Its services will match the vehicle you duplicated.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <Input aria-label="New vehicle brand" placeholder="Brand" value={duplicateDetails.brand} onChange={event => setDuplicateDetails(current => ({ ...current, brand: sanitizeVehicleText(event.target.value) }))} />
+            <Input aria-label="New vehicle model" placeholder="Model" value={duplicateDetails.model} onChange={event => setDuplicateDetails(current => ({ ...current, model: sanitizeVehicleText(event.target.value) }))} />
+            <Input aria-label="New vehicle plate number" minLength={4} pattern="[A-Za-z0-9]{4,}" placeholder="Plate number" value={duplicateDetails.plateNumber} onChange={event => setDuplicateDetails(current => ({ ...current, plateNumber: sanitizeVehiclePlate(event.target.value) }))} />
           </div>
-        </div>
-      )}
-      {showDeleteConfirm !== null && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
-          <div style={{ background: 'var(--admin-card)', padding: '2.5rem', borderRadius: 'var(--admin-radius-lg)', border: '1px solid var(--admin-border)', width: '100%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
-            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
-              <Trash2 size={40} color="var(--status-danger)" />
-            </div>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: '950', color: 'var(--admin-text-primary)', margin: '0 0 1rem 0' }}>Remove Vehicle?</h3>
-            <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.95rem', fontWeight: '600', lineHeight: 1.6, margin: '0 0 2rem 0' }}>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDuplicateSourceIndex(null)}>Cancel</Button>
+            <Button type="button" onClick={confirmDuplicate}>Add vehicle</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove vehicle */}
+      <AlertDialog open={showDeleteConfirm !== null} onOpenChange={(open) => { if (!open) setShowDeleteConfirm(null); }}>
+        <AlertDialogContent className="ui-root">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive"><Trash2 className="size-5" aria-hidden="true" />Remove Vehicle?</AlertDialogTitle>
+            <AlertDialogDescription>
               Are you sure you want to remove <strong>{vehicles[showDeleteConfirm]?.brand} {vehicles[showDeleteConfirm]?.model}</strong> from this booking? This action cannot be undone.
-            </p>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button
-                onClick={() => setShowDeleteConfirm(null)}
-                style={{ flex: 1, padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-md)', fontWeight: '900', color: 'var(--admin-text-primary)', cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                style={{ flex: 1, padding: '1rem', background: 'var(--status-danger)', border: 'none', borderRadius: 'var(--admin-radius-md)', fontWeight: '900', color: 'var(--admin-text-on-brand)', cursor: 'pointer' }}
-              >
-                Yes, Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Scoped Metadata Edit Modal */}
-      {editingIndex !== null && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
-          <div style={{ background: 'var(--admin-card)', padding: '2.5rem', borderRadius: 'var(--admin-radius-lg)', border: '1px solid var(--admin-border)', width: '100%', maxWidth: '550px', textAlign: 'left', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }}>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowDeleteConfirm(null)}>Cancel</Button>
+            <Button type="button" variant="destructive" onClick={confirmDelete}>Yes, Delete</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-            {/* Close Button */}
-            <button
-              onClick={() => setEditingIndex(null)}
-              style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer', padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', transition: 'all 0.2s' }}
-              className="admin-card-hover"
-            >
-              <X size={20} />
-            </button>
+      {/* Edit vehicle details */}
+      <Dialog open={editingIndex !== null} onOpenChange={(open) => { if (!open) setEditingIndex(null); }}>
+        <DialogContent className="ui-root max-h-[92dvh] overflow-y-auto sm:max-w-lg">
+          {editingIndex !== null && vehicles[editingIndex] && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2"><Car className="size-5 text-primary" aria-hidden="true" />Edit Vehicle Details</DialogTitle>
+                <DialogDescription>Refine your vehicle identification metadata.</DialogDescription>
+              </DialogHeader>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(var(--admin-brand-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Car size={24} color="var(--admin-brand)" />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)', margin: 0, textTransform: 'uppercase' }}>Edit Vehicle Details</h3>
-                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>Refine your vehicle identification metadata.</p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {/* Editable Fields */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '800', color: 'var(--admin-text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Brand</label>
-                  <input
-                    type="text"
-                    value={vehicles[editingIndex].brand}
-                    onChange={(e) => updateMetadataField('brand', sanitizeVehicleText(e.target.value))}
-                    style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '700' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '800', color: 'var(--admin-text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Model</label>
-                  <input
-                    type="text"
-                    value={vehicles[editingIndex].model}
-                    onChange={(e) => updateMetadataField('model', sanitizeVehicleText(e.target.value))}
-                    style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '700' }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '800', color: 'var(--admin-text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Plate Number</label>
-                <input
-                  type="text"
-                  value={vehicles[editingIndex].plateNumber}
-                  minLength={4}
-                  pattern="[A-Za-z0-9]{4,}"
-                  onChange={(e) => updateMetadataField('plateNumber', sanitizeVehiclePlate(e.target.value))}
-                  style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '700' }}
-                />
-              </div>
-
-              {/* Locked Fields */}
-              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: 'var(--admin-radius-md)', border: '1px dashed var(--admin-border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '900', textTransform: 'uppercase' }}>
-                  <Lock size={12} /> Resource Locks (Secured in Step 1 & 2)
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--admin-text-primary)', fontWeight: '700' }}>
-                    Type: <span style={{ color: 'var(--admin-text-secondary)' }}>{vehicles[editingIndex].type}</span>
+              <div className="grid gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="edit-brand">Brand</Label>
+                    <Input id="edit-brand" type="text" value={vehicles[editingIndex].brand} onChange={(e) => updateMetadataField('brand', sanitizeVehicleText(e.target.value))} />
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--admin-text-primary)', fontWeight: '700' }}>
-                    Services: <span style={{ color: 'var(--admin-text-secondary)' }}>{vehicles[editingIndex].services?.map(s => s.name).join(', ')}</span>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="edit-model">Model</Label>
+                    <Input id="edit-model" type="text" value={vehicles[editingIndex].model} onChange={(e) => updateMetadataField('model', sanitizeVehicleText(e.target.value))} />
                   </div>
                 </div>
-                <div style={{ marginTop: '0.75rem', fontSize: '0.65rem', color: 'var(--admin-brand)', fontWeight: '700', fontStyle: 'italic' }}>
-                  *Changing Type or Services requires re-evaluating schedule occupancy. Use the progress bar above to go back.
+                <div className="grid gap-1.5">
+                  <Label htmlFor="edit-plate">Plate Number</Label>
+                  <Input id="edit-plate" type="text" value={vehicles[editingIndex].plateNumber} minLength={4} pattern="[A-Za-z0-9]{4,}" onChange={(e) => updateMetadataField('plateNumber', sanitizeVehiclePlate(e.target.value))} />
+                </div>
+
+                <div className="grid gap-2 rounded-md border border-dashed p-4 text-sm">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground"><Lock className="size-3" />Locked in steps 1 and 2</p>
+                  <p>Type: <span className="text-muted-foreground">{vehicles[editingIndex].type}</span></p>
+                  <p>Services: <span className="text-muted-foreground">{vehicles[editingIndex].services?.map(s => s.name).join(', ')}</span></p>
+                  <p className="text-xs text-primary">Changing the type or services means checking the schedule again. Use the progress bar above to go back.</p>
                 </div>
               </div>
-            </div>
 
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-              <button
-                onClick={handleSaveMetadata}
-                style={{ flex: 1, padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-md)', fontWeight: '900', color: 'var(--admin-text-on-brand)', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}
-              >
-                Save Vehicle Details
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <DialogFooter>
+                <Button type="button" onClick={handleSaveMetadata}>Save Vehicle Details</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

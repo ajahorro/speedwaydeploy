@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useConfig } from '../context/ConfigContext';
 import { LANGUAGES, useLanguage } from '../context/LanguageContext';
 import { isTermsPending } from './TermsGate';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 /**
  * Asked once for every new account (customer, staff and administrator), right after the terms and conditions
@@ -27,22 +28,27 @@ const LanguageGate = () => {
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="language-gate-title" translate="no" style={{ position: 'fixed', inset: 0, zIndex: 100000, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-      <div className="ui-root" style={{ width: '100%', maxWidth: '420px', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', boxShadow: '0 20px 45px rgba(0,0,0,0.45)', padding: '1.5rem', display: 'grid', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <Languages size={20} color="var(--admin-brand)" />
-          <h3 id="language-gate-title" style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '1rem', fontWeight: 950 }}>Choose your language / Piliin ang wika</h3>
-        </div>
-        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: 600 }}>You can change this any time in Settings. / Maaari mo itong baguhin anumang oras sa Settings.</p>
-        <div style={{ display: 'grid', gap: '0.6rem' }}>
+    <Dialog open>
+      <DialogContent
+        translate="no"
+        showCloseButton={false}
+        onInteractOutside={(event) => event.preventDefault()}
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        className="ui-root sm:max-w-sm"
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Languages className="size-5 text-primary" aria-hidden="true" />Choose your language / Piliin ang wika</DialogTitle>
+          <DialogDescription>You can change this any time in Settings. / Maaari mo itong baguhin anumang oras sa Settings.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-2">
           {LANGUAGES.map((lang) => (
             <Button key={lang.value} type="button" size="lg" variant={lang.value === 'en' ? 'default' : 'outline'} disabled={Boolean(saving)} onClick={() => choose(lang.value)}>
               {saving === lang.value ? '…' : lang.label}
             </Button>
           ))}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

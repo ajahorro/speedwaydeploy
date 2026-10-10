@@ -9,6 +9,10 @@ import { useGlobalChat } from '../context/ChatContext';
 import { useImagePreview } from '../context/ImagePreviewContext';
 import { useConfirmAction } from '../hooks/useConfirmAction';
 import BookingInviteCard from './BookingInviteCard';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+// Radix Select cannot hold an empty value, so "no booking" travels as this marker inside the picker only.
+const NO_BOOKING_TAG = '__none__';
 
 /**
  * BookingChat — the CUSTOMER's single real-time conversation.
@@ -528,21 +532,18 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
         <label htmlFor="chat-booking-tag" style={{ fontSize: '0.6rem', fontWeight: 950, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
           Tag booking
         </label>
-        <select
-          id="chat-booking-tag"
-          name="chat_booking_tag"
-          value={tagBookingId || ''}
-          onChange={(e) => setTagBookingId(e.target.value)}
-          style={{ flex: 1, minWidth: 0, padding: '0.35rem 0.6rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.7rem', fontWeight: 800, outline: 'none' }}
-        >
-          {/* Nullable tag: a message is allowed to carry no booking context. */}
-          <option value="">No booking (general inquiry)</option>
-          {bookingOptions.map((booking) => (
-            <option key={booking.id} value={booking.id}>
-              #{booking.id.slice(0, 8).toUpperCase()} • {booking.vehicle_type || 'Service'} • {new Date(booking.created_at).toLocaleDateString('en-US')}
-            </option>
-          ))}
-        </select>
+        {/* Nullable tag: a message is allowed to carry no booking context. */}
+        <Select value={tagBookingId || NO_BOOKING_TAG} onValueChange={(value) => setTagBookingId(value === NO_BOOKING_TAG ? '' : value)}>
+          <SelectTrigger id="chat-booking-tag" size="sm" className="h-8 min-w-0 flex-1 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_BOOKING_TAG}>No booking (general inquiry)</SelectItem>
+            {bookingOptions.map((booking) => (
+              <SelectItem key={booking.id} value={booking.id}>
+                #{booking.id.slice(0, 8).toUpperCase()} • {booking.vehicle_type || 'Service'} • {new Date(booking.created_at).toLocaleDateString('en-US')}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Input Area */}

@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { fetchBookingLedger, fetchBookingTransactions } from '../../services/ledgerService';
 import { StatementOfAccount } from '../../features/finance/StatementOfAccount';
+import { Button } from '@/components/ui/button';
 
 /**
  * CustomerReceipt — the booking's Statement of Account (cumulative receipt).
@@ -63,9 +64,7 @@ const CustomerReceipt = () => {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#F3F4F6', gap: '1rem' }}>
         <div style={{ fontSize: '0.9rem', color: '#EF4444', fontWeight: '700' }}>Unable to load statement: {state.error}</div>
-        <button onClick={() => navigate(-1)} style={{ padding: '0.6rem 1.25rem', background: '#111827', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '800', fontSize: '0.8rem' }}>
-          Go Back
-        </button>
+        <Button type="button" onClick={() => navigate(-1)}>Go Back</Button>
       </div>
     );
   }

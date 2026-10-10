@@ -10,6 +10,14 @@ import toast from '@/lib/toast';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { PhoneInput, EmailInput } from '../../components/common/ContactInputs';
 import { phoneError, emailError, normalizePhPhone } from '../../utils/contactValidation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Card } from '@/components/ui/card';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const CustomerProfile = () => {
   const { confirmThen } = useConfirmAction();
@@ -191,17 +199,6 @@ const CustomerProfile = () => {
     }
   };
 
-  // --- Styles ---
-  const cardStyle = {
-    background: 'var(--admin-card)',
-    border: '1px solid var(--admin-border)',
-    borderRadius: 'var(--admin-radius-lg)',
-    padding: '2rem',
-    boxShadow: 'var(--admin-card-shadow)',
-    position: 'relative',
-    overflow: 'hidden'
-  };
-
   // Task 16: resend the password-change confirmation without retyping fields.
   const handleResendPasswordEmail = async () => {
     if (!passwordEmailState?.currentPassword) {
@@ -221,146 +218,101 @@ const CustomerProfile = () => {
     }
   };
 
-  const labelStyle = {
-    display: 'block',
-    fontSize: '0.68rem',
-    fontWeight: '700',
-    color: 'var(--admin-text-secondary)',
-    textTransform: 'none',
-    marginBottom: '0.5rem',
-    letterSpacing: '0'
-  };
-
-  const inputStyle = {
-    width: '100%',
-    background: isEditing ? 'var(--admin-bg)' : 'var(--admin-input-bg)',
-    border: `1px solid ${isEditing ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
-    borderRadius: '8px',
-    padding: '0.85rem 1rem',
-    color: isEditing ? 'var(--admin-text-primary)' : 'var(--admin-text-secondary)',
-    fontSize: '0.9rem',
-    fontWeight: '500',
-    outline: 'none',
-    transition: 'all 0.2s ease',
-    cursor: isEditing ? 'text' : 'not-allowed'
-  };
+  const fieldClass = 'read-only:cursor-not-allowed read-only:bg-muted/40 read-only:text-muted-foreground';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', paddingBottom: '5rem' }}>
+    <div className="ui-root flex flex-col gap-8 pb-20">
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '1.5rem', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div aria-hidden="true" style={{ width: '58px', height: '58px', flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'rgba(var(--admin-brand-rgb), 0.12)', border: '1px solid var(--admin-brand)', color: 'var(--admin-brand)', fontSize: '1rem', fontWeight: '900' }}>{initials}</div>
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <Avatar className="size-14 rounded-md border border-primary/60">
+            <AvatarFallback className="rounded-md bg-primary/10 font-bold text-primary">{initials}</AvatarFallback>
+          </Avatar>
           <div>
-          <h1 style={{ fontSize: 'clamp(1.8rem, 5vw, 2.5rem)', fontWeight: '900', margin: '0 0 0.35rem 0', color: 'var(--admin-text-primary)', letterSpacing: '-1px' }}>My Profile</h1>
-          <div style={{ color: 'var(--admin-text-primary)', fontSize: '0.9rem', fontWeight: '800' }}>{displayName}</div>
-          <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.78rem', marginTop: '0.15rem' }}>{user?.email}</div>
-          <p style={{ margin: 0, color: 'var(--admin-text-secondary)', fontSize: '0.95rem', fontWeight: '600', opacity: 0.8 }}>
-            Manage your personal details, contact info, and account security.
-          </p>
+            <h1 className="text-3xl font-black tracking-tight">My Profile</h1>
+            <p className="text-sm font-semibold">{displayName}</p>
+            <p className="text-xs text-muted-foreground">{user?.email}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Manage your personal details, contact info, and account security.</p>
           </div>
         </div>
         {!isEditing && (
-          <button
-            onClick={() => setIsEditing(true)}
-            style={{ padding: '0.65rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '800', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-          >
-            <Edit3 size={16} /> Edit Profile
-          </button>
+          <Button type="button" onClick={() => setIsEditing(true)}><Edit3 /> Edit Profile</Button>
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-8">
 
-        {/* Left Column: Personal Data */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          <section style={cardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-              <User size={20} color="var(--admin-brand)" />
-              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>Personal Information</h2>
+        {/* Left column: personal data */}
+        <div className="flex flex-col gap-8">
+          <Card className="gap-0 rounded-md p-6">
+            <div className="mb-5 flex items-center gap-2">
+              <User className="size-5 text-primary" aria-hidden="true" />
+              <h2 className="text-base font-semibold">Personal Information</h2>
             </div>
 
-            <form onSubmit={handleSaveProfileClick} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                <div>
-                  <label style={labelStyle}>First Name</label>
-                  <input
-                    type="text"
-                    value={formData.firstName}
-                    readOnly={!isEditing}
-                    onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                    style={inputStyle}
-                  />
+            <form onSubmit={handleSaveProfileClick} className="grid gap-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="profile-first">First Name</Label>
+                  <Input id="profile-first" type="text" value={formData.firstName} readOnly={!isEditing} className={fieldClass} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} />
                 </div>
-                <div>
-                  <label style={labelStyle}>Last Name</label>
-                  <input
-                    type="text"
-                    value={formData.lastName}
-                    readOnly={!isEditing}
-                    onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                    style={inputStyle}
-                  />
+                <div className="grid gap-1.5">
+                  <Label htmlFor="profile-last">Last Name</Label>
+                  <Input id="profile-last" type="text" value={formData.lastName} readOnly={!isEditing} className={fieldClass} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} />
                 </div>
               </div>
 
-              <div>
-                <label style={labelStyle}>Contact Number</label>
-                <div style={{ position: 'relative' }}>
-                  <Phone size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
-                  <PhoneInput
-                    required={false}
-                    value={formData.phone}
-                    readOnly={!isEditing}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    style={{ ...inputStyle, paddingLeft: '3rem' }}
-                  />
-                </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="profile-phone">Contact Number</Label>
+                <PhoneInput
+                  as={Input}
+                  id="profile-phone"
+                  required={false}
+                  value={formData.phone}
+                  readOnly={!isEditing}
+                  className={fieldClass}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                />
               </div>
 
-              <div>
-                <label style={labelStyle}>Email Address</label>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.85rem 1rem', background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)', borderRadius: '8px' }}>
-                  <span style={{ color: 'var(--admin-text-primary)', fontSize: '0.9rem', fontWeight: '600', overflowWrap: 'anywhere' }}>{user?.email}</span>
-                  <span style={{ color: 'var(--admin-success)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase' }}>Verified Account</span>
+              <div className="grid gap-1.5">
+                <Label>Email Address</Label>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2.5">
+                  <span className="break-all text-sm">{user?.email}</span>
+                  <span className="text-[0.65rem] font-bold uppercase text-emerald-600 dark:text-emerald-400">Verified Account</span>
                 </div>
-                <button type="button" onClick={() => setShowEmailModal(true)} style={{ marginTop: '0.6rem', padding: '0.6rem 0.85rem', background: 'transparent', border: '1px solid var(--admin-brand)', color: 'var(--admin-brand)', borderRadius: '8px', fontWeight: '800', cursor: 'pointer', fontSize: '0.7rem' }}>Change Email Address</button>
+                <div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowEmailModal(true)}>Change Email Address</Button>
+                </div>
               </div>
 
               {isEditing && (
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
-                  <button
+                <div className="flex justify-end gap-3">
+                  <Button
                     type="button"
+                    variant="outline"
                     onClick={() => { setIsEditing(false); setFormData({ firstName: profile?.first_name || '', lastName: profile?.last_name || '', phone: profile?.phone_number || '' }); }}
-                    style={{ flex: 1, padding: '0.75rem 1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '800', cursor: 'pointer' }}
                   >
                     Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    style={{ flex: 1.5, padding: '0.75rem 1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '8px', color: 'var(--admin-text-on-brand)', fontWeight: '800', cursor: 'pointer' }}
-                  >
-                    Save Changes
-                  </button>
+                  </Button>
+                  <Button type="submit">Save Changes</Button>
                 </div>
               )}
             </form>
-          </section>
-
+          </Card>
         </div>
 
-        {/* Right Column: Security & Danger Zone */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        {/* Right column: security and account actions */}
+        <div className="flex flex-col gap-8">
 
-          {/* Password Section */}
-          <section style={cardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-              <Lock size={20} color="var(--admin-brand)" />
-              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>Password & Security</h2>
+          <Card className="gap-0 rounded-md p-6">
+            <div className="mb-5 flex items-center gap-2">
+              <Lock className="size-5 text-primary" aria-hidden="true" />
+              <h2 className="text-base font-semibold">Password &amp; Security</h2>
             </div>
 
-            <form onSubmit={(e) => { e.preventDefault(); confirmThen({ title: 'Change your password?', message: 'Your password will be updated and other sessions may be signed out.', confirmText: 'Change password' }, () => handleUpdatePasswordClick(e)); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <form onSubmit={(e) => { e.preventDefault(); confirmThen({ title: 'Change your password?', message: 'Your password will be updated and other sessions may be signed out.', confirmText: 'Change password' }, () => handleUpdatePasswordClick(e)); }} className="grid gap-4">
               <input
                 type="text"
                 name="username"
@@ -370,11 +322,10 @@ const CustomerProfile = () => {
                 tabIndex={-1}
                 aria-hidden="true"
               />
-              <div>
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <label style={{ ...labelStyle, marginBottom: 0 }}>Current Password</label>
-                </div>
-                <input
+              <div className="grid gap-1.5">
+                <Label htmlFor="profile-current-password">Current Password</Label>
+                <Input
+                  id="profile-current-password"
                   type="password"
                   name="verification-password"
                   autoComplete="off"
@@ -385,196 +336,162 @@ const CustomerProfile = () => {
                   }}
                   placeholder="Current password"
                   value={passwordData.currentPassword}
-                  onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
-                  style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text' }}
+                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                   required
                 />
               </div>
-              <div>
-                <label style={labelStyle}>New Password</label>
-                <input
+              <div className="grid gap-1.5">
+                <Label htmlFor="profile-new-password">New Password</Label>
+                <Input
+                  id="profile-new-password"
                   type="password"
                   autoComplete="new-password"
                   placeholder="Min. 6 characters"
                   value={passwordData.newPassword}
-                  onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
-                  style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text' }}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                 />
+                {passwordData.newPassword.length > 0 && passwordData.newPassword.length <= 4 && (
+                  <p className="text-xs font-medium text-amber-600 dark:text-amber-400">Password must be more than 4 characters</p>
+                )}
               </div>
-              <div>
-                <label style={labelStyle}>Confirm Password</label>
-                <input
+              <div className="grid gap-1.5">
+                <Label htmlFor="profile-confirm-password">Confirm Password</Label>
+                <Input
+                  id="profile-confirm-password"
                   type="password"
                   autoComplete="new-password"
                   placeholder="Repeat new password"
                   value={passwordData.confirmPassword}
-                  onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
-                  style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text' }}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                 />
+                {passwordData.confirmPassword.length > 0 && passwordData.newPassword !== passwordData.confirmPassword && (
+                  <p className="text-xs font-medium text-destructive">Passwords do not match</p>
+                )}
               </div>
-              {/* Inline validation hints */}
-              {passwordData.newPassword.length > 0 && passwordData.newPassword.length <= 4 && (
-                <div style={{ fontSize: '0.72rem', color: 'var(--status-warning)', fontWeight: '700', marginTop: '-0.5rem' }}>
-                  ⚠ Password must be more than 4 characters
-                </div>
-              )}
-              {passwordData.confirmPassword.length > 0 && passwordData.newPassword !== passwordData.confirmPassword && (
-                <div style={{ fontSize: '0.72rem', color: 'var(--status-danger)', fontWeight: '700', marginTop: '-0.5rem' }}>
-                  ✕ Passwords do not match
-                </div>
-              )}
-              {/* Task 16: confirmation-email delivery status + resend option. */}
+              {/* Confirmation-email delivery status and resend option. */}
               {passwordEmailState && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.85rem 1rem', background: passwordEmailState.delivered ? 'rgba(var(--admin-success-rgb), 0.08)' : 'rgba(245, 158, 11, 0.1)', border: `1px solid ${passwordEmailState.delivered ? 'var(--admin-success)' : 'var(--status-warning)'}`, borderRadius: '8px' }}>
-                  <span style={{ fontSize: '0.72rem', fontWeight: '700', color: passwordEmailState.delivered ? 'var(--admin-success)' : 'var(--status-warning)' }}>
-                    {passwordEmailState.delivered
-                      ? 'Confirmation email sent. Check your inbox (and spam) to complete the change.'
-                      : 'The confirmation email could not be confirmed as sent. Resend it below.'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleResendPasswordEmail}
-                    style={{ padding: '0.5rem 0.9rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: '8px', fontSize: '0.65rem', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                  >
-                    Resend confirmation email
-                  </button>
-                </div>
+                <Alert variant={passwordEmailState.delivered ? 'success' : 'warning'}>
+                  <AlertDescription className="flex flex-wrap items-center justify-between gap-3 text-current">
+                    <span>
+                      {passwordEmailState.delivered
+                        ? 'Confirmation email sent. Check your inbox (and spam) to complete the change.'
+                        : 'The confirmation email could not be confirmed as sent. Resend it below.'}
+                    </span>
+                    <Button type="button" variant="outline" size="sm" onClick={handleResendPasswordEmail}>Resend confirmation email</Button>
+                  </AlertDescription>
+                </Alert>
               )}
-              <button 
-                type="submit" 
-                disabled={!isPasswordFormValid}
-                style={{ width: '100%', padding: '0.75rem 1rem', background: isPasswordFormValid ? 'var(--admin-brand)' : 'var(--admin-border)', border: 'none', borderRadius: '8px', color: isPasswordFormValid ? '#fff' : 'var(--admin-text-secondary)', fontWeight: '800', cursor: isPasswordFormValid ? 'pointer' : 'not-allowed', transition: 'all 0.2s ease', opacity: isPasswordFormValid ? 1 : 0.65 }}
-              >
-                Update Password
-              </button>
+              <Button type="submit" disabled={!isPasswordFormValid} className="w-full">Update Password</Button>
             </form>
-          </section>
+          </Card>
 
-          {/* Danger Zone */}
-          <section style={{ ...cardStyle, border: '1px solid rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.02)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-              <AlertTriangle size={20} color="var(--status-danger)" />
-              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: 'var(--status-danger)' }}>Account Actions</h2>
+          <Card className="gap-0 rounded-md border-destructive/30 p-6">
+            <div className="mb-3 flex items-center gap-2 text-destructive">
+              <AlertTriangle className="size-5" aria-hidden="true" />
+              <h2 className="text-base font-semibold">Account Actions</h2>
             </div>
-            <p style={{ margin: '0 0 1.5rem 0', color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '600', lineHeight: 1.5 }}>
-              Account deactivation initiates a 15-day grace period. After 15 days, all data will be permanently purged from Comar Garage servers.
+            <p className="mb-5 text-sm text-muted-foreground">
+              Account deactivation initiates a 15-day grace period. After 15 days, your account and personal details are permanently deleted. The shop keeps your booking and payment records.
             </p>
-            <button 
-              onClick={() => setShowDeactivateModal(true)}
-              style={{ width: '100%', padding: '0.75rem 1rem', background: 'transparent', border: '1px solid #ef4444', color: 'var(--status-danger)', borderRadius: '8px', fontWeight: '800', fontSize: '0.8rem', cursor: 'pointer' }}
-            >
-              Deactivate Account
-            </button>
-          </section>
+            <Button type="button" variant="outline" onClick={() => setShowDeactivateModal(true)} className="w-full border-destructive/50 text-destructive hover:text-destructive">Deactivate Account</Button>
+          </Card>
         </div>
       </div>
 
-      {/* --- MODALS --- */}
+      {/* --- DIALOGS --- */}
 
-      {/* Password Challenge Modal */}
-      {showPassModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
-          <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', width: '100%', maxWidth: '400px', padding: '2.5rem', textAlign: 'center' }}>
-            <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(var(--admin-brand-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
-              <Shield size={32} color="var(--admin-brand)" />
-            </div>
-            <h2 style={{ fontWeight: '800', marginBottom: '0.5rem' }}>Confirm Your Identity</h2>
-            <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '600', marginBottom: '2rem' }}>Enter your current password to confirm this change.</p>
-            
-            <input 
-              type="password"
-              name="verification-password-modal"
-              autoComplete="off"
-              readOnly={!passwordInputReady}
-              onFocus={() => {
-                setPasswordInputReady(true);
-                setPasswordData(prev => ({ ...prev, currentPassword: '' }));
-              }}
-              placeholder="Current Password"
-              value={passwordData.currentPassword}
-              onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
-              style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text', textAlign: 'center', marginBottom: '1.5rem' }}
-            />
+      {/* Password Challenge */}
+      <Dialog open={showPassModal} onOpenChange={(open) => { if (!open) { setShowPassModal(false); setPasswordData({ ...passwordData, currentPassword: '' }); } }}>
+        <DialogContent className="ui-root sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Shield className="size-5 text-primary" aria-hidden="true" />Confirm Your Identity</DialogTitle>
+            <DialogDescription>Enter your current password to confirm this change.</DialogDescription>
+          </DialogHeader>
+          <Input
+            type="password"
+            name="verification-password-modal"
+            autoComplete="off"
+            readOnly={!passwordInputReady}
+            onFocus={() => {
+              setPasswordInputReady(true);
+              setPasswordData(prev => ({ ...prev, currentPassword: '' }));
+            }}
+            placeholder="Current Password"
+            value={passwordData.currentPassword}
+            onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowPassModal(false); setPasswordData({ ...passwordData, currentPassword: '' }); }}>Cancel</Button>
+            <Button onClick={executeVerifiedAction}>Verify &amp; Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button onClick={() => { setShowPassModal(false); setPasswordData({...passwordData, currentPassword: ''}); }} style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={executeVerifiedAction} style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>Verify & Save</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Email Change */}
+      <Dialog open={showEmailModal} onOpenChange={setShowEmailModal}>
+        <DialogContent className="ui-root sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Update Email</DialogTitle>
+            <DialogDescription>
+              {emailData.step === 1
+                ? <>A verification code will be sent to <strong>{user.email}</strong> to authorize this change.</>
+                : 'Code sent! Check your inbox for the authorization code.'}
+            </DialogDescription>
+          </DialogHeader>
 
-      {/* Email Change Modal */}
-      {showEmailModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
-          <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', width: '100%', maxWidth: '450px', padding: '2.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-              <h2 style={{ margin: 0, fontWeight: '950', textTransform: 'uppercase' }}>Update Email</h2>
-              <button onClick={() => setShowEmailModal(false)} style={{ background: 'none', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}><X /></button>
-            </div>
+          {emailData.step === 1 ? (
+            <form onSubmit={handleEmailRequest} className="grid gap-4">
+              <div className="grid gap-1.5">
+                <Label>New Email Address</Label>
+                <EmailInput
+                  as={Input}
+                  value={emailData.newEmail}
+                  onChange={(e) => setEmailData({ ...emailData, newEmail: e.target.value })}
+                />
+              </div>
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? <Loader2 className="animate-spin" /> : <Send />}
+                Send Authorization Code
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleEmailConfirm} className="grid gap-4">
+              <div className="grid gap-1.5">
+                <Label htmlFor="email-otp">Authorization Code</Label>
+                <Input
+                  id="email-otp"
+                  type="text"
+                  required
+                  placeholder="6-digit code"
+                  value={emailData.otp}
+                  onChange={(e) => setEmailData({ ...emailData, otp: e.target.value })}
+                  className="h-12 text-center text-xl tracking-[0.5em]"
+                />
+              </div>
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? <Loader2 className="animate-spin" /> : 'Confirm Change'}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setEmailData({ ...emailData, step: 1 })}>Didn't receive code? Try again</Button>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
-            {emailData.step === 1 ? (
-              <form onSubmit={handleEmailRequest} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ background: 'rgba(var(--admin-info-rgb), 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--admin-info)', color: 'var(--admin-info)', fontSize: '0.8rem', fontWeight: '600' }}>
-                  A verification code will be sent to <strong>{user.email}</strong> to authorize this change.
-                </div>
-                <div>
-                  <label style={labelStyle}>New Email Address</label>
-                  <EmailInput
-                    value={emailData.newEmail}
-                    onChange={(e) => setEmailData({...emailData, newEmail: e.target.value})}
-                    style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text' }} 
-                  />
-                </div>
-                <button type="submit" disabled={isUpdating} style={{ padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
-                  {isUpdating ? <Loader2 className="animate-spin" /> : <Send size={18} />}
-                  Send Authorization Code
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleEmailConfirm} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ background: 'rgba(var(--admin-success-rgb), 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--admin-success)', color: 'var(--admin-success)', fontSize: '0.8rem', fontWeight: '600' }}>
-                  Code sent! Check your inbox for the authorization code.
-                </div>
-                <div>
-                  <label style={labelStyle}>Authorization Code</label>
-                  <input 
-                    type="text" 
-                    required
-                    placeholder="6-digit code"
-                    value={emailData.otp}
-                    onChange={(e) => setEmailData({...emailData, otp: e.target.value})}
-                    style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text', textAlign: 'center', fontSize: '1.5rem', letterSpacing: '8px' }} 
-                  />
-                </div>
-                <button type="submit" disabled={isUpdating} style={{ padding: '1rem', background: 'var(--admin-success)', border: 'none', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>
-                  {isUpdating ? <Loader2 className="animate-spin" /> : 'Confirm Change'}
-                </button>
-                <button type="button" onClick={() => setEmailData({...emailData, step: 1})} style={{ background: 'none', border: 'none', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: '800', cursor: 'pointer', textTransform: 'uppercase' }}>Didn't receive code? Try again</button>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Deactivation Confirmation Modal */}
-      {showDeactivateModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
-          <div style={{ background: 'var(--admin-card)', border: '1px solid #ef4444', borderRadius: 'var(--admin-radius-lg)', width: '100%', maxWidth: '450px', padding: '2.5rem', textAlign: 'center' }}>
-            <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
-              <AlertTriangle size={32} color="var(--status-danger)" />
-            </div>
-            <h2 style={{ fontWeight: '800', color: 'var(--status-danger)' }}>Confirm Account Deactivation</h2>
-            <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '600', marginBottom: '2rem', lineHeight: 1.6 }}>
-              This will log you out immediately. You will have 15 days to recover your account by logging back in. After that, all data is permanently purged.
-            </p>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button onClick={() => setShowDeactivateModal(false)} style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleDeactivate} style={{ flex: 2, padding: '1rem', background: 'var(--status-danger)', border: 'none', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>Yes, Deactivate</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Deactivation Confirmation */}
+      <AlertDialog open={showDeactivateModal} onOpenChange={setShowDeactivateModal}>
+        <AlertDialogContent className="ui-root">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive"><AlertTriangle className="size-5" aria-hidden="true" />Confirm Account Deactivation</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will log you out immediately. You will have 15 days to recover your account by logging back in. After that, your account is permanently deleted. The shop keeps your booking and payment records.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button variant="destructive" onClick={handleDeactivate}>Yes, Deactivate</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );

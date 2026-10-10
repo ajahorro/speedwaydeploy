@@ -21,6 +21,18 @@ import { useConfig } from '../../context/ConfigContext';
 import { calculateBayUsage } from '../../utils/schedulingUtils';
 import { getBayCapacity } from '../../config/shopConfig';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Card } from '@/components/ui/card';
+
+// Radix Select cannot hold an empty value, so "no fleet" travels as this marker inside the dialog only.
+const NO_FLEET = '__none__';
 
 const CustomerGarage = () => {
   const { confirmThen } = useConfirmAction();
@@ -247,367 +259,331 @@ const CustomerGarage = () => {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '1rem' }}>
-        <Loader2 size={40} className="animate-spin" color="var(--admin-brand)" />
-        <p style={{ fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.8rem' }}>Syncing Fleet Records...</p>
+      <div className="ui-root flex flex-col gap-6 pb-20" aria-busy="true">
+        <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Syncing Fleet Records...</p>
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-32 w-full" />
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
+          <Skeleton className="h-48" /><Skeleton className="h-48" /><Skeleton className="h-48" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', paddingBottom: '5rem' }}>
+    <div className="ui-root flex flex-col gap-8 pb-20">
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 style={{ fontSize: 'clamp(1.8rem, 5vw, 2.5rem)', fontWeight: '950', margin: '0 0 0.5rem 0', textTransform: 'uppercase', color: 'var(--admin-text-primary)', letterSpacing: '-1.5px' }}>My Garage</h1>
-          <p style={{ margin: 0, color: 'var(--admin-text-secondary)', fontSize: '0.95rem', fontWeight: '600', opacity: 0.8 }}>
-            Manage your registered vehicles for high-fidelity booking tracking.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-black uppercase tracking-tight">My Garage</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Manage your registered vehicles for high-fidelity booking tracking.</p>
       </div>
 
-      {/* Fleet Groups Row */}
-      <section>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+      {/* Fleet groups */}
+      <section className="grid gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase' }}>Fleet Groups</h2>
-            <p style={{ margin: '0.3rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '0.78rem' }}>{vehicles.length === 0 ? 'Add at least one vehicle to your garage before creating a fleet.' : 'Select a fleet to view its assigned vehicles.'}</p>
+            <h2 className="text-sm font-bold uppercase">Fleet Groups</h2>
+            <p className="text-xs text-muted-foreground">{vehicles.length === 0 ? 'Add at least one vehicle to your garage before creating a fleet.' : 'Select a fleet to view its assigned vehicles.'}</p>
           </div>
-          <button onClick={handleOpenGroup} disabled={vehicles.length === 0} title={vehicles.length === 0 ? 'Add a vehicle first' : undefined} className="admin-card-hover" style={{ opacity: vehicles.length === 0 ? 0.45 : 1, padding: '0.7rem 1rem', background: 'transparent', color: 'var(--admin-brand)', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: vehicles.length === 0 ? 'not-allowed' : 'pointer', textTransform: 'uppercase', letterSpacing: '.8px', display: 'flex', alignItems: 'center', gap: '.45rem', fontSize: '.72rem' }}>
-            <Plus size={16} /> Create Fleet
-          </button>
+          <Button type="button" variant="outline" size="sm" onClick={handleOpenGroup} disabled={vehicles.length === 0} title={vehicles.length === 0 ? 'Add a vehicle first' : undefined} className="border-primary text-primary hover:text-primary">
+            <Plus /> Create Fleet
+          </Button>
         </div>
-        <div style={{ minHeight: '140px', padding: '1.25rem', background: 'var(--admin-card)', border: '1px dashed var(--admin-border)', borderRadius: 'var(--admin-radius)', display: 'flex', alignItems: 'flex-start' }}>
-        {fleetGroups.length === 0 ? (
-          <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.8rem' }}>No fleet groups created yet.</div>
-        ) : (
-          <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 230px))', gap: '0.7rem', alignContent: 'start', justifyContent: 'start' }}>
-            {fleetGroups.map(group => {
-              const groupVehicleCount = group.vehicles?.length || 0;
-              return (
-                <button key={group.id} type="button" onClick={() => setSelectedFleetGroup(group)} style={{ minHeight: '74px', padding: '.75rem', textAlign: 'left', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', color: 'var(--admin-text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.5rem', boxShadow: 'var(--admin-card-shadow)' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '.6rem', minWidth: 0 }}><Layers size={17} color="var(--admin-brand)" /><span style={{ minWidth: 0 }}><strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '.8rem' }}>{group.name}</strong><small style={{ display: 'block', marginTop: '.15rem', color: 'var(--admin-text-secondary)', fontSize: '.7rem', fontWeight: '700' }}>{groupVehicleCount} vehicle{groupVehicleCount === 1 ? '' : 's'}</small></span></span>
-                  <ChevronRight size={15} color="var(--admin-text-secondary)" style={{ flexShrink: 0 }} />
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <div className="min-h-32 rounded-md border border-dashed bg-card p-4">
+          {fleetGroups.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No fleet groups created yet.</p>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,230px))] gap-3">
+              {fleetGroups.map(group => {
+                const groupVehicleCount = group.vehicles?.length || 0;
+                return (
+                  <button key={group.id} type="button" onClick={() => setSelectedFleetGroup(group)} className="flex min-h-[74px] items-center justify-between gap-2 rounded-md border bg-card p-3 text-left transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-ring">
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <Layers className="size-[17px] shrink-0 text-primary" aria-hidden="true" />
+                      <span className="min-w-0">
+                        <strong className="block truncate text-sm">{group.name}</strong>
+                        <small className="block text-xs text-muted-foreground">{groupVehicleCount} vehicle{groupVehicleCount === 1 ? '' : 's'}</small>
+                      </span>
+                    </span>
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
-      {/* Vehicles Row */}
-      <section>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-          <h2 style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '1rem', fontWeight: '950', textTransform: 'uppercase' }}>Vehicles</h2>
-          <button onClick={handleOpenAdd} className="admin-card-hover" style={{ padding: '0.7rem 1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '.8px', display: 'flex', alignItems: 'center', gap: '.45rem', fontSize: '.72rem', boxShadow: '0 4px 15px rgba(var(--admin-brand-rgb), 0.3)' }}>
-            <Plus size={16} /> Add New Vehicle
-          </button>
+      {/* Vehicles */}
+      <section className="grid gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-bold uppercase">Vehicles</h2>
+          <Button type="button" size="sm" onClick={handleOpenAdd}><Plus /> Add New Vehicle</Button>
         </div>
-      <div style={{ minHeight: '450px', padding: '1.25rem', background: 'var(--admin-card)', border: '2px dashed var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', display: 'flex', alignItems: 'flex-start' }}>
-      {vehicles.length === 0 ? (
-        <div style={{ width: '100%', minHeight: '400px', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '1rem' }}>
-          <Car size={60} strokeWidth={1} style={{ opacity: 0.2, color: 'var(--admin-text-secondary)' }} />
-          <div>
-            <h3 style={{ margin: '0 0 0.5rem 0', fontWeight: '900', color: 'var(--admin-text-primary)' }}>Your Garage is Empty</h3>
-            <p style={{ margin: 0, color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '600' }}>Add your first vehicle to speed up your booking process.</p>
-          </div>
-          <button onClick={handleOpenAdd} style={{ marginTop: '1rem', background: 'transparent', border: '1px solid var(--admin-brand)', color: 'var(--admin-brand)', padding: '0.75rem 1.5rem', borderRadius: '4px', fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer' }}>GET STARTED</button>
+        <div className="min-h-72 rounded-md border border-dashed bg-card p-4">
+          {vehicles.length === 0 ? (
+            <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-center">
+              <Car className="size-14 text-muted-foreground opacity-30" strokeWidth={1} aria-hidden="true" />
+              <div>
+                <h3 className="font-bold">Your Garage is Empty</h3>
+                <p className="text-sm text-muted-foreground">Add your first vehicle to speed up your booking process.</p>
+              </div>
+              <Button type="button" variant="outline" onClick={handleOpenAdd} className="border-primary text-primary hover:text-primary">Get started</Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,280px))] gap-3">
+              {vehicles.map(vehicle => (
+                <Card key={vehicle.id} className={`relative gap-3 overflow-hidden rounded-md p-4 ${vehicle.is_primary ? 'border-primary' : ''}`}>
+                  {vehicle.is_primary && <span className="absolute inset-y-0 left-0 w-1.5 bg-primary" aria-hidden="true" />}
+
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="grid size-10 shrink-0 place-items-center rounded-md border bg-muted/40">
+                        <Car className={`size-5 ${vehicle.is_primary ? 'text-primary' : 'text-muted-foreground'}`} aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-bold">{vehicle.brand} {vehicle.model}</p>
+                        <p className="text-xs font-semibold uppercase text-muted-foreground">{vehicle.type}</p>
+                      </div>
+                    </div>
+                    {vehicle.is_primary && <Badge variant="outline" className="shrink-0 gap-1 border-primary/40 text-primary uppercase"><CheckCircle2 className="size-3" />Primary</Badge>}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 rounded-md border bg-muted/40 p-3">
+                    <div>
+                      <p className="text-[0.65rem] font-semibold uppercase text-muted-foreground">Plate Number</p>
+                      <p className="break-all text-sm font-bold tracking-wider">{vehicle.plate_number}</p>
+                    </div>
+                    <div>
+                      <p className="text-[0.65rem] font-semibold uppercase text-muted-foreground">Last Session</p>
+                      <p className={`text-sm font-semibold ${vehicle.lastService ? 'text-primary' : 'text-muted-foreground'}`}>{vehicle.lastService || 'NEW ENTRY'}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => handleViewHistory(vehicle)} className="flex-1 uppercase"><History /> Service Log</Button>
+                    <Button type="button" variant="outline" size="icon-sm" onClick={() => handleOpenEdit(vehicle)} aria-label="Edit vehicle"><Settings /></Button>
+                    <Button type="button" variant="outline" size="icon-sm" onClick={() => handleDelete(vehicle.id)} aria-label="Delete vehicle" className="border-destructive/40 text-destructive hover:text-destructive"><Trash2 /></Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
-      ) : (
-        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 280px))', gap: '.75rem', alignContent: 'start', justifyContent: 'start' }}>
-          {vehicles.map(vehicle => (
-            <div
-              key={vehicle.id}
-              style={{
-                background: 'var(--admin-card)',
-                border: `1px solid ${vehicle.is_primary ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
-                borderRadius: 'var(--admin-radius)',
-                padding: '1rem',
-                position: 'relative',
-                overflow: 'hidden',
-                transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-                boxShadow: 'var(--admin-card-shadow)'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
-              onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-            >
-              {vehicle.is_primary && (
-                <div style={{ position: 'absolute', top: 0, left: 0, width: '6px', height: '100%', background: 'var(--admin-brand)' }} />
+      </section>
+
+      {/* Fleet vehicles / edit fleet */}
+      <Dialog open={Boolean(selectedFleetGroup)} onOpenChange={(open) => { if (!open) { setSelectedFleetGroup(null); setIsEditingFleet(false); } }}>
+        <DialogContent className="ui-root max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+          {selectedFleetGroup && (
+            <>
+              <DialogHeader>
+                <p className="text-xs font-semibold uppercase tracking-wider text-primary">Fleet Group</p>
+                <DialogTitle>{isEditingFleet ? 'Edit Fleet' : selectedFleetGroup.name}</DialogTitle>
+                <DialogDescription>{isEditingFleet ? 'Rename the fleet and manage its assigned vehicles.' : 'Vehicles assigned to this fleet.'}</DialogDescription>
+              </DialogHeader>
+
+              {!isEditingFleet && (
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={handleStartFleetEdit}>Edit Fleet</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={handleDeleteFleet} className="text-destructive hover:text-destructive"><Trash2 />Delete fleet</Button>
+                </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem' }}>
-                  <div style={{ width: '42px', height: '42px', flexShrink: 0, borderRadius: '8px', background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Car size={21} color={vehicle.is_primary ? 'var(--admin-brand)' : 'var(--admin-text-secondary)'} />
+              {isEditingFleet ? (
+                <>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="fleet-edit-name">Fleet name</Label>
+                    <Input id="fleet-edit-name" autoFocus value={fleetEditName} onChange={event => setFleetEditName(event.target.value)} />
                   </div>
-                  <div>
-                    <div style={{ minWidth: 0, fontSize: '.9rem', fontWeight: '900', color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' }}>{vehicle.brand} {vehicle.model}</div>
-                    <div style={{ fontSize: '.7rem', fontWeight: '800', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '.6px' }}>{vehicle.type}</div>
-                  </div>
-                </div>
-
-                {vehicle.is_primary && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--admin-brand)', fontSize: '0.65rem', fontWeight: '950', background: 'rgba(var(--admin-brand-rgb), 0.1)', padding: '0.35rem 0.75rem', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                    <CheckCircle2 size={12} /> Primary Unit
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem', background: 'var(--admin-input-bg)', padding: '.8rem', borderRadius: 'var(--admin-radius-md)', border: '1px solid var(--admin-border)', marginBottom: '1rem' }}>
-                <div>
-                  <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.4rem', letterSpacing: '1px', opacity: 0.6 }}>Plate Number</div>
-                  <div style={{ fontSize: '.8rem', fontWeight: '900', color: 'var(--admin-text-primary)', letterSpacing: '1px', overflowWrap: 'anywhere' }}>{vehicle.plate_number}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.4rem', letterSpacing: '1px', opacity: 0.6 }}>Last Session</div>
-                  <div style={{ fontSize: '.75rem', fontWeight: '800', color: vehicle.lastService ? 'var(--admin-brand)' : 'var(--admin-text-secondary)' }}>
-                    {vehicle.lastService || 'NEW ENTRY'}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '.5rem' }}>
-                <button
-                  onClick={() => handleViewHistory(vehicle)}
-                  style={{ flex: 1.5, padding: '.65rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: '900', fontSize: '.68rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.4rem', textTransform: 'uppercase', letterSpacing: '.6px' }}
-                >
-                  <History size={16} /> Service Log
-                </button>
-                <button
-                  onClick={() => handleOpenEdit(vehicle)}
-                  style={{ padding: '0.85rem', background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Settings size={16} />
-                </button>
-                <button
-                  onClick={() => handleDelete(vehicle.id)}
-                  style={{ padding: '0.85rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      </div>
-      </section>
-
-      {/* Modal: Fleet Vehicles */}
-      {selectedFleetGroup && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
-          <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', width: 'min(100%, 680px)', maxHeight: 'min(80vh, 760px)', padding: 'clamp(1rem, 4vw, 2rem)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1.5rem' }}>
-              <div>
-                <div style={{ color: 'var(--admin-brand)', fontSize: '0.68rem', fontWeight: '900', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Fleet Group</div>
-                <h2 style={{ margin: '0.25rem 0 0', fontWeight: '950', fontSize: '1.5rem', color: 'var(--admin-text-primary)' }}>{isEditingFleet ? 'Edit Fleet' : selectedFleetGroup.name}</h2>
-                <p style={{ margin: '0.4rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '0.8rem' }}>{isEditingFleet ? 'Rename the fleet and manage its assigned vehicles.' : 'Vehicles assigned to this fleet.'}</p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                {!isEditingFleet && <button type="button" onClick={handleStartFleetEdit} style={{ padding: '0.55rem 0.75rem', background: 'transparent', border: '1px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-brand)', fontSize: '0.68rem', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase' }}>Edit Fleet</button>}
-                <button type="button" onClick={handleDeleteFleet} aria-label="Delete fleet" style={{ padding: '0.55rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-danger)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Trash2 size={16} /></button>
-                <button type="button" onClick={() => { setSelectedFleetGroup(null); setIsEditingFleet(false); }} style={{ background: 'none', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}><X size={24} /></button>
-              </div>
-            </div>
-            {isEditingFleet ? (
-              <>
-                <label style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.68rem', fontWeight: '900', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Fleet name<input autoFocus value={fleetEditName} onChange={event => setFleetEditName(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', marginTop: '0.5rem', padding: '0.8rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '8px' }} /></label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '0.75rem', maxHeight: 'min(300px, 42vh)', overflowY: 'auto', marginTop: '1rem' }}>
-                  {vehicles.map(vehicle => {
-                    const isSelected = fleetEditVehicleIds.includes(vehicle.id);
-                    return <label key={vehicle.id} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.85rem', background: isSelected ? 'rgba(var(--admin-brand-rgb), 0.1)' : 'var(--admin-bg)', border: `1px solid ${isSelected ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '8px', cursor: 'pointer' }}><input type="checkbox" checked={isSelected} onChange={() => setFleetEditVehicleIds(current => isSelected ? current.filter(id => id !== vehicle.id) : [...current, vehicle.id])} /><span style={{ minWidth: 0, color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '800' }}><strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vehicle.brand} {vehicle.model}</strong><small style={{ color: 'var(--admin-text-secondary)' }}>{vehicle.plate_number} · {vehicle.type}</small></span></label>;
-                  })}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}><button type="button" onClick={() => setIsEditingFleet(false)} style={{ padding: '0.75rem 1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '900', cursor: 'pointer' }}>Cancel</button><button type="button" disabled={isSavingFleet} onClick={() => confirmThen({ title: 'Save fleet changes?', message: 'The fleet name and vehicles will be updated.', confirmText: 'Save changes' }, handleSaveFleetEdit)} style={{ padding: '0.75rem 1rem', background: 'var(--admin-brand)', border: 0, borderRadius: '8px', color: 'var(--admin-text-on-brand)', fontWeight: '900', cursor: 'pointer', opacity: isSavingFleet ? 0.5 : 1 }}>{isSavingFleet ? 'Saving...' : 'Save Fleet'}</button></div>
-              </>
-            ) : (
-              <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '0.75rem' }}>
-                  {(selectedFleetGroup.vehicles || []).map(vehicle => (
-                    <div key={vehicle.id} style={{ padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}><Car size={20} color="var(--admin-brand)" /><div style={{ minWidth: 0 }}><strong style={{ display: 'block', color: 'var(--admin-text-primary)', fontSize: '0.95rem', overflowWrap: 'anywhere' }}>{vehicle.brand} {vehicle.model}</strong><span style={{ display: 'block', marginTop: '0.3rem', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: '800' }}>{vehicle.type}</span></div></div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--admin-border)' }}><div><small style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.62rem', fontWeight: '900', textTransform: 'uppercase' }}>Plate</small><span style={{ color: 'var(--admin-text-primary)', fontSize: '0.82rem', fontWeight: '800', letterSpacing: '0.08em' }}>{vehicle.plate_number}</span></div><div><small style={{ display: 'block', color: 'var(--admin-text-secondary)', fontSize: '0.62rem', fontWeight: '900', textTransform: 'uppercase' }}>Last session</small><span style={{ color: vehicle.lastService ? 'var(--admin-brand)' : 'var(--admin-text-secondary)', fontSize: '0.82rem', fontWeight: '800' }}>{vehicle.lastService || 'New entry'}</span></div></div>
-                    </div>
-                  ))}
-                </div>
-                {(selectedFleetGroup.vehicles || []).length === 0 && <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontSize: '0.85rem' }}>No vehicles are currently assigned to this fleet.</div>}
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Create Fleet */}
-      {isGroupModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
-          <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', width: 'min(100%, 500px)', maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(1rem, 4vw, 2rem)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <div>
-                <h2 style={{ margin: 0, fontWeight: '950', fontSize: '1.4rem', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>Create Fleet</h2>
-                <p style={{ margin: '0.4rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '0.8rem' }}>Group vehicles for faster multi-vehicle bookings.</p>
-              </div>
-              <button type="button" onClick={() => setIsGroupModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}><X size={24} /></button>
-            </div>
-            <form onSubmit={event => { event.preventDefault(); confirmThen({ title: 'Create this fleet?', message: 'The selected vehicles will be grouped into a fleet.', confirmText: 'Create fleet' }, () => handleCreateGroup()); }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <label style={{ color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '900', textTransform: 'uppercase' }}>
-                Fleet name
-                <input autoFocus required value={newGroupName} onChange={event => setNewGroupName(event.target.value)} placeholder="e.g. Family vehicles" style={{ width: '100%', boxSizing: 'border-box', marginTop: '0.5rem', padding: '0.85rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '8px', fontWeight: '700' }} />
-              </label>
-              <div>
-                <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Choose vehicles</div>
-                {vehicles.length === 0 ? (
-                  <div style={{ padding: '1rem', border: '1px dashed var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-secondary)', fontSize: '0.8rem' }}>Add vehicles to your garage before creating a fleet.</div>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))', gap: '0.6rem', maxHeight: 'min(220px, 35vh)', overflowY: 'auto' }}>
+                  <div className="grid max-h-[42dvh] gap-2 overflow-y-auto sm:grid-cols-2">
                     {vehicles.map(vehicle => {
-                      const isSelected = selectedFleetVehicleIds.includes(vehicle.id);
+                      const isSelected = fleetEditVehicleIds.includes(vehicle.id);
                       return (
-                        <label key={vehicle.id} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.75rem', border: `1px solid ${isSelected ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '8px', background: isSelected ? 'rgba(var(--admin-brand-rgb), 0.1)' : 'var(--admin-bg)', cursor: 'pointer' }}>
-                          <input type="checkbox" checked={isSelected} onChange={() => setSelectedFleetVehicleIds(current => isSelected ? current.filter(id => id !== vehicle.id) : [...current, vehicle.id])} />
-                          <span style={{ minWidth: 0, color: 'var(--admin-text-primary)', fontSize: '0.78rem', fontWeight: '800' }}><strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vehicle.brand} {vehicle.model}</strong><small style={{ color: 'var(--admin-text-secondary)' }}>{vehicle.plate_number} · {vehicle.type}</small></span>
+                        <label key={vehicle.id} className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 ${isSelected ? 'border-primary bg-primary/5' : ''}`}>
+                          <Checkbox checked={isSelected} onCheckedChange={() => setFleetEditVehicleIds(current => isSelected ? current.filter(id => id !== vehicle.id) : [...current, vehicle.id])} />
+                          <span className="min-w-0 text-sm">
+                            <strong className="block truncate">{vehicle.brand} {vehicle.model}</strong>
+                            <small className="text-muted-foreground">{vehicle.plate_number} · {vehicle.type}</small>
+                          </span>
                         </label>
                       );
                     })}
                   </div>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => setIsGroupModalOpen(false)} style={{ padding: '0.8rem 1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '900', cursor: 'pointer' }}>Cancel</button>
-                <button type="submit" disabled={isCreatingFleet || selectedFleetVehicleIds.length === 0} style={{ padding: '0.8rem 1rem', background: 'var(--admin-brand)', border: 0, borderRadius: '8px', color: 'var(--admin-text-on-brand)', fontWeight: '900', cursor: 'pointer', opacity: isCreatingFleet || selectedFleetVehicleIds.length === 0 ? 0.5 : 1 }}>{isCreatingFleet ? 'Creating...' : 'Create Fleet'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Add/Edit Vehicle */}
-      {isModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
-          <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', width: 'min(100%, 500px)', maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(1rem, 4vw, 2.5rem)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-              <h2 style={{ margin: 0, fontWeight: '950', fontSize: 'clamp(1.15rem, 4vw, 1.5rem)', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>{selectedVehicle ? 'Edit Vehicle Specs' : 'Register New Vehicle'}</h2>
-              <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}><X size={24} /></button>
-            </div>
-
-            <form onSubmit={(e) => { e.preventDefault(); confirmThen({ title: 'Save this vehicle?', message: 'The vehicle details will be saved to your garage.', confirmText: 'Save vehicle' }, () => handleSubmit(e)); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem', letterSpacing: '1px' }}>Vehicle Type</label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    style={{ width: '100%', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '0.85rem', color: 'var(--admin-text-primary)', fontWeight: '800', outline: 'none' }}
-                  >
-                    {vehicleTypeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem', letterSpacing: '1px' }}>Fleet Group</label>
-                  <select value={formData.fleetGroupId || ''} onChange={e => setFormData({ ...formData, fleetGroupId: e.target.value })} style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px' }}>
-                    <option value="">Ungrouped</option>
-                    {fleetGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem', letterSpacing: '1px' }}>Plate Number</label>
-                  <input
-                    type="text"
-                    placeholder="ABC1234"
-                    required
-                    value={formData.plateNumber}
-                    onChange={(e) => setFormData({ ...formData, plateNumber: sanitizeVehiclePlate(e.target.value) })}
-                    style={{ width: '100%', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '0.85rem', color: 'var(--admin-text-primary)', fontWeight: '950', outline: 'none', letterSpacing: '2px' }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem', letterSpacing: '1px' }}>Brand / Make</label>
-                  <input
-                  type="text"
-                  placeholder="e.g. Honda"
-                  required
-                  value={formData.brand}
-                  onChange={(e) => setFormData({ ...formData, brand: sanitizeVehicleText(e.target.value) })}
-                    style={{ width: '100%', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '0.85rem', color: 'var(--admin-text-primary)', fontWeight: '800', outline: 'none' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem', letterSpacing: '1px' }}>Model Name</label>
-                  <input
-                  type="text"
-                  placeholder="e.g. Civic Type R"
-                  required
-                  value={formData.model}
-                  onChange={(e) => setFormData({ ...formData, model: sanitizeVehicleText(e.target.value) })}
-                    style={{ width: '100%', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '0.85rem', color: 'var(--admin-text-primary)', fontWeight: '800', outline: 'none' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                <button type="button" onClick={() => setIsModalOpen(false)} style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '8px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>Cancel</button>
-                <button type="submit" style={{ flex: 2, padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '8px', color: 'var(--admin-text-on-brand)', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}>{selectedVehicle ? 'Save Changes' : 'Register Vehicle'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Service History Log */}
-      {isHistoryOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
-          <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', width: 'min(100%, 700px)', maxHeight: 'min(80vh, 760px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
-            <div style={{ padding: '2rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h2 style={{ margin: 0, fontWeight: '950', fontSize: 'clamp(1.15rem, 4vw, 1.5rem)', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>Service Log</h2>
-                <div style={{ fontSize: '0.8rem', color: 'var(--admin-brand)', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1px' }}>{selectedVehicle?.brand} {selectedVehicle?.model} • {selectedVehicle?.plate_number}</div>
-              </div>
-              <button onClick={() => setIsHistoryOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer' }}><X size={24} /></button>
-            </div>
-
-            <div style={{ flex: 1, overflowY: 'auto', padding: '2rem' }}>
-              {loadingHistory ? (
-                <div style={{ padding: '3rem', textAlign: 'center' }}><Loader2 size={32} className="animate-spin" color="var(--admin-brand)" style={{ margin: '0 auto' }} /></div>
-              ) : historyData.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '4rem 2rem', opacity: 0.5 }}>
-                  <History size={48} style={{ marginBottom: '1rem' }} />
-                  <div style={{ fontWeight: '900', textTransform: 'uppercase' }}>No Detailing History Found</div>
-                  <div style={{ fontSize: '0.8rem' }}>When this vehicle completes a service, it will appear here.</div>
-                </div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsEditingFleet(false)}>Cancel</Button>
+                    <Button type="button" disabled={isSavingFleet} onClick={() => confirmThen({ title: 'Save fleet changes?', message: 'The fleet name and vehicles will be updated.', confirmText: 'Save changes' }, handleSaveFleetEdit)}>{isSavingFleet ? 'Saving...' : 'Save Fleet'}</Button>
+                  </DialogFooter>
+                </>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  {historyData.map((entry, idx) => (
-                    <div key={idx} style={{ background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)', borderRadius: '12px', padding: 'clamp(1rem, 3vw, 1.5rem)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                        <div>
-                          <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Session Date</div>
-                          <div style={{ fontSize: '0.95rem', fontWeight: '900', color: 'var(--admin-text-primary)' }}>{new Date(entry.booking?.start_datetime).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(selectedFleetGroup.vehicles || []).map(vehicle => (
+                      <div key={vehicle.id} className="rounded-md border p-4">
+                        <div className="flex items-center gap-3">
+                          <Car className="size-5 shrink-0 text-primary" />
+                          <div className="min-w-0">
+                            <strong className="block break-words text-sm">{vehicle.brand} {vehicle.model}</strong>
+                            <span className="text-xs text-muted-foreground">{vehicle.type}</span>
+                          </div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontSize: '0.6rem', fontWeight: '950', padding: '0.25rem 0.6rem', borderRadius: '4px', background: entry.status === 'completed' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(168, 85, 247, 0.1)', color: entry.status === 'completed' ? '#10b981' : '#a855f7', border: `1px solid ${entry.status === 'completed' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(168, 85, 247, 0.2)'}`, textTransform: 'uppercase' }}>{entry.status}</span>
+                        <div className="mt-3 grid grid-cols-2 gap-3 border-t pt-3">
+                          <div>
+                            <small className="block text-[0.65rem] font-semibold uppercase text-muted-foreground">Plate</small>
+                            <span className="text-sm font-semibold tracking-wider">{vehicle.plate_number}</span>
+                          </div>
+                          <div>
+                            <small className="block text-[0.65rem] font-semibold uppercase text-muted-foreground">Last session</small>
+                            <span className={`text-sm font-semibold ${vehicle.lastService ? 'text-primary' : 'text-muted-foreground'}`}>{vehicle.lastService || 'New entry'}</span>
+                          </div>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                  {(selectedFleetGroup.vehicles || []).length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No vehicles are currently assigned to this fleet.</p>}
+                </>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
-                        {(entry.services || []).map((s, sIdx) => (
-                          <div key={sIdx} style={{ background: 'rgba(var(--admin-brand-rgb), 0.1)', border: '1px solid rgba(var(--admin-brand-rgb), 0.2)', padding: '0.3rem 0.6rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>{s.service_name}</div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+      {/* Create fleet */}
+      <Dialog open={isGroupModalOpen} onOpenChange={setIsGroupModalOpen}>
+        <DialogContent className="ui-root max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Fleet</DialogTitle>
+            <DialogDescription>Group vehicles for faster multi-vehicle bookings.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={event => { event.preventDefault(); confirmThen({ title: 'Create this fleet?', message: 'The selected vehicles will be grouped into a fleet.', confirmText: 'Create fleet' }, () => handleCreateGroup()); }} className="grid gap-4">
+            <div className="grid gap-1.5">
+              <Label htmlFor="fleet-new-name">Fleet name</Label>
+              <Input id="fleet-new-name" autoFocus required value={newGroupName} onChange={event => setNewGroupName(event.target.value)} placeholder="e.g. Family vehicles" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Choose vehicles</Label>
+              {vehicles.length === 0 ? (
+                <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Add vehicles to your garage before creating a fleet.</p>
+              ) : (
+                <div className="grid max-h-[35dvh] gap-2 overflow-y-auto sm:grid-cols-2">
+                  {vehicles.map(vehicle => {
+                    const isSelected = selectedFleetVehicleIds.includes(vehicle.id);
+                    return (
+                      <label key={vehicle.id} className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 ${isSelected ? 'border-primary bg-primary/5' : ''}`}>
+                        <Checkbox checked={isSelected} onCheckedChange={() => setSelectedFleetVehicleIds(current => isSelected ? current.filter(id => id !== vehicle.id) : [...current, vehicle.id])} />
+                        <span className="min-w-0 text-sm">
+                          <strong className="block truncate">{vehicle.brand} {vehicle.model}</strong>
+                          <small className="text-muted-foreground">{vehicle.plate_number} · {vehicle.type}</small>
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               )}
             </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsGroupModalOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={isCreatingFleet || selectedFleetVehicleIds.length === 0}>{isCreatingFleet ? 'Creating...' : 'Create Fleet'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-            <div style={{ padding: '1.5rem 2rem', background: 'var(--admin-bg)', borderTop: '1px solid var(--admin-border)', textAlign: 'center' }}>
-              <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>Showing automated fleet history log from Comar Garage.</p>
+      {/* Add / edit vehicle */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="ui-root max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{selectedVehicle ? 'Edit Vehicle Specs' : 'Register New Vehicle'}</DialogTitle>
+            <DialogDescription>{selectedVehicle ? 'Update the details of this vehicle.' : 'Add a vehicle to your garage.'}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); confirmThen({ title: 'Save this vehicle?', message: 'The vehicle details will be saved to your garage.', confirmText: 'Save vehicle' }, () => handleSubmit(e)); }} className="grid gap-4">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-1.5">
+                <Label>Vehicle Type</Label>
+                <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {vehicleTypeOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Fleet Group</Label>
+                <Select value={formData.fleetGroupId || NO_FLEET} onValueChange={(value) => setFormData({ ...formData, fleetGroupId: value === NO_FLEET ? '' : value })}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_FLEET}>Ungrouped</SelectItem>
+                    {fleetGroups.map(group => <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="vehicle-plate">Plate Number</Label>
+                <Input id="vehicle-plate" type="text" placeholder="ABC1234" required value={formData.plateNumber} onChange={(e) => setFormData({ ...formData, plateNumber: sanitizeVehiclePlate(e.target.value) })} className="font-semibold tracking-widest" />
+              </div>
             </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="vehicle-brand">Brand / Make</Label>
+              <Input id="vehicle-brand" type="text" placeholder="e.g. Honda" required value={formData.brand} onChange={(e) => setFormData({ ...formData, brand: sanitizeVehicleText(e.target.value) })} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="vehicle-model">Model Name</Label>
+              <Input id="vehicle-model" type="text" placeholder="e.g. Civic Type R" required value={formData.model} onChange={(e) => setFormData({ ...formData, model: sanitizeVehicleText(e.target.value) })} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+              <Button type="submit">{selectedVehicle ? 'Save Changes' : 'Register Vehicle'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Service history */}
+      <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+        <DialogContent className="ui-root flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+          <DialogHeader className="border-b px-6 py-4">
+            <DialogTitle>Service Log</DialogTitle>
+            <DialogDescription>{selectedVehicle?.brand} {selectedVehicle?.model} • {selectedVehicle?.plate_number}</DialogDescription>
+          </DialogHeader>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            {loadingHistory ? (
+              <div className="grid gap-3" aria-busy="true">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            ) : historyData.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground">
+                <History className="mx-auto mb-3 size-10 opacity-60" />
+                <p className="text-sm font-semibold text-foreground">No detailing history found</p>
+                <p className="text-sm">When this vehicle completes a service, it will appear here.</p>
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                {historyData.map((entry, idx) => (
+                  <div key={idx} className="rounded-md border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[0.65rem] font-semibold uppercase text-muted-foreground">Session date</p>
+                        <p className="text-sm font-semibold">{new Date(entry.booking?.start_datetime).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                      </div>
+                      <Badge variant="outline" className={`uppercase ${entry.status === 'completed' ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400' : 'border-purple-500/40 text-purple-600 dark:text-purple-400'}`}>{entry.status}</Badge>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {(entry.services || []).map((s, sIdx) => (
+                        <Badge key={sIdx} variant="secondary" className="uppercase">{s.service_name}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+
+          <p className="border-t px-6 py-3 text-center text-xs text-muted-foreground">Showing automated fleet history log from Comar Garage.</p>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

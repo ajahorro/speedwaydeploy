@@ -1,6 +1,7 @@
 import React from 'react';
 import { Calendar, Car, ChevronRight, CalendarOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 const UpcomingAppointments = ({ bookings = [], loading }) => {
   const navigate = useNavigate();
@@ -30,12 +31,9 @@ const UpcomingAppointments = ({ bookings = [], loading }) => {
         alignItems: 'center'
       }}>
         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '900', color: 'var(--admin-text-primary)' }}>Upcoming</h3>
-        <button
-          onClick={() => navigate('/customer/bookings')}
-          style={{ background: 'none', border: 'none', color: 'var(--admin-brand)', fontSize: '0.75rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}
-        >
+        <Button onClick={() => navigate('/customer/bookings')} variant="link" className="h-auto p-0 uppercase">
           View All
-        </button>
+        </Button>
       </div>
 
       <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

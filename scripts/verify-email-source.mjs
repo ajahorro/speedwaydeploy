@@ -159,7 +159,7 @@ checks.push(
   })()],
   ['customer ledger: displays separate transaction rows including pending verification', /'FOR_VERIFICATION', 'REJECTED'/.test(fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8'))],
   ['customer ledger: restores prior table layout', /Receipt No\. \/ Reference ID/.test(customerBilling) && /LINKED TO INV-/.test(customerBilling) && !/billing-ledger-reference-line/.test(customerBilling)],
-  ['customer ledger: refund pending status stays on one line at all widths', /display: 'inline-block',[\s\S]*?whiteSpace: 'nowrap',[\s\S]*?\{statusLabel\}/.test(customerBilling)],
+  ['customer ledger: refund pending status stays on one line at all widths', /whitespace-nowrap[^\n]*\{statusLabel\}/.test(customerBilling)],
   ['customer ledger: only verified positive payments can open receipts', /canIssueReceipt = isRefund \|\| \(Number\(p\.amount\) > 0[\s\S]*?\['PAID', 'REFUND_PENDING', 'REFUNDED'\]/.test(fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8'))],
   ['payment receipts: portal labels receipt number and gateway reference separately', /getReceiptNumber\(selectedPayment\)/.test(officialReceipt) && /Transaction\/Reference ID/.test(officialReceipt)],
   ['payment receipts: do not fetch or display booking/refund status', !/refund_status|payment_refund_allocations|isNoShow|FLAGGED_NOSHOW|NO-SHOW/.test(officialReceipt)],

@@ -5,6 +5,7 @@ import { useUnifiedData } from '../../context/UnifiedContext';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import NotificationDetailsModal from '../NotificationDetailsModal';
+import { Button } from '@/components/ui/button';
 
 const RecentNotifications = () => {
   const navigate = useNavigate();
@@ -58,16 +59,12 @@ const RecentNotifications = () => {
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
         <span>{words.slice(0, 3).join(' ')}</span>
-        <button
-          type="button"
-          onClick={(event) => {
+        <Button type="button" onClick={(event) => {
             event.stopPropagation();
             navigate(`/customer/bookings/${notif.booking_id}?chat=open`);
-          }}
-          style={{ background: 'none', border: 'none', color: 'var(--admin-brand)', fontWeight: '900', cursor: 'pointer', padding: 0, fontSize: 'inherit', textDecoration: 'underline' }}
-        >
+          }} variant="link" className="h-auto p-0 text-inherit">
           See More
-        </button>
+        </Button>
       </span>
     );
   };
@@ -90,12 +87,9 @@ const RecentNotifications = () => {
         alignItems: 'center'
       }}>
         <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Operational Alerts</h3>
-        <button
-          onClick={() => navigate('/customer/notifications')}
-          style={{ background: 'none', border: 'none', color: 'var(--admin-brand)', fontSize: '0.7rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}
-        >
+        <Button onClick={() => navigate('/customer/notifications')} variant="link" size="sm" className="h-auto p-0 uppercase">
           View All
-        </button>
+        </Button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column' }}>

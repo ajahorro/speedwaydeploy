@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, CheckCircle2, Wallet, Banknote, ShieldAlert, AlertTriangle, Package as PackageIcon, Hash, Camera, Tag } from 'lucide-react';
+import { Loader2, Upload, CheckCircle2, Wallet, Banknote, ShieldAlert, AlertTriangle, Package as PackageIcon, Hash, Camera, Tag } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useConfig } from '../../context/ConfigContext';
 import { useAuth } from '../../hooks/useAuth';
@@ -12,6 +12,10 @@ import { sanitizeCurrency } from '../../config/constants';
 import { logger } from '../../utils/logger';
 import toastManager from '../../utils/toastManager';
 import { BACKEND_URL } from '../../config/api';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 const DEFAULT_TERMS = [
   '1. Customer information provided during booking is collected solely for scheduling, service communication, and payment verification.',
@@ -1074,8 +1078,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                           {renderReceiptFeedback()}
                         </div>
                         <div style={{ display: 'flex', gap: '.75rem', padding: '1rem', borderTop: '1px solid var(--admin-border)', flexWrap: 'wrap' }}>
-                          <button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>Upload New Receipt</button>
-                          {!receiptVerified && <button type="button" onClick={() => setShowHelpTips(true)} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', cursor: 'pointer', textTransform: 'uppercase' }}>OCR Tips</button>}
+                          <Button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} variant="outline" className="uppercase">Upload New Receipt</Button>
+                          {!receiptVerified && <Button type="button" onClick={() => setShowHelpTips(true)} variant="outline" className="uppercase">OCR Tips</Button>}
                         </div>
                       </div>
                     )}
@@ -1132,7 +1136,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Scan to Pay</div>
-                    {!receiptVerified && <button type="button" onClick={() => setShowHelpTips(true)} style={{ padding: '0.45rem 0.8rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.62rem', fontWeight: '900', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}>OCR Tips</button>}
+                    {!receiptVerified && <Button type="button" onClick={() => setShowHelpTips(true)} variant="outline" size="sm" className="uppercase">OCR Tips</Button>}
                   </div>
                   {settings.loaded ? (
                     <>
@@ -1244,8 +1248,8 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
                       </div>
                       <div style={{ display: 'flex', gap: '.75rem', padding: '1rem', borderTop: '1px solid var(--admin-border)', flexWrap: 'wrap' }}>
-                        <button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>Upload New Receipt</button>
-                        {!receiptVerified && <button type="button" onClick={() => setShowHelpTips(true)} style={{ flex: '1 1 190px', padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', borderRadius: 'var(--admin-radius-sm)', fontSize: '.75rem', fontWeight: '850', cursor: 'pointer', textTransform: 'uppercase' }}>OCR Tips</button>}
+                        <Button type="button" onClick={() => { setReceiptDetails(null); setBookingData(prev => ({ ...prev, payment: { ...prev.payment, proofOfPayment: null } })); }} variant="outline" className="uppercase">Upload New Receipt</Button>
+                        {!receiptVerified && <Button type="button" onClick={() => setShowHelpTips(true)} variant="outline" className="uppercase">OCR Tips</Button>}
                       </div>
                     </div>
                   )}
@@ -1290,61 +1294,56 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
           {!adminMode && <div style={{ padding: '1rem', background: termsAccepted ? 'rgba(var(--admin-brand-rgb), 0.05)' : 'transparent', borderRadius: 'var(--admin-radius-md)', border: `1px solid ${termsAccepted ? 'var(--admin-brand)' : 'var(--admin-border)'}`, transition: 'all 0.2s' }}>
             <label style={{ display: 'flex', gap: '1rem', cursor: 'pointer', alignItems: 'flex-start' }}>
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={termsAccepted}
-                onChange={(e) => setTermsAccepted(e.target.checked)}
-                style={{ width: '20px', height: '20px', marginTop: '2px', cursor: 'pointer', accentColor: 'var(--admin-brand)' }}
+                onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                className="mt-0.5 size-5"
               />
               <span style={{ fontSize: '0.85rem', color: 'var(--admin-text-primary)', fontWeight: '600', lineHeight: 1.4 }}>
-                By clicking this box, you allow <strong>Comar Garage</strong> to have access to your personal information and agree to our <button type="button" onClick={() => setShowTermsModal(true)} style={{ border: 'none', background: 'transparent', color: 'var(--admin-brand)', fontWeight: 900, padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>Terms and Conditions</button> for service and data privacy.
+                By clicking this box, you allow <strong>Comar Garage</strong> to have access to your personal information and agree to our <Button type="button" onClick={() => setShowTermsModal(true)} variant="link" className="h-auto p-0 font-bold underline">Terms and Conditions</Button> for service and data privacy.
               </span>
             </label>
           </div>}
 
-          {showTermsModal && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-              <div style={{ width: '100%', maxWidth: '620px', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', boxShadow: '0 20px 45px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: 'var(--admin-sidebar)', borderBottom: '1px solid var(--admin-border)' }}>
-                  <h3 style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '1rem', fontWeight: 950, textTransform: 'uppercase' }}>Terms & Conditions</h3>
-                  <button type="button" onClick={() => setShowTermsModal(false)} style={{ border: 'none', background: 'transparent', color: 'var(--admin-text-secondary)', fontSize: '1.25rem', cursor: 'pointer' }}>×</button>
-                </div>
-                <div style={{ padding: '1.25rem', maxHeight: '70vh', overflowY: 'auto', color: 'var(--admin-text-primary)', fontSize: '0.9rem', lineHeight: 1.7 }}>
-                  {(String(settings.TERMS_AND_CONDITIONS || '').trim() || DEFAULT_TERMS)
-                    .split(/\n+/)
-                    .map((line) => line.trim())
-                    .filter(Boolean)
-                    .map((line, index) => <p key={index}>{line}</p>)}
-                </div>
-                <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid var(--admin-border)', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button type="button" onClick={() => setShowTermsModal(false)} style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-on-brand)', fontWeight: 900, cursor: 'pointer' }}>Close</button>
-                </div>
+          <Dialog open={showTermsModal} onOpenChange={setShowTermsModal}>
+            <DialogContent className="ui-root max-h-[90dvh] overflow-y-auto sm:max-w-xl">
+              <DialogHeader>
+                <DialogTitle>Terms &amp; Conditions</DialogTitle>
+                <DialogDescription>What you agree to when you book with Comar Garage.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3 text-sm leading-relaxed">
+                {(String(settings.TERMS_AND_CONDITIONS || '').trim() || DEFAULT_TERMS)
+                  .split(/\n+/)
+                  .map((line) => line.trim())
+                  .filter(Boolean)
+                  .map((line, index) => <p key={index}>{line}</p>)}
               </div>
-            </div>
-          )}
+              <DialogFooter>
+                <Button type="button" onClick={() => setShowTermsModal(false)}>Close</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-          {showHelpTips && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-              <div style={{ width: '100%', maxWidth: '620px', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-lg)', boxShadow: '0 20px 45px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: 'var(--admin-sidebar)', borderBottom: '1px solid var(--admin-border)' }}>
-                  <h3 style={{ margin: 0, color: 'var(--admin-text-primary)', fontSize: '1rem', fontWeight: 950, textTransform: 'uppercase' }}>OCR troubleshooting</h3>
-                  <button type="button" onClick={() => setShowHelpTips(false)} style={{ border: 'none', background: 'transparent', color: 'var(--admin-text-secondary)', fontSize: '1.25rem', cursor: 'pointer' }}>×</button>
-                </div>
-                <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.9rem', maxHeight: '70vh', overflowY: 'auto' }}>
-                  {helpTips.map((tip) => (
-                    <div key={tip.title} style={{ padding: '0.9rem 1rem', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-md)', background: 'rgba(var(--admin-brand-rgb), 0.03)' }}>
-                      <div style={{ fontSize: '0.76rem', fontWeight: 900, color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.35rem' }}>{tip.title}</div>
-                      <div style={{ color: 'var(--admin-text-primary)', fontSize: '0.84rem', lineHeight: 1.5 }}>{tip.text}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid var(--admin-border)', display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                  <button type="button" onClick={() => setShowHelpTips(false)} style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: 900, cursor: 'pointer' }}>Close</button>
-                  <button type="button" onClick={openReceiptInput} style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-on-brand)', fontWeight: 900, cursor: 'pointer' }}>Upload New Receipt</button>
-                </div>
+          <Dialog open={showHelpTips} onOpenChange={setShowHelpTips}>
+            <DialogContent className="ui-root max-h-[90dvh] overflow-y-auto sm:max-w-xl">
+              <DialogHeader>
+                <DialogTitle>OCR troubleshooting</DialogTitle>
+                <DialogDescription>If your receipt could not be read, try these.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3">
+                {helpTips.map((tip) => (
+                  <div key={tip.title} className="rounded-md border p-3">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary">{tip.title}</p>
+                    <p className="text-sm leading-relaxed">{tip.text}</p>
+                  </div>
+                ))}
               </div>
-            </div>
-          )}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowHelpTips(false)}>Close</Button>
+                <Button type="button" onClick={openReceiptInput}>Upload New Receipt</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
         </div>
       </div>
@@ -1359,112 +1358,47 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
       {/* Action Footer */}
       <div className="review-action-footer" style={{ borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem', marginTop: '1rem' }}>
-        <button
-          onClick={onBack}
-          disabled={isUploading}
-          style={{
-            padding: '1rem 2rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-md)', fontWeight: '950', fontSize: '1rem', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px'
-          }}
-        >
+        <Button onClick={onBack} disabled={isUploading} variant="outline" className="uppercase">
           Back
-        </button>
+        </Button>
 
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isUploading}
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--status-danger)',
-              color: 'var(--status-danger)',
-              padding: '1rem 2rem',
-              borderRadius: 'var(--admin-radius-md)',
-              fontWeight: '950',
-              fontSize: '1rem',
-              cursor: 'pointer',
-              textTransform: 'uppercase',
-              letterSpacing: '1px'
-            }}
-          >
+          <Button type="button" onClick={onCancel} disabled={isUploading} variant="outline" className="border-destructive/60 text-destructive hover:text-destructive uppercase">
             Cancel
-          </button>
+          </Button>
         )}
-        <button
+        <Button
           onClick={() => {
             if (isUnderpaidReceipt) return;
             setShowConfirm(true);
           }}
           disabled={!isValid || isSubmitting}
           title={isReceiptBlocked ? 'Receipt must be verified before submitting.' : (isUploading ? 'Verifying receipt details...' : undefined)}
-          style={{
-            padding: '1rem 2rem',
-            background: isValid ? 'var(--admin-brand)' : 'var(--admin-bg)',
-            color: isValid ? '#fff' : 'var(--admin-text-secondary)',
-            border: `1px solid ${isValid ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
-            borderRadius: 'var(--admin-radius-md)',
-            fontWeight: '950',
-            fontSize: '1rem',
-            cursor: isValid ? 'pointer' : 'not-allowed',
-            opacity: isValid ? 1 : 0.65,
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            transition: 'all 0.3s ease'
-          }}
+          className="uppercase"
         >
           {isSubmitting
             ? 'Submitting...'
             : (isUploading ? '⏳ Verifying receipt details...' : (isReceiptBlocked ? '⛔ Receipt Not Verified' : 'Submit Booking'))}
-        </button>
+        </Button>
       </div>
 
-      {/* Confirmation Modal */}
-      {showConfirm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)' }}>
-          <div style={{ background: 'var(--admin-card)', padding: '2.5rem', borderRadius: 'var(--admin-radius-lg)', border: '1px solid var(--admin-border)', width: '100%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
-            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(var(--admin-brand-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
-              <CheckCircle2 size={40} color="var(--admin-brand)" />
-            </div>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: '950', color: 'var(--admin-text-primary)', margin: '0 0 1rem 0' }}>Confirm Booking?</h3>
-            <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.95rem', fontWeight: '600', lineHeight: 1.6, margin: '0 0 2rem 0' }}>
+      {/* Confirm booking. Cannot be dismissed while the booking is being sent. */}
+      <AlertDialog open={showConfirm} onOpenChange={(open) => { if (!open && !isSubmitting) setShowConfirm(false); }}>
+        <AlertDialogContent className="ui-root">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2"><CheckCircle2 className="size-5 text-primary" aria-hidden="true" />Confirm Booking?</AlertDialogTitle>
+            <AlertDialogDescription>
               Are you sure you want to proceed with this booking? Please ensure all vehicle details and payment info are correct.
-            </p>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button
-                onClick={() => !isSubmitting && setShowConfirm(false)}
-                disabled={isSubmitting}
-                style={{ flex: 1, padding: '1rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-md)', fontWeight: '900', color: 'var(--admin-text-primary)', cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmSubmit}
-                disabled={isSubmitting}
-                style={{ flex: 1, padding: '1rem', background: 'var(--admin-brand)', border: 'none', borderRadius: 'var(--admin-radius-md)', fontWeight: '900', color: 'var(--admin-text-on-brand)', cursor: isSubmitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', opacity: isSubmitting ? 0.7 : 1 }}
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="spinner" style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                    Submitting...
-                  </>
-                ) : 'Yes, Submit'}
-              </button>
-            </div>
-          </div>
-          <style>{`
-            @keyframes spin { to { transform: rotate(360deg); } }
-            @keyframes pulse {
-              0% { transform: scale(0.95); opacity: 0.2; }
-              50% { transform: scale(1.05); opacity: 0.5; }
-              100% { transform: scale(0.95); opacity: 0.2; }
-            }
-            @keyframes fadeIn {
-              from { opacity: 0; transform: translateY(10px); }
-              to { opacity: 1; transform: translateY(0); }
-            }
-          `}</style>
-        </div>
-      )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button type="button" variant="outline" onClick={() => !isSubmitting && setShowConfirm(false)} disabled={isSubmitting}>Cancel</Button>
+            <Button type="button" onClick={handleConfirmSubmit} disabled={isSubmitting}>
+              {isSubmitting ? (<><Loader2 className="animate-spin" />Submitting...</>) : 'Yes, Submit'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );

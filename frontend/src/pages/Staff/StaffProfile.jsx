@@ -5,6 +5,7 @@ import { User, Mail, Phone, Shield, Key, Save, Loader2, UserCircle } from 'lucid
 import toast from '@/lib/toast';
 import PageHeader from '../../components/PageHeader';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { Button } from '@/components/ui/button';
 
 const StaffProfile = () => {
   const { profile, user, verifyPassword, requestPasswordChange, resendPasswordChange } = useAuth();
@@ -233,35 +234,15 @@ const StaffProfile = () => {
                     ? 'Confirmation email sent. Check your inbox (and spam) to complete the change.'
                     : 'The confirmation email could not be confirmed as sent. Resend it below.'}
                 </span>
-                <button
-                  type="button"
-                  onClick={handleResendPasswordEmail}
-                  style={{ padding: '0.5rem 0.9rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius)', fontSize: '0.72rem', fontWeight: '900', cursor: 'pointer', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
-                >
+                <Button type="button" onClick={handleResendPasswordEmail} variant="outline" size="sm" className="uppercase">
                   Resend confirmation email
-                </button>
+                </Button>
               </div>
             )}
-            <button 
-              type="submit"
-              disabled={passLoading || !isFormValid}
-              style={{ 
-                alignSelf: 'flex-start',
-                padding: '0.85rem 2rem', 
-                background: (!isFormValid || passLoading) ? 'var(--admin-border)' : '#E61E2A', 
-                color: (!isFormValid || passLoading) ? 'var(--admin-text-secondary)' : 'white', 
-                border: 'none', borderRadius: 'var(--admin-radius)', 
-                fontWeight: '950', fontSize: '0.8rem', 
-                cursor: (!isFormValid || passLoading) ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', gap: '0.75rem',
-                textTransform: 'uppercase', letterSpacing: '1px',
-                transition: 'all 0.2s ease',
-                opacity: (!isFormValid || passLoading) ? 0.6 : 1
-              }}
-            >
+            <Button type="submit" disabled={passLoading || !isFormValid} variant="outline" className="self-start uppercase">
               {passLoading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
               Update Credentials
-            </button>
+            </Button>
           </form>
         </section>
       </div>
