@@ -327,7 +327,7 @@ export const UIProvider = ({ children }) => {
                   // Tier 3 / Task 15: a prompt modal refuses to submit an empty
                   // value so the reason can never be silently blank.
                   if (modal.prompt && modal.inputRequired !== false && !promptValue.trim()) {
-                    toast.error('Please enter a reason before continuing.');
+                    showToast('Please enter a reason before continuing.', 'error');
                     return;
                   }
                   const onConfirm = modal.onConfirm;
