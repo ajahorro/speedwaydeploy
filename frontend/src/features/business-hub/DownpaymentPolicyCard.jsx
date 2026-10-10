@@ -30,6 +30,12 @@ const validate = (draft) => {
   if (!Number.isFinite(threshold) || threshold < 0) errors.high_threshold = 'Enter an amount of ₱0 or more.';
   if (!Number.isFinite(rate) || rate <= 0 || rate > 100) errors.rate = 'Enter a percentage from 1 to 100.';
   if (!Number.isFinite(highRate) || highRate <= 0 || highRate > 100) errors.high_rate = 'Enter a percentage from 1 to 100.';
+  // the higher tier must make sense: it starts at or above the first amount and never asks for less
+  if (!errors.high_threshold && !errors.min_total && threshold < minTotal) errors.high_threshold = 'Must be the same as or more than the amount above.';
+  if (!errors.high_rate && !errors.rate && highRate < rate) errors.high_rate = 'Must not be lower than the standard rate.';
+  for (const [key, value] of [['min_total', draft.min_total], ['high_threshold', draft.high_threshold]]) {
+    if (String(value).trim() === '') errors[key] = 'Enter an amount.';
+  }
   return errors;
 };
 

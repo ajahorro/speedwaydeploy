@@ -699,7 +699,10 @@ export default function BusinessHub() {
     if (section === 'profile') {
       // Task B: profile requires a business name AND a complete QR recipient set.
       const qr = validateQrRecipients(businessForm);
-      return Boolean(String(businessForm.business_name || '').trim()) && qr.ok;
+      // the shop's phone may be a mobile or a landline: 7 to 12 digits; empty is allowed
+      const phoneDigits = String(businessForm.contact_number || '').replace(/D/g, '');
+      const phoneOk = phoneDigits.length === 0 || (phoneDigits.length >= 7 && phoneDigits.length <= 12);
+      return Boolean(String(businessForm.business_name || '').trim()) && qr.ok && phoneOk;
     }
     if (section === 'schedule') {
       // Mirror the DB CHECK constraints from migration 20260925000001 so an
@@ -2030,6 +2033,7 @@ export default function BusinessHub() {
                   style={inputStyle}
                   placeholder="e.g. 0912 345 6789"
                 />
+                {(() => { const d = String(businessForm.contact_number || '').replace(/D/g, ''); return d.length > 0 && (d.length < 7 || d.length > 12) ? <Hint>Enter a full phone number (7 to 12 digits).</Hint> : null; })()}
               </Field>
               <Field label="Email Address" htmlFor="business-email-address">
                 <EmailInput
@@ -2852,6 +2856,7 @@ export default function BusinessHub() {
                         <tr>
                           {serviceEditMode && <th style={{ ...{ width: '34px', fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }} aria-label="Select services" />}
                           <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Service Name</th>
+                          <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Vehicle</th>
                           <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>General Service</th>
                           <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Duration (Mins)</th>
                           <th style={{ ...{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--admin-text-secondary)', textAlign: 'left', padding: '0.5rem 0.5rem 0.7rem', borderBottom: '1px solid var(--admin-border)' } }}>Price (₱)</th>
@@ -2875,6 +2880,7 @@ export default function BusinessHub() {
                                 </td>
                               )}
                               <td style={{ padding: '0.9rem 0.5rem', fontSize: '0.8rem', fontWeight: 900, color: 'var(--admin-text-primary)', borderBottom: '1px solid var(--admin-border)' }}>{service.name}</td>
+                              <td style={{ padding: '0.9rem 0.5rem', fontSize: '0.72rem', fontWeight: 800, color: 'var(--admin-text-secondary)', borderBottom: '1px solid var(--admin-border)' }}>{normalizeVehicleTypes(service).join(', ') || '—'}</td>
                               <td style={{ padding: '0.9rem 0.5rem', fontSize: '0.72rem', color: service.generalService || service.category ? 'var(--admin-text-secondary)' : 'var(--admin-text-secondary)', fontWeight: 700, borderBottom: '1px solid var(--admin-border)' }}>
                                 {service.generalService || service.category || (service.source === 'default' ? Object.keys(SERVICES_DATA).find((cat) => (SERVICES_DATA[cat] || []).some((s) => s.name === service.name)) || 'Built-in' : 'Custom Services')}
                               </td>
@@ -2895,7 +2901,7 @@ export default function BusinessHub() {
                                       button wearing two labels. */}
                                   {serviceEditMode && selectedServiceIds.length <= 1 && (
                                     <>
-                                      <button type="button" onClick={() => { setEditingService(service); setEditingServiceForm({ name: service.name || '', price: String(service.price ?? ''), duration: String(service.durationMinutes || 60), description: service.description || '', generalService: service.generalService || service.category || 'Custom Services' }); }} style={ghostButton}>Edit</button>
+                                      <button type="button" onClick={() => { setEditingService(service); setEditingServiceForm({ name: service.name || '', price: String(service.price ?? ''), duration: String(service.durationMinutes || 60), description: service.description || '', generalService: service.generalService || service.category || (service.source === 'default' ? Object.keys(SERVICES_DATA).find((cat) => (SERVICES_DATA[cat] || []).some((s) => s.name === service.name)) : null) || 'Custom Services' }); }} style={ghostButton}>Edit</button>
                                       {isArchivedService(service) ? (
                                         <button type="button" onClick={() => requestRestoreService(service)} style={{ ...ghostButton, color: 'var(--admin-brand)' }}>Restore</button>
                                       ) : (

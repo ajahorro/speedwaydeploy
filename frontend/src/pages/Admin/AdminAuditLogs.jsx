@@ -54,6 +54,7 @@ const ACTION_META = {
   PROMO_ARCHIVED: { category: 'BUSINESS', title: 'Promotion archived' },
   PROMO_CODE_CREATED: { category: 'BUSINESS', title: 'Promo code created' },
   PROMO_CODE_DELETED: { category: 'BUSINESS', title: 'Promo code deleted' },
+  PROMO_CODE_ARCHIVED: { category: 'BUSINESS', title: 'Promo code archived' },
   TERMS_PUBLISHED: { category: 'BUSINESS', title: 'Terms published' },
   TERMS_ACCEPTED: { category: 'ACCOUNTS', title: 'Terms accepted' },
   BOOKING_CREATED: { category: 'BOOKINGS', title: 'Booking created' },
