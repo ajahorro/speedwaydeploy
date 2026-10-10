@@ -24,6 +24,7 @@ const { parseReceiptText, normalizeAmountValue, isValidReferenceNumber } = requi
 const { recognizeReceipt, warmReceiptOcr } = require('./services/receiptOcr');
 const ocrGuard = require('./services/ocrGuard');
 const { askAnalyticsAssistant } = require('./services/analyticsAssistant');
+const { purgeExpiredServicePhotos } = require('./services/photoRetention');
 // ONE resolver for the public frontend URL. Five call sites previously fell back
 // to localhost:5173 silently, so a missing FRONTEND_URL emailed customers a link
 // to their own machine.
@@ -3849,6 +3850,26 @@ const purgeDeactivatedAccounts = async () => {
 };
 setInterval(purgeDeactivatedAccounts, 6 * 60 * 60000);
 setTimeout(purgeDeactivatedAccounts, 3 * 60000);
+
+// Service photos past their retention period (archived, past the purge window, not on legal hold): the stored file
+// is removed first and the record second, so a failed removal is simply tried again on the next run.
+const purgeExpiredPhotos = async () => {
+  if (!supabaseAdmin) return;
+  try {
+    const { records, files } = await purgeExpiredServicePhotos(supabaseAdmin);
+    if (records > 0) {
+      console.log(`🧹 [PHOTO RETENTION] Removed ${records} expired photo record(s) and ${files} stored file(s).`);
+      await writeAuditLog({
+        actionType: 'SERVICE_PHOTOS_PURGED',
+        details: `${records} service photo record(s) past the retention period were removed together with ${files} stored file(s).`,
+      });
+    }
+  } catch (err) {
+    console.warn('🧹 [PHOTO RETENTION] Sweep failed:', err.message);
+  }
+};
+setInterval(purgeExpiredPhotos, 6 * 60 * 60000);
+setTimeout(purgeExpiredPhotos, 4 * 60000);
 releaseExpiredUnpaidHolds();
 
 /**

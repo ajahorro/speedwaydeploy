@@ -26,6 +26,9 @@ const adminBookingsPage = fs.readFileSync('frontend/src/pages/Admin/AdminBooking
 const adminDashboard = fs.readFileSync('frontend/src/pages/Admin/AdminDashboard.jsx', 'utf8');
 const uiContext = fs.readFileSync('frontend/src/context/UIContext.jsx', 'utf8');
 const customerBilling = fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8');
+const bookingSuccess = fs.readFileSync('frontend/src/components/BookingWizard/BookingSuccess.jsx', 'utf8');
+const photoRetention = fs.readFileSync('backend/services/photoRetention.js', 'utf8');
+const photoRetentionMigration = fs.readFileSync('supabase/migrations/20261206000001_photo_retention_files_removed_by_backend.sql', 'utf8');
 const bookingSummaryHeader = fs.readFileSync('frontend/src/components/BookingSummaryHeader.jsx', 'utf8');
 const notificationRouting = fs.readFileSync('frontend/src/utils/notificationRouting.js', 'utf8');
 const notificationDetailsModal = fs.readFileSync('frontend/src/components/NotificationDetailsModal.jsx', 'utf8');
@@ -160,6 +163,10 @@ checks.push(
   ['customer ledger: displays separate transaction rows including pending verification', /'FOR_VERIFICATION', 'REJECTED'/.test(fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8'))],
   ['customer ledger: restores prior table layout', /Receipt No\. \/ Reference ID/.test(customerBilling) && /LINKED TO INV-/.test(customerBilling) && !/billing-ledger-reference-line/.test(customerBilling)],
   ['customer ledger: refund pending status stays on one line at all widths', /whitespace-nowrap[^\n]*\{statusLabel\}/.test(customerBilling)],
+  ['booking confirmation receipt: the total is the one the payment step quoted (ordinary promos included)', /calculateBookingDiscountSummary\([^)]*\)\.discountedTotal/.test(bookingSuccess) && !/\.codeDiscount/.test(bookingSuccess)],
+  ['photo retention: the stored file is removed before its record', photoRetention.indexOf(".storage.from(PRIVATE_BUCKET).remove(") > 0 && photoRetention.indexOf(".storage.from(PRIVATE_BUCKET).remove(") < photoRetention.indexOf(".from('service_photos').delete()")],
+  ['photo retention: the backend runs the purge sweep and writes an audit entry', /purgeExpiredServicePhotos\(supabaseAdmin\)/.test(backend) && /SERVICE_PHOTOS_PURGED/.test(backend) && /setInterval\(purgeExpiredPhotos/.test(backend)],
+  ['photo retention: the nightly database job archives only and no routine deletes records without their files', /return coalesce\(public\.archive_stale_service_photos\(\), 0\);/.test(photoRetentionMigration) && /drop function if exists public\.purge_stale_service_photos\(\)/.test(photoRetentionMigration) && !/delete from public\.service_photos/.test(photoRetentionMigration)],
   ['customer ledger: only verified positive payments can open receipts', /canIssueReceipt = isRefund \|\| \(Number\(p\.amount\) > 0[\s\S]*?\['PAID', 'REFUND_PENDING', 'REFUNDED'\]/.test(fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8'))],
   ['payment receipts: portal labels receipt number and gateway reference separately', /getReceiptNumber\(selectedPayment\)/.test(officialReceipt) && /Transaction\/Reference ID/.test(officialReceipt)],
   ['payment receipts: do not fetch or display booking/refund status', !/refund_status|payment_refund_allocations|isNoShow|FLAGGED_NOSHOW|NO-SHOW/.test(officialReceipt)],

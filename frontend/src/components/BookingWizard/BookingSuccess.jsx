@@ -7,19 +7,12 @@ import { calculateBookingDiscountSummary } from '../../data/servicesCatalog';
 const BookingSuccess = ({ bookingData }) => {
   const navigate = useNavigate();
 
-  // Mirror Step2Services.unitSubtotal(): a package vehicle is charged its flat
-  // bundle price, NOT the sum of its line items. The lines keep their catalog
-  // base price for display, so summing them here would over-report a bundle.
-  const unitSubtotal = (v) => {
-    if (v?.package_applied && Number.isFinite(Number(v.package_price))) {
-      return Number(v.package_price);
-    }
-    return (v.services || []).reduce((sSum, s) => sSum + Number(s.price || 0), 0);
-  };
-
-  const grandTotal = Math.max(0, (bookingData.vehicles || []).reduce(
-    (sum, v) => sum + unitSubtotal(v), 0
-  ) - calculateBookingDiscountSummary(bookingData.vehicles || [], null, bookingData.promoRule || null).codeDiscount) || bookingData.totalAmount || 0;
+  // The total is the one the payment step quoted: packages at their flat price, ordinary promos applied per
+  // service, and a promo code taken off the order once. Summing base prices (as this screen used to) showed the
+  // full price on the receipt even though the customer was charged the discounted amount.
+  const promoReferenceDate = bookingData.createdAt || bookingData.created_at || bookingData.submittedAt || null;
+  const grandTotal = calculateBookingDiscountSummary(bookingData.vehicles || [], promoReferenceDate, bookingData.promoRule || null).discountedTotal
+    || bookingData.totalAmount || 0;
 
   // OfficialReceipt reads a `booking` object plus a `vehicles` array — NOT the
   // flat `items` / `customerName` / `subtotal` prop set this screen used to pass.
