@@ -25,7 +25,6 @@ const unitSubtotal = (vehicle) => {
   return (vehicle.services || []).reduce((total, service) => total + vehicleServiceNetPrice(service), 0);
 };
 const unitGrossSubtotal = (vehicle) => (vehicle.services || []).reduce((total, service) => total + Number(service.original_price || service.price || service.price_at_booking || 0), 0);
-const isMotorcycle = (type) => type === 'Regular' || type === 'Bigbike';
 // Premise 4: "Promos" is presented as its own SERVICE TYPE in column A, so a
 // vehicle's promotions live behind one predictable entry instead of expanding as
 // full-width blocks that dominated the step. Kept as a single constant so the
@@ -290,8 +289,12 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
   // also carry the flag on its own row, so the wizard filters defensively here.
   const isServiceBookable = (service) => Boolean(service) && service.archived !== true && service.is_active !== false;
 
+  // A category is offered when it holds a bookable service priced for THIS vehicle
+  // category. The price map is the only rule: it already keeps car services off
+  // motorcycles (and the reverse) and works unchanged for a category the admin
+  // adds in the Business Hub, whatever its name.
   const categoriesFor = (vehicle) => Object.entries(SERVICE_CATALOG)
-    .filter(([category, services]) => (category === 'Motorcycle Specialist') === isMotorcycle(vehicle.type) && (services || []).some((service) => isServiceBookable(service) && Number(service.prices?.[vehicle.type]) > 0))
+    .filter(([, services]) => (services || []).some((service) => isServiceBookable(service) && Number(service.prices?.[vehicle.type]) > 0))
     .map(([category]) => category)
     // Premise 4: "Promos" is a first-class SERVICE TYPE alongside the standard
     // catalogue categories. It is always appended (even when the vehicle has no

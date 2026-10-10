@@ -753,6 +753,22 @@ const getCatalogPriceForVehicle = (service, vehicleType) => {
 };
 
 /**
+ * Every service the shop currently prices for one vehicle category, built-in and
+ * admin-added alike: [{ id, name, price }]. The one answer to "which services can
+ * be bound to / booked for this vehicle" (the promo editor reads it).
+ */
+export const getServicesForVehicle = (vehicleType) => {
+  const result = [];
+  Object.values(getServiceCatalog()).forEach((services) => {
+    (services || []).forEach((service) => {
+      const price = getCatalogPriceForVehicle(service, vehicleType);
+      if (price > 0) result.push({ id: service.id, name: service.name, price });
+    });
+  });
+  return result;
+};
+
+/**
  * Sum of a package's member services at their regular (catalog) prices for a
  * vehicle — the "if bought separately" figure. Used to warn an admin when a
  * package price is not actually a saving, and to compute package savings for UI.

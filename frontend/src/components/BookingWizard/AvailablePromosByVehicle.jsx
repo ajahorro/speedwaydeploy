@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Tag, Layers, RefreshCw } from 'lucide-react';
-import { VEHICLE_TYPE_KEYS } from '../../config/constants';
+import { useConfig } from '../../context/ConfigContext';
 import { fetchActivePromos, isPackageRule, getPackageServicesForVehicle } from '../../data/servicesCatalog';
 
 /**
@@ -24,6 +24,8 @@ import { fetchActivePromos, isPackageRule, getPackageServicesForVehicle } from '
 const vehicleLabel = (v) => String(v || '').trim() || 'Any vehicle';
 
 const AvailablePromosByVehicle = ({ compact = false }) => {
+  // The shop's vehicle categories in display order (Business Hub list).
+  const { settings: { VEHICLE_TYPE_KEYS: vehicleOrder } } = useConfig();
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -60,14 +62,14 @@ const AvailablePromosByVehicle = ({ compact = false }) => {
         });
       });
     });
-    // Stable vehicle order: the shop's canonical order first, then any extras.
-    const canonical = [...VEHICLE_TYPE_KEYS, 'Any vehicle'];
+    // Stable vehicle order: the shop's vehicle list order, then "Any vehicle".
+    const canonical = [...vehicleOrder, 'Any vehicle'];
     return [...map.entries()].sort((a, b) => {
       const ia = canonical.indexOf(a[0]);
       const ib = canonical.indexOf(b[0]);
       return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib) || a[0].localeCompare(b[0]);
     });
-  }, [rules]);
+  }, [rules, vehicleOrder]);
 
   const valueLabel = (rule) => {
     if (isPackageRule(rule)) return `₱${Number(rule.value || 0).toLocaleString()} bundle`;

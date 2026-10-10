@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Tag, Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from '@/lib/toast';
-import { getServiceCatalog, getPackageStandaloneSum } from '../../data/servicesCatalog';
-import { VEHICLE_TYPE_KEYS } from '../../config/constants';
+import { getServicesForVehicle, getPackageStandaloneSum } from '../../data/servicesCatalog';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useUI } from '../../context/UIContext';
+import { useConfig } from '../../context/ConfigContext';
 import { logger } from '../../utils/logger';
 import { supabase } from '../../lib/supabase';
 // Shared backend-origin resolver (see config/api.js).
@@ -28,34 +28,6 @@ import { isPromoRuleLive, setCatalogSource } from '../../data/servicesCatalog';
  * services/promoService.js) have been retired — this component must never
  * import them.
  */
-const promoVehicleOptions = VEHICLE_TYPE_KEYS;
-
-const getAvailableServicesForVehicle = (vehicleType) => {
-  const catalog = getServiceCatalog();
-  const result = [];
-  Object.values(catalog).forEach(categoryServices => {
-    categoryServices.forEach(service => {
-      const prices = service.prices || {};
-      let price = 0;
-      if (vehicleType === 'Motorcycle Regular') {
-        price = prices.Regular ?? prices['Motorcycle Regular'] ?? 0;
-      } else if (vehicleType === 'Bigbike') {
-        price = prices.Bigbike ?? 0;
-      } else {
-        price = prices[vehicleType] ?? 0;
-      }
-      if (Number(price) > 0) {
-        result.push({
-          id: service.id,
-          name: service.name,
-          price: Number(price)
-        });
-      }
-    });
-  });
-  return result;
-};
-
 const defaultPromoRules = [
   {
     id: 'winter-wash',
@@ -104,6 +76,9 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
   const isMobileQuery = useMediaQuery('(max-width: 1024px)');
   const isMobile = isMobileProp || isMobileQuery;
   const { openModal } = useUI();
+  // Every vehicle category the shop services, straight from the Business Hub's
+  // list, so a category added there is selectable here without a code change.
+  const { settings: { VEHICLE_TYPE_KEYS: promoVehicleOptions } } = useConfig();
 
   // Rules come from the business_config row (config/shopConfig.js), not a browser copy.
   const [promoRules, setPromoRules] = useState(() => {
@@ -221,7 +196,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
     setPromoDraft(prev => {
       const matrix = { ...(prev.vehicleServiceMatrix || {}) };
       if (mode === 'all') {
-        const avail = getAvailableServicesForVehicle(vehicle).map(s => s.name);
+        const avail = getServicesForVehicle(vehicle).map(s => s.name);
         matrix[vehicle] = avail;
       } else {
         matrix[vehicle] = [];
@@ -623,7 +598,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
               {promoVehicleOptions.map(vehicle => {
                 const isVehicleSelected = Boolean(promoDraft.vehicleServiceMatrix?.[vehicle]);
                 const boundServices = promoDraft.vehicleServiceMatrix?.[vehicle] || [];
-                const availableServices = getAvailableServicesForVehicle(vehicle);
+                const availableServices = getServicesForVehicle(vehicle);
                 const isPopoverOpen = activeVehiclePopover === vehicle;
 
                 return (

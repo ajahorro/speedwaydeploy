@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { subscribeTable } from '../lib/realtimeHub';
-import { SHOP_CONFIG, VEHICLE_TYPE_OPTIONS } from '../config/constants';
+import { SHOP_CONFIG } from '../config/constants';
+import { resolveVehicleTypeOptions } from '../config/vehicleTypes';
 import { logger } from '../utils/logger';
 import { bayCapacityOf, fetchShopConfig, getShopConfig, subscribeShopConfig } from '../config/shopConfig';
 
@@ -34,11 +35,9 @@ const settingsFromRow = (data) => {
   const qrAccountName = data?.qr_account_name || data?.payment_account_name || data?.gcash_name || '';
   const qrAccountNumber = data?.qr_account_number || data?.payment_account_number || data?.gcash_number || '';
   const qrCodeUrl = data?.qr_code_url || data?.payment_qr_url || data?.gcash_qr_url || data?.qr_photo_url || null;
-  // Business Hub vehicle categories as {value,label} options (built-in labels kept).
-  const configuredTypes = (Array.isArray(data?.vehicle_types) ? data.vehicle_types : [])
-    .map((type) => String(type || '').trim())
-    .filter(Boolean)
-    .map((type) => VEHICLE_TYPE_OPTIONS.find((option) => option.value.toLowerCase() === type.toLowerCase()) || { value: type, label: type });
+  // The shop's vehicle categories (built-ins plus whatever the Business Hub added)
+  // as {value,label} options. config/vehicleTypes.js owns the rule.
+  const vehicleTypes = resolveVehicleTypeOptions(data?.vehicle_types);
 
   return {
     config: data || null,
@@ -55,8 +54,9 @@ const settingsFromRow = (data) => {
     MAX_ADVANCE_DAYS: Number(data?.max_advance_days ?? 30),
     CLOSED_WEEKDAYS: Array.isArray(data?.closed_weekdays) ? data.closed_weekdays.map(Number) : [],
     ENFORCE_CAPACITY: data?.enforce_capacity !== false,
-    // The built-in list only when the Business Hub has none configured.
-    VEHICLE_TYPES: configuredTypes.length ? configuredTypes : VEHICLE_TYPE_OPTIONS,
+    // Every screen that shows or picks a vehicle category reads these two, never a static list.
+    VEHICLE_TYPES: vehicleTypes,
+    VEHICLE_TYPE_KEYS: vehicleTypes.map((option) => option.value),
     DOWNPAYMENT_POLICY: {
       min_total: Number(data?.downpayment_min_total ?? 1000),
       rate: Number(data?.downpayment_rate ?? 0.3),
