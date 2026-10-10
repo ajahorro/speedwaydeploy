@@ -11,6 +11,13 @@ const roleKey = (role) => {
   return 'customer';
 };
 
+/** True while the signed-in account still has to accept its current terms. */
+export const isTermsPending = (profile, settings) => {
+  const terms = settings?.TERMS?.[roleKey(profile?.role)];
+  const text = String(terms?.text || '').trim();
+  return Boolean(profile?.id && text && Number(profile.accepted_terms_version || 0) < Number(terms?.version || 1));
+};
+
 const TITLES = { customer: 'Customer Terms & Conditions', staff: 'Staff Terms & Conditions', admin: 'Administrator Terms & Conditions' };
 
 /**

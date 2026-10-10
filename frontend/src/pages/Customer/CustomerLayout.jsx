@@ -16,6 +16,7 @@ import { confirmLogout } from '../../utils/logoutConfirm';
 import CustomerSearch from '../../components/CustomerSearch';
 import FloatingBubbleChat from '../../components/FloatingBubbleChat';
 import TermsGate from '../../components/TermsGate';
+import LanguageGate from '../../components/LanguageGate';
 
 const CustomerLayout = () => {
   const { openModal, closeModal } = useUI(); const { resolvedTheme } = useTheme();
@@ -321,6 +322,7 @@ const CustomerLayout = () => {
           <Outlet />
         </main>
         <TermsGate />
+        <LanguageGate />
         <FloatingBubbleChat />
       </div>
     </div>

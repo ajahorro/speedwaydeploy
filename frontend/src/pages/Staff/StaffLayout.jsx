@@ -14,6 +14,7 @@ import HeaderProfileDropdown from '../../components/common/HeaderProfileDropdown
 import { confirmLogout } from '../../utils/logoutConfirm';
 import { isNotificationActionable, isRedundantStaffTechnicianAssignment } from '../../utils/notificationRouting';
 import TermsGate from '../../components/TermsGate';
+import LanguageGate from '../../components/LanguageGate';
 
 const StaffLayout = () => {
   const { openModal, closeModal } = useUI(); const { user, profile, signOut, fetchProfile, setProfile, toggleShift } = useAuth();
@@ -380,6 +381,7 @@ const StaffLayout = () => {
         </div>
       </main>
       <TermsGate />
+        <LanguageGate />
     </div>
   );
 };

@@ -21,6 +21,7 @@ import BrandLogo from '../../components/BrandLogo';
 import toastManager from '../../utils/toastManager';
 import { NotificationToast } from '@/components/ui/notification-toast';
 import TermsGate from '../../components/TermsGate';
+import LanguageGate from '../../components/LanguageGate';
 
 const AdminLayout = () => {
   const { resolvedTheme } = useTheme();
@@ -423,6 +424,7 @@ const AdminLayout = () => {
           <Outlet />
         </main>
         <TermsGate />
+        <LanguageGate />
       </div>
       {/* Shortcut to the same conversations the Chat page lists. */}
       {location.pathname !== '/admin/chat' && <FloatingBubbleChat />}

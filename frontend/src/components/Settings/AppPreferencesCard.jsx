@@ -8,6 +8,7 @@ import { loadPreferences, savePreferences } from '../../utils/preferenceStore';
 import { playJobAssignmentChime } from '../../utils/jobAssignmentChime';
 import { SettingsSection, SettingRow, ToggleSwitch, SegmentedControl } from './SettingsPrimitives';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { LANGUAGES, useLanguage } from '../../context/LanguageContext';
 
 /**
  * APP PREFERENCES (Directive §2).
@@ -27,6 +28,7 @@ const AppPreferencesCard = ({ role = 'customer' }) => {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const { user, profile } = useAuth();
   const userId = user?.id || profile?.id;
+  const { language, setLanguage } = useLanguage();
 
   const [prefs, setPrefs] = useState(() =>
     COMMUNICATION_PREFERENCES.reduce((acc, p) => ({ ...acc, [p.key]: p.defaultValue }), {})
@@ -92,6 +94,15 @@ const AppPreferencesCard = ({ role = 'customer' }) => {
           value={selectedTheme}
           onChange={toggleTheme}
           ariaLabel="Interface theme"
+        />
+      </SettingRow>
+
+      <SettingRow title="Language" subtitle="Choose English or Filipino (Tagalog) for the whole app.">
+        <SegmentedControl
+          options={LANGUAGES}
+          value={language}
+          onChange={async (next) => { const result = await setLanguage(next); if (!result.success) toast.error('Could not save your language.'); }}
+          ariaLabel="Language"
         />
       </SettingRow>
 

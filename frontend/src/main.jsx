@@ -13,6 +13,7 @@ import IdleSessionGuard from './components/IdleSessionGuard';
 import { UnifiedProvider } from './context/UnifiedContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ConfigProvider } from './context/ConfigContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { ChatProvider } from './context/ChatContext';
 const AdminLayout = lazy(() => import('./pages/Admin/AdminLayout'));
 const AdminDashboard = lazy(() => import('./pages/Admin/AdminDashboard'));
@@ -114,6 +115,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <ConfigProvider>
       <ThemeProvider>
         <AuthProvider>
+          <LanguageProvider>
           <ChatProvider>
             <InputCapitalizationController />
             <UnifiedProvider>
@@ -222,6 +224,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               </BrowserRouter>
             </UnifiedProvider>
           </ChatProvider>
+          </LanguageProvider>
         </AuthProvider>
       </ThemeProvider>
     </ConfigProvider>
