@@ -16,6 +16,7 @@ import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
 import { validateQrRecipients } from '../../services/qrSecurityService';
 import { buildBusinessConfigUpdatePayload, stripUnsupportedBusinessConfigColumns } from '../../services/businessConfigPayload';
 import { sanitizeAlphaNum, sanitizeByFieldType, toTitleCase, VEHICLE_TYPE_OPTIONS, VEHICLE_TYPE_KEYS } from '../../config/constants';
+import { resolveVehicleTypeKeys } from '../../config/vehicleTypes';
 import { SERVICES_DATA, getServiceCatalog, setCatalogSource, setArchivedServiceIds as setArchivedServiceIdsCache, setDeletedServiceIds as setDeletedServiceIdsCache } from '../../data/servicesCatalog';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
@@ -102,7 +103,6 @@ const WEEKDAYS = [
 ];
 
 const DEFAULT_VEHICLE_TYPES = VEHICLE_TYPE_KEYS;
-const VEHICLE_TYPE_CHOICES = DEFAULT_VEHICLE_TYPES;
 
 // A "general service" is the catalog category a specific service belongs to
 // (e.g. "Premium Car Wash", "Interior & Cabin Care"). The booking wizard renders
@@ -1071,7 +1071,7 @@ export default function BusinessHub() {
             ? [service.vehicleType || service.vehicle_type]
             : ['Sedan'];
 
-    const available = new Set((businessForm.vehicle_types || [...DEFAULT_VEHICLE_TYPES]).concat(DEFAULT_VEHICLE_TYPES));
+    const available = new Set(resolveVehicleTypeKeys(businessForm.vehicle_types));
     const normalized = rawTypes
       .map((type) => normalizeVehicleCategoryKey(type))
       .filter(Boolean)
@@ -1080,13 +1080,13 @@ export default function BusinessHub() {
     return [...new Set(normalized.map((type) => normalizeVehicleCategoryKey(type)))];
   };
 
-  const getAvailableVehicleTypes = () => {
-    const values = [...new Set([...(businessForm.vehicle_types || [...DEFAULT_VEHICLE_TYPES]), ...DEFAULT_VEHICLE_TYPES])]
+  // The same list every other screen reads (config/vehicleTypes.js), computed
+  // from the form so a category added here but not yet saved is already offered.
+  const getAvailableVehicleTypes = () => [...new Set(
+    resolveVehicleTypeKeys(businessForm.vehicle_types)
       .map((type) => normalizeVehicleCategoryKey(type))
-      .filter(Boolean);
-
-    return values;
-  };
+      .filter(Boolean)
+  )];
 
   // General-service (catalog category) options = the built-in catalog categories
   // plus every category already assigned to an existing custom service, de-duped

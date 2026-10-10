@@ -10,6 +10,7 @@
 // Refuses to run against the production project.
 import fs from 'node:fs';
 import path from 'node:path';
+import { VEHICLE_TYPE_KEYS } from '../../frontend/src/config/constants.js';
 import crypto from 'node:crypto';
 
 const PRODUCTION_REF = 'nsmytxlaidmndtqxctrw';
@@ -62,7 +63,8 @@ if (!Array.isArray(config.json) || config.json.length === 0) {
     body: {
       business_name: 'COMAR GARAGE (STAGING)', opening_hour: '08:00 AM', closing_hour: '06:00 PM', is_24_7: false,
       slots_per_hour: 3, max_vehicles_per_staff: 4, booking_lead_time_minutes: 5, max_advance_days: 60, closed_weekdays: [],
-      enforce_capacity: true, vehicle_types: ['Sedan', 'SUV', 'Van/L300', 'Regular', 'Bigbike']
+      // The built-in categories, taken from the one shared list rather than retyped here.
+      enforce_capacity: true, vehicle_types: VEHICLE_TYPE_KEYS
     }
   });
   console.log(created.ok ? 'created the shop configuration row' : `could not create the shop configuration (${created.status}): ${created.text.slice(0, 200)}`);

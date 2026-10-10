@@ -204,6 +204,7 @@ Proposed logic, built on the same guided payment step as the walk-in wizard (1.1
 - **Service Catalog:** fix the mobile button layout, and re-lay-out the buttons shown after "Master edit" (desktop and mobile).
 - **Promo sub-page:** add **promo codes** (code, scope, dates, usage limit, optional). **Delete is a real delete**, after confirmation: row and join rows removed, not just labeled expired. Expired promos are only hidden by date, never by a delete substitute.
 - **Refund hub:** add an **Excess payment** option that hides the cancellation/deduction fee input.
+- **One vehicle list (done):** the shop's vehicle categories live only in `business_config.vehicle_types`, written by the Business Hub. `frontend/src/config/vehicleTypes.js` is the single rule (built-ins first, Hub-added categories after) and `useConfig().settings.VEHICLE_TYPES` / `VEHICLE_TYPE_KEYS` is how every screen reads it (booking wizard, customer garage, promos, promo codes, the Hub). `constants.js` only holds the built-in starting set, and `verify-single-source.mjs` fails if a component imports it. A category added in the Hub therefore reaches the promo editor with no code change.
 - **Full propagation audit:** for every Business Hub field (hours, bays, closures, catalog, vehicle types, promos, downpayment, terms) a test that changes, adds and deletes it and asserts the change in the customer wizard, admin walk-in, calendar and emails. This extends `verify-single-source.mjs` and the scratch DB suite.
 
 ### 4.6 Analytics and financial reports

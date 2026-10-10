@@ -8,6 +8,7 @@
  *   - hard-coded downpayment tiers (30% / 50% at ₱2,000)
  *   - the removed JS ledger helpers
  *   - reading business_config outside config/shopConfig.js (or caching it in localStorage)
+ *   - importing the static built-in vehicle list instead of the Business Hub's live one
  *
  * Run: node scripts/verify-single-source.mjs
  */
@@ -47,6 +48,14 @@ const RULES = [
     name: 'removed JS ledger helper',
     pattern: /\bcalculateNetPaid\b|\bcalculateVerifiedPaid\b|utils\/paymentAmounts/,
     hint: 'These were replaced by the database ledger.'
+  },
+  {
+    name: 'static vehicle-category list used instead of the Business Hub list',
+    pattern: /import\s*\{[^}]*\bVEHICLE_TYPE_(?:KEYS|OPTIONS)\b[^}]*\}\s*from\s*['"][^'"]*\/constants['"]/,
+    hint: 'Read the live list: useConfig().settings.VEHICLE_TYPES / VEHICLE_TYPE_KEYS (frontend/src/config/vehicleTypes.js). The constants are only the built-in starting set.',
+    onlyIn: 'frontend/src/',
+    // The Hub needs the built-ins to know which categories cannot be removed.
+    except: ['frontend/src/config/vehicleTypes.js', 'frontend/src/pages/Admin/BusinessHub.jsx']
   },
   {
     name: 'hard-coded bay capacity',
