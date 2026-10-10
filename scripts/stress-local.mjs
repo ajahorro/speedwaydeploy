@@ -87,7 +87,8 @@ console.log('signed in; cleaning leftovers:', await cleanup());
   const ok = out.filter((r) => r.ok).length;
   const row = (await (await rest('promo_codes?code=eq.STRESSLIMIT&select=uses_count')).json())[0];
   console.log(`  promo limit: ${N} parallel bookings, ${ok} accepted, uses_count ${row?.uses_count}`);
-  check('promo limit: exactly the allowed number of uses succeed', ok === 3, `${ok} accepted`);
+  // one account can use a code once, so 20 parallel tries from one account must give exactly one use (the limit of 3 counts customers)
+  check('promo limit: one account gets exactly one use out of 20 parallel tries', ok === 1, `${ok} accepted`);
   check('promo limit: the counter matches', Number(row?.uses_count) === ok, `uses_count ${row?.uses_count}`);
 }
 

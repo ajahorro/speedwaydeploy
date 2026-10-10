@@ -109,7 +109,7 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
             )}
             <span style={{ display: 'block', marginTop: '0.2rem', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase' }}>
               <span style={{ color: booking?.customer_id ? 'var(--admin-brand)' : 'rgba(230, 30, 42, 0.62)' }}>
-                {booking?.customer_id ? 'Customer Account' : 'Walk-in Guest'}
+                {booking?.customer_id ? 'Customer Account' : (booking?.is_walk_in === false ? 'Account Deleted' : 'Walk-in Guest')}
               </span>
             </span>
           </SummaryItem>
