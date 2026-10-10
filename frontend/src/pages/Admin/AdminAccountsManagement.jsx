@@ -57,7 +57,8 @@ const AdminAccountsManagement = () => {
       // Store the default admin ID from the backend (single source of truth)
       setDefaultAdminId(result.defaultAdminId || null);
       // Filter to only STAFF and ADMIN roles
-      const staffAndAdmins = (result.data || []).filter(p => p.role === 'STAFF' || p.role === 'ADMIN');
+      // (a deactivated account is listed in the "Deactivated" panel until it is reactivated or deleted)
+      const staffAndAdmins = (result.data || []).filter(p => (p.role === 'STAFF' || p.role === 'ADMIN') && p.is_active !== false);
       setAccounts(staffAndAdmins);
       logger.admin('Account directory synchronized.');
     } catch (err) {
@@ -141,9 +142,6 @@ const AdminAccountsManagement = () => {
         // The address already held this exact role — nothing changed. Say so
         // instead of claiming a fresh invitation was sent.
         toast.success(`${inviteForm.email.trim().toLowerCase()} already has ${activeTab} access. No changes were made.`, { id: toastId });
-      } else if (result.elevated) {
-        // An existing CUSTOMER account was promoted in place; no temp password.
-        toast.success(`Existing account promoted to ${activeTab}. Their history and bookings were preserved.`, { id: toastId });
       } else {
         toast.success('Invitation sent! The user will set their own password on first login.', { id: toastId });
       }
@@ -195,7 +193,7 @@ const AdminAccountsManagement = () => {
 
     showConfirmation({
       title: 'Revoke Access?',
-      message: `Are you sure you want to deactivate ${member.full_name?.toUpperCase()}? They will be reverted to a CUSTOMER account.`,
+      message: `Are you sure you want to deactivate ${member.full_name?.toUpperCase()}? They will no longer be able to sign in. An administrator can reactivate the account within 15 days, after that it is deleted permanently.`,
       confirmLabel: 'Deactivate',
       cancelLabel: 'Cancel',
       onConfirm: async () => {
@@ -241,15 +239,6 @@ const AdminAccountsManagement = () => {
   };
 
   const isAdmin = currentUserProfile?.role === 'ADMIN';
-
-  const roleLockReason = (member) => {
-    if (!member) return '';
-    if (isSelf(member)) return 'You cannot change your own role. Ask another administrator.';
-    if (isDefaultAdmin(member)) return 'The Default Admin account always stays an administrator.';
-    if (isLastAdmin(member)) return 'This is the last administrator, so the role cannot be changed.';
-    if (member.role === 'STAFF' && member.hasActiveServices) return 'Reassign or complete this technician\'s active services before changing their role.';
-    return '';
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -531,8 +520,6 @@ const AdminAccountsManagement = () => {
         open={Boolean(editingMember)}
         onOpenChange={(open) => { if (!open) setEditingMember(null); }}
         onSaved={() => fetchAccounts()}
-        roleLocked={Boolean(roleLockReason(editingMember))}
-        roleLockedReason={roleLockReason(editingMember)}
       />
 
       <style>{`

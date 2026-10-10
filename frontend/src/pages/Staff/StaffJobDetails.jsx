@@ -13,6 +13,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useUI } from '../../context/UIContext';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import PhotoProofUploader from '../../components/Photos/PhotoProofUploader';
+import EarlyStartButton from '../../features/early-start/EarlyStartButton';
 import StartChecklist from '../../components/Photos/StartChecklist';
 import IntakeWarningBadge from '../../components/Photos/IntakeWarningBadge';
 import { startReadiness } from '../../utils/staffStart';
@@ -36,6 +37,9 @@ const StaffJobDetails = () => {
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [photoCounts, setPhotoCounts] = useState({ before: 0, after: 0 });
+  // re-check the scheduled time every 20 seconds so the before photo opens by itself when the time arrives
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => { const timer = setInterval(() => setNowTick(Date.now()), 20000); return () => clearInterval(timer); }, []);
 
   const fetchJobDetails = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -48,9 +52,11 @@ const StaffJobDetails = () => {
         navigate('/staff', { replace: true });
         return;
       }
+      const { data: startRow } = await supabase.from('bookings').select('early_start_allowed_at').eq('id', booking.id).maybeSingle();
       setUnit({
         ...vehicle,
         booking: {
+          early_start_allowed_at: startRow?.early_start_allowed_at || null,
           id: booking.id,
           status: booking.status,
           start_datetime: booking.start_datetime,
@@ -87,7 +93,14 @@ const StaffJobDetails = () => {
   const isDone = status === 'COMPLETED';
   const bookingClosed = ['completed', 'cancelled'].includes(String(unit.booking?.status || '').toLowerCase());
   const clockedIn = Boolean(profile?.is_clocked_in);
-  const canStart = startReadiness({ clockedIn, beforePhotos: photoCounts.before, startDatetime: unit.booking?.start_datetime }).ok;
+  const earlyStart = Boolean(unit.booking?.early_start_allowed_at);
+  const scheduledAt = unit.booking?.start_datetime ? new Date(unit.booking.start_datetime) : null;
+  const timeReached = Boolean(scheduledAt) && scheduledAt.getTime() <= nowTick;
+  const sameDayToday = Boolean(scheduledAt) && scheduledAt.toDateString() === new Date(nowTick).toDateString();
+  // before photos (and starting) open at the scheduled time, or earlier once an early start is allowed
+  const startOpen = timeReached || earlyStart;
+  const canAllowEarly = !startOpen && sameDayToday && isStartable && !bookingClosed;
+  const canStart = startReadiness({ clockedIn, beforePhotos: photoCounts.before, startDatetime: unit.booking?.start_datetime, earlyStart, now: new Date(nowTick) }).ok;
   const missingAfter = photoCounts.after < 1;
   const canFinish = clockedIn && !missingAfter;
 
@@ -198,16 +211,20 @@ const StaffJobDetails = () => {
             <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 700, lineHeight: 1.5, color: 'var(--admin-text-secondary)' }}>
               {isDone ? 'This job is finished. The photos below are the saved evidence.'
                 : isRunning ? 'Service started. Add at least one completion photo to finish the job.'
-                  : 'Add at least one before photo, then start the service.'}
+                  : startOpen ? 'Add at least one before photo, then start the service.'
+                    : `Before photos open at ${time(unit.booking?.start_datetime)}.`}
             </p>
+            {canAllowEarly && (
+              <EarlyStartButton bookingId={unit.booking.id} onAllowed={() => fetchJobDetails({ silent: true })} className="w-full" />
+            )}
 
             <PhotoProofUploader
               bookingId={unit.booking.id}
               bookingVehicleId={unit.id}
               phase="before"
-              disabled={isRunning || isDone}
+              disabled={isRunning || isDone || !startOpen}
               compact
-              helperText="Capture the vehicle condition before work begins."
+              helperText={startOpen ? 'Capture the vehicle condition before work begins.' : 'Opens at the scheduled time, or when an early start is allowed.'}
               onCountChange={setCount('before')}
             />
             {(isRunning || isDone) && (
@@ -259,7 +276,7 @@ const StaffJobDetails = () => {
               <h3 style={heading}>{isStartable ? 'Start this job' : 'Finish this job'}</h3>
               {isStartable && (
                 <>
-                  <StartChecklist taskId={unit.id} clockedIn={clockedIn} beforePhotos={photoCounts.before} startDatetime={unit.booking?.start_datetime} />
+                  <StartChecklist taskId={unit.id} clockedIn={clockedIn} beforePhotos={photoCounts.before} startDatetime={unit.booking?.start_datetime} earlyStart={earlyStart} photoUploadEnabled={startOpen} />
                   <button
                     type="button"
                     onClick={() => requestStatus('IN_PROGRESS')}

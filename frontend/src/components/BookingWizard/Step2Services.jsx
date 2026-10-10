@@ -793,6 +793,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
       <PromoCodeBox
         promoCode={bookingData.promoCode}
         promoRule={bookingData.promoRule}
+        customerId={adminMode ? bookingData.customerId : null}
         onApplied={(rule) => setBookingData((prev) => ({ ...prev, promoCode: rule.code, promoRule: rule }))}
         onRemoved={() => setBookingData((prev) => ({ ...prev, promoCode: null, promoRule: null }))}
       />

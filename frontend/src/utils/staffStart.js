@@ -3,10 +3,11 @@
  *
  * Starting needs three things: the technician is on shift, at least one BEFORE
  * photo exists, and the scheduled time has arrived (on the day of the booking).
- * There is no upper limit here: once the time has arrived the job can be started
+ * An admin or the assigned technician can allow an early start (customer arrived early); that opens the time step
+ * for the booking's day. There is no upper limit here: once the time has arrived the job can be started
  * until the booking is flagged as a no-show (that rule lives in the database).
  */
-export const startReadiness = ({ clockedIn, beforePhotos = 0, startDatetime, now = new Date() }) => {
+export const startReadiness = ({ clockedIn, beforePhotos = 0, startDatetime, earlyStart = false, now = new Date() }) => {
   const scheduled = startDatetime ? new Date(startDatetime) : null;
   const hasTime = Boolean(scheduled) && Number.isFinite(scheduled.getTime());
   const timeReached = hasTime && scheduled.getTime() <= now.getTime();
@@ -20,10 +21,10 @@ export const startReadiness = ({ clockedIn, beforePhotos = 0, startDatetime, now
     { key: 'photo', ok: beforePhotos >= 1, label: beforePhotos >= 1 ? 'Before photo added' : 'Add a before photo' },
     {
       key: 'time',
-      ok: timeReached && sameDay,
+      ok: sameDay && (timeReached || earlyStart),
       label: !hasTime
         ? 'No scheduled time'
-        : (!timeReached ? `Opens at ${timeLabel}` : (sameDay ? 'Scheduled time reached' : 'Booked for another day'))
+        : (!timeReached && earlyStart && sameDay ? 'Early start allowed' : (!timeReached ? `Opens at ${timeLabel}` : (sameDay ? 'Scheduled time reached' : 'Booked for another day')))
     }
   ];
 

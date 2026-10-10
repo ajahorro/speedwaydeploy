@@ -7,8 +7,8 @@ import { startReadiness } from '../../utils/staffStart';
  * missing, and add the before photo from the same spot (the button opens the same
  * file picker as the "Intake photos (before)" box further down the card).
  */
-const StartChecklist = ({ taskId, clockedIn, beforePhotos, startDatetime, photoUploadEnabled = true }) => {
-  const { steps } = startReadiness({ clockedIn, beforePhotos, startDatetime });
+const StartChecklist = ({ taskId, clockedIn, beforePhotos, startDatetime, earlyStart = false, photoUploadEnabled = true }) => {
+  const { steps } = startReadiness({ clockedIn, beforePhotos, startDatetime, earlyStart });
   const needsPhoto = beforePhotos < 1;
 
   return (

@@ -34,7 +34,8 @@ const AdminSchedulingGrid = ({ onBack }) => {
       const { data: staffData } = await supabase
         .from('profiles')
         .select('*')
-        .eq('role', 'STAFF');
+        .eq('role', 'STAFF')
+        .eq('is_active', true);
       setStaff(staffData || []);
 
       // Fetch Bookings for the day

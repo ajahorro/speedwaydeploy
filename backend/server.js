@@ -832,15 +832,8 @@ app.post('/invite/accept', async (req, res) => {
 
     if (authError) {
       if (authError.message.includes('already been registered')) {
-        console.log(`ℹ️ User already exists in Auth, searching for existing ID...`);
-        const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-        const existingUser = listData.users.find(u => u.email === invite.email);
-        if (existingUser) {
-          userId = existingUser.id;
-          console.log(`✅ Found existing user ID: ${userId}`);
-        } else {
-          throw new Error('User reported as registered but not found in directory');
-        }
+        // An existing account (of any role) is never taken over by an invitation.
+        throw new Error('An account with this email address already exists, so this invitation cannot be used.');
       } else {
         console.error('❌ Supabase Auth Creation Failed:', authError.message);
         throw authError;
@@ -2229,74 +2222,6 @@ const generateTemporaryPassword = () => {
   return `${out}#7`;
 };
 
-/**
- * 🛡️ SCENARIO 12 — promote an EXISTING account instead of dead-ending on 409.
- *
- * The atomic claim raises EMAIL_ALREADY_EXISTS for any existing row, so by the
- * time we are here we already know the address is taken. We attempt
- * elevate_profile_role(), which updates the profile IN PLACE (all FKs —
- * bookings.customer_id, audit_logs.actor_id, messages — stay intact) and writes
- * an audit entry. Returns the response body on success, or null when there is
- * nothing to elevate (the caller then falls back to the plain 409).
- *
- * @returns {Promise<object|null>}
- */
-const attemptRoleElevation = async ({ email, role, firstName, lastName, actor }) => {
-  try {
-    const { data: elevation, error } = await supabaseAdmin.rpc('elevate_profile_role', {
-      p_email: email,
-      p_role: role,
-      p_first_name: firstName,
-      p_last_name: lastName,
-      p_actor_id: actor?.profile?.id || null,
-    });
-
-    if (error) {
-      console.warn('🎟️ [INVITE] Role elevation RPC unavailable/failed:', error.message);
-      return null; // Fall back to the 409 response.
-    }
-
-    // NO_PROFILE — the address exists in auth.users but has no profile row, so
-    // there is nothing to elevate; a plain 409 is the honest answer.
-    if (!elevation || elevation.reason === 'NO_PROFILE') return null;
-
-    const elevated = elevation.elevated === true;
-    console.log(`🎟️ [INVITE] ${elevated
-      ? `Elevated ${email} from ${elevation.old_role} to ${role}`
-      : `No elevation needed for ${email} (${elevation.reason})`}.`);
-
-    // Let the person know their access level changed (best-effort).
-    try {
-      if (elevated && resendClient) {
-        const roleLabel = role === 'ADMIN' ? 'administrator' : 'staff';
-        await resendClient.emails.send({
-          from: RESEND_FROM,
-          to: email,
-          subject: 'Comar Garage: your account access was updated',
-          html: `<div style="font-family:sans-serif;padding:20px;color:#111827;"><h2 style="color:#a91b18;">COMAR GARAGE</h2><p>Your existing Comar Garage account now has <strong>${roleLabel}</strong> access. Your history and bookings were preserved.</p><p>Sign in as usual to use your new workspace.</p></div>`
-        });
-      }
-    } catch (mailErr) {
-      console.warn('🎟️ [INVITE] Elevation notice email failed (non-fatal):', mailErr.message);
-    }
-
-    return {
-      success: true,
-      elevated,
-      alreadyAtRole: elevated === false && elevation.reason === 'ALREADY_AT_ROLE',
-      role: elevation.role || role,
-      previousRole: elevation.old_role || null,
-      email,
-      message: elevated
-        ? `Existing account promoted to ${role}. Their history and bookings were preserved.`
-        : `This account already has ${role} access.`
-    };
-  } catch (err) {
-    console.warn('🎟️ [INVITE] Elevation attempt failed:', err.message);
-    return null;
-  }
-};
-
 app.post('/api/admin/invite-account', async (req, res) => {
   const { email, firstName, lastName, role } = req.body || {};
   // An invited account must always set its own password on first sign-in (not optional).
@@ -2355,24 +2280,12 @@ app.post('/api/admin/invite-account', async (req, res) => {
       const rpcMissing = code === 'PGRST202' || code === '42883' || /could not find the function/i.test(msg);
 
       if (code === '23505' || msg.includes('EMAIL_ALREADY_EXISTS') || msg.includes('duplicate key')) {
-        // 🛡️ SCENARIO 12 — IDENTITY CLASH: an existing CUSTOMER may be elevated
-        // to STAFF/ADMIN instead of dead-ending in a 409. The atomic claim raises
-        // EMAIL_ALREADY_EXISTS for ANY existing row, so this is where elevation
-        // must be attempted (the old code only checked a `claim.can_elevate` the
-        // RPC never returned on this path).
-        const elevated = await attemptRoleElevation({
-          email: normalizedEmail,
-          role: normalizedRole,
-          firstName: safeFirst,
-          lastName: safeLast,
-          actor,
-        });
-        if (elevated) return res.json(elevated);
-
+        // An account keeps the role it was created with: an address that already has an account (customer,
+        // staff or administrator) can never be invited to another role.
         return res.status(409).json({
           success: false,
           code: 'EMAIL_ALREADY_EXISTS',
-          error: 'An account with this email address already exists in the system.'
+          error: 'An account with this email address already exists. A customer, staff or administrator account cannot be turned into another kind; use a different email address.'
         });
       }
       if (msg.includes('Only administrators')) {
@@ -2724,14 +2637,8 @@ app.patch('/api/admin/staff/:id', async (req, res) => {
       if (typeof body.can_view_reports !== 'boolean') return fail('can_view_reports must be true or false.');
       if (body.can_view_reports !== Boolean(before.can_view_reports)) updates.can_view_reports = body.can_view_reports;
     }
-    if (body.role !== undefined) {
-      const nextRole = String(body.role).toUpperCase();
-      if (!['STAFF', 'ADMIN'].includes(nextRole)) return fail('The role must be STAFF or ADMIN.');
-      if (nextRole !== currentRole) {
-        if (targetId === actor.profile.id) return res.status(403).json({ success: false, error: 'You cannot change your own role. Ask another administrator.' });
-        if (targetId === DEFAULT_ADMIN_ID) return res.status(403).json({ success: false, error: 'The Default Admin account cannot be demoted.' });
-        updates.role = nextRole;
-      }
+    if (body.role !== undefined && String(body.role).toUpperCase() !== currentRole) {
+      return fail('An account keeps the role it was created with; it cannot be changed.');
     }
 
     if (updates.first_name !== undefined || updates.last_name !== undefined) {
@@ -2776,20 +2683,20 @@ app.post('/api/admin/reactivate-staff', async (req, res) => {
 
     const { data: profile, error: readError } = await supabaseAdmin
       .from('profiles')
-      .select('id, role, email, full_name, staff_deactivated_at')
+      .select('id, role, email, full_name, is_active, staff_deactivated_at')
       .eq('id', memberId)
       .maybeSingle();
     if (readError) throw readError;
-    if (!profile || !profile.staff_deactivated_at || String(profile.role || '').toUpperCase() !== 'CUSTOMER') {
-      return res.status(409).json({ success: false, error: 'This account was not deactivated for inactivity.' });
+    if (!profile || profile.is_active !== false || !profile.staff_deactivated_at) {
+      return res.status(409).json({ success: false, error: 'This account is not deactivated.' });
     }
 
-    // Back to staff: the database stamps a new joined date, so the inactivity period starts again.
-    const { error } = await supabaseAdmin
-      .from('profiles')
-      .update({ role: 'STAFF', staff_deactivated_at: null, staff_deactivation_reason: null })
-      .eq('id', memberId);
-    if (error) throw error;
+    // Back to work with the same role; the database gives a fresh joined date and lifts the sign-in block.
+    const { error } = await supabaseAdmin.rpc('reactivate_staff_account', { p_account_id: memberId });
+    if (error) {
+      if (error.code === 'check_violation') return res.status(409).json({ success: false, error: 'The recovery period for this account has ended.' });
+      throw error;
+    }
 
     await writeAuditLog({
       actionType: 'REACTIVATE_STAFF',
@@ -2830,7 +2737,7 @@ app.post('/api/admin/revoke-access', async (req, res) => {
     // Check role first — cannot revoke an ADMIN account
     const { data: profile, error: checkErr } = await supabaseAdmin
       .from('profiles')
-      .select('role, email, full_name')
+      .select('role, email, full_name, is_active')
       .eq('id', memberId)
       .single();
 
@@ -2865,7 +2772,8 @@ app.post('/api/admin/revoke-access', async (req, res) => {
       const { count, error: countErr } = await supabaseAdmin
         .from('profiles')
         .select('id', { count: 'exact', head: true })
-        .eq('role', 'ADMIN');
+        .eq('role', 'ADMIN')
+        .eq('is_active', true);
       if (countErr) throw countErr;
       if ((count || 0) <= 1) {
         console.warn(`🚫 [ADMIN] BLOCKED: Cannot revoke the last remaining admin (${profile.email}).`);
@@ -2876,10 +2784,10 @@ app.post('/api/admin/revoke-access', async (req, res) => {
       }
     }
 
-    const { error } = await supabaseAdmin
-      .from('profiles')
-      .update({ role: 'CUSTOMER' })
-      .eq('id', memberId);
+    const { error } = await supabaseAdmin.rpc('deactivate_staff_account', {
+      p_account_id: memberId,
+      p_reason: `Deactivated by ${actor.profile.full_name || actor.profile.email || 'an administrator'}.`
+    });
 
     if (error) {
       if (error.code === '23514' || /assigned to an active service/i.test(error.message || '')) {
@@ -2897,7 +2805,7 @@ app.post('/api/admin/revoke-access', async (req, res) => {
       actorId: actor.profile.id,
       actorName: actor.profile.full_name || actor.profile.email || 'ADMIN',
       actorRole: 'ADMIN',
-      details: `Account access revoked for ${profile.full_name} (${profile.email}). Role downgraded from ${profile.role} to CUSTOMER.`,
+      details: `Account of ${profile.full_name} (${profile.email}) deactivated. It stays a ${String(profile.role || '').toLowerCase()} account, cannot sign in, and is deleted permanently if not reactivated within the recovery period.`,
     });
 
     return res.json({ success: true });
@@ -3106,28 +3014,18 @@ app.post('/api/admin/promos', async (req, res) => {
       updated_at: new Date().toISOString()
     };
 
-    const nextRules = promo.id && existingRules.some(r => r.id === promo.id)
-      ? existingRules.map(r => r.id === promo.id ? nextRule : r)
-      : [nextRule, ...existingRules.filter(r => r.id !== nextRule.id)];
-
-    inMemoryPromoCache = nextRules;
-
-    // Persist to Supabase business_config
+    // The change is made inside the database under a row lock, so parallel saves never overwrite each other.
+    let nextRules;
     if (supabaseAdmin) {
-      try {
-        const { error: upsertError } = await supabaseAdmin
-          .from('business_config')
-          .upsert({
-            id: configRowId,
-            promo_rules: nextRules,
-            updated_at: new Date().toISOString()
-          });
-        if (upsertError) throw upsertError;
-      } catch (upsertErr) {
-        inMemoryPromoCache = null;
-        throw upsertErr;
-      }
+      const { data: saved, error: saveError } = await supabaseAdmin.rpc('save_promo_rule', { p_rule: nextRule, p_must_exist: false });
+      if (saveError) throw saveError;
+      nextRules = Array.isArray(saved) ? saved : [nextRule];
+    } else {
+      nextRules = promo.id && existingRules.some(r => r.id === promo.id)
+        ? existingRules.map(r => r.id === promo.id ? nextRule : r)
+        : [nextRule, ...existingRules.filter(r => r.id !== nextRule.id)];
     }
+    inMemoryPromoCache = nextRules;
 
     // A new standard promo is announced to opted-in customers whose saved vehicle it applies to (never a package).
     if (!promo.id && !nextRule.isBundle && nextRule.mode !== 'package') sendNewPromoEmails(nextRule);
@@ -3229,9 +3127,12 @@ app.post('/api/admin/promos/:promoId/archive', async (req, res) => {
       // an upcoming promotion that is archived must not start later
       validFrom: target.validFrom && new Date(target.validFrom).getTime() > now.getTime() ? now.toISOString() : target.validFrom
     };
-    const nextRules = existingRules.map((rule) => (rule?.id === promoId ? archived : rule));
-    const { error: updateError } = await supabaseAdmin.from('business_config').upsert({ id: config?.id || 1, promo_rules: nextRules, updated_at: now.toISOString() });
-    if (updateError) throw updateError;
+    const { data: saved, error: updateError } = await supabaseAdmin.rpc('save_promo_rule', { p_rule: archived, p_must_exist: true });
+    if (updateError) {
+      if (updateError.code === 'P0002') return res.status(404).json({ success: false, error: 'Promo code not found.' });
+      throw updateError;
+    }
+    const nextRules = Array.isArray(saved) ? saved : existingRules.map((rule) => (rule?.id === promoId ? archived : rule));
     inMemoryPromoCache = nextRules;
 
     try {
@@ -3582,6 +3483,11 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
       if (error) throw error;
     }
 
+    if (['STAFF', 'ADMIN'].includes(String(profile.role || '').toUpperCase())) {
+      const { error: staffOffError } = await supabaseAdmin.rpc('deactivate_staff_account', { p_account_id: userId, p_reason: 'Deactivated from the account page.' });
+      if (staffOffError) throw staffOffError;
+    }
+
     const cancelledCount = deactivation?.cancelled_bookings?.length || 0;
 
     // Record in Audit Log
@@ -3928,6 +3834,21 @@ const deactivateInactiveStaff = async () => {
 };
 setInterval(deactivateInactiveStaff, 24 * 60 * 60000);
 setTimeout(deactivateInactiveStaff, 2 * 60000);
+
+// A deactivated account (customer, staff or admin) is deleted from the database for good once its recovery period
+// (15 days) has passed. The database function does the deletion and writes the audit entry.
+const purgeDeactivatedAccounts = async () => {
+  if (!supabaseAdmin) return;
+  try {
+    const { data, error } = await supabaseAdmin.rpc('purge_deactivated_accounts');
+    if (error) throw error;
+    if (Number(data) > 0) console.log(`🧹 [ACCOUNT PURGE] Permanently deleted ${data} deactivated account(s).`);
+  } catch (err) {
+    console.warn('🧹 [ACCOUNT PURGE] Sweep failed:', err.message);
+  }
+};
+setInterval(purgeDeactivatedAccounts, 6 * 60 * 60000);
+setTimeout(purgeDeactivatedAccounts, 3 * 60000);
 releaseExpiredUnpaidHolds();
 
 /**
@@ -4946,7 +4867,7 @@ app.post('/api/bookings/update-status', async (req, res) => {
     // 0. Fetch Master Booking first for context
     const { data: masterBooking, error: masterFetchError } = await supabaseAdmin
       .from('bookings')
-      .select('status, customer_id, total_amount, staff_id, start_datetime')
+      .select('status, customer_id, total_amount, staff_id, start_datetime, early_start_allowed_at')
       .eq('id', bookingId)
       .single();
 
@@ -4979,8 +4900,8 @@ app.post('/api/bookings/update-status', async (req, res) => {
       if (!['scheduled', 'confirmed', 'in_progress'].includes(currentMaster)
         || !vehicleTechnicianId
         || !isScheduledDate
-        || scheduledDate.getTime() > nowDate.getTime()) {
-        return res.status(409).json({ success: false, error: 'Service can only start after the scheduled time, on the scheduled date, with an assigned technician.' });
+        || (scheduledDate.getTime() > nowDate.getTime() && !masterBooking.early_start_allowed_at)) {
+        return res.status(409).json({ success: false, error: 'Service can only start after the scheduled time (or once an early start is allowed), on the scheduled date, with an assigned technician.' });
       }
 
       if (!(await getBookingLedger(bookingId)).downpayment_met) {

@@ -122,14 +122,17 @@ export const AuthProvider = ({ children }) => {
           const now = new Date();
           const diffDays = Math.ceil((now - deactDate) / (1000 * 60 * 60 * 24));
 
-          if (diffDays <= 15) {
+          if (String(data.role || '').toUpperCase() !== 'CUSTOMER') {
+            // a staff or administrator account can only be brought back by an administrator
+            toast.error('This account is deactivated. Ask an administrator to reactivate it.');
+          } else if (diffDays <= 15) {
             const shouldRecover = window.confirm(`This account is DEACTIVATED (Day ${diffDays}/15). Would you like to RECOVER and reactivate it?`);
             if (shouldRecover) {
               const res = await recoverAccount(userId);
               if (res.success) return; // fetchProfile will be called again inside recoverAccount
             }
           } else {
-            toast.error('Account has been permanently purged after grace period.');
+            toast.error('This account is no longer available.');
           }
           await signOut();
           return;

@@ -12,15 +12,16 @@ const MESSAGES = {
   not_started: 'That promo code is not active yet.',
   expired: 'That promo code has expired.',
   used_up: 'That promo code has reached its limit.',
+  already_used: 'This account has already used that promo code.',
   sign_in: 'Sign in to use a promo code.'
 };
 
 /** @returns {Promise<{ valid: true, rule: object } | { valid: false, reason: string, message: string }>} */
-export const redeemPromoCode = async (code) => {
+export const redeemPromoCode = async (code, customerId = null) => {
   const trimmed = String(code || '').trim();
   if (!trimmed) return { valid: false, reason: 'empty', message: MESSAGES.empty };
 
-  const { data, error } = await supabase.rpc('redeem_promo_code', { p_code: trimmed });
+  const { data, error } = await supabase.rpc('redeem_promo_code', { p_code: trimmed, p_customer_id: customerId || null });
   if (error) {
     return { valid: false, reason: 'error', message: 'We could not check that code right now. Please try again.' };
   }

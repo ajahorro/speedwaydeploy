@@ -10,7 +10,7 @@ import { redeemPromoCode } from '../../services/promoCodeService';
  * is saved with the draft. A restored draft re-checks the code once, because it
  * may have expired in the meantime.
  */
-const PromoCodeBox = ({ promoCode, promoRule, onApplied, onRemoved, disabled = false }) => {
+const PromoCodeBox = ({ promoCode, promoRule, onApplied, onRemoved, customerId = null, disabled = false }) => {
   const [input, setInput] = useState('');
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState('');
@@ -19,7 +19,7 @@ const PromoCodeBox = ({ promoCode, promoRule, onApplied, onRemoved, disabled = f
   useEffect(() => {
     if (revalidated.current || !promoCode) return;
     revalidated.current = true;
-    redeemPromoCode(promoCode).then((result) => {
+    redeemPromoCode(promoCode, customerId).then((result) => {
       if (result.valid) {
         onApplied(result.rule);
       } else {
@@ -33,7 +33,7 @@ const PromoCodeBox = ({ promoCode, promoRule, onApplied, onRemoved, disabled = f
     if (checking || disabled) return;
     setChecking(true);
     setMessage('');
-    const result = await redeemPromoCode(input);
+    const result = await redeemPromoCode(input, customerId);
     setChecking(false);
     if (result.valid) {
       onApplied(result.rule);

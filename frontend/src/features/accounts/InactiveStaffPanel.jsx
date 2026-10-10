@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 /**
  * Staff accounts that have not signed in for a period chosen here are deactivated automatically
- * (back to a customer account, history kept). Off by default. Only an administrator can reactivate.
+ * (the account is switched off and deleted for good after 15 days unless an administrator reactivates it). Off by default.
  * The list below shows the accounts that were deactivated for inactivity, each with a Reactivate button.
  */
 export default function InactiveStaffPanel({ onChanged, confirmThen }) {
@@ -84,7 +84,7 @@ export default function InactiveStaffPanel({ onChanged, confirmThen }) {
       <CardHeader>
         <CardTitle className="text-base">Inactive staff accounts</CardTitle>
         <CardDescription>
-          Deactivate staff who have not signed in for a set time. A deactivated account becomes a customer account (history is kept) and only an administrator can reactivate it. Staff with active work are skipped.
+          Deactivate staff who have not signed in for a set time. A deactivated account cannot sign in. Only an administrator can reactivate it, and after 15 days it is deleted permanently. Staff with active work are skipped.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">

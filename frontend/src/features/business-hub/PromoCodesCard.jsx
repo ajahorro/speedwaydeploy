@@ -143,8 +143,9 @@ export function PromoCodesCard() {
             {draft.discount_value && errors.discount_value && <p className="text-xs text-destructive">{errors.discount_value}</p>}
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="pc-max">Usage limit (optional)</Label>
-            <Input id="pc-max" inputMode="numeric" value={draft.max_uses} onChange={(e) => set('max_uses')(e.target.value.replace(/\D/g, ''))} placeholder="Unlimited" />
+            <Label htmlFor="pc-max">Usage limit: number of customers (optional)</Label>
+            <Input id="pc-max" inputMode="numeric" value={draft.max_uses} onChange={(e) => set('max_uses')(e.target.value.replace(/\D/g, ''))} placeholder="Unlimited" aria-describedby="pc-max-hint" />
+            <p id="pc-max-hint" className="text-xs text-muted-foreground">How many customers can use this code. Each account can use it once.</p>
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="pc-from">Starts (optional)</Label>

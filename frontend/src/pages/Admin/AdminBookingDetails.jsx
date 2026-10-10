@@ -35,6 +35,7 @@ import { sendStatusEmail } from '../../services/notificationService';
 import { getAvailableSlots } from '../../services/scheduleService';
 import { rescheduleBooking } from '../../services/bookingService';
 import ValidationModal from '../../components/ValidationModal';
+import EarlyStartButton from '../../features/early-start/EarlyStartButton';
 import DigitalReceiptField from '../../components/payments/DigitalReceiptField';
 import { classifyScheduleError, toCleanMessage } from '../../utils/errorRouting';
 import { BACKEND_URL } from '../../config/api';
@@ -308,7 +309,8 @@ const AdminBookingDetails = () => {
       const { data: allStaff } = await supabase
         .from('profiles')
         .select('*')
-        .eq('role', 'STAFF');
+        .eq('role', 'STAFF')
+        .eq('is_active', true);
 
       if (!allStaff) return;
 
@@ -1400,6 +1402,11 @@ const AdminBookingDetails = () => {
             excluded. Only TERMINAL states hide it: a completed, released or
             cancelled booking has nothing left to reschedule. */}
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        {['scheduled', 'confirmed'].includes(derivedStatus) && !anyUnitStarted && !booking.early_start_allowed_at
+          && new Date(booking.start_datetime) > new Date()
+          && new Date(booking.start_datetime).toDateString() === new Date().toDateString() && (
+          <EarlyStartButton bookingId={booking.id} onAllowed={() => { fetchBookingDetails(); fetchAuditLogs(); }} />
+        )}
         {!['completed', 'released', 'cancelled', 'in_progress', 'ongoing'].includes(derivedStatus) && !anyUnitStarted && (
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <button
