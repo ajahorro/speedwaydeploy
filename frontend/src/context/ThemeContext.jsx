@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useRef } from 'react';
 
 const ThemeContext = createContext();
 
@@ -28,9 +28,20 @@ export const ThemeProvider = ({ children }) => {
   // UIProvider renders global overlays outside each account layout. Apply the
   // resolved preference at the document level so those overlays (including
   // logout confirmation) follow light, dark, and system themes too.
-  useEffect(() => {
-    document.documentElement.dataset.theme = resolvedTheme;
-    document.documentElement.style.colorScheme = resolvedTheme;
+  //
+  // Every element has its own colour transition (index.css and many inline styles, each with its own timing), so
+  // changing the theme used to fade the page piece by piece. For the moment of the change all transitions are
+  // switched off (class theme-switching), so the whole page changes in one go, and they come back two frames later.
+  const firstApply = useRef(true);
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    if (!firstApply.current) root.classList.add('theme-switching');
+    firstApply.current = false;
+    root.dataset.theme = resolvedTheme;
+    root.style.colorScheme = resolvedTheme;
+    let second = 0;
+    const first = requestAnimationFrame(() => { second = requestAnimationFrame(() => root.classList.remove('theme-switching')); });
+    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
   }, [resolvedTheme]);
 
   return (

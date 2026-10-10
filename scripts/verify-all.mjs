@@ -67,7 +67,8 @@ if (container) {
     ['sql: booking draft invites', 'scripts/sql/verify-booking-draft-invites.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: early start', 'scripts/sql/verify-early-start.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: account purge', 'scripts/sql/verify-account-purge.sql', /\|\s*FAIL\s*\|/m, null],
-    ['sql: promo code once', 'scripts/sql/verify-promo-code-once.sql', /\|\s*FAIL\s*\|/m, null]
+    ['sql: promo code once', 'scripts/sql/verify-promo-code-once.sql', /\|\s*FAIL\s*\|/m, null],
+    ['sql: customer cash booking', 'scripts/sql/verify-customer-cash.sql', /\|\s*FAIL\s*\|/m, null]
   ];
   for (const [name, file, failPattern] of suites) {
     const result = spawnSync('docker', ['exec', '-i', container, 'psql', '-U', 'postgres'], { input: fs.readFileSync(file), encoding: 'utf8' });
