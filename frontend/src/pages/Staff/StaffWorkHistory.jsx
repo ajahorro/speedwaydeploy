@@ -1,9 +1,9 @@
 import React from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import PageHeader from '../../components/PageHeader';
-import WorkHistoryByDay from '@/features/staff-history/WorkHistoryByDay';
+import StaffHistoryCalendar from '@/features/staff-history/StaffHistoryCalendar';
 
-/** The technician's own history: clock-ins and vehicles by day (the same view an administrator opens from the account list). */
+/** The technician's own history: pick a day on the calendar to see the clock-ins and the services done that day. */
 const StaffWorkHistory = () => {
   const { profile } = useAuth();
   return (
@@ -11,11 +11,9 @@ const StaffWorkHistory = () => {
       <PageHeader
         badge="Work History"
         title="Attendance and vehicles"
-        subtitle="Pick a day to see when you clocked in and out and the vehicles you worked on."
+        subtitle="Pick a day to see when you clocked in and out and the services you did."
       />
-      <div className="ui-root" style={{ maxWidth: '760px' }}>
-        <WorkHistoryByDay staffId={profile?.id} />
-      </div>
+      <StaffHistoryCalendar staffId={profile?.id} />
     </div>
   );
 };

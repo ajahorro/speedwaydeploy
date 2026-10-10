@@ -4,7 +4,7 @@ import { subscribeTables } from '../../lib/realtimeHub';
 import { useNavigate } from 'react-router-dom';
 import {
   ClipboardList, Clock, CheckCircle2, AlertCircle,
-  Car, ArrowRight, TrendingUp, Bell, LogIn
+  Car, ArrowRight, TrendingUp, LogIn
 } from 'lucide-react';
 import toast from '@/lib/toast';
 import { useAuth } from '../../hooks/useAuth';
@@ -26,7 +26,6 @@ const StaffDashboard = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ pending: 0, active: 0, completed: 0 });
-  const [broadcasts, setBroadcasts] = useState([]);
   const [shiftTimer, setShiftTimer] = useState('OFF DUTY');
   const [shiftOverdue, setShiftOverdue] = useState(false);
   const [isClockingIn, setIsClockingIn] = useState(false);
@@ -283,35 +282,6 @@ const StaffDashboard = () => {
         </div>
 
         <div style={{ width: isMobile ? '100%' : '320px', display: 'flex', flexDirection: 'column', gap: '2rem', position: 'sticky', top: '100px' }}>
-          {/* System Broadcasts & Announcements */}
-          <div style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', overflow: 'hidden' }}>
-            <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <Bell size={18} color="var(--admin-brand)" />
-              <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                Shop Bulletins
-              </h3>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {broadcasts.length > 0 ? (
-                broadcasts.map(b => (
-                  <div key={b.id} style={{ padding: '1.25rem', borderBottom: '1px solid var(--admin-border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', alignItems: 'center' }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--admin-text-primary)' }}>{b.title || 'Announcement'}</div>
-                      <div style={{ fontSize: '0.72rem', fontWeight: '900', color: 'var(--admin-text-secondary)' }}>
-                        {b.created_at ? new Date(b.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '600', lineHeight: 1.4 }}>{b.message}</div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ padding: '2rem 1.25rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: '600' }}>
-                  No active shop announcements
-                </div>
-              )}
-            </div>
-          </div>
-
           {!profile?.is_clocked_in && (
             <div style={{ padding: '1.25rem', background: 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.05)', border: '1px solid rgba(var(--admin-brand-rgb, 169, 27, 24), 0.15)', borderRadius: 'var(--admin-radius)', textAlign: 'center' }}>
               <Clock size={24} color="var(--admin-brand)" style={{ margin: '0 auto 0.75rem' }} />
