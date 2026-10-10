@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Button } from '../../components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import {
   AlertTriangle, CreditCard, ArrowRight, Clock,
   CheckCircle, XCircle, Search, Filter, MessageCircle,
-  Car, Calendar, User, Eye, Download, Box, ExternalLink, ShieldCheck, Info
+  Car, Calendar, User, Eye, Download, Box, ExternalLink, ShieldCheck, Info, Upload, FileCheck2
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
@@ -15,6 +15,8 @@ import { logger } from '../../utils/logger';
 import { fetchBookingLedgers } from '../../services/ledgerService';
 import { getOverpaymentRefundRemaining, getRefundRequestLimit } from '../../utils/refundRequestUtils';
 import { matchesSearchText } from '../../utils/searchMatch';
+import { fetchRefundProofs, refundProofKey, uploadRefundProof, discardRefundProof, REFUND_PROOF_ACCEPT, MAX_REFUND_PROOF_BYTES } from '../../services/refundProofService';
+import RefundProofButton from '../../features/finance/RefundProofButton';
 
 const AdminRefunds = () => {
   const navigate = useNavigate();
@@ -36,8 +38,17 @@ const AdminRefunds = () => {
     // Section 5: the admin types a DEDUCTION; the refund that gets submitted is
     // strictly derived as `selectedItem.totalPaid - deduction` (see derivedRefund).
     deduction: 0,
-    refundAmount: 0
+    refundAmount: 0,
+    // Proof of refund: uploaded and checked before the refund can be processed.
+    // proofStatus: idle | checking | accepted | rejected
+    proofRefundRef: '',
+    proofStatus: 'idle',
+    proofError: '',
+    proofFileName: '',
+    proofHasReference: false
   });
+  const proofInputRef = useRef(null);
+  const pendingProofRef = useRef(null);
 
   const fetchRefundData = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true }));
@@ -59,6 +70,7 @@ const AdminRefunds = () => {
 
       const bookingIds = (data || []).map(booking => booking.id);
       const ledgers = await fetchBookingLedgers(bookingIds);
+      const proofs = await fetchRefundProofs(bookingIds);
       let queuedCredits = [];
       if (bookingIds.length) {
         const { data: creditRows, error: creditError } = await supabase
@@ -90,6 +102,7 @@ const AdminRefunds = () => {
         const refundRecords = (b.payments || []).filter(p => Number(p.amount) < 0 && methodOfPayment(p) === 'SYSTEM_REFUND');
         const refundDeduction = Math.max(0, ...refundRecords.map(p => Number(p.refund_deduction || 0)));
         const refundReference = refundPayment?.reference_number || null;
+        const refundProofRows = refundRecords.map(p => ({ record: p, proof: proofs.get(refundProofKey(b.id, p.reference_number)) || null }));
         const refundReason = refundPayment?.refund_reason || null;
         const refundMethod = refundPayment?.refund_method || null;
         const refundedAmount = processedRefunds;
@@ -111,6 +124,7 @@ const AdminRefunds = () => {
           refundedAmount,
           refundDeduction,
           refundReference,
+          refundProofRows,
           refundReason,
           refundMethod,
           paymentMethod: isCashMethod ? 'Cash' : (isDigitalMethod ? 'Digital' : 'Unknown'),
@@ -146,7 +160,16 @@ const AdminRefunds = () => {
     String(state.selectedItem?.refundStatus || '').trim().toUpperCase()
   );
 
-  const openRefundItem = (item) => setState(prev => ({
+  // A proof that was uploaded for a refund that is not going ahead is removed again.
+  const discardPendingProof = (bookingId, refundReference) => {
+    if (bookingId && refundReference) discardRefundProof({ bookingId, refundReference });
+  };
+  const clearProof = (prev) => ({ ...prev, proofRefundRef: '', proofStatus: 'idle', proofError: '', proofFileName: '', proofHasReference: false });
+
+  const openRefundItem = (item) => {
+    if (pendingProofRef.current) { discardPendingProof(pendingProofRef.current.bookingId, pendingProofRef.current.refundReference); pendingProofRef.current = null; }
+    setState(prev => ({
+    ...clearProof(prev),
     ...prev,
     selectedItem: item,
     // A fresh selection always starts with NO deduction, so the derived refund
@@ -155,7 +178,7 @@ const AdminRefunds = () => {
     refundAmount: Number(item.refundLimit ?? item.totalPaid ?? 0),
     refundReason: item.refundReason || '',
     refundMethod: item.refundMethod || '',
-  }));
+  })); };
 
   // MEMOIZED FILTERING
   const filteredItems = useMemo(() => {
@@ -172,6 +195,34 @@ const AdminRefunds = () => {
     });
   }, [state.refundItems, state.searchQuery, state.filter, state.methodFilter]);
 
+  const chooseProof = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    const item = state.selectedItem;
+    if (!file || !item) return;
+    if (!state.refundMethod) { toast.error('Choose the refund method first.'); return; }
+    if (!file.type.startsWith('image/')) { toast.error('The proof must be a picture.'); return; }
+    if (file.size > MAX_REFUND_PROOF_BYTES) { toast.error('The picture is larger than 10 MB.'); return; }
+    // The reference of this refund is fixed when its proof is uploaded, and the refund is recorded under the same one.
+    const refundReference = state.proofRefundRef || `RFD-${Date.now().toString().slice(-6)}-${item.id.substring(0, 4).toUpperCase()}`;
+    setState(prev => ({ ...prev, proofRefundRef: refundReference, proofStatus: 'checking', proofError: '', proofFileName: file.name }));
+    const result = await uploadRefundProof({ bookingId: item.id, refundReference, refundMethod: state.refundMethod, file });
+    if (result.ok) {
+      pendingProofRef.current = { bookingId: item.id, refundReference };
+      setState(prev => ({ ...prev, proofStatus: 'accepted', proofHasReference: Boolean(result.proof?.hasReference) }));
+      toast.success(result.proof?.hasReference ? 'Proof accepted. Reference number found.' : 'Proof accepted.');
+    } else {
+      setState(prev => ({ ...prev, proofStatus: 'rejected', proofError: result.error, proofHasReference: false }));
+    }
+  };
+
+  const removeProof = () => {
+    const pending = pendingProofRef.current;
+    if (pending) discardPendingProof(pending.bookingId, pending.refundReference);
+    pendingProofRef.current = null;
+    setState(prev => clearProof(prev));
+  };
+
   const handleProcessRefund = async (item) => {
     const toastId = toast.loading('Synchronizing financial reversal...');
     const previousRefundItems = [...state.refundItems];
@@ -185,7 +236,9 @@ const AdminRefunds = () => {
       let remainingRefundAmount = 0;
 
       if (!['PROCESSED', 'EMAIL_PENDING'].includes(item.refundStatus)) {
-        refundRef = `RFD-${Date.now().toString().slice(-6)}-${item.id.substring(0, 4).toUpperCase()}`;
+        // Same reference the proof of refund was uploaded under.
+        refundRef = state.proofRefundRef;
+        if (!refundRef || state.proofStatus !== 'accepted') throw new Error('Upload the proof of refund first.');
         const { data: { user } } = await supabase.auth.getUser();
         const rpcName = item.overpaymentRefundRemaining > 0
           ? 'process_overpayment_credit_refund_v2'
@@ -199,7 +252,8 @@ const AdminRefunds = () => {
           p_refund_method: state.refundMethod,
           p_actor_id: user?.id || null
         });
-        if (rpcError) throw new Error(`Refund transaction failed: ${rpcError.message}`);
+        if (rpcError) throw new Error(rpcError.message?.includes('REFUND_PROOF_REQUIRED') ? 'Upload the proof of refund first.' : `Refund transaction failed: ${rpcError.message}`);
+        pendingProofRef.current = null;
         refundAmount = Number(rpcData?.refund_amount || refundAmount);
         refundComplete = rpcData?.refund_status === 'PROCESSED';
         remainingRefundAmount = Number(rpcData?.remaining_refund ?? Math.max(0, Number(item.refundLimit || 0) - refundAmount));
@@ -210,7 +264,7 @@ const AdminRefunds = () => {
       if (!refundComplete) {
         toast.success(`Partial refund recorded. ₱${remainingRefundAmount.toLocaleString()} remains to refund.`, { id: toastId });
         await fetchRefundData();
-        setState(prev => ({ ...prev, selectedItem: null, confirmRefundItem: null, refundReason: '', refundAmount: 0 }));
+        setState(prev => ({ ...clearProof(prev), selectedItem: null, confirmRefundItem: null, refundReason: '', refundAmount: 0 }));
         return;
       }
 
@@ -229,7 +283,7 @@ const AdminRefunds = () => {
         const emailReason = emailError?.message || refundEmailData?.error || 'The email provider did not accept the message.';
         toast.error(`Refund saved, but email is pending: ${emailReason}`, { id: toastId });
         await fetchRefundData();
-        setState(prev => ({ ...prev, selectedItem: null, confirmRefundItem: null, refundReason: '', refundMethod: '', refundAmount: 0 }));
+        setState(prev => ({ ...clearProof(prev), selectedItem: null, confirmRefundItem: null, refundReason: '', refundMethod: '', refundAmount: 0 }));
         return;
       }
 
@@ -279,7 +333,7 @@ const AdminRefunds = () => {
 
       toast.success('Financial record and refund email completed.', { id: toastId });
       await fetchRefundData();
-      setState(prev => ({ ...prev, selectedItem: null, confirmRefundItem: null, refundReason: '', refundMethod: '', refundAmount: 0 }));
+      setState(prev => ({ ...clearProof(prev), selectedItem: null, confirmRefundItem: null, refundReason: '', refundMethod: '', refundAmount: 0 }));
     } catch (err) {
       logger.error('Refund Process Error', err);
       toast.error(err.message || 'Failed to synchronize refund records', { id: toastId });
@@ -527,11 +581,35 @@ const AdminRefunds = () => {
 
                   <div>
                       <label htmlFor="refund-method" style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Refund Paid Via</label>
-                      <select id="refund-method" value={state.refundMethod} onChange={(event) => setState(prev => ({ ...prev, refundMethod: event.target.value }))} style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '700' }}>
+                      <select id="refund-method" value={state.refundMethod} onChange={(event) => { const value = event.target.value; if (state.proofStatus !== 'idle') removeProof(); setState(prev => ({ ...prev, refundMethod: value })); }} style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '700' }}>
                         <option value="" disabled>Select refund method</option>
                         <option value="BANK TRANSFER">Bank Transfer</option>
                         <option value="CASH">Cash</option>
                       </select>
+                  </div>
+
+                  {/* Proof of refund: required. Read for a reference number (a cash refund needs the picture only). */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Proof of Refund</label>
+                    <input ref={proofInputRef} type="file" accept={REFUND_PROOF_ACCEPT} onChange={chooseProof} style={{ display: 'none' }} />
+                    {state.proofStatus === 'accepted' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', padding: '0.7rem', border: '1px solid rgba(16, 185, 129, 0.35)', background: 'rgba(16, 185, 129, 0.06)', borderRadius: 'var(--admin-radius-sm)' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.72rem', fontWeight: '800', color: '#10b981', minWidth: 0 }}>
+                          <FileCheck2 size={15} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{state.proofFileName}</span>
+                        </span>
+                        <Button type="button" variant="outline" size="sm" className="text-xs uppercase" onClick={removeProof}>Remove</Button>
+                      </div>
+                    ) : (
+                      <Button type="button" variant="outline" className="w-full text-xs font-black uppercase" disabled={!state.refundMethod || state.proofStatus === 'checking'} onClick={() => proofInputRef.current?.click()}>
+                        <Upload /> {state.proofStatus === 'checking' ? 'Checking the proof…' : state.proofStatus === 'rejected' ? 'Upload another picture' : 'Upload proof of refund'}
+                      </Button>
+                    )}
+                    {state.proofStatus === 'rejected' && state.proofError && (
+                      <div role="alert" style={{ marginTop: '0.4rem', fontSize: '0.68rem', fontWeight: '800', color: 'var(--status-danger)' }}>{state.proofError}</div>
+                    )}
+                    <div style={{ marginTop: '0.4rem', fontSize: '0.62rem', fontWeight: '700', color: 'var(--admin-text-secondary)', lineHeight: 1.4 }}>
+                      {state.refundMethod === 'CASH' ? 'Cash: a picture of the signed cash-out slip. A reference number is not required.' : 'Bank transfer: the picture must show the reference number. A reference or picture used before is not accepted.'}
+                    </div>
                   </div>
 
                   <div>
@@ -585,6 +663,16 @@ const AdminRefunds = () => {
                     ₱{(state.selectedItem.refundStatus === 'EMAIL_PENDING' ? (state.selectedItem.refundedAmount || 0) : selectedRefundTotal).toLocaleString()}
                   </span>
                 </div>
+                {(state.selectedItem.refundProofRows || []).length > 0 && (
+                  <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    {state.selectedItem.refundProofRows.map(({ record, proof }) => (
+                      <div key={record.id || record.reference_number} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.7rem' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: '800' }}>{record.reference_number} · ₱{Math.abs(Number(record.amount || 0)).toLocaleString()}</span>
+                        {proof ? <RefundProofButton proof={proof} /> : <span style={{ color: 'var(--admin-text-secondary)' }}>No proof on file</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <button
                   onClick={() => navigate(`/admin/bookings/${state.selectedItem.id}`)}
                   style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', marginBottom: '0.75rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
@@ -598,7 +686,7 @@ const AdminRefunds = () => {
                       Refund finalized — the financial trail is locked.
                     </div>
                   ) : (
-                    <Button className="w-full font-black" disabled={state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || !state.refundMethod || derivedRefund <= 0 || deductionExceedsPaid)} onClick={() => setState(prev => ({ ...prev, confirmRefundItem: state.selectedItem }))}>
+                    <Button className="w-full font-black" disabled={state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || !state.refundMethod || derivedRefund <= 0 || deductionExceedsPaid || state.proofStatus !== 'accepted')} onClick={() => setState(prev => ({ ...prev, confirmRefundItem: state.selectedItem }))}>
                       {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'RETRY REFUND EMAIL' : state.selectedItem.refundStatus === 'PROCESSING' ? 'REFUND REMAINING' : 'PROCESS REFUND'}
                     </Button>
                   )

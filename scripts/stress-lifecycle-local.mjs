@@ -210,7 +210,14 @@ const reschedule = async (id, day, hour = 11, by = 'admin', customer = cust) => 
   const when = slot(day, hour, 0, hours);
   return rpc('reschedule_booking', { p_booking_id: id, p_start_datetime: when.start, p_end_datetime: when.end, p_reason: 'Stress test reschedule' }, by === 'admin' ? admin.token : customer.token);
 };
-const refund = async (id, amount, deduction = 0, method = 'GCash') => rpc('process_booking_refund_v2', { p_booking_id: id, p_refund_amount: amount, p_refund_reason: 'Stress test refund', p_refund_reference: `RFD-LC${runTag}-${++refSeq}`, p_refund_deduction: deduction, p_refund_method: method, p_actor_id: admin.id }, admin.token);
+// A refund is only accepted with its proof of refund, which the server records after reading the uploaded picture.
+// The stress test records the proof row directly (service role), exactly as the upload route would.
+const refund = async (id, amount, deduction = 0, method = 'GCash') => {
+  const reference = `RFD-LC${runTag}-${++refSeq}`;
+  const proof = await rest('refund_proofs', { method: 'POST', body: { booking_id: id, refund_reference: reference, storage_path: `${id}/${reference}.jpg`, proof_reference: `LCPROOF${runTag}${refSeq}`, image_hash: `lc-${runTag}-${refSeq}`, refund_method: method === 'Cash' ? 'CASH' : 'BANK TRANSFER' } });
+  if (!proof.ok) return { ok: false, status: proof.status, data: await json(proof) };
+  return rpc('process_booking_refund_v2', { p_booking_id: id, p_refund_amount: amount, p_refund_reason: 'Stress test refund', p_refund_reference: reference, p_refund_deduction: deduction, p_refund_method: method, p_actor_id: admin.id }, admin.token);
+};
 
 export { };
 // =====================================================================================================================

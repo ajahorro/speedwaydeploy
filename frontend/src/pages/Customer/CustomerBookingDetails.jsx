@@ -28,6 +28,8 @@ import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import { getAvailableSlots, getBusinessHours } from '../../services/scheduleService';
 import { useImagePreview } from '../../context/ImagePreviewContext';
 import PaymentProofModal from '../../components/payments/PaymentProofModal';
+import RefundProofButton from '../../features/finance/RefundProofButton';
+import { useRefundProofs } from '../../hooks/useRefundProofs';
 import AddServiceDialog from '../../components/payments/AddServiceDialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -66,6 +68,7 @@ const CustomerBookingDetails = () => {
   const [booking, setBooking] = useState(null);
   const [vehicles, setVehicles] = useState([]);
   const [payments, setPayments] = useState([]);
+  const { proofFor: refundProofFor } = useRefundProofs([id], payments.length);
   const [loading, setLoading] = useState(true);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -656,6 +659,7 @@ const CustomerBookingDetails = () => {
                         VIEW PROOF OF PAYMENT
                       </Button>
                     )}
+                    {String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(p.amount) < 0 && <RefundProofButton proof={refundProofFor(p)} />}
                     {p.status === 'PAID' && (
                       <Button onClick={() => { setSelectedPayment(p); setReceiptModal(true); }} variant="outline" size="sm" className="border-primary text-primary hover:text-primary">
                         <Printer size={12} /> RECEIPT

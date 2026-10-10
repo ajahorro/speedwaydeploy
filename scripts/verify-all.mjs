@@ -37,7 +37,7 @@ run(
 );
 
 // ── syntax of every backend file that changed shape recently ───────────────
-for (const file of ['backend/server.js', 'backend/services/analyticsAssistant.js', 'backend/services/analyticsBuiltIn.js', 'backend/services/scheduleValidation.js', 'backend/services/photoRetention.js']) {
+for (const file of ['backend/server.js', 'backend/services/analyticsAssistant.js', 'backend/services/analyticsBuiltIn.js', 'backend/services/scheduleValidation.js', 'backend/services/photoRetention.js', 'backend/services/refundProofs.js']) {
   run(`syntax ${file.replace('backend/', '')}`, 'node', ['--check', file]);
 }
 
@@ -69,7 +69,9 @@ if (container) {
     ['sql: account purge', 'scripts/sql/verify-account-purge.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: promo code once', 'scripts/sql/verify-promo-code-once.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: customer cash booking', 'scripts/sql/verify-customer-cash.sql', /\|\s*FAIL\s*\|/m, null],
-    ['sql: photo retention', 'scripts/sql/verify-photo-retention.sql', /\|\s*FAIL\s*\|/m, null]
+    ['sql: photo retention', 'scripts/sql/verify-photo-retention.sql', /\|\s*FAIL\s*\|/m, null],
+    ['sql: no-show sweep', 'scripts/sql/verify-no-show-sweep.sql', /\|\s*FAIL\s*\|/m, null],
+    ['sql: refund proof', 'scripts/sql/verify-refund-proof.sql', /\|\s*FAIL\s*\|/m, null]
   ];
   for (const [name, file, failPattern] of suites) {
     const result = spawnSync('docker', ['exec', '-i', container, 'psql', '-U', 'postgres'], { input: fs.readFileSync(file), encoding: 'utf8' });

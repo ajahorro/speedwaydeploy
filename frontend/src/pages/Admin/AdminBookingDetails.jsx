@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import RefundProofButton from '../../features/finance/RefundProofButton';
+import { useRefundProofs } from '../../hooks/useRefundProofs';
 import ReactDOM from 'react-dom';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -60,6 +62,7 @@ const AdminBookingDetails = () => {
   const [lockedVehicleIds, setLockedVehicleIds] = useState(() => new Set());
   const [auditLogs, setAuditLogs] = useState([]);
   const [bookingPayments, setBookingPayments] = useState([]);
+  const { proofFor: refundProofFor } = useRefundProofs([id], bookingPayments.length);
   // Booking money from the database ledger (booking_ledger_v); never re-summed here.
   const [ledger, setLedger] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1613,6 +1616,7 @@ const AdminBookingDetails = () => {
                             CANCEL
                           </button>
                         )}
+                        {String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(p.amount) < 0 && <span style={{ marginRight: "0.5rem" }}><RefundProofButton proof={refundProofFor(p)} /></span>}
                         {(p.status === 'PAID' || (String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(p.amount) < 0)) && (
                           <button
                             onClick={() => { setSelectedPayment(p); setReceiptModal(true); }}

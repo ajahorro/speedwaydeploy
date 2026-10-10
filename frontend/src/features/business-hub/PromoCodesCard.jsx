@@ -160,6 +160,17 @@ export function PromoCodesCard() {
         <div className="grid gap-1.5">
           <Label>Applies to</Label>
           <div className="flex flex-wrap gap-2">
+            {vehicleTypes.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-dashed"
+                onClick={() => set('vehicle_types')(vehicleTypes.every((type) => draft.vehicle_types.includes(type.value)) ? [] : vehicleTypes.map((type) => type.value))}
+              >
+                {vehicleTypes.every((type) => draft.vehicle_types.includes(type.value)) ? 'Clear all' : 'Select all'}
+              </Button>
+            )}
             {vehicleTypes.map((type) => (
               <Button key={type.value} type="button" size="sm" variant={draft.vehicle_types.includes(type.value) ? 'default' : 'outline'} aria-pressed={draft.vehicle_types.includes(type.value)} onClick={() => toggleVehicle(type.value)}>{type.label}</Button>
             ))}

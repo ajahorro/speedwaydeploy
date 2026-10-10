@@ -91,7 +91,7 @@ async function phaseA(T, state) {
 
   // technicians
   for (const [key, who] of [['A1', staffA], ['A2', staffA], ['A4', staffB], ['A7', staffB]]) { const rec = state.A[key]; if (!rec) continue; const r = await assign(rec.id, who); check(`${key} technician assigned`, r.ok, r.ok ? '' : JSON.stringify(r.data).slice(0, 100)); }
-  { const rec = state.A.A9; if (rec) { const row = await bookingRow(rec.id); const [v1, v2] = row.booking_vehicles; const r1 = await rest(`booking_vehicles?id=eq.${v1.id}`, { token: admin.token, method: 'PATCH', body: { staff_id: staffA.id } }); const r2 = await rest(`booking_vehicles?id=eq.${v2.id}`, { token: admin.token, method: 'PATCH', body: { staff_id: staffB.id } }); check('A9 each vehicle has its own technician', r1.ok && r2.ok); } }
+  { const rec = state.A.A9; if (rec) { const row = await bookingRow(rec.id); const [v1, v2] = row.booking_vehicles; const r1 = await rest(`booking_vehicles?id=eq.${v1.id}`, { token: admin.token, method: 'PATCH', body: { staff_id: staffA.id } }); const r2 = await rest(`booking_vehicles?id=eq.${v2.id}`, { token: admin.token, method: 'PATCH', body: { staff_id: staffB.id } }); const failed = []; for (const r of [r1, r2]) if (!r.ok) failed.push(message({ data: await json(r) })); check('A9 each vehicle has its own technician', r1.ok && r2.ok, failed.join('; ')); } }
 
   // finishing
   const finishers = [['A1', staffA], ['A2', staffA], ['A4', staffB], ['A7', staffB]];

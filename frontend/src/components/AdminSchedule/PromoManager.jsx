@@ -378,18 +378,36 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       cancelText: 'Cancel',
       type: 'danger',
       onConfirm: async () => {
-        const session = (await supabase.auth.getSession()).data.session;
-        const response = await fetch(`${BACKEND_URL}/api/admin/promos/${encodeURIComponent(promoId)}/archive`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${session?.access_token || ''}` }
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.success) {
-          toast.error(result.error || 'The promotion could not be archived.');
-          return;
+        // Respond at once: the promo moves to the archived list on screen straight away and a progress toast shows,
+        // then the server's answer confirms it. If the server refuses (or cannot be reached) the list is put back
+        // and the toast says why, so the screen never waits silently and never shows a change that did not happen.
+        const toastId = toast.loading(`Archiving "${target.name}"...`);
+        const previousRules = promoRules;
+        const archivedAt = new Date().toISOString();
+        setPromoRules(previousRules.map((rule) => (rule.id === promoId ? { ...rule, archived_at: archivedAt, neverExpires: false } : rule)));
+        try {
+          const session = (await supabase.auth.getSession()).data.session;
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 45000); // a sleeping server can take a while to wake
+          let response;
+          try {
+            response = await fetch(`${BACKEND_URL}/api/admin/promos/${encodeURIComponent(promoId)}/archive`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${session?.access_token || ''}` },
+              signal: controller.signal
+            });
+          } finally {
+            clearTimeout(timer);
+          }
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || !result.success) throw new Error(result.error || 'The promotion could not be archived.');
+          syncPromoRules(result.promoRules || previousRules.map((rule) => (rule.id === promoId ? { ...rule, archived_at: archivedAt, neverExpires: false } : rule)));
+          toast.success(`Promo "${target.name}" archived.`, { id: toastId });
+        } catch (error) {
+          setPromoRules(previousRules);
+          const unreachable = error?.name === 'AbortError' || /failed to fetch|networkerror|load failed/i.test(String(error?.message || ''));
+          toast.error(unreachable ? 'The promotions service did not answer. The promo was not archived. Please try again.' : (error.message || 'The promotion could not be archived.'), { id: toastId });
         }
-        syncPromoRules(result.promoRules || promoRules);
-        toast.success(`Promo "${target.name}" archived.`);
       }
     });
   };
@@ -783,7 +801,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.75rem' }}>
-        <div style={{ fontSize: 'clamp(0.76rem, 0.45vw + 0.67rem, 0.86rem)', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--admin-text-secondary)' }}>
+        <div style={{ fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--admin-text-secondary)' }}>
           {showPastPromos ? `Archived and expired promos (${pastRules.length})` : `Campaign Promo Rules (${currentRules.length})`}
         </div>
         <button
@@ -825,7 +843,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
             >
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-                  <div style={{ fontWeight: '950', fontSize: 'clamp(0.98rem, 0.6vw + 0.82rem, 1.18rem)' }}>
+                  <div style={{ fontWeight: '950', fontSize: '0.88rem' }}>
                     {rule.name}
                   </div>
                   {/* Dynamic Status Badge */}
@@ -834,7 +852,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '0.35rem',
-                      fontSize: 'clamp(0.62rem, 0.35vw + 0.55rem, 0.72rem)',
+                      fontSize: '0.62rem',
                       padding: '0.2rem 0.55rem',
                       borderRadius: '4px',
                       fontWeight: '950',
@@ -857,7 +875,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                   </span>
                 </div>
 
-                <div style={{ color: 'var(--admin-text-secondary)', fontSize: 'clamp(0.76rem, 0.5vw + 0.64rem, 0.9rem)', marginTop: '0.25rem' }}>
+                <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.72rem', marginTop: '0.2rem' }}>
                   <span style={{ fontWeight: '800', color: rule.mode === 'package' ? '#818cf8' : 'var(--status-success)', marginRight: '0.5rem' }}>
                     {rule.mode === 'package' ? `[PACKAGE: ₱${Number(rule.value || 0).toLocaleString()}]` : rule.type === 'percentage' ? `[${rule.value}% OFF]` : `[₱${Number(rule.value || 0).toLocaleString()} OFF]`}
                   </span>
@@ -865,7 +883,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                     ? Object.entries(rule.vehicleServiceMatrix).map(([v, svcs]) => `${v} (${svcs.length} svcs)`).join(' · ')
                     : `${(rule.vehicleTypes || []).join(', ')} · ${(rule.serviceMatches || []).join(', ')}`}
                 </div>
-                <div style={{ fontSize: 'clamp(0.68rem, 0.35vw + 0.58rem, 0.78rem)', color: 'var(--admin-text-secondary)', marginTop: '0.35rem', fontWeight: '700' }}>
+                <div style={{ fontSize: '0.66rem', color: 'var(--admin-text-secondary)', marginTop: '0.3rem', fontWeight: '700' }}>
                   Valid: {formatPromoDate(rule.validFrom)} to {rule.neverExpires ? 'Never' : formatPromoDate(rule.validUntil)}
                 </div>
               </div>
@@ -886,7 +904,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                     borderRadius: '4px',
                     fontWeight: '900',
                     cursor: 'pointer',
-                    fontSize: 'clamp(0.68rem, 0.35vw + 0.58rem, 0.8rem)'
+                    fontSize: '0.68rem'
                   }}
                 >
                   Archive

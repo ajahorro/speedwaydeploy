@@ -7,6 +7,8 @@ import OfficialReceipt from '../../components/OfficialReceipt';
 import { calculatePaymentSummary } from '../../utils/paymentUtils';
 import { fetchBookingLedgers } from '../../services/ledgerService';
 import { useImagePreview } from '../../context/ImagePreviewContext';
+import RefundProofButton from '../../features/finance/RefundProofButton';
+import { useRefundProofs } from '../../hooks/useRefundProofs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -21,6 +23,7 @@ const CustomerBilling = () => {
   const [bookings, setBookings] = useState([]);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [selectedPayment, setSelectedPayment] = useState(null);
+  const { proofFor: refundProofFor } = useRefundProofs(bookings.map((booking) => booking.id));
 
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
@@ -205,6 +208,7 @@ const CustomerBilling = () => {
                                 View Proof
                               </Button>
                             )}
+                            {isRefund && <RefundProofButton proof={refundProofFor(p)} />}
                             {canIssueReceipt && (
                               <Button
                                 type="button"

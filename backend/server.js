@@ -25,6 +25,7 @@ const { recognizeReceipt, warmReceiptOcr } = require('./services/receiptOcr');
 const ocrGuard = require('./services/ocrGuard');
 const { askAnalyticsAssistant } = require('./services/analyticsAssistant');
 const { purgeExpiredServicePhotos } = require('./services/photoRetention');
+const refundProofs = require('./services/refundProofs');
 // ONE resolver for the public frontend URL. Five call sites previously fell back
 // to localhost:5173 silently, so a missing FRONTEND_URL emailed customers a link
 // to their own machine.
@@ -3871,6 +3872,135 @@ const purgeExpiredPhotos = async () => {
 setInterval(purgeExpiredPhotos, 6 * 60 * 60000);
 setTimeout(purgeExpiredPhotos, 4 * 60000);
 releaseExpiredUnpaidHolds();
+
+// ── Proof of refund ─────────────────────────────────────────────────────────────────────────────────────────
+// The administrator uploads the proof that a refund was paid. The picture is read for a reference number and must
+// follow the same rule as a payment receipt: no reference number, picture or reference used twice. Valid proofs are
+// stored privately and recorded against the refund (booking + its RFD- reference); the database then lets the refund
+// through. A cash refund has no transfer reference, so it needs the picture only (a reference, if one is read, is still
+// checked for repeats).
+const receiveRefundProof = (req, res, next) => upload.single('proof')(req, res, (error) => {
+  if (!error) return next();
+  const tooBig = error.code === 'LIMIT_FILE_SIZE';
+  return res.status(tooBig ? 413 : 400).json({ success: false, code: 'UPLOAD_REJECTED', error: tooBig ? 'The picture is larger than 10 MB.' : 'The picture could not be received.' });
+});
+
+app.post('/api/admin/refunds/proof', receiveRefundProof, async (req, res) => {
+  const admin = await requireAdmin(req);
+  if (!admin) return res.status(403).json({ success: false, error: 'Authorized administrator required.' });
+  if (!supabaseAdmin) return res.status(500).json({ success: false, error: 'Supabase Admin not initialized' });
+
+  const bookingId = String(req.body?.bookingId || '').trim();
+  const refundReference = String(req.body?.refundReference || '').trim();
+  const refundMethod = String(req.body?.refundMethod || '').trim().toUpperCase();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId)) return res.status(400).json({ success: false, code: 'BAD_BOOKING', error: 'The booking is missing.' });
+  if (!/^RFD-[A-Z0-9-]{4,40}$/i.test(refundReference)) return res.status(400).json({ success: false, code: 'BAD_REFERENCE', error: 'The refund reference is missing.' });
+  if (!['CASH', 'BANK TRANSFER'].includes(refundMethod)) return res.status(400).json({ success: false, code: 'BAD_METHOD', error: 'Choose Cash or Bank Transfer as the refund method first.' });
+  if (!req.file) return res.status(400).json({ success: false, code: 'NO_FILE', error: 'Choose the proof of refund picture.' });
+  if (!refundProofs.EXTENSIONS[req.file.mimetype]) return res.status(415).json({ success: false, code: 'UNSUPPORTED_TYPE', error: 'The proof must be a JPEG, PNG, WebP or HEIC picture.' });
+
+  const identity = `refund-proof:${admin.profile.id}`;
+  const rate = ocrGuard.checkRateLimit(identity);
+  if (!rate.allowed) {
+    res.set('Retry-After', String(Math.ceil(rate.retryAfterMs / 1000)));
+    return res.status(429).json({ success: false, code: 'RATE_LIMITED', error: `Too many pictures in a short time. Try again in ${Math.ceil(rate.retryAfterMs / 1000)} second(s).` });
+  }
+
+  try {
+    const { data: booking, error: bookingError } = await supabaseAdmin.from('bookings').select('id').eq('id', bookingId).maybeSingle();
+    if (bookingError) throw bookingError;
+    if (!booking) return res.status(404).json({ success: false, code: 'BOOKING_NOT_FOUND', error: 'Booking not found.' });
+    if (await refundProofs.refundAlreadyRecorded(supabaseAdmin, bookingId, refundReference)) {
+      return res.status(409).json({ success: false, code: 'ALREADY_PROCESSED', error: 'This refund has already been recorded.' });
+    }
+
+    const imageHash = refundProofs.computeImageHash(req.file.buffer);
+
+    // Only a reference number is looked for. Anything else on the picture is ignored.
+    let reference = null;
+    try {
+      const ocr = await recognizeReceipt(req.file.buffer, {
+        validateCandidate: (parsed) => isValidReferenceNumber(String(parsed.referenceNumber || '').trim())
+      });
+      const read = String(ocr.referenceNumber || '').trim();
+      if (isValidReferenceNumber(read)) reference = refundProofs.normalizeProofReference(read);
+    } catch (ocrError) {
+      console.warn(`⚠️ [REFUND PROOF] Reading the picture failed: ${ocrError.message}`);
+    }
+
+    if (!reference && refundMethod !== 'CASH') {
+      return res.status(422).json({
+        success: false,
+        code: 'REFERENCE_NOT_DETECTED',
+        error: 'No reference number could be read from this proof. Upload a clear picture that shows the reference number of the transfer.'
+      });
+    }
+
+    const conflict = await refundProofs.findProofConflict(supabaseAdmin, { reference, imageHash, bookingId, refundReference });
+    if (conflict) {
+      return res.status(409).json({
+        success: false,
+        code: conflict,
+        error: conflict === 'REFERENCE_REUSED' ? `Reference "${reference}" has already been used. Upload the proof of this refund.` : 'This picture has already been used as a proof.'
+      });
+    }
+
+    const stored = await refundProofs.storeProof(supabaseAdmin, {
+      bookingId, refundReference, reference, imageHash,
+      buffer: req.file.buffer, mimetype: req.file.mimetype, refundMethod, uploadedBy: admin.profile.id
+    });
+
+    await writeAuditLog({
+      actionType: 'REFUND_PROOF_UPLOADED',
+      details: `Proof of refund uploaded for refund ${refundReference}${reference ? ` (reference ${reference})` : ' (cash, no reference)'}.`,
+      actorId: admin.profile.id,
+      actorName: admin.profile.full_name || 'Administrator',
+      actorRole: 'ADMIN',
+      bookingId
+    });
+
+    return res.status(201).json({ success: true, proof: { id: stored.id, reference: stored.reference, hasReference: Boolean(stored.reference) } });
+  } catch (error) {
+    if (error?.code === '23505') {
+      return res.status(409).json({ success: false, code: 'REFERENCE_REUSED', error: 'This reference or picture has already been used as a proof.' });
+    }
+    console.error('🧾 [REFUND PROOF] Upload failed:', error.message);
+    return res.status(500).json({ success: false, code: 'PROOF_FAILED', error: 'The proof could not be saved. Please try again.' });
+  }
+});
+
+// Removes a proof that has not been used for a refund yet (the administrator took the picture away or chose another).
+app.post('/api/admin/refunds/proof/discard', async (req, res) => {
+  const admin = await requireAdmin(req);
+  if (!admin) return res.status(403).json({ success: false, error: 'Authorized administrator required.' });
+  if (!supabaseAdmin) return res.status(500).json({ success: false, error: 'Supabase Admin not initialized' });
+  const bookingId = String(req.body?.bookingId || '').trim();
+  const refundReference = String(req.body?.refundReference || '').trim();
+  if (!bookingId || !refundReference) return res.status(400).json({ success: false, error: 'The booking and the refund reference are required.' });
+  try {
+    if (await refundProofs.refundAlreadyRecorded(supabaseAdmin, bookingId, refundReference)) {
+      return res.status(409).json({ success: false, error: 'This refund has already been recorded; its proof stays.' });
+    }
+    const removed = await refundProofs.discardPendingProof(supabaseAdmin, bookingId, refundReference);
+    return res.json({ success: true, removed });
+  } catch (error) {
+    console.error('🧾 [REFUND PROOF] Discard failed:', error.message);
+    return res.status(500).json({ success: false, error: 'The proof could not be removed. Please try again.' });
+  }
+});
+
+// Proofs uploaded for a refund that was never completed are cleared after a day.
+const purgeUnusedRefundProofs = async () => {
+  if (!supabaseAdmin) return;
+  try {
+    const { records } = await refundProofs.purgeOrphanRefundProofs(supabaseAdmin);
+    if (records > 0) console.log(`🧹 [REFUND PROOF] Cleared ${records} proof(s) that were never used for a refund.`);
+  } catch (err) {
+    console.warn('🧹 [REFUND PROOF] Clean-up failed:', err.message);
+  }
+};
+setInterval(purgeUnusedRefundProofs, 6 * 60 * 60000);
+setTimeout(purgeUnusedRefundProofs, 5 * 60000);
 
 /**
  * 🧹 CLEAN SLATE: Purge all booking-related data
