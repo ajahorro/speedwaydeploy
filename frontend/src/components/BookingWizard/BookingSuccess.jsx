@@ -2,6 +2,7 @@ import React from 'react';
 import { CheckCircle, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import OfficialReceipt from '../OfficialReceipt';
+import { calculateBookingDiscountSummary } from '../../data/servicesCatalog';
 
 const BookingSuccess = ({ bookingData }) => {
   const navigate = useNavigate();
@@ -16,9 +17,9 @@ const BookingSuccess = ({ bookingData }) => {
     return (v.services || []).reduce((sSum, s) => sSum + Number(s.price || 0), 0);
   };
 
-  const grandTotal = (bookingData.vehicles || []).reduce(
+  const grandTotal = Math.max(0, (bookingData.vehicles || []).reduce(
     (sum, v) => sum + unitSubtotal(v), 0
-  ) || bookingData.totalAmount || 0;
+  ) - calculateBookingDiscountSummary(bookingData.vehicles || [], null, bookingData.promoRule || null).codeDiscount) || bookingData.totalAmount || 0;
 
   // OfficialReceipt reads a `booking` object plus a `vehicles` array — NOT the
   // flat `items` / `customerName` / `subtotal` prop set this screen used to pass.

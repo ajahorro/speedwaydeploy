@@ -18,7 +18,6 @@ import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { loadDraft, saveServerDraft, writeLocalDraft, deleteDraft, toDraftData, hasMeaningfulDraft } from '../../services/bookingDraftService';
-import { setRedeemedPromoRule } from '../../data/servicesCatalog';
 import { redeemPromoCode } from '../../services/promoCodeService';
 
 // Utility for Data Integrity: Find service in catalog by name and get current price
@@ -125,13 +124,6 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
     if (!hasDraftChanges && !hasMeaningfulBookingInput(bookingData)) return;
     if (!isSubmitted) setHasDraftChanges(true);
   }, [bookingData, hasDraftChanges, isSubmitted]);
-
-  // The redeemed promo code's promotion feeds every price shown and saved in this
-  // wizard; it is cleared when the wizard closes so it can never leak into another
-  // booking. An administrator booking FOR a customer (from the chat) keeps the code the customer had applied, so
-  // the customer gets the discount they were promised; a walk-in guest has no code.
-  setRedeemedPromoRule(bookingData.promoRule || null);
-  React.useEffect(() => () => setRedeemedPromoRule(null), []);
 
   // The accepted receipt (and its reading) stays while the person moves between steps, for example back to change the
   // time. It is dropped only after 2 minutes without any click, tap or key press.

@@ -166,27 +166,12 @@ export const COMMUNICATION_PREFERENCES = Object.freeze([
     defaultValue: false,
     roles: ['customer', 'admin'],
   },
-  // ── Granular customer marketing toggles (opt-in). Each is OFF by default;
-  // promos/services/vehicles are only emailed when the customer explicitly
-  // turns the matching switch on. Consumed by the notification dispatch path. ──
+  // Opt-in (OFF by default). The backend emails a customer about a NEW promo only when this is on and the promo
+  // applies to a vehicle in their garage. Package promos and new services are never emailed.
   {
     key: 'emailNewPromos',
-    label: 'Email me about new promos',
-    description: 'Get an email whenever the shop launches a new promotion or discount.',
-    defaultValue: false,
-    roles: ['customer'],
-  },
-  {
-    key: 'emailNewServices',
-    label: 'Email me about new services',
-    description: 'Get an email when a new service is added to the catalog.',
-    defaultValue: false,
-    roles: ['customer'],
-  },
-  {
-    key: 'emailNewVehicles',
-    label: 'Email me about new vehicle categories',
-    description: 'Get an email when the shop starts servicing a new vehicle category.',
+    label: 'Be the first to know about new promos',
+    description: 'Get an email when a new promo is made for a vehicle in your garage.',
     defaultValue: false,
     roles: ['customer'],
   },

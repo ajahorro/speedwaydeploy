@@ -129,7 +129,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
   // never the live clock, so the quoted discount matches the rule set in force
   // when the booking was made.
   const promoReferenceDate = bookingData.createdAt || bookingData.created_at || bookingData.submittedAt || null;
-  const promoSummary = calculateBookingDiscountSummary(vehicles, promoReferenceDate);
+  const promoSummary = calculateBookingDiscountSummary(vehicles, promoReferenceDate, bookingData.promoRule || null);
   const grandTotal = promoSummary.discountedTotal;
 
   // Removed local fetchConfig - now using useConfig hook for global settings

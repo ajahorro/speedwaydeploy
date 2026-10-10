@@ -993,30 +993,6 @@ export default function BusinessHub() {
         metadata: { section: currentTab, fields: Object.keys(primaryPayload) }
       });
 
-      // Announce newly-added catalog items to opted-in customers only. We diff
-      // the just-saved form against the previous baseline (pristine) so ONLY
-      // genuine additions trigger an email — edits/removals do not. The backend
-      // gates each category on the matching email preference (fail-closed).
-      try {
-        const baseline = pristine || {};
-        const prevServiceIds = new Set((baseline.custom_services || []).map((s) => s?.id).filter(Boolean));
-        const addedServices = (businessForm.custom_services || []).filter(
-          (s) => s?.is_active !== false && s?.archived !== true && (!s?.id || !prevServiceIds.has(s.id))
-        );
-        const prevVehicleTypes = new Set(baseline.vehicle_types || []);
-        const addedVehicles = (businessForm.vehicle_types || []).filter((t) => t && !prevVehicleTypes.has(t));
-
-        if (addedServices.length || addedVehicles.length) {
-          fetch(`${BACKEND_URL}/api/admin/announce-catalog`, {
-            method: 'POST',
-            headers: await authHeaders(),
-            body: JSON.stringify({
-              services: addedServices.map((s) => ({ name: s.name })),
-              vehicles: addedVehicles,
-            }),
-          }).catch(() => { /* announcement is best-effort */ });
-        }
-      } catch { /* never block the save on announcement detection */ }
     } catch (err) {
       console.error('Save failed:', err);
       toast.error(err.message || 'Failed to save settings. Please try again.');

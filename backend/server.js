@@ -457,60 +457,83 @@ const writeAuditLog = async ({
 };
 
 /**
- * Preference-gated customer announcement email.
+ * "Be the first to know" email for a NEW promo (Settings -> customer toggle, profiles.notification_preferences.emailNewPromos).
  * ============================================================================
- * Sends a marketing/announcement email (a new promo, service, or vehicle
- * category) ONLY to customers who explicitly opted in, i.e. whose
- * profiles.notification_preferences[preferenceKey] === true.
- *
- *   preferenceKey: 'emailNewPromos' | 'emailNewServices' | 'emailNewVehicles'
- *
- * Fail-closed: a missing column, a missing/undefined preference, or any lookup
- * error means NO email is sent — matching the brief's "only trigger if the
- * customer has their settings explicitly configured this way".
- *
- * Non-blocking: uses setImmediate + a per-recipient rate-limit buffer so the
- * caller's HTTP response is never held open by the send loop.
+ * Only a standard promo is announced: never a package promo and never a new service.
+ * Recipients are active customers who turned the toggle ON and who own at least one saved vehicle the promo
+ * applies to (a promo with no vehicle scope applies to every vehicle). Fail-closed: a missing preference, a
+ * lookup error or no matching vehicle means no email. Non-blocking, so the admin's save is never held open.
  */
-const sendPreferenceGatedAnnouncement = ({ preferenceKey, subject, bodyHtml }) => {
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const formatPromoDate = (value) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' });
+};
+
+const describePromo = (rule) => {
+  const discount = rule.type === 'percentage' ? `${Number(rule.value)}% off` : `₱${Number(rule.value).toLocaleString('en-PH')} off`;
+  const from = formatPromoDate(rule.validFrom);
+  const until = rule.neverExpires || rule.validUntil === 'never' ? '' : formatPromoDate(rule.validUntil);
+  const window = from && until ? `${from} to ${until}` : from ? `Starts ${from}, no end date` : '';
+  return { discount, window };
+};
+
+const sendNewPromoEmails = (rule) => {
   if (!supabaseAdmin || !resendClient) {
-    console.warn(`📧 [ANNOUNCE] Skipped "${subject}" — supabase/resend unavailable.`);
+    console.warn(`📧 [PROMO EMAIL] Skipped "${rule?.name}" — supabase/resend unavailable.`);
     return;
   }
   setImmediate(async () => {
     try {
+      const scope = (Array.isArray(rule.vehicleTypes) ? rule.vehicleTypes : []).map((t) => String(t).trim().toLowerCase()).filter(Boolean);
       const { data: profiles, error } = await supabaseAdmin
         .from('profiles')
         .select('id, email, full_name, notification_preferences')
         .eq('is_active', true)
         .eq('role', 'CUSTOMER');
-      if (error) {
-        console.error(`📧 [ANNOUNCE] Preference lookup failed for "${subject}":`, error.message);
-        return;
-      }
-      const optedIn = (profiles || []).filter(
-        (p) => p?.email && p.notification_preferences && p.notification_preferences[preferenceKey] === true
-      );
-      if (!optedIn.length) {
-        console.log(`📧 [ANNOUNCE] "${subject}" sent to 0 customers (no one opted into ${preferenceKey}).`);
-        return;
-      }
+      if (error) { console.error('📧 [PROMO EMAIL] Preference lookup failed:', error.message); return; }
+      const optedIn = (profiles || []).filter((p) => p?.email && p.notification_preferences?.emailNewPromos === true);
+      if (!optedIn.length) { console.log(`📧 [PROMO EMAIL] "${rule.name}": nobody has the new-promo toggle on.`); return; }
+
+      const { data: vehicles, error: vehicleError } = await supabaseAdmin
+        .from('vehicles')
+        .select('owner_id, type, brand, model')
+        .in('owner_id', optedIn.map((p) => p.id));
+      if (vehicleError) { console.error('📧 [PROMO EMAIL] Vehicle lookup failed:', vehicleError.message); return; }
+
+      const { discount, window } = describePromo(rule);
+      const matrix = rule.vehicleServiceMatrix && typeof rule.vehicleServiceMatrix === 'object' ? rule.vehicleServiceMatrix : {};
+      let sent = 0;
       for (const p of optedIn) {
+        const mine = (vehicles || []).filter((v) => v.owner_id === p.id && (!scope.length || scope.includes(String(v.type || '').trim().toLowerCase())));
+        if (!mine.length) continue;
+        const types = [...new Set(mine.map((v) => v.type))];
+        const services = [...new Set(types.flatMap((type) => {
+          const key = Object.keys(matrix).find((k) => k.toLowerCase() === String(type).toLowerCase());
+          return key && Array.isArray(matrix[key]) ? matrix[key] : [];
+        }))];
+        const html = `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
+          <h2 style="color: #C41F2B;">New promo at ${escapeHtml(process.env.BUSINESS_NAME || 'Comar Garage')}</h2>
+          <p style="font-size: 16px; color: #e5e7eb;">Hi ${escapeHtml(p.full_name || 'there')},</p>
+          <p style="font-size: 16px; color: #e5e7eb;"><strong>${escapeHtml(rule.name)}</strong>: ${escapeHtml(discount)}${services.length ? ' on ' + escapeHtml(services.join(', ')) : ''}.</p>
+          <p style="font-size: 14px; color: #9ca3af;">For your ${escapeHtml(mine.map((v) => [v.brand, v.model].filter(Boolean).join(' ') || v.type).join(', '))}.${window ? ' Valid ' + escapeHtml(window) + '.' : ''}</p>
+          <p style="font-size: 14px; color: #9ca3af;">Pick the service when you book. The promo shows on it.</p>
+          <hr style="border: none; border-top: 1px solid #374151; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #9ca3af;">You get this because "Be the first to know about new promos" is on. Turn it off in Settings.</p>
+        </div>`;
         try {
-          await resendClient.emails.send({
-            from: RESEND_FROM,
-            to: [p.email],
-            subject,
-            html: bodyHtml.replace(/\{\{name\}\}/g, p.full_name || 'there'),
-          });
+          const { error: sendError } = await resendClient.emails.send({ from: RESEND_FROM, to: [p.email], subject: `New promo: ${rule.name}`, html });
+          if (sendError) throw new Error(sendError.message || 'send failed');
+          sent += 1;
           await new Promise((r) => setTimeout(r, 100)); // rate-limit buffer
         } catch (emailErr) {
-          console.error(`[ANNOUNCE EMAIL ERROR] ${p.email}:`, emailErr.message);
+          console.error(`[PROMO EMAIL ERROR] ${p.email}:`, emailErr.message);
         }
       }
-      console.log(`📧 [ANNOUNCE] "${subject}" sent to ${optedIn.length} opted-in customer(s).`);
+      console.log(`📧 [PROMO EMAIL] "${rule.name}" sent to ${sent} customer(s).`);
     } catch (err) {
-      console.error(`📧 [ANNOUNCE] Unexpected failure for "${subject}":`, err.message);
+      console.error('📧 [PROMO EMAIL] Unexpected failure:', err.message);
     }
   });
 };
@@ -2986,60 +3009,6 @@ app.post('/api/admin/broadcast', async (req, res) => {
  */
 let inMemoryPromoCache = null;
 
-// Announce newly-added catalog items (services / vehicle categories) to the
-// customers who opted into the matching email preference. The admin Service
-// Catalog is saved straight to business_config from the client, so the client
-// calls this lightweight endpoint AFTER a successful save, passing only what was
-// genuinely ADDED. Each list is independently gated (emailNewServices /
-// emailNewVehicles) and each fails closed — no opt-in, no email.
-app.post('/api/admin/announce-catalog', async (req, res) => {
-  if (!(await requireAdmin(req))) return res.status(403).json({ success: false, error: 'Administrator access required.' });
-  const { services = [], vehicles = [] } = req.body || {};
-  try {
-    if (Array.isArray(services) && services.length) {
-      const names = services.map((s) => String(s?.name || s || '').trim()).filter(Boolean);
-      if (names.length) {
-        sendPreferenceGatedAnnouncement({
-          preferenceKey: 'emailNewServices',
-          subject: 'New services at Comar Garage ✨',
-          bodyHtml: `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
-            <h2 style="color: #E61E2A;">New services just added</h2>
-            <p style="font-size: 16px; color: #e5e7eb;">Hi {{name}},</p>
-            <p style="font-size: 16px; color: #e5e7eb;">We now offer:</p>
-            <ul style="font-size: 16px; color: #e5e7eb;">${names.map((n) => `<li>${n}</li>`).join('')}</ul>
-            <p style="font-size: 14px; color: #9ca3af;">Book now to try them out.</p>
-            <hr style="border: none; border-top: 1px solid #374151; margin: 20px 0;" />
-            <p style="font-size: 12px; color: #9ca3af;">You opted into new-service emails. Manage this in Settings → Notifications.</p>
-          </div>`,
-        });
-      }
-    }
-
-    if (Array.isArray(vehicles) && vehicles.length) {
-      const names = vehicles.map((v) => String(v || '').trim()).filter(Boolean);
-      if (names.length) {
-        sendPreferenceGatedAnnouncement({
-          preferenceKey: 'emailNewVehicles',
-          subject: 'We now service more vehicle types 🚗',
-          bodyHtml: `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
-            <h2 style="color: #E61E2A;">New vehicle categories serviced</h2>
-            <p style="font-size: 16px; color: #e5e7eb;">Hi {{name}},</p>
-            <p style="font-size: 16px; color: #e5e7eb;">We now service: <strong>${names.join(', ')}</strong>.</p>
-            <p style="font-size: 14px; color: #9ca3af;">Bring yours in for a booking anytime.</p>
-            <hr style="border: none; border-top: 1px solid #374151; margin: 20px 0;" />
-            <p style="font-size: 12px; color: #9ca3af;">You opted into new-vehicle emails. Manage this in Settings → Notifications.</p>
-          </div>`,
-        });
-      }
-    }
-
-    return res.json({ success: true });
-  } catch (err) {
-    console.error('❌ [ANNOUNCE-CATALOG] Error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
 app.post('/api/admin/promos', async (req, res) => {
   const promo = req.body;
   if (!(await requireAdmin(req))) return res.status(403).json({ success: false, error: 'Authorized administrator required.' });
@@ -3160,23 +3129,8 @@ app.post('/api/admin/promos', async (req, res) => {
       }
     }
 
-    // Announce the new promo to opt-in customers only. Gated on the
-    // `emailNewPromos` preference (opt-in, default OFF) so a customer who has
-    // not explicitly enabled it is never emailed. Fire-and-forget.
-    if (!promo.id) {
-      sendPreferenceGatedAnnouncement({
-        preferenceKey: 'emailNewPromos',
-        subject: `New promo: ${nextRule.name} 🎉`,
-        bodyHtml: `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
-          <h2 style="color: #E61E2A;">Comar Garage has a new promo</h2>
-          <p style="font-size: 16px; color: #e5e7eb;">Hi {{name}},</p>
-          <p style="font-size: 16px; color: #e5e7eb;">A new promotion is now live: <strong>${nextRule.name}</strong>.</p>
-          <p style="font-size: 14px; color: #9ca3af;">Book now to take advantage of it.</p>
-          <hr style="border: none; border-top: 1px solid #374151; margin: 20px 0;" />
-          <p style="font-size: 12px; color: #9ca3af;">You are receiving this because you opted into promo emails. Manage this in Settings → Notifications.</p>
-        </div>`,
-      });
-    }
+    // A new standard promo is announced to opted-in customers whose saved vehicle it applies to (never a package).
+    if (!promo.id && !nextRule.isBundle && nextRule.mode !== 'package') sendNewPromoEmails(nextRule);
 
     return res.json({
       success: true,

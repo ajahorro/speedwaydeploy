@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Car, Check, Layers, Lock, Plus, Trash2, X } from 'lucide-react';
-import { getServiceCatalog, getBestPromoForService, fetchActivePromos, priceVehicleServices } from '../../data/servicesCatalog';
+import { getServiceCatalog, getBestPromoForService, fetchActivePromos, priceVehicleServices, calculateBookingDiscountSummary, isPackageRule, isPromoActiveForNow, getPackageServicesForVehicle, getPackageStandaloneSum } from '../../data/servicesCatalog';
 import { fetchUserGarage, fetchFleetGroups } from '../../services/garageService';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -25,11 +25,10 @@ const unitSubtotal = (vehicle) => {
   return (vehicle.services || []).reduce((total, service) => total + vehicleServiceNetPrice(service), 0);
 };
 const unitGrossSubtotal = (vehicle) => (vehicle.services || []).reduce((total, service) => total + Number(service.original_price || service.price || service.price_at_booking || 0), 0);
-// Premise 4: "Promos" is presented as its own SERVICE TYPE in column A, so a
-// vehicle's promotions live behind one predictable entry instead of expanding as
-// full-width blocks that dominated the step. Kept as a single constant so the
-// label can never drift between the type list and the panel that renders it.
-const PROMO_CATEGORY = 'Promos';
+// Package promos live behind ONE service type in column A. It is listed only when the vehicle has a live
+// package promo, so every new package promo lands there with no other change. A promo that discounts a
+// single service is shown on that service itself, not in a type of its own.
+const PACKAGE_CATEGORY = 'Package Promos';
 const inputStyle = { width: '100%', padding: '.75rem', background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-input-border)', borderRadius: '6px', fontWeight: '700' };
 // Strips everything except A-Z and 0-9 for collision-proof plate comparison
 const normalizePlate = (plate) => String(plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -296,35 +295,50 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
   const categoriesFor = (vehicle) => Object.entries(SERVICE_CATALOG)
     .filter(([, services]) => (services || []).some((service) => isServiceBookable(service) && Number(service.prices?.[vehicle.type]) > 0))
     .map(([category]) => category)
-    // Premise 4: "Promos" is a first-class SERVICE TYPE alongside the standard
-    // catalogue categories. It is always appended (even when the vehicle has no
-    // active promo) so the vehicle type always exposes the same, predictable set
-    // of service types — selecting it with nothing configured shows a short
-    // explanation instead of silently changing the column.
-    .concat(PROMO_CATEGORY);
+    .concat(packagePromosForVehicle(vehicle.type).length ? [PACKAGE_CATEGORY] : []);
   const categoryFor = (unit) => { const categories = categoriesFor(unit.vehicles[0]); return categories.includes(activeCategories[unit.id]) ? activeCategories[unit.id] : categories[0] || ''; };
 
-  // Premise 4 — promos for ONE vehicle type, resolved from the same active-promo
-  // rules the pricing engine uses. A promo rule may scope to specific vehicle
-  // types, so we only surface the ones that genuinely apply to this vehicle.
-  // Returns [] when nothing is configured, which the UI renders as a compact
-  // "No promos are configured as of now" message rather than an empty column.
-  const promosForVehicle = (vehicleType) => {
+  // Live package promos that cover THIS vehicle type (every service they need is on sale for it).
+  function packagePromosForVehicle(vehicleType) {
     const type = String(vehicleType || '').trim();
     if (!type) return [];
+    const all = Object.values(SERVICE_CATALOG).flat().filter(isServiceBookable);
     return (activePromos || []).filter((rule) => {
-      if (!rule || rule.active === false) return false;
-      // Packages are bundles resolved by the pricing engine, not selectable
-      // promo line items — they must not appear in this list.
-      if (rule.isPackage === true || rule.type === 'package' || rule.packagePrice != null) return false;
-      const types = rule.vehicleTypes || rule.vehicle_types;
-      if (Array.isArray(types) && types.length > 0) {
-        return types.some((entry) => String(entry).trim().toLowerCase() === type.toLowerCase());
-      }
-      // A rule with no vehicle scoping applies to every vehicle type.
-      return true;
+      if (!isPackageRule(rule) || !isPromoActiveForNow(rule)) return false;
+      const names = getPackageServicesForVehicle(rule, type);
+      return names.length > 0 && names.every((name) => all.some((svc) => String(svc.name).trim().toLowerCase() === name.toLowerCase() && Number(svc.prices?.[type]) > 0));
     });
+  }
+
+  // One tap adds every service of the package (or removes them again); the pricing engine then charges the flat price.
+  const togglePackage = (unit, rule) => {
+    const all = Object.values(SERVICE_CATALOG).flat().filter(isServiceBookable);
+    updateVehicles((current) => current.map((vehicle) => {
+      if (!unit.vehicles.some((member) => member.id === vehicle.id)) return vehicle;
+      const names = getPackageServicesForVehicle(rule, vehicle.type).map((name) => name.toLowerCase());
+      const has = (vehicle.services || []).filter((item) => names.includes(String(item.name).toLowerCase()));
+      const on = vehicle.package_applied === rule.name;
+      const kept = (vehicle.services || []).filter((item) => !on || !names.includes(String(item.name).toLowerCase()));
+      const added = on ? [] : names
+        .filter((name) => !has.some((item) => String(item.name).toLowerCase() === name))
+        .map((name) => all.find((svc) => String(svc.name).trim().toLowerCase() === name))
+        .filter(Boolean)
+        .map((svc) => ({ ...svc, runtime_uuid: newId(), price: Number(svc.prices[vehicle.type] || 0) }));
+      const { services: pricedServices, package: activePackage } = priceVehicleServices(vehicle.type, [...kept, ...added]);
+      return { ...vehicle, services: pricedServices, package_applied: activePackage ? activePackage.name : null, package_price: activePackage ? activePackage.packagePrice : null };
+    }));
   };
+
+  // The booking creator decides whether a service's promo is used.
+  const togglePromoUse = (unit, service) => {
+    updateVehicles((current) => current.map((vehicle) => {
+      if (!unit.vehicles.some((member) => member.id === vehicle.id)) return vehicle;
+      const next = (vehicle.services || []).map((item) => item.id === service.id ? { ...item, skip_promo: !item.skip_promo } : item);
+      const { services: pricedServices, package: activePackage } = priceVehicleServices(vehicle.type, next);
+      return { ...vehicle, services: pricedServices, package_applied: activePackage ? activePackage.name : null, package_price: activePackage ? activePackage.packagePrice : null };
+    }));
+  };
+
   const toggleService = (unit, service) => {
     const selected = unit.vehicles.every((vehicle) => vehicle.services?.some((item) => item.id === service.id));
 
@@ -358,7 +372,9 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
   const showServiceConfiguration = hasVehicleSelection && hasAdminCustomerDetails;
   // validUnits also blocks when any plate collision is active
   const validUnits = showServiceConfiguration && !hasPlateDuplicates && vehicles.length > 0 && calculateBayUsage(vehicles) <= maxBays && vehicles.every((vehicle) => vehicle.type && vehicle.brand?.trim() && vehicle.model?.trim() && vehicle.plateNumber?.trim().length >= 4 && vehicle.services?.length);
-  const grandTotal = vehicles.reduce((total, vehicle) => total + unitSubtotal(vehicle), 0);
+  // A promo code lessens the order total once (never each service).
+  const codeDiscount = calculateBookingDiscountSummary(vehicles, null, bookingData.promoRule || null).codeDiscount;
+  const grandTotal = Math.max(0, vehicles.reduce((total, vehicle) => total + unitSubtotal(vehicle), 0) - codeDiscount);
 
   // Vehicle-addition subcontainer is locked when customer details are missing (admin) OR when
   // a plate duplicate must be resolved first.
@@ -571,58 +587,38 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
             <div className="booking-unit-column"><p style={{ margin: '0 0 .75rem', fontSize: '.68rem', color: 'var(--admin-text-secondary)', fontWeight: '900', textTransform: 'uppercase' }}>A. Service type</p>{categories.map((item) => <button key={item} type="button" onClick={() => setActiveCategories((current) => ({ ...current, [unit.id]: item }))} style={{ width: '100%', marginBottom: '.5rem', padding: '.75rem', textAlign: 'left', borderRadius: '6px', border: `1px solid ${category === item ? 'var(--admin-brand)' : 'var(--admin-border)'}`, background: category === item ? 'var(--admin-brand)' : 'var(--admin-bg)', color: category === item ? '#fff' : 'var(--admin-text-primary)', cursor: 'pointer', fontWeight: '800', fontSize: '.78rem' }}>{item}</button>)}</div>
             <div className="booking-unit-column">
               <p style={{ margin: '0 0 .75rem', fontSize: '.68rem', color: 'var(--admin-text-secondary)', fontWeight: '900', textTransform: 'uppercase' }}>B. Select services</p>
-              {category === PROMO_CATEGORY ? (
-                (() => {
-                  const vehiclePromos = promosForVehicle(unit.vehicles[0]?.type);
-                  if (!vehiclePromos.length) {
+              {category === PACKAGE_CATEGORY ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
+                  {packagePromosForVehicle(vehicle.type).map((rule) => {
+                    const names = getPackageServicesForVehicle(rule, vehicle.type);
+                    const on = unit.vehicles.every((member) => member.package_applied === rule.name);
+                    const standalone = getPackageStandaloneSum(rule, vehicle.type);
                     return (
-                      <div style={{ padding: '1rem', border: '1px dashed var(--admin-border)', borderRadius: '6px', background: 'var(--admin-bg)' }}>
-                        <p style={{ margin: 0, fontSize: '.78rem', fontWeight: 800, color: 'var(--admin-text-secondary)' }}>
-                          No promos are configured as of now
-                        </p>
-                        <p style={{ margin: '.35rem 0 0', fontSize: '.68rem', fontWeight: 600, color: 'var(--admin-text-secondary)', opacity: .8 }}>
-                          Any active promotions for {unit.vehicles[0]?.type || 'this vehicle type'} will appear here automatically.
-                        </p>
-                      </div>
+                      <button key={rule.id || rule.name} type="button" onClick={() => togglePackage(unit, rule)} aria-pressed={on}
+                        style={{ width: '100%', textAlign: 'left', padding: '.85rem', borderRadius: '6px', cursor: 'pointer', color: 'var(--admin-text-primary)', background: on ? 'rgba(var(--admin-brand-rgb), .08)' : 'var(--admin-bg)', border: `1px solid ${on ? 'var(--admin-brand)' : 'var(--admin-border)'}`, display: 'flex', gap: '.75rem', alignItems: 'flex-start' }}>
+                        <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 19, height: 19, borderRadius: 4, flexShrink: 0, border: `1.5px solid ${on ? 'var(--admin-brand)' : 'var(--admin-text-secondary)'}`, background: on ? 'var(--admin-brand)' : 'transparent', color: 'var(--admin-text-on-brand)' }}>{on ? <Check size={13} strokeWidth={3.5} /> : null}</span>
+                        <span style={{ flex: 1 }}>
+                          <strong style={{ fontSize: '.85rem' }}>{rule.name}</strong>
+                          <small style={{ display: 'block', marginTop: '.2rem', color: 'var(--admin-text-secondary)', lineHeight: 1.4 }}>Includes: {names.join(', ')}</small>
+                        </span>
+                        <span style={{ textAlign: 'right' }}>
+                          {standalone > Number(rule.value || 0) && <div style={{ textDecoration: 'line-through', opacity: 0.5, fontSize: '.72rem', color: 'var(--admin-text-secondary)' }}>₱{standalone.toLocaleString()}</div>}
+                          <strong style={{ color: '#10b981', whiteSpace: 'nowrap' }}>₱{Number(rule.value || 0).toLocaleString()}</strong>
+                        </span>
+                      </button>
                     );
-                  }
-                  return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-                      {vehiclePromos.map((promo) => {
-                        const label = promo.name || promo.promo_name || 'Promotion';
-                        const summary = promo.discountType === 'PERCENT' || promo.discount_type === 'PERCENT'
-                          ? `${Number(promo.discountValue ?? promo.discount_value ?? 0)}% off`
-                          : (promo.discountValue ?? promo.discount_value) != null
-                            ? `₱${Number(promo.discountValue ?? promo.discount_value).toLocaleString()} off`
-                            : (promo.description || 'Applies automatically at checkout');
-                        return (
-                          <div
-                            key={promo.id || label}
-                            style={{ padding: '.75rem', border: '1px solid var(--admin-border)', borderRadius: '6px', background: 'var(--admin-bg)', display: 'flex', flexDirection: 'column', gap: '.25rem' }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', flexWrap: 'wrap' }}>
-                              <span style={{ background: 'var(--status-success)', color: 'var(--admin-text-on-brand)', fontSize: '.6rem', padding: '.12rem .38rem', borderRadius: '3px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.4px' }}>Active</span>
-                              <strong style={{ fontSize: '.82rem', color: 'var(--admin-text-primary)' }}>{label}</strong>
-                            </div>
-                            <span style={{ fontSize: '.7rem', fontWeight: 700, color: 'var(--status-success)' }}>{summary}</span>
-                            <span style={{ fontSize: '.66rem', fontWeight: 600, color: 'var(--admin-text-secondary)' }}>
-                              Applied automatically to the matching service — no selection needed.
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()
+                  })}
+                </div>
               ) : (
               <>
               {services.map((service) => {
                 const basePrice = Number(service.prices[vehicle.type] || 0);
                 if (!basePrice) return null;
-                const promoInfo = getBestPromoForService(vehicle.type, service.name, basePrice);
+                const selected = unit.vehicles.every((member) => member.services?.some((item) => item.id === service.id));
+                const promoSkipped = selected && Boolean(vehicle.services?.find((item) => item.id === service.id)?.skip_promo);
+                const promoInfo = promoSkipped ? null : getBestPromoForService(vehicle.type, service.name, basePrice);
                 const effectivePrice = promoInfo ? promoInfo.effectivePrice : basePrice;
                 const hasDiscount = promoInfo && promoInfo.discountAmount > 0;
-                const selected = unit.vehicles.every((member) => member.services?.some((item) => item.id === service.id));
 
                 return (
                   <label
@@ -737,6 +733,11 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
                         <div key={service.id} style={{ display: 'flex', gap: '.5rem', justifyContent: 'space-between', color: 'var(--admin-text-primary)', fontSize: '.78rem' }}>
                           <span>
                             {service.name}{unit.vehicles.length > 1 ? ` × ${unit.vehicles.length}` : ''}
+                            {(service.skip_promo || service.applied_promo) && (
+                              <button type="button" onClick={() => togglePromoUse(unit, service)} style={{ marginLeft: '.35rem', background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'var(--admin-text-secondary)', fontSize: '.68rem', fontWeight: 800, textDecoration: 'underline' }}>
+                                {service.skip_promo ? 'Use promo' : 'Skip promo'}
+                              </button>
+                            )}
                             {service.applied_promo && (
                               <span style={{ marginLeft: '.35rem', color: 'var(--status-success)', fontSize: '.7rem', fontWeight: '700' }}>
                                 ({service.applied_promo})
@@ -796,7 +797,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
         onRemoved={() => setBookingData((prev) => ({ ...prev, promoCode: null, promoRule: null }))}
       />
     )}
-    <footer style={{ padding: '1.25rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', background: 'var(--admin-sidebar)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)' }}><div><span style={{ color: 'var(--admin-text-secondary)', fontWeight: '800', fontSize: '.72rem', textTransform: 'uppercase' }}>Booking estimate · {vehicles.length} vehicle{vehicles.length === 1 ? '' : 's'} in {units.length} unit{units.length === 1 ? '' : 's'}</span><strong style={{ display: 'block', color: 'var(--admin-brand)', fontSize: '1.6rem' }}>₱{grandTotal.toLocaleString()}</strong></div><div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>{onCancel && <button type="button" onClick={onCancel} style={{ padding: '.9rem 1.25rem', background: 'transparent', color: 'var(--status-danger)', border: '1px solid #ef4444', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}>CANCEL</button>}<button type="button" disabled={!validUnits} title={!validUnits ? 'Complete every vehicle unit and select at least one service for each.' : ''} onClick={onNext} style={{ padding: '.9rem 1.25rem', background: validUnits ? 'var(--admin-brand)' : 'var(--admin-bg)', color: validUnits ? '#fff' : 'var(--admin-text-secondary)', border: `1px solid ${validUnits ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '6px', fontWeight: '900', cursor: validUnits ? 'pointer' : 'not-allowed', opacity: validUnits ? 1 : .5 }}>PROCEED TO SCHEDULE</button></div></footer>
+    <footer style={{ padding: '1.25rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', background: 'var(--admin-sidebar)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)' }}><div><span style={{ color: 'var(--admin-text-secondary)', fontWeight: '800', fontSize: '.72rem', textTransform: 'uppercase' }}>Booking estimate · {vehicles.length} vehicle{vehicles.length === 1 ? '' : 's'} in {units.length} unit{units.length === 1 ? '' : 's'}</span>{codeDiscount > 0 && <span style={{ display: 'block', color: 'var(--status-success)', fontWeight: 800, fontSize: '.78rem' }}>Promo code {bookingData.promoRule?.code}: −₱{codeDiscount.toLocaleString()} off the total</span>}<strong style={{ display: 'block', color: 'var(--admin-brand)', fontSize: '1.6rem' }}>₱{grandTotal.toLocaleString()}</strong></div><div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>{onCancel && <button type="button" onClick={onCancel} style={{ padding: '.9rem 1.25rem', background: 'transparent', color: 'var(--status-danger)', border: '1px solid #ef4444', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}>CANCEL</button>}<button type="button" disabled={!validUnits} title={!validUnits ? 'Complete every vehicle unit and select at least one service for each.' : ''} onClick={onNext} style={{ padding: '.9rem 1.25rem', background: validUnits ? 'var(--admin-brand)' : 'var(--admin-bg)', color: validUnits ? '#fff' : 'var(--admin-text-secondary)', border: `1px solid ${validUnits ? 'var(--admin-brand)' : 'var(--admin-border)'}`, borderRadius: '6px', fontWeight: '900', cursor: validUnits ? 'pointer' : 'not-allowed', opacity: validUnits ? 1 : .5 }}>PROCEED TO SCHEDULE</button></div></footer>
   </div>;
 };
 

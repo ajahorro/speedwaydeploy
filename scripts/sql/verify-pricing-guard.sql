@@ -93,6 +93,11 @@ set local role authenticated;
 select pg_temp.expect('a coded promotion price is accepted with its code', pg_temp.booking_code(127.5, 'Sedan', 'guard25', 'Basic Carwash'));
 select pg_temp.expect('below the coded promotion is refused', pg_temp.booking_code(100, 'Sedan', 'GUARD25', 'Basic Carwash'), 'does not match');
 select pg_temp.expect('the coded price is refused without the code', pg_temp.booking(127.5, 'Sedan', 'Basic Carwash'), 'does not match');
+set local role postgres;
+insert into promo_codes (code, name, discount_type, discount_value) values ('GUARDFIX', 'guard fixed', 'fixed', 100);
+set local role authenticated;
+select pg_temp.expect('a fixed code takes its amount off the total once', pg_temp.booking_code(70, 'Sedan', 'GUARDFIX', 'Basic Carwash'));
+select pg_temp.expect('a fixed code cannot take more than its amount', pg_temp.booking_code(50, 'Sedan', 'GUARDFIX', 'Basic Carwash'), 'does not match');
 
 -- server jobs without a user session are not checked
 reset role;

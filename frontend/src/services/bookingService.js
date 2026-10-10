@@ -120,7 +120,7 @@ export const createBooking = async (customerId, bookingData) => {
   // Section 4: promo eligibility is evaluated against the booking CREATION DATE
   // (this submit moment), not a later system time, so the persisted total
   // reflects the rule set in force when the booking was actually created.
-  const pricingSummary = calculateBookingDiscountSummary(vehicles, new Date().toISOString());
+  const pricingSummary = calculateBookingDiscountSummary(vehicles, new Date().toISOString(), bookingData.promoRule || null);
   const totalAmount = pricingSummary.discountedTotal;
   const packagePlan = (pricingSummary.appliedPackages || []).map((entry) => ({
     package_id: entry.packageId,
@@ -164,7 +164,7 @@ export const createBooking = async (customerId, bookingData) => {
   );
   const promoNameSnapshot = appliedPackages.length
     ? appliedPackages.map((p) => p.name).join(', ')
-    : (() => {
+    : bookingData.promoRule?.name || (() => {
         for (const vehicle of (vehicles || [])) {
           for (const service of (vehicle.services || [])) {
             if (service?.applied_promo) return service.applied_promo;

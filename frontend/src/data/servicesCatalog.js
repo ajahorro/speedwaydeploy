@@ -418,18 +418,7 @@ export const isPromoRuleLive = (rule) => Boolean(rule)
   && rule.is_active !== false
   && !rule.deleted_at;
 
-// The promotion unlocked by the promo code the customer redeemed on the last
-// booking page (see services/promoCodeService.js). Codes are not part of the
-// public configuration, so a coded promotion exists here only after redemption;
-// every pricing path below (per-service, package, discount summary) then sees it
-// like any other live rule.
-let redeemedPromoRule = null;
-export const setRedeemedPromoRule = (rule) => { redeemedPromoRule = rule && typeof rule === 'object' ? rule : null; };
-
-export const getPromoRules = () => {
-  const live = catalogSource.promoRules.filter(isPromoRuleLive);
-  return redeemedPromoRule && isPromoRuleLive(redeemedPromoRule) ? [...live, redeemedPromoRule] : live;
-};
+export const getPromoRules = () => catalogSource.promoRules.filter(isPromoRuleLive);
 
 /**
  * Kept for existing callers. Promo rules arrive with the business_config row
@@ -437,7 +426,7 @@ export const getPromoRules = () => {
  */
 export const fetchActivePromos = async () => getPromoRules();
 
-const isPromoActiveForNow = (rule, atDate = null) => {
+export const isPromoActiveForNow = (rule, atDate = null) => {
   if (!rule || rule.active === false) return false;
 
   // Section 4 — Eligibility Rule: promo validity is evaluated against the
@@ -839,7 +828,7 @@ export const priceVehicleServices = (vehicleType, services = [], atDate = null) 
 
   const priced = list.map(service => {
     const basePrice = Number(service.price ?? service.basePrice ?? 0);
-    const promoInfo = getBestPromoForService(vehicleType, service.name || service.service_name, basePrice, atDate);
+    const promoInfo = service.skip_promo ? null : getBestPromoForService(vehicleType, service.name || service.service_name, basePrice, atDate);
     const priceAtBooking = promoInfo ? promoInfo.effectivePrice : basePrice;
     return {
       ...service,
@@ -885,15 +874,42 @@ export const getBestPromoForService = (vehicleType, serviceName, basePrice = 0, 
     ...rule,
     effectivePrice,
     discountAmount,
-    tagText: rule.type === 'percentage'
-      ? `${rule.value}% OFF`
-      : `₱${Number(rule.value).toLocaleString()} OFF`
+    // Several live promos can stack on one service: then the tag states the real total saved, not the first rule's own figure.
+    tagText: rules.length > 1
+      ? `₱${Math.round(discountAmount * 100) / 100} OFF`
+      : rule.type === 'percentage'
+        ? `${rule.value}% OFF`
+        : `₱${Number(rule.value).toLocaleString()} OFF`
   };
 };
 
-export const calculateBookingDiscountSummary = (vehicles = [], atDate = null) => {
+/**
+ * A typed promo code takes its discount off the ORDER TOTAL, once. It is not a
+ * per-service promotion: this is the one place that works the amount out.
+ * `eligible` is what the code may reduce (the services its vehicle / service scope
+ * covers, after any automatic promotions; package-priced vehicles are excluded).
+ */
+export const promoCodeDiscount = (codeRule, eligible) => {
+  const base = Math.max(0, Number(eligible) || 0);
+  const value = Number(codeRule?.value) || 0;
+  if (!codeRule || base <= 0 || value <= 0) return 0;
+  const raw = codeRule.type === 'percentage' ? base * (Math.min(value, 100) / 100) : Math.min(value, base);
+  return Math.round(raw * 100) / 100;
+};
+
+const codeCoversService = (codeRule, vehicleType, serviceName) => {
+  const types = Array.isArray(codeRule?.vehicleTypes) ? codeRule.vehicleTypes : [];
+  if (types.length && !types.some((type) => String(type).toLowerCase() === String(vehicleType || '').toLowerCase())) return false;
+  const names = Array.isArray(codeRule?.serviceMatches) ? codeRule.serviceMatches : [];
+  if (!names.length) return true;
+  const target = normalizeServiceName(serviceName);
+  return names.some((name) => normalizeServiceName(name) === target);
+};
+
+export const calculateBookingDiscountSummary = (vehicles = [], atDate = null, codeRule = null) => {
   let originalTotal = 0;
   let discountedTotal = 0;
+  let codeEligible = 0;
   const appliedPackages = [];
 
   (vehicles || []).forEach(vehicle => {
@@ -926,17 +942,25 @@ export const calculateBookingDiscountSummary = (vehicles = [], atDate = null) =>
       return;
     }
 
-    // No package applies → every service is priced with standard promos.
+    // No package applies → every service is priced with standard promos (unless
+    // the booking creator switched that service's promo off).
     services.forEach(service => {
       const basePrice = Number(service.price || service.basePrice || 0);
-      discountedTotal += getEffectivePriceForService(basePrice, vehicle.type, service.name || service.service_name, atDate);
+      const serviceName = service.name || service.service_name;
+      const net = service.skip_promo ? basePrice : getEffectivePriceForService(basePrice, vehicle.type, serviceName, atDate);
+      discountedTotal += net;
+      if (codeRule && codeCoversService(codeRule, vehicle.type, serviceName)) codeEligible += net;
     });
   });
+
+  const codeDiscount = promoCodeDiscount(codeRule, codeEligible);
+  discountedTotal = Math.round((discountedTotal - codeDiscount) * 100) / 100;
 
   return {
     originalTotal,
     discountedTotal,
     totalDiscount: Math.max(0, originalTotal - discountedTotal),
+    codeDiscount,
     appliedPackages,
   };
 };
