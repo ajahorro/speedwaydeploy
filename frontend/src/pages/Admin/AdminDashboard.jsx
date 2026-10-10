@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { fetchBookingLedgers, fetchSalesReport } from '../../services/ledgerService';
-import { isPendingRefundRequest, getRefundRequestLimit } from '../../utils/refundRequestUtils';
+import { isPendingRefundRequest, getRefundRequestLimit, getOverpaymentRefundRemaining } from '../../utils/refundRequestUtils';
 
 // MEMOIZED SUB-COMPONENTS: Prevent entire dashboard from re-rendering on single metric change
 const AttentionCard = React.memo(({ count, label, icon: Icon, color, bg, onClick }) => {
@@ -249,16 +249,11 @@ const AdminDashboard = () => {
       }
 
       const refundRequestsCount = (refundData || []).filter(booking => {
-        const payments = booking.payments || [];
-        const queuedOverpayment = queuedCreditRows
-          .filter(entry => entry.booking_id === booking.id)
-          .reduce((sum, entry) => sum + Math.max(0, -Number(entry.amount || 0)), 0);
-        const processedOverpaymentRefunds = payments
-          .filter(payment => Number(payment.amount) < 0
-            && String(payment.method || '').trim().toUpperCase() === 'SYSTEM_REFUND'
-            && String(payment.notes || '').startsWith('OVERPAYMENT_CREDIT_REFUND:'))
-          .reduce((sum, payment) => sum + Math.abs(Number(payment.amount)), 0);
-        const overpaymentRefundRemaining = Math.max(0, queuedOverpayment - processedOverpaymentRefunds);
+        // Same figure the Refunds page uses (utils/refundRequestUtils.js).
+        const overpaymentRefundRemaining = getOverpaymentRefundRemaining({
+          creditEntries: queuedCreditRows.filter(entry => entry.booking_id === booking.id),
+          payments: booking.payments
+        });
         const refundLimit = getRefundRequestLimit({
           totalPaid: refundLedgers.get(booking.id)?.net_settled,
           overpaymentRefundRemaining

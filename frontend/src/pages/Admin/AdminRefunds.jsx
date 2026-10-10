@@ -13,7 +13,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from '@/lib/toast';
 import { logger } from '../../utils/logger';
 import { fetchBookingLedgers } from '../../services/ledgerService';
-import { getRefundRequestLimit } from '../../utils/refundRequestUtils';
+import { getOverpaymentRefundRemaining, getRefundRequestLimit } from '../../utils/refundRequestUtils';
 import { matchesSearchText } from '../../utils/searchMatch';
 
 const AdminRefunds = () => {
@@ -93,15 +93,11 @@ const AdminRefunds = () => {
         const refundReason = refundPayment?.refund_reason || null;
         const refundMethod = refundPayment?.refund_method || null;
         const refundedAmount = processedRefunds;
-        const queuedOverpayment = queuedCredits
-          .filter(entry => entry.booking_id === b.id)
-          .reduce((sum, entry) => sum + Math.max(0, -Number(entry.amount || 0)), 0);
-        const processedOverpaymentRefunds = (b.payments || [])
-          .filter(p => Number(p.amount) < 0
-            && methodOfPayment(p) === 'SYSTEM_REFUND'
-            && String(p.notes || '').startsWith('OVERPAYMENT_CREDIT_REFUND:'))
-          .reduce((sum, p) => sum + Math.abs(Number(p.amount)), 0); // single-source-ok: matches overpayment-credit refund rows by note; not a paid total
-        const overpaymentRefundRemaining = Math.max(0, queuedOverpayment - processedOverpaymentRefunds);
+        // Same figure the dashboard's refund count uses (utils/refundRequestUtils.js).
+        const overpaymentRefundRemaining = getOverpaymentRefundRemaining({
+          creditEntries: queuedCredits.filter(entry => entry.booking_id === b.id),
+          payments: b.payments
+        });
         const refundLimit = getRefundRequestLimit({ totalPaid, overpaymentRefundRemaining });
 
         return {
