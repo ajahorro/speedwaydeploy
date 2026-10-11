@@ -110,7 +110,8 @@ const AdminRefunds = () => {
         // Same figure the dashboard's refund count uses (utils/refundRequestUtils.js).
         const overpaymentRefundRemaining = getOverpaymentRefundRemaining({
           creditEntries: queuedCredits.filter(entry => entry.booking_id === b.id),
-          payments: b.payments
+          payments: b.payments,
+          bookingStatus: b.status
         });
         const refundLimit = getRefundRequestLimit({ totalPaid, overpaymentRefundRemaining });
 

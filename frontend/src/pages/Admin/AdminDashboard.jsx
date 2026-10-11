@@ -245,7 +245,8 @@ const AdminDashboard = () => {
         // Same figure the Refunds page uses (utils/refundRequestUtils.js).
         const overpaymentRefundRemaining = getOverpaymentRefundRemaining({
           creditEntries: queuedCreditRows.filter(entry => entry.booking_id === booking.id),
-          payments: booking.payments
+          payments: booking.payments,
+          bookingStatus: booking.status
         });
         const refundLimit = getRefundRequestLimit({
           totalPaid: refundLedgers.get(booking.id)?.net_settled,

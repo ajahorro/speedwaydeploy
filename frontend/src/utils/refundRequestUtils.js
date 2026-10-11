@@ -7,11 +7,15 @@
  * The admin dashboard count and the Refunds page must always agree, so both call
  * this instead of each keeping its own copy of the arithmetic.
  *
- * @param {{ creditEntries?: {amount:number}[], payments?: object[] }} input
+ * Only a COMPLETED booking keeps an excess-only refund. A cancelled or no-show booking is refunded from everything
+ * that was paid (the excess is part of it), so its queued excess is not a separate refund and counts as 0 here.
+ *
+ * @param {{ creditEntries?: {amount:number}[], payments?: object[], bookingStatus?: string }} input
  *   creditEntries: the REFUND_QUEUED customer_credit_ledger rows of this booking.
  *   payments: this booking's payment rows.
  */
-export const getOverpaymentRefundRemaining = ({ creditEntries = [], payments = [] } = {}) => {
+export const getOverpaymentRefundRemaining = ({ creditEntries = [], payments = [], bookingStatus } = {}) => {
+  if (bookingStatus !== undefined && String(bookingStatus || '').trim().toLowerCase() !== 'completed') return 0;
   const queued = (creditEntries || [])
     .reduce((sum, entry) => sum + Math.max(0, -Number(entry?.amount || 0)), 0);
   const processed = (payments || [])
