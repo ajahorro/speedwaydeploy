@@ -41,12 +41,23 @@ const AdminBookings = () => {
     const filter = params.get('filter');
     if (filter === 'unassigned') {
       setState(prev => ({ ...prev, filterStatus: 'unassigned' }));
+    } else if (filter === 'off_shift') {
+      setState(prev => ({ ...prev, filterStatus: 'off_shift' }));
     } else if (filter === 'overdue' || filter === 'FLAGGED_NOSHOW') {
       setState(prev => ({ ...prev, filterStatus: 'FLAGGED_NOSHOW' }));
     } else if (['ongoing', 'pending_payment', 'pending_refund', 'completed'].includes(filter)) {
       setState(prev => ({ ...prev, filterStatus: filter }));
     }
   }, [location.search]);
+
+  // "Off shift": bookings whose time has come while an assigned technician is not clocked in (database list, administrators only)
+  const [offShiftIds, setOffShiftIds] = useState(() => new Set());
+  useEffect(() => {
+    if (state.filterStatus !== 'off_shift') return undefined;
+    let alive = true;
+    supabase.rpc('off_shift_assignments').then(({ data }) => { if (alive) setOffShiftIds(new Set((data || []).map((row) => row.booking_id))); });
+    return () => { alive = false; };
+  }, [state.filterStatus, bookings]);
 
   // A search or filter has to see every booking, not just the latest page.
   useEffect(() => {
@@ -71,6 +82,8 @@ const AdminBookings = () => {
           || ['cancelled', 'completed', 'released', 'in_progress', 'ongoing', 'flagged_noshow', 'no_show'].includes(bookingStatus);
         // a booking needs attention when any of its vehicles has no technician
         matchesStatus = (!b.staff_id || (b.vehicles || []).some(v => !v.staff_id)) && !isNotAssignable;
+      } else if (state.filterStatus === 'off_shift') {
+        matchesStatus = offShiftIds.has(b.id);
       } else if (state.filterStatus === 'FLAGGED_NOSHOW') {
         matchesStatus = b.status?.toUpperCase() === 'FLAGGED_NOSHOW';
       } else if (state.filterStatus === 'ongoing') {
@@ -86,7 +99,7 @@ const AdminBookings = () => {
       
       return matchesSearch && matchesStatus;
     });
-  }, [bookings, state.searchTerm, state.filterStatus]);
+  }, [bookings, state.searchTerm, state.filterStatus, offShiftIds]);
 
   const getPaymentStatus = (booking) => {
     return getPaymentStatusUI(booking.calculatedPaymentStatus);
@@ -229,7 +242,7 @@ const AdminBookings = () => {
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--admin-bg)', padding: '0.4rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', overflowX: 'auto' }}>
-            {['all', 'unassigned', 'FLAGGED_NOSHOW', 'scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled'].map(f => (
+            {['all', 'unassigned', 'off_shift', 'FLAGGED_NOSHOW', 'scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled'].map(f => (
               <button 
                 key={f}
                 onClick={() => setState(prev => ({ ...prev, filterStatus: f }))}
@@ -241,7 +254,7 @@ const AdminBookings = () => {
                   whiteSpace: 'nowrap'
                 }}
               >
-                {f}
+                {f === 'off_shift' ? 'off shift' : f}
               </button>
             ))}
           </div>

@@ -14,6 +14,10 @@ end $$;
 select pg_temp.mk('9d100000-0000-0000-0000-000000000001', 'ns-cust@test.local', 'CUSTOMER');
 select pg_temp.mk('9d100000-0000-0000-0000-000000000002', 'ns-tech@test.local', 'STAFF');
 select pg_temp.mk('9d100000-0000-0000-0000-000000000003', 'ns-tech2@test.local', 'STAFF');
+select pg_temp.mk('9d100000-0000-0000-0000-000000000004', 'ns-admin@test.local', 'ADMIN');
+-- the first technician is on shift; the second is not
+update public.profiles set is_clocked_in = true where id = '9d100000-0000-0000-0000-000000000002';
+update public.profiles set is_clocked_in = false where id = '9d100000-0000-0000-0000-000000000003';
 
 set local session_replication_role = replica;
 -- 1 has a before photo by its technician (never started)   2 has no photo   3 is on time (not due)   4 will be made to fail
@@ -29,7 +33,11 @@ values ('9d1000aa-0000-0000-0000-000000000001', '9d1000bb-0000-0000-0000-0000000
 insert into public.bookings (id, customer_id, customer_name, status, payment_status, total_amount, start_datetime, end_datetime, staff_id) values ('9d1000aa-0000-0000-0000-000000000005', '9d100000-0000-0000-0000-000000000001', 'N S', 'confirmed', 'paid', 500, now() - interval '20 minutes', now() + interval '40 minutes', '9d100000-0000-0000-0000-000000000003');
 insert into public.booking_vehicles (id, booking_id, vehicle_type, brand, model, plate_number, status, staff_id) values ('9d1000bb-0000-0000-0000-000000000005', '9d1000aa-0000-0000-0000-000000000005', 'Sedan', 'A', 'B', 'NS005', 'SCHEDULED', '9d100000-0000-0000-0000-000000000003');
 insert into public.service_photos (booking_id, booking_vehicle_id, phase, storage_path, source, uploaded_by) values ('9d1000aa-0000-0000-0000-000000000005', '9d1000bb-0000-0000-0000-000000000005', 'before', 'x/before5.png', 'upload', '9d100000-0000-0000-0000-000000000003');
-insert into public.payments (booking_id, amount, method, payment_type, status) values ('9d1000aa-0000-0000-0000-000000000001', 500, 'GCash', 'Full', 'PAID');
+insert into public.payments (booking_id, amount, method, payment_type, status) values ('9d1000aa-0000-0000-0000-000000000001', 500, 'GCash', 'Full', 'PAID'), ('9d1000aa-0000-0000-0000-000000000002', 500, 'GCash', 'Full', 'PAID');
+-- booking 6: three hours past its time, its technician is off shift, no before photo
+insert into public.bookings (id, customer_id, customer_name, status, payment_status, total_amount, start_datetime, end_datetime, staff_id) values ('9d1000aa-0000-0000-0000-000000000006', '9d100000-0000-0000-0000-000000000001', 'N S', 'confirmed', 'paid', 500, now() - interval '3 hours', now() - interval '2 hours', '9d100000-0000-0000-0000-000000000003');
+insert into public.booking_vehicles (id, booking_id, vehicle_type, brand, model, plate_number, status, staff_id) values ('9d1000bb-0000-0000-0000-000000000006', '9d1000aa-0000-0000-0000-000000000006', 'Sedan', 'A', 'B', 'NS006', 'SCHEDULED', '9d100000-0000-0000-0000-000000000003');
+insert into public.payments (booking_id, amount, method, payment_type, status) values ('9d1000aa-0000-0000-0000-000000000006', 500, 'GCash', 'Full', 'PAID');
 set local session_replication_role = origin;
 
 -- the lock still protects a booking that is running normally
@@ -48,13 +56,15 @@ create trigger zz_boom before update on public.bookings for each row when (old.i
 
 select (public.run_no_show_lifecycle()->>'flagged')::int as flagged \gset
 insert into t_results select 'the sweep runs to the end (a booking with the technician''s before photo no longer stops it)', true, 'flagged ' || :'flagged';
-insert into t_results select 'the booking with a before photo is flagged as a no-show', (select status from public.bookings where id = '9d1000aa-0000-0000-0000-000000000001') in ('FLAGGED_NOSHOW', 'cancelled'), (select status from public.bookings where id = '9d1000aa-0000-0000-0000-000000000001');
-insert into t_results select 'the booking without a photo is flagged in the same run', (select status from public.bookings where id = '9d1000aa-0000-0000-0000-000000000002') in ('FLAGGED_NOSHOW', 'cancelled'), (select status from public.bookings where id = '9d1000aa-0000-0000-0000-000000000002');
-insert into t_results select 'the technician is remembered for an undo', (select no_show_staff_id from public.bookings where id = '9d1000aa-0000-0000-0000-000000000001') = '9d100000-0000-0000-0000-000000000002', '';
+insert into t_results select 'a booking whose technician saved a before photo is NOT a no-show (the technician missed it)', (select status from public.bookings where id = '9d1000aa-0000-0000-0000-000000000001') = 'confirmed', (select status from public.bookings where id = '9d1000aa-0000-0000-0000-000000000001');
+insert into t_results select 'and its payment is not queued for refund', (select status from public.payments where booking_id = '9d1000aa-0000-0000-0000-000000000001') = 'PAID', '';
+insert into t_results select 'a booking whose technician is off shift is NOT a no-show either', (select status from public.bookings where id = '9d1000aa-0000-0000-0000-000000000006') = 'confirmed', (select status from public.bookings where id = '9d1000aa-0000-0000-0000-000000000006');
+insert into t_results select 'a booking with an on-shift technician, no photo and nobody there is flagged in the same run', (select status from public.bookings where id = '9d1000aa-0000-0000-0000-000000000002') in ('FLAGGED_NOSHOW', 'cancelled'), (select status from public.bookings where id = '9d1000aa-0000-0000-0000-000000000002');
+insert into t_results select 'the technician is remembered for an undo', (select no_show_staff_id from public.bookings where id = '9d1000aa-0000-0000-0000-000000000002') = '9d100000-0000-0000-0000-000000000002', '';
 insert into t_results select 'a booking that is on time is left alone', (select status from public.bookings where id = '9d1000aa-0000-0000-0000-000000000003') = 'confirmed', '';
 insert into t_results select 'a booking that cannot be processed is skipped, not flagged', (select status from public.bookings where id = '9d1000aa-0000-0000-0000-000000000004') = 'scheduled', '';
 insert into t_results select 'and the reason is written to the audit log', exists (select 1 from public.audit_logs where action_type = 'NO_SHOW_SWEEP_FAILED' and booking_id = '9d1000aa-0000-0000-0000-000000000004' and details like '%simulated problem%'), '';
-insert into t_results select 'the payment on a flagged booking is queued for refund', (select status from public.payments where booking_id = '9d1000aa-0000-0000-0000-000000000001') = 'REFUND_PENDING', '';
+insert into t_results select 'the payment on a flagged booking is queued for refund', (select status from public.payments where booking_id = '9d1000aa-0000-0000-0000-000000000002') = 'REFUND_PENDING', '';
 
 select public.run_no_show_lifecycle();
 insert into t_results select 'running the sweep again does not repeat the failure entry', (select count(*) from public.audit_logs where action_type = 'NO_SHOW_SWEEP_FAILED' and booking_id = '9d1000aa-0000-0000-0000-000000000004') = 1, '';
@@ -64,8 +74,15 @@ insert into t_results select 'only the service account can record a sweep failur
 insert into t_results select 'the technician is told to start a booking whose intake is done', (select count(*) from public.notifications where booking_id = '9d1000aa-0000-0000-0000-000000000005' and user_id = '9d100000-0000-0000-0000-000000000003' and notification_type = 'START_SERVICE_PROMPT') = 1, '';
 insert into t_results select 'the administrators are told too', exists (select 1 from public.notifications where booking_id = '9d1000aa-0000-0000-0000-000000000005' and notification_type = 'UNSTARTED_SERVICE'), '';
 insert into t_results select 'a booking with no before photo gets no reminder', not exists (select 1 from public.notifications where booking_id = '9d1000aa-0000-0000-0000-000000000003' and notification_type in ('START_SERVICE_PROMPT', 'UNSTARTED_SERVICE')), '';
-insert into t_results select 'a booking that was flagged gets no reminder', not exists (select 1 from public.notifications where booking_id = '9d1000aa-0000-0000-0000-000000000001' and notification_type in ('START_SERVICE_PROMPT', 'UNSTARTED_SERVICE')), '';
+insert into t_results select 'a booking that was flagged gets no reminder', not exists (select 1 from public.notifications where booking_id = '9d1000aa-0000-0000-0000-000000000002' and notification_type in ('START_SERVICE_PROMPT', 'UNSTARTED_SERVICE')), '';
 insert into t_results select 'running the sweep again does not remind twice', (select count(*) from public.notifications where booking_id = '9d1000aa-0000-0000-0000-000000000005' and notification_type = 'START_SERVICE_PROMPT') = 1, '';
+
+-- off shift: the technician and the administrators are told once
+insert into t_results select 'the off-shift technician is told to clock in', (select count(*) from public.notifications where booking_id = '9d1000aa-0000-0000-0000-000000000006' and user_id = '9d100000-0000-0000-0000-000000000003' and notification_type = 'OFF_SHIFT_PROMPT') = 1, '';
+insert into t_results select 'the administrators are told the technician is off shift', exists (select 1 from public.notifications where booking_id = '9d1000aa-0000-0000-0000-000000000006' and user_id = '9d100000-0000-0000-0000-000000000004' and notification_type = 'OFF_SHIFT_ASSIGNMENT'), '';
+insert into t_results select 'an on-shift technician gets no off-shift notice', not exists (select 1 from public.notifications where user_id = '9d100000-0000-0000-0000-000000000002' and notification_type = 'OFF_SHIFT_PROMPT'), '';
+insert into t_results select 'the off-shift list (administrators only) names the booking', exists (select 1 from (select set_config('request.jwt.claims', '{"role":"authenticated","sub":"9d100000-0000-0000-0000-000000000004"}', true)) c, public.off_shift_assignments() o where o.booking_id = '9d1000aa-0000-0000-0000-000000000006'), '';
+select set_config('request.jwt.claims', '{"role":"service_role"}', true) \g /dev/null
 
 select name, case when ok then 'PASS' else 'FAIL' end, detail from t_results order by 1;
 rollback;
