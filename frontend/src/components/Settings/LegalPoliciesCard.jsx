@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
+import LegalReaderDialog from '../../features/legal/LegalReaderDialog';
 import { ScrollText, ShieldCheck, Receipt, ChevronRight } from 'lucide-react';
 import { LEGAL_DOCUMENTS } from '../../config/legalContent';
-import { useUI } from '../../context/UIContext';
 import { SettingsSection, SettingRow } from './SettingsPrimitives';
 
 /**
@@ -36,17 +36,8 @@ const LegalDocumentBody = ({ doc }) => (
 );
 
 const LegalPoliciesCard = () => {
-  const { openModal } = useUI();
-
-  const openDocument = (doc) => {
-    openModal({
-      title: doc.title,
-      message: <LegalDocumentBody doc={doc} />,
-      confirmText: 'Close',
-      cancelText: null,
-      type: 'info',
-    });
-  };
+  const [openDoc, setOpenDoc] = useState(null);
+  const openDocument = (doc) => setOpenDoc(doc);
 
   return (
     <SettingsSection title="Legal & Policies">
@@ -67,6 +58,9 @@ const LegalPoliciesCard = () => {
           </SettingRow>
         );
       })}
+      <LegalReaderDialog open={Boolean(openDoc)} onOpenChange={(next) => { if (!next) setOpenDoc(null); }} title={openDoc?.title || ''} description={openDoc?.summary}>
+        {openDoc && <LegalDocumentBody doc={openDoc} />}
+      </LegalReaderDialog>
     </SettingsSection>
   );
 };

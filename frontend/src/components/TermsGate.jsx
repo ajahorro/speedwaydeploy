@@ -77,7 +77,7 @@ const TermsGate = () => {
         showCloseButton={false}
         onInteractOutside={(event) => event.preventDefault()}
         onEscapeKeyDown={(event) => event.preventDefault()}
-        className="ui-root flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
+        className="ui-root flex h-[min(32rem,85dvh)] max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
       >
         <DialogHeader className="border-b px-5 py-4">
           <DialogTitle>{TITLES[key]}</DialogTitle>

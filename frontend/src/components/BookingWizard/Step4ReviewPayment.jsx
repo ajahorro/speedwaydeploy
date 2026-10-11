@@ -13,6 +13,7 @@ import { logger } from '../../utils/logger';
 import toastManager from '../../utils/toastManager';
 import { BACKEND_URL } from '../../config/api';
 import { Button } from '@/components/ui/button';
+import LegalReaderDialog from '@/features/legal/LegalReaderDialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -1305,24 +1306,21 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
             </label>
           </div>}
 
-          <Dialog open={showTermsModal} onOpenChange={setShowTermsModal}>
-            <DialogContent className="ui-root max-h-[90dvh] overflow-y-auto sm:max-w-xl">
-              <DialogHeader>
-                <DialogTitle>Terms &amp; Conditions</DialogTitle>
-                <DialogDescription>What you agree to when you book with Comar Garage.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-3 text-sm leading-relaxed">
-                {(String(settings.TERMS_AND_CONDITIONS || '').trim() || DEFAULT_TERMS)
-                  .split(/\n+/)
-                  .map((line) => line.trim())
-                  .filter(Boolean)
-                  .map((line, index) => <p key={index}>{line}</p>)}
-              </div>
-              <DialogFooter>
-                <Button type="button" onClick={() => setShowTermsModal(false)}>Close</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <LegalReaderDialog
+            open={showTermsModal}
+            onOpenChange={setShowTermsModal}
+            title="Terms & Conditions"
+            description="What you agree to when you book with Comar Garage."
+            requireRead
+          >
+            <div className="grid gap-3">
+              {(String(settings.TERMS_AND_CONDITIONS || '').trim() || DEFAULT_TERMS)
+                .split(/\n+/)
+                .map((line) => line.trim())
+                .filter(Boolean)
+                .map((line, index) => <p key={index}>{line}</p>)}
+            </div>
+          </LegalReaderDialog>
 
           <Dialog open={showHelpTips} onOpenChange={setShowHelpTips}>
             <DialogContent className="ui-root max-h-[90dvh] overflow-y-auto sm:max-w-xl">
