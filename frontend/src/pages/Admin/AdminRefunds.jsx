@@ -188,7 +188,8 @@ const AdminRefunds = () => {
     // equals the full refundable total rather than inheriting a stale figure.
     deduction: Number(item.refundDeduction || 0),
     refundAmount: Number(item.refundLimit ?? item.totalPaid ?? 0),
-    refundReason: item.refundReason || '',
+    // an excess refund has one reason only: the excess payment
+    refundReason: Number(item.overpaymentRefundRemaining || 0) > 0 ? 'Excess payment' : (item.refundReason || ''),
     refundMethod: item.refundMethod || '',
   })); };
 
@@ -559,6 +560,7 @@ const AdminRefunds = () => {
                     <select
                       value={state.refundReason}
                       onChange={(e) => setState(prev => ({ ...prev, refundReason: e.target.value }))}
+                      disabled={Number(state.selectedItem?.overpaymentRefundRemaining || 0) > 0}
                       style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: '700', marginBottom: '1rem', appearance: 'none' }}
                     >
                       <option value="" disabled>Select Reason</option>
@@ -567,6 +569,9 @@ const AdminRefunds = () => {
                       <option value="Schedule Conflict">Schedule Conflict</option>
                       <option value="Customer Request">Customer Request</option>
                     </select>
+                    {Number(state.selectedItem?.overpaymentRefundRemaining || 0) > 0 && (
+                      <div style={{ marginTop: '-0.6rem', marginBottom: '0.75rem', fontSize: '0.62rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>The customer paid more than the booking costs. The excess payment is the only reason that applies while the booking is going ahead.</div>
+                    )}
                   </div>
 
                   {/* Section 5: the admin edits the DEDUCTION; the refund is derived. */}

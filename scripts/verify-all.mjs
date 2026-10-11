@@ -71,7 +71,8 @@ if (container) {
     ['sql: customer cash booking', 'scripts/sql/verify-customer-cash.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: photo retention', 'scripts/sql/verify-photo-retention.sql', /\|\s*FAIL\s*\|/m, null],
     ['sql: no-show sweep', 'scripts/sql/verify-no-show-sweep.sql', /\|\s*FAIL\s*\|/m, null],
-    ['sql: refund proof', 'scripts/sql/verify-refund-proof.sql', /\|\s*FAIL\s*\|/m, null]
+    ['sql: refund proof', 'scripts/sql/verify-refund-proof.sql', /\|\s*FAIL\s*\|/m, null],
+    ['sql: excess refund', 'scripts/sql/verify-excess-refund.sql', /\|\s*FAIL\s*\|/m, null]
   ];
   for (const [name, file, failPattern] of suites) {
     const result = spawnSync('docker', ['exec', '-i', container, 'psql', '-U', 'postgres'], { input: fs.readFileSync(file), encoding: 'utf8' });

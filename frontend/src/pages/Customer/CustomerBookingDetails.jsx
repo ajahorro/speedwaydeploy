@@ -29,6 +29,7 @@ import { getAvailableSlots, getBusinessHours } from '../../services/scheduleServ
 import { useImagePreview } from '../../context/ImagePreviewContext';
 import PaymentProofModal from '../../components/payments/PaymentProofModal';
 import RefundProofButton from '../../features/finance/RefundProofButton';
+import ExcessPaymentPrompt from '../../features/finance/ExcessPaymentPrompt';
 import { useRefundProofs } from '../../hooks/useRefundProofs';
 import AddServiceDialog from '../../components/payments/AddServiceDialog';
 import { Button } from '@/components/ui/button';
@@ -65,6 +66,8 @@ const CustomerBookingDetails = () => {
 
   const [payBalanceOpen, setPayBalanceOpen] = useState(false);
   const [addServiceOpen, setAddServiceOpen] = useState(false);
+  const [excessPromptHidden, setExcessPromptHidden] = useState(false);
+  const [excessBusy, setExcessBusy] = useState(false);
   const [booking, setBooking] = useState(null);
   const [vehicles, setVehicles] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -357,6 +360,27 @@ const CustomerBookingDetails = () => {
     && addableVehicles.length > 0
     && !['REFUNDED', 'REFUND_PENDING'].includes(String(booking.refund_status || '').toUpperCase());
 
+  // Paid more than the booking costs, and nothing decided yet: ask what to do with the excess.
+  const excessAmount = Math.max(0, Number(booking.ledger?.excess_amount || 0));
+  const excessRefundOpen = ['QUEUED', 'PROCESSING', 'PROCESSED', 'EMAIL_PENDING'].includes(String(booking.refund_status || '').toUpperCase());
+  const showExcessPrompt = excessAmount >= 0.01 && bookingIsOpenForPayment && !excessRefundOpen && !excessPromptHidden;
+
+  const requestExcessRefund = async () => {
+    setExcessBusy(true);
+    try {
+      const { data, error: rpcError } = await supabase.rpc('request_excess_refund', { p_booking_id: booking.id });
+      if (rpcError) throw rpcError;
+      if (Number(data?.routed || 0) > 0) toast.success('Refund requested. The shop will return the excess to you.');
+      else toast.info(data?.reason || 'Nothing to refund on this booking.');
+      setExcessPromptHidden(true);
+      await fetchAll();
+    } catch (err) {
+      toast.error(err?.message || 'The refund could not be requested. Please try again.');
+    } finally {
+      setExcessBusy(false);
+    }
+  };
+
   const summaryBooking = {
     ...booking,
     status: derivedStatus,
@@ -634,7 +658,17 @@ const CustomerBookingDetails = () => {
           </div>}
 
           {/* ===== B. BILLING & TRANSACTIONS ===== */}
-          <div style={cardStyle}>
+          <div style={{ ...cardStyle, position: 'relative' }}>
+            {showExcessPrompt && (
+              <ExcessPaymentPrompt
+                amount={excessAmount}
+                canAddService={canAddService}
+                busy={excessBusy}
+                onRefund={requestExcessRefund}
+                onAddService={() => { setExcessPromptHidden(true); setAddServiceOpen(true); }}
+                onDismiss={() => setExcessPromptHidden(true)}
+              />
+            )}
             <div className={balance > 0 ? 'billing-balance-grid' : undefined}>
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
