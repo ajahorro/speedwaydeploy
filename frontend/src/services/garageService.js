@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { BACKEND_URL } from '../config/api';
+import { BACKEND_URL, authHeaders } from '../config/api';
 import { uniqueGarageVehicles } from '../utils/fleetVehicleUtils';
 
 /**
@@ -69,7 +69,7 @@ export const addVehicleToGarage = async (userId, vehicle) => {
   try {
     const response = await fetch(`${BACKEND_URL}/api/garage/sync`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({ customerId: userId, vehicle })
     });
     

@@ -789,7 +789,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                   (entry) => String(entry.vehicleType || '').toLowerCase() === String(v.type || '').toLowerCase()
                 ) || null;
                 return (
-                <div key={v.id} style={{ borderBottom: idx === vehicles.length - 1 ? 'none' : '1px solid var(--admin-border)', paddingBottom: '1rem' }}>
+                <div key={v.id || `${v.plateNumber}-${idx}`} style={{ borderBottom: idx === vehicles.length - 1 ? 'none' : '1px solid var(--admin-border)', paddingBottom: '1rem' }}>
                   {vehiclePackage && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.4rem', color: 'var(--admin-brand)', fontSize: '.68rem', fontWeight: '900', textTransform: 'uppercase' }}>
                       <PackageIcon size={13} /> {vehiclePackage.name} · fixed package price
@@ -803,7 +803,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     {(v.services || []).map(s => (
-                      <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                      <div key={s.id || s.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
                         <span style={{ color: 'var(--admin-text-primary)', fontWeight: '600' }}>• {s.name}{vehiclePackage ? ' (included)' : ''}</span>
                         {vehiclePackage ? (
                           <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '700', textDecoration: 'line-through' }}>₱{Number(s.original_price || s.price || 0).toLocaleString()}</span>
@@ -831,7 +831,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                   <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '800', textDecoration: 'line-through' }}>₱{promoSummary.originalTotal.toLocaleString()}</span>
                 </div>
                 {promoSummary.appliedPackages.map((entry) => (
-                  <div key={entry.packageId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem' }}>
+                  <div key={entry.packageId || entry.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem' }}>
                     <span style={{ color: 'var(--status-success)', fontWeight: '800' }}>{entry.name} savings</span>
                     <span style={{ color: 'var(--status-success)', fontWeight: '900' }}>−₱{entry.savings.toLocaleString()}</span>
                   </div>

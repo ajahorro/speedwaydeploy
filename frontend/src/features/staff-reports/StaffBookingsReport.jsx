@@ -212,8 +212,8 @@ export default function StaffBookingsReport() {
                 {!loading && rows.length === 0 && (
                   <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">{(report?.bookings || []).length ? 'No bookings match your search.' : 'No bookings start in this range.'}</TableCell></TableRow>
                 )}
-                {!loading && rows.map((b) => (
-                  <TableRow key={b.reference + b.start}>
+                {!loading && rows.map((b, rowIndex) => (
+                  <TableRow key={`${b.reference}-${b.start}-${rowIndex}`}>
                     <TableCell className="whitespace-nowrap">{when(b.start)}<div className="font-mono text-xs text-muted-foreground">#{b.reference}</div></TableCell>
                     <TableCell>{b.customer}{b.walk_in && <div className="text-xs text-muted-foreground">Walk-in</div>}</TableCell>
                     <TableCell>

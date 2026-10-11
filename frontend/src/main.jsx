@@ -2,13 +2,29 @@
 import './styles/ui.css';
 import React, { Suspense, lazy, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+
+/** The address a system announcement points at: each account type has its own notifications page. */
+function NotificationsRedirect() {
+  const { profile, loading } = useAuth();
+  if (loading) return null;
+  const role = String(profile?.role || '').toUpperCase();
+  const home = role === 'ADMIN' || role === 'SUPER_ADMIN' ? '/admin' : (role === 'STAFF' ? '/staff' : (role === 'CUSTOMER' ? '/customer' : null));
+  return <Navigate to={home ? `${home}/notifications` : '/login'} replace />;
+}
+
+/** Sends the visitor to another address and keeps the ?query (the one-time token in an emailed link). */
+function RedirectKeepingQuery({ to }) {
+  const { search } = useLocation();
+  return <Navigate to={`${to}${search}`} replace />;
+}
 import { Toaster } from '@/components/ui/sonner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { installGlobalErrorReporter } from './utils/globalErrorReporter';
 import { UIProvider } from './context/UIContext';
 import { ImagePreviewProvider } from './context/ImagePreviewContext';
 import { AuthProvider } from './context/AuthContext';
+import { useAuth } from './hooks/useAuth';
 import IdleSessionGuard from './components/IdleSessionGuard';
 import { UnifiedProvider } from './context/UnifiedContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -141,6 +157,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                     signed in. This route consumes it and redirects by role. */}
                 <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/password-confirmation" element={<PasswordConfirmation />} />
+                <Route path="/notifications" element={<NotificationsRedirect />} />
+                {/* Security-alert emails sent before this fix pointed at /reset-password, which never existed. */}
+                <Route path="/reset-password" element={<RedirectKeepingQuery to="/password-confirmation" />} />
 
                 {/* Admin Routes */}
                 <Route
@@ -192,6 +211,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route path="profile" element={<StaffProfile />} />
                   <Route path="notifications" element={<StaffNotifications />} />
                   <Route path="settings" element={<StaffSettings />} />
+                  {/* an address that does not exist goes back to the technician's home, not a blank page */}
+                  <Route path="*" element={<Navigate to="/staff" replace />} />
                 </Route>
 
                 {/* Customer Routes */}
@@ -213,7 +234,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route path="settings" element={<CustomerSettings />} />
                   <Route path="profile" element={<CustomerProfile />} />
                   <Route path="receipt/:id" element={<CustomerReceipt />} />
+                  <Route path="*" element={<Navigate to="/customer" replace />} />
                 </Route>
+
+                {/* Any other address: the home page, never a blank screen. */}
+                <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
                 </Suspense>
                 {/* The one toast host (shadcn Sonner). Every toast.*() call goes through lib/toast.js, which

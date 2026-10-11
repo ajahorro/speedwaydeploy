@@ -1772,14 +1772,14 @@ const processLoginSecurityNotices = async () => {
         // The reset link must be a REAL, single-use, expiring token — the same
         // flow as "Forgot password". Reusing it means the button in a security
         // alert cannot become a second, weaker way into an account.
-        let resetLink = `${process.env.FRONTEND_URL || 'https://comargarage.com'}/reset-password`;
+        let resetLink = appUrl('/login');
         try {
           const { token } = await createPasswordConfirmationRequest({
             userId: profile?.id || notice.user_id,
             email,
             purpose: 'RESET'
           });
-          resetLink = `${process.env.FRONTEND_URL || 'https://comargarage.com'}/reset-password?token=${token}`;
+          resetLink = appUrl(`/password-confirmation?token=${encodeURIComponent(token)}`);
         } catch (tokenError) {
           // Still send the WARNING even if we could not mint a token: knowing
           // that someone is attacking the account matters more than the
@@ -3526,6 +3526,10 @@ app.get('/api/bookings/:id/receipt', async (req, res) => {
   const { id } = req.params;
   console.log(`🛡️ [SECURITY] RECEIPT REQUESTED: ${id}`);
 
+  // The receipt carries the customer's details and payment references: only the booking's own customer or the shop's staff may read it.
+  const viewer = await getAuthenticatedActor(req);
+  if (!viewer) return res.status(401).json({ success: false, error: 'Sign in to view a receipt.' });
+
   try {
     // Fetch booking and associated payments
     const { data: booking, error: bError } = await supabaseAdmin
@@ -3535,6 +3539,9 @@ app.get('/api/bookings/:id/receipt', async (req, res) => {
       .single();
 
     if (bError || !booking) {
+      return res.status(404).json({ success: false, error: 'Booking not found' });
+    }
+    if (!['ADMIN', 'STAFF'].includes(String(viewer.profile.role || '').toUpperCase()) && booking.customer_id !== viewer.profile.id) {
       return res.status(404).json({ success: false, error: 'Booking not found' });
     }
 
@@ -3566,6 +3573,13 @@ app.post('/api/garage/sync', async (req, res) => {
   console.log(`🚗 [GARAGE] SYNCING VEHICLE: ${vehicle?.plateNumber} for user ${customerId}`);
 
   if (!supabaseAdmin) return res.status(503).json({ error: 'Database admin service unavailable' });
+
+  // A customer fills their own garage; an administrator booking for a customer fills that customer's. Nobody else.
+  const garageActor = await getAuthenticatedActor(req);
+  if (!garageActor) return res.status(401).json({ success: false, error: 'Sign in first.' });
+  if (customerId && customerId !== garageActor.profile.id && String(garageActor.profile.role || '').toUpperCase() !== 'ADMIN') {
+    return res.status(403).json({ success: false, error: 'You can only add vehicles to your own garage.' });
+  }
 
   // Guest bookings (walk-ins with no account) have no profile to attach a
   // garage vehicle to. `vehicles.owner_id` is NOT NULL, so inserting null was a
@@ -3902,6 +3916,9 @@ app.post('/api/public/inquiry', async (req, res) => {
   // a hidden field real visitors never fill in: bots do. Answer as if it worked.
   if (String(req.body?.website || '').trim()) return res.json({ success: true });
 
+  if (['name', 'email', 'message'].some((key) => typeof req.body?.[key] !== 'string')) {
+    return res.status(400).json({ success: false, error: 'Please fill in your name, email and message.' });
+  }
   const name = String(req.body?.name || '').trim().replace(/\s+/g, ' ').slice(0, 80);
   const email = String(req.body?.email || '').trim().toLowerCase().slice(0, 160);
   const message = String(req.body?.message || '').trim().slice(0, 2000);

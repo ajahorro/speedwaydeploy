@@ -14,7 +14,7 @@ import { getRequiredDownpayment } from '../utils/paymentUtils';
 import { buildLocalDateTime, formatLocalISODate } from '../utils/dateTimeUtils';
 import { sendStatusEmail } from './notificationService';
 import { calculateBayUsage } from '../utils/schedulingUtils';
-import { BACKEND_URL } from '../config/api';
+import { BACKEND_URL, authHeaders } from '../config/api';
 import { fetchBookingLedgers } from './ledgerService';
 import { getBayCapacity } from '../config/shopConfig';
 
@@ -465,7 +465,7 @@ export const createBooking = async (customerId, bookingData) => {
       try {
         await fetch(`${BACKEND_URL}/api/garage/sync`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await authHeaders(),
           body: JSON.stringify({ customerId: bookingCustomerId, vehicle })
         });
       } catch (garageEx) {
