@@ -5295,6 +5295,14 @@ app.post('/api/bookings/update-status', async (req, res) => {
         return res.status(409).json({ success: false, error: 'Service can only start after the scheduled time (or once an early start is allowed), on the scheduled date, with an assigned technician.' });
       }
 
+      // The screen already requires a technician to be clocked in; the server enforces the same rule so a direct call cannot skip it.
+      if (String(actor.profile.role).toUpperCase() === 'STAFF') {
+        const { data: onShift } = await supabaseAdmin.from('profiles').select('is_clocked_in').eq('id', actor.profile.id).maybeSingle();
+        if (!onShift?.is_clocked_in) {
+          return res.status(409).json({ success: false, error: 'Clock in before starting a service.', code: 'NOT_CLOCKED_IN' });
+        }
+      }
+
       if (!(await getBookingLedger(bookingId)).downpayment_met) {
         return res.status(409).json({ success: false, error: 'The required downpayment must be verified before service can start.' });
       }
