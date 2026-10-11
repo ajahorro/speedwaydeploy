@@ -75,6 +75,8 @@ const cleanup = async () => {
     const list = ids.slice(i, i + 40).join(',');
     for (const table of ['service_photos', 'payments', 'booking_vehicles']) await rest(`${table}?booking_id=in.(${list})`, { method: 'DELETE' });
     await rest(`audit_logs?booking_id=in.(${list})`, { method: 'DELETE' });
+    await rest(`customer_credit_ledger?booking_id=in.(${list})`, { method: 'DELETE' });
+    await rest(`refund_proofs?booking_id=in.(${list})`, { method: 'DELETE' });
     await rest(`bookings?id=in.(${list})`, { method: 'DELETE' });
   }
   await rest('promo_codes?code=like.LC*', { method: 'DELETE' });
@@ -225,7 +227,11 @@ const PHASES = new Set((arg('phases') || 'A,B,C,D,E').split(','));
 const T = { admin, cust, cust2, staffA, staffB, rest, json, rpc, api, check, note, section, slot, manilaDate, nextDow, firstOpenDay, book, ledger, bookingRow, auditFor, verifyAll, assign, timeArrives, doWork, cancel, reschedule, refund, message, originalConfig, patchConfig, cfgRow, price, requiredDownpayment, bookings, cleanup, uniqueRef, plate, expectedAudit, expectAudit, sql };
 const { runPhases } = await import('./stress-lifecycle-phases.mjs');
 let failedHard = null;
-try { await runPhases(T, PHASES); } catch (error) { failedHard = error; console.error('\nTest aborted:', error); }
+try {
+  await runPhases(T, PHASES);
+  // Phase F (accuracy of every computation) runs only when asked for: --phases F
+  if (PHASES.has('F')) { const { runAccuracy } = await import('./stress-accuracy-phases.mjs'); await runAccuracy(T); }
+} catch (error) { failedHard = error; console.error('\nTest aborted:', error); }
 
 section('Restoring the business configuration and cleaning up');
 await rest(`business_config?id=eq.${originalConfig.id}`, { method: 'PATCH', body: Object.fromEntries(Object.entries(originalConfig).filter(([k]) => !['id', 'updated_at'].includes(k))) });
