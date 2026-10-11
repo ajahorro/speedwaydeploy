@@ -27,11 +27,16 @@ const flatten = (parts) =>
 
 export const buildHaystack = (...parts) => normalizeSearch(flatten(parts).join(' '));
 
+// An id typed or pasted with or without its dashes ("9a0000...", "9a000000-0000-...") finds the same record, and so does
+// any piece of it (the start, the end, a middle part): the search looks inside the id, never only at a shortened version.
+const withoutDashes = (text) => text.replace(/-/g, '');
+
 export const matchesSearchText = (query, ...parts) => {
   const tokens = searchTokens(query);
   if (!tokens.length) return true;
   const haystack = buildHaystack(...parts);
-  return tokens.every((token) => haystack.includes(token));
+  const compact = withoutDashes(haystack);
+  return tokens.every((token) => haystack.includes(token) || compact.includes(withoutDashes(token)));
 };
 
 /** Make free text safe to place inside a PostgREST .or() / ilike filter value. */

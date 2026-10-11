@@ -176,9 +176,16 @@ await tryWrite('staff cannot edit another staff member', () => rest(`profiles?id
 await tryWrite('staff cannot change the shop settings', () => rest('business_config?id=gt.0', { token: staff.token, method: 'PATCH', body: { business_name: 'HACKED' } }), () => state('select business_name from public.business_config limit 1') !== 'HACKED');
 await tryWrite('staff cannot write refund proofs', () => rest('refund_proofs', { token: staff.token, method: 'POST', body: { booking_id: ids.A, refund_reference: 'RFD-TIERS-1', storage_path: 'x', image_hash: 'tiers-hash-1' } }), () => Number(state(`select count(*) from public.refund_proofs where refund_reference='RFD-TIERS-1'`)) === 0);
 const staffPayments = await get('payments', 'select=amount,booking_id&limit=50', staff.token);
-note(`staff can read ${rows(staffPayments).length} payment row(s) (money visible to technicians)`);
+check('a technician reads no payment rows', rows(staffPayments).length === 0, `${rows(staffPayments).length} row(s)`);
 const staffProfiles = await get('profiles', 'select=id,email,phone_number,role&limit=500', staff.token);
-note(`staff can read ${rows(staffProfiles).length} profile(s), ${rows(staffProfiles).filter((p) => p.role === 'CUSTOMER').length} of them customers (with phone/email)`);
+{
+  const served = new Set(sql(`select distinct b.customer_id from public.bookings b where b.staff_id='${staff.id}' or exists (select 1 from public.booking_vehicles bv where bv.booking_id=b.id and bv.staff_id='${staff.id}')`).split('\n').filter(Boolean));
+  const customers = rows(staffProfiles).filter((p) => p.role === 'CUSTOMER');
+  const outside = customers.filter((p) => !served.has(p.id));
+  check('a technician reads only the customers of their own jobs', outside.length === 0, `${customers.length} customer(s) visible, ${outside.length} not theirs`);
+  check('a technician still reads colleagues and administrators', rows(staffProfiles).some((p) => p.role === 'ADMIN') && rows(staffProfiles).some((p) => p.role === 'STAFF'));
+}
+check('a technician cannot read the payment ledger either', rows(await get('payment_ledger_v', 'select=*&limit=5', staff.token)).length === 0);
 
 // =====================================================================================================================
 section('4. Functions: each tier against what is not theirs');
@@ -201,9 +208,33 @@ sql(`set session_replication_role = replica; delete from public.customer_credit_
 sql(`insert into public.promo_codes (code, name, discount_type, discount_value, max_uses) values ('TIERSCODE', 'tiers', 'fixed', 10, 3) on conflict do nothing`);
 await rpc('redeem_promo_code', { p_code: 'TIERSCODE', p_customer_id: B.id }, A.token);
 check('checking a promo code in another customer\'s name does not use it up', Number(sql(`select coalesce(uses_count,0) from public.promo_codes where code='TIERSCODE'`)) === 0);
-for (const fn of ['booking_net_paid', 'booking_verified_paid', 'booking_evidence_state']) {
-  const r = await rpc(fn, { p_booking_id: ids.B }, A.token);
-  if (r.ok && r.data) note(`known low: ${fn} answers for any booking id a customer supplies (ids are random, so it cannot be guessed): ${JSON.stringify(r.data).slice(0, 50)}`);
+{
+  const vehB = '9a000000-0000-0000-0000-00000000b0e1';
+  const helpers = [
+    ['booking_net_paid', { p_booking_id: ids.B }], ['booking_verified_paid', { p_booking_id: ids.B }], ['booking_evidence_state', { p_booking_id: ids.B }],
+    ['booking_bay_usage', { p_booking_id: ids.B }], ['booking_start_time_reached', { p_booking_id: ids.B }], ['booking_is_fully_paid', { p_booking_id: ids.B, p_override: false }],
+    ['staff_booking_has_verified_downpayment', { p_booking_id: ids.B }], ['staff_on_booking', { p_booking_id: ids.B }], ['booking_has_photo_phase', { p_booking_id: ids.B, p_phase: 'before' }],
+    ['vehicle_technician', { p_vehicle_id: vehB }], ['vehicle_has_photo_phase', { p_booking_vehicle_id: vehB, p_phase: 'before' }],
+    ['staff_can_see_photo', { p_booking_id: ids.B, p_vehicle_id: vehB }], ['booking_total_changed_since_ocr', { p_payment_id: payB }], ['payment_ocr_verdict', { p_payment_id: payB }]
+  ];
+  let leaks = []; let blockedOwn = []; let blockedStaff = [];
+  for (const [fn, args] of helpers) {
+    const stranger = await rpc(fn, args, A.token);
+    if (stranger.ok && stranger.data !== null) leaks.push(fn);
+    const staffAnswer = await rpc(fn, args, staff.token);
+    if (!staffAnswer.ok) blockedStaff.push(`${fn}: ${msg(staffAnswer)}`);
+    const owner = await rpc(fn, args, B.token);
+    if (!owner.ok) blockedOwn.push(`${fn}: ${msg(owner)}`);
+  }
+  check('another customer learns nothing from any booking helper function', leaks.length === 0, leaks.join(', '));
+  check('the booking\'s own customer can still use them', blockedOwn.length === 0, blockedOwn.join('; '));
+  check('staff can still use them', blockedStaff.length === 0, blockedStaff.join('; '));
+  const own = await rpc('booking_net_paid', { p_booking_id: ids.B }, B.token);
+  const asStaff = await rpc('booking_net_paid', { p_booking_id: ids.B }, staff.token);
+  check('the owner and staff get the real amount (₱500)', Number(own.data) === 500 && Number(asStaff.data) === 500, `${own.data} / ${asStaff.data}`);
+  check('a signed-out visitor cannot call them', !(await rpc('booking_net_paid', { p_booking_id: ids.B }, ANONT)).ok || (await rpc('booking_net_paid', { p_booking_id: ids.B }, ANONT)).data === null);
+  const internalReach = await fetch(`${API}/rest/v1/rpc/booking_net_paid`, { method: 'POST', headers: { apikey: ANON, Authorization: `Bearer ${A.token}`, 'Content-Type': 'application/json', 'Content-Profile': 'internal' }, body: JSON.stringify({ p_booking_id: ids.B }) });
+  check('the unguarded originals are not reachable through the API', !internalReach.ok, `${internalReach.status}`);
 }
 const rescheduleOther = await rpc('reschedule_booking', { p_booking_id: ids.B, p_start_datetime: new Date(Date.now() + 5 * 86400000).toISOString(), p_end_datetime: new Date(Date.now() + 5 * 86400000 + 3600000).toISOString(), p_reason: 'tiers' }, A.token);
 check('customer A cannot reschedule another customer\'s booking', !rescheduleOther.ok, rescheduleOther.ok ? 'ACCEPTED' : msg(rescheduleOther));
@@ -231,17 +262,54 @@ for (const [fn, args] of ADMIN_ONLY) {
     check(`${who} cannot run ${fn}`, wasRefused, r.ok ? 'ALLOWED ' + JSON.stringify(r.data).slice(0, 70) : '');
   }
 }
-// the login-lock functions: the visitor must not be able to switch a lock off
-await rest(`profiles?id=eq.${B.id}`, { method: 'PATCH', body: { failed_login_attempts: 9, locked_until: new Date(Date.now() + 3600000).toISOString() } });
-const unlock = await rpc('clear_login_lock', { p_email: B.email }, ANONT);
-const stillLocked = sql(`select locked_until is not null from public.profiles where id='${B.id}'`) === 't';
-check('a signed-out visitor cannot unlock someone\'s locked account', stillLocked, stillLocked ? '' : 'the lock was cleared by an anonymous call');
-await rest(`profiles?id=eq.${B.id}`, { method: 'PATCH', body: { failed_login_attempts: 0, locked_until: null, lockout_stage: 0, stage_failed_attempts: 0 } });
-const griefBefore = sql(`select coalesce(failed_login_attempts,0) from public.profiles where id='${B.id}'`);
-for (let i = 0; i < 6; i += 1) await rpc('register_failed_login', { p_email: B.email }, ANONT);
-const griefAfter = sql(`select coalesce(failed_login_attempts,0)||'|'||(locked_until is not null) from public.profiles where id='${B.id}'`);
-note(`failed-login counter of a victim after 6 anonymous calls: ${griefBefore} -> ${griefAfter} (anyone can lock out any account by email)`);
-await rest(`profiles?id=eq.${B.id}`, { method: 'PATCH', body: { failed_login_attempts: 0, locked_until: null, lockout_stage: 0, stage_failed_attempts: 0 } });
+// ---- failed-login lock-out: per account AND per visitor address -------------------------------------------------------
+{
+  const from = async (ip, fn, args = { p_email: B.email }, token = ANONT) => { const r = await rest(`rpc/${fn}`, { token, method: 'POST', body: args, headers: { 'cf-connecting-ip': ip } }); return { ok: r.ok, status: r.status, data: await json(r) }; };
+  const resetB = async () => { sql(`delete from public.login_throttle where email='${B.email}'`); sql(`delete from public.login_security_notices where email='${B.email}'`); await rest(`profiles?id=eq.${B.id}`, { method: 'PATCH', body: { failed_login_attempts: 0, locked_until: null, lockout_stage: 0, stage_failed_attempts: 0, security_notice_sent_at: null } }); };
+  await resetB();
+  // an attacker hammers the victim's e-mail from one address
+  let last;
+  for (let i = 0; i < 5; i += 1) last = await from('203.0.113.7', 'register_failed_login_staged');
+  check('five wrong passwords from one address lock THAT address (the lock really applies now)', last.ok && last.data?.locked === true, JSON.stringify(last.data).slice(0, 90));
+  const attackerView = await from('203.0.113.7', 'check_login_lock');
+  const ownerView = await from('198.51.100.20', 'check_login_lock');
+  check('the attacker\'s address sees the lock', attackerView.data?.locked === true);
+  check('the real owner, from another address, is NOT locked out by it', ownerView.data?.locked === false, JSON.stringify(ownerView.data).slice(0, 80));
+  check('the account itself carries no lock', sql(`select locked_until is null from public.profiles where id='${B.id}'`) === 't');
+  check('a signed-out visitor cannot switch the lock off', (await from('203.0.113.7', 'clear_login_lock')).data?.cleared === false && (await from('203.0.113.7', 'check_login_lock')).data?.locked === true);
+  const foreignClear = await from('198.51.100.20', 'clear_login_lock', { p_email: B.email }, A.token);
+  check('another signed-in customer cannot switch it off either', foreignClear.data?.cleared === false);
+  const ownerClear = await from('198.51.100.20', 'clear_login_lock', { p_email: B.email }, B.token);
+  check('the owner, once signed in, clears it', ownerClear.data?.cleared === true && (await from('203.0.113.7', 'check_login_lock')).data?.locked === false);
+
+  // the ladder reaches the security notice, and the owner is told once however many addresses push on
+  await resetB();
+  let escalated = null;
+  for (let round = 0; round < 40 && !escalated; round += 1) {
+    const r = await from('203.0.113.8', 'register_failed_login_staged');
+    if (r.data?.escalated) escalated = r.data;
+    else if (r.data?.locked) sql(`update public.login_throttle set locked_until = now() - interval '1 second' where email='${B.email}'`);
+  }
+  check('one address pushing on reaches the escalation step', Boolean(escalated), JSON.stringify(escalated).slice(0, 100));
+  sql(`update public.login_throttle set locked_until = now() - interval '1 second' where email='${B.email}'`);
+  for (let round = 0; round < 40; round += 1) {
+    const r = await from('203.0.113.9', 'register_failed_login_staged');
+    if (r.data?.escalated) break;
+    if (r.data?.locked) sql(`update public.login_throttle set locked_until = now() - interval '1 second' where email='${B.email}' and client_key <> ''`);
+  }
+  check('the owner is e-mailed once, not once per attacking address', Number(sql(`select count(*) from public.login_security_notices where email='${B.email}'`)) <= 1, `${sql(`select count(*) from public.login_security_notices where email='${B.email}'`)} notice(s)`);
+  check('still, the owner from a clean address can sign in', (await from('198.51.100.21', 'check_login_lock')).data?.locked === false);
+
+  // an attack spread over many addresses holds the account briefly
+  await resetB();
+  let spread;
+  for (let i = 0; i < 6; i += 1) spread = await from(`192.0.2.${10 + i}`, 'register_failed_login_staged');
+  const spreadView = await from('198.51.100.22', 'check_login_lock');
+  check('failures from many different addresses put a short hold on the account', spreadView.data?.locked === true && spreadView.data?.minutes_left <= 15, JSON.stringify(spreadView.data).slice(0, 90));
+  const noNotice = await from('198.51.100.22', 'register_failed_login_staged', { p_email: 'nobody-here@example.com' });
+  check('an unknown e-mail gets the same neutral answer (no account reveal)', noNotice.data?.locked === false && noNotice.data?.attempts_remaining === 4);
+  await resetB();
+}
 
 // =====================================================================================================================
 section('5. The server routes, tier by tier');
