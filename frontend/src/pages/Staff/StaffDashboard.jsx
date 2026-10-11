@@ -14,7 +14,6 @@ import LoadingState from '../../components/LoadingState';
 import { BACKEND_URL } from '../../config/api';
 import { loadPreferences } from '../../utils/preferenceStore';
 import { playJobAssignmentChime } from '../../utils/jobAssignmentChime';
-import { isNotificationActionable, isRedundantStaffTechnicianAssignment } from '../../utils/notificationRouting';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import CustomerContact from '../../components/Staff/CustomerContact';
 import { Button } from '@/components/ui/button';
@@ -126,21 +125,6 @@ const StaffDashboard = () => {
       const active = allVehicleTasks.filter(t => t.status?.toUpperCase() === 'IN_PROGRESS').length;
       const completed = allVehicleTasks.filter(t => t.status?.toUpperCase() === 'COMPLETED').length;
       setStats({ pending, active, completed });
-
-      // Fetch System Broadcasts & Announcements
-      const { data: notifData } = await supabase
-        .from('notifications')
-        .select('title, message, created_at')
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      setBroadcasts((notifData || []).filter((notification) =>
-        isNotificationActionable(notification)
-        && !isRedundantStaffTechnicianAssignment(notification)
-        && notification.notification_type !== 'MESSAGE_RECEIVED'
-        && !notification.title?.toLowerCase().includes('new message')
-      ));
     } catch (err) {
       console.error('Task Fetch Error:', err);
       toast.error('Failed to load tasks');
