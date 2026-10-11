@@ -150,6 +150,19 @@ const hashConfirmationToken = (token) => crypto.createHash('sha256').update(toke
 
 const app = express();
 app.use(cors());
+
+// Standard browser-protection headers on every API response (the API serves data, never a page).
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+  res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 app.use(bodyParser.json());
 
 // Configure Multer for memory storage.
