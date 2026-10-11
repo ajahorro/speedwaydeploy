@@ -3873,6 +3873,71 @@ setInterval(purgeExpiredPhotos, 6 * 60 * 60000);
 setTimeout(purgeExpiredPhotos, 4 * 60000);
 releaseExpiredUnpaidHolds();
 
+// ── Support reports ─────────────────────────────────────────────────────────────────────────────────────────
+// "Report an Issue" (and the data-deletion request) in Settings: the text is e-mailed to the developer support inbox,
+// with the signed-in person's name, role and e-mail so support can reply to them directly. The sender always comes
+// from the verified sign-in, never from the request body.
+const SUPPORT_INBOX = process.env.SUPPORT_INBOX_EMAIL || 'ajahorro@gmail.com';
+const supportReportTimes = new Map();
+const SUPPORT_KINDS = {
+  ISSUE: { label: 'Issue report', action: 'SUPPORT_ISSUE_REPORTED' },
+  DELETION_REQUEST: { label: 'Account data deletion request', action: 'ACCOUNT_DATA_DELETION_REQUESTED' }
+};
+
+app.post('/api/support/report', async (req, res) => {
+  const actor = await getAuthenticatedActor(req);
+  if (!actor) return res.status(401).json({ success: false, error: 'Sign in to send a report.' });
+  const kind = SUPPORT_KINDS[String(req.body?.kind || 'ISSUE').toUpperCase()];
+  if (!kind) return res.status(400).json({ success: false, error: 'Unknown report type.' });
+  const message = String(req.body?.message || '').trim().slice(0, 4000);
+  if (message.length < 5) return res.status(400).json({ success: false, error: 'Please describe the problem in a few words.' });
+
+  // at most 5 reports an hour per account
+  const now = Date.now();
+  const recent = (supportReportTimes.get(actor.profile.id) || []).filter((t) => now - t < 3600000);
+  if (recent.length >= 5) return res.status(429).json({ success: false, error: 'You have sent several reports already. Please try again later.' });
+
+  const who = actor.profile.full_name || actor.user.email || 'User';
+  const email = actor.profile.email || actor.user.email || '';
+  const role = String(actor.profile.role || 'CUSTOMER').toUpperCase();
+  const page = String(req.body?.page || '').slice(0, 200);
+
+  try {
+    if (!resendClient) throw new Error('Email is not configured');
+    const { error: sendError } = await resendClient.emails.send({
+      from: RESEND_FROM,
+      to: [SUPPORT_INBOX],
+      reply_to: email || undefined,
+      subject: `[Comar Garage] ${kind.label} from ${who} (${role})`,
+      html: `<div style="font-family:sans-serif;max-width:640px;color:#222">
+        <h2 style="color:#A91B18;margin:0 0 12px">${escapeHtml(kind.label)}</h2>
+        <p style="margin:0 0 4px"><strong>From:</strong> ${escapeHtml(who)} (${escapeHtml(role)})</p>
+        <p style="margin:0 0 4px"><strong>Email:</strong> ${escapeHtml(email || 'not on file')}</p>
+        ${page ? `<p style="margin:0 0 4px"><strong>Page:</strong> ${escapeHtml(page)}</p>` : ''}
+        <p style="margin:0 0 12px"><strong>Account ID:</strong> ${escapeHtml(actor.profile.id)}</p>
+        <div style="white-space:pre-wrap;border:1px solid #eee;border-radius:6px;padding:12px">${escapeHtml(message)}</div>
+      </div>`
+    });
+    if (sendError) throw new Error(sendError.message || 'The email provider did not accept the message.');
+    supportReportTimes.set(actor.profile.id, [...recent, now]);
+    await writeAuditLog({
+      actionType: kind.action,
+      details: `${kind.label} sent to support by ${email || who}: ${message.slice(0, 500)}`,
+      actorId: actor.profile.id,
+      actorName: who,
+      actorRole: role
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('📨 [SUPPORT] Report not sent:', error.message);
+    // keep the report in the audit log even when the email could not go out
+    try {
+      await writeAuditLog({ actionType: kind.action, details: `${kind.label} (email not sent) from ${email || who}: ${message.slice(0, 500)}`, actorId: actor.profile.id, actorName: who, actorRole: role });
+    } catch { /* ignore */ }
+    return res.status(502).json({ success: false, error: 'The report could not be emailed right now. It was saved for the team.' });
+  }
+});
+
 // ── Proof of refund ─────────────────────────────────────────────────────────────────────────────────────────
 // The administrator uploads the proof that a refund was paid. The picture is read for a reference number and must
 // follow the same rule as a payment receipt: no reference number, picture or reference used twice. Valid proofs are

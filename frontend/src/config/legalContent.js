@@ -18,7 +18,7 @@ export const APP_METADATA = Object.freeze({
   get buildLabel() {
     return `${this.name} v${this.version}`;
   },
-  supportEmail: 'support@comargarage.com',
+  supportEmail: 'ajahorro@gmail.com',
 });
 
 /**

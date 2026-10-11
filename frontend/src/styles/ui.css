@@ -35,6 +35,7 @@
 @source '../components/ValidationModal.jsx';
 @source '../components/NotificationDetailsModal.jsx';
 @source '../components/Settings/SettingsPrimitives.jsx';
+@source '../components/Settings/AppMetadataFooter.jsx';
 @source '../components/BookingChat.jsx';
 @source '../components/BookingWizard/Step3FleetEditing.jsx';
 @source '../components/BookingWizard/Step4ReviewPayment.jsx';
