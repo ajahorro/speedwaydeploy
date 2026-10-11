@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Clock, Car, CalendarDays } from 'lucide-react';
+import { Car } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/context/LanguageContext';
 import { Badge } from '@/components/ui/badge';
@@ -68,27 +68,41 @@ export default function StaffHistoryCalendar({ staffId }) {
     <div className="ui-root grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
       {/* The day */}
       <Card className="order-2 gap-0 overflow-hidden p-0 lg:order-1 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto">
-        <div className="border-b bg-muted/40 px-4 py-3">
-          <h2 className="text-sm font-bold">{fmtDay(selected)}</h2>
-          <div className="mt-2 grid gap-1">
-            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground"><Clock className="size-3.5" aria-hidden="true" /> Clock in and out</p>
-            {loading ? <Skeleton className="h-5 w-48" /> : sessions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No clock-in on this day.</p>
-            ) : (
-              <ul className="m-0 grid list-none gap-1 p-0 text-sm">
-                {sessions.map((s) => (
-                  <li key={s.id} className="flex flex-wrap justify-between gap-x-4">
-                    <span>{fmtTime(s.clock_in_at)} → {s.clock_out_at ? fmtTime(s.clock_out_at) : <em>still on shift</em>}</span>
-                    <span className="text-muted-foreground">{s.clock_out_at ? hoursBetween(s.clock_in_at, s.clock_out_at) : ''}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+        <div className="grid gap-4 border-b px-5 py-4">
+          <h2 className="text-lg font-bold">{fmtDay(selected)}</h2>
+          {loading ? <Skeleton className="h-16 w-full" /> : (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-md bg-muted/50 px-3 py-2">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Clocked in</p>
+                  <p className="text-sm font-semibold">{sessions.length ? fmtTime(sessions[0].clock_in_at) : '—'}</p>
+                </div>
+                <div className="rounded-md bg-muted/50 px-3 py-2">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Clocked out</p>
+                  <p className="text-sm font-semibold">{!sessions.length ? '—' : (sessions[sessions.length - 1].clock_out_at ? fmtTime(sessions[sessions.length - 1].clock_out_at) : 'On shift')}</p>
+                </div>
+                <div className="rounded-md bg-muted/50 px-3 py-2">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Vehicles</p>
+                  <p className="text-sm font-semibold">{vehicles.length}</p>
+                </div>
+              </div>
+              {sessions.length > 1 && (
+                <ul className="m-0 grid list-none gap-1 p-0 text-sm text-muted-foreground">
+                  {sessions.map((s) => (
+                    <li key={s.id} className="flex flex-wrap justify-between gap-x-4">
+                      <span>{fmtTime(s.clock_in_at)} → {s.clock_out_at ? fmtTime(s.clock_out_at) : 'On shift'}</span>
+                      <span>{s.clock_out_at ? hoursBetween(s.clock_in_at, s.clock_out_at) : ''}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {sessions.length === 0 && <p className="text-sm text-muted-foreground">No clock-in on this day.</p>}
+            </>
+          )}
         </div>
 
         <div className="grid gap-3 p-4">
-          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground"><Car className="size-3.5" aria-hidden="true" /> Services</p>
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground"><Car className="size-3.5" aria-hidden="true" /> Services done</p>
           {error ? (
             <p role="alert" className="rounded-md border border-destructive/50 px-3 py-2 text-sm text-destructive">{error}</p>
           ) : loading ? (
@@ -126,7 +140,7 @@ export default function StaffHistoryCalendar({ staffId }) {
       </Card>
 
       {/* The month */}
-      <Card className="order-1 items-center gap-0 p-2 lg:sticky lg:top-24 lg:order-2">
+      <Card className="order-1 gap-0 p-3 lg:sticky lg:top-24 lg:order-2">
         <Calendar
           mode="single"
           required
@@ -135,14 +149,15 @@ export default function StaffHistoryCalendar({ staffId }) {
           month={month}
           onMonthChange={setMonth}
           modifiers={{ worked }}
-          modifiersClassNames={{ worked: 'font-bold underline decoration-primary decoration-2 underline-offset-4' }}
+          modifiersClassNames={{ worked: 'font-semibold after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-primary' }}
           formatters={{
             formatCaption: (date) => date.toLocaleDateString(locale, { month: 'long', year: 'numeric' }),
             formatWeekdayName: (date) => date.toLocaleDateString(locale, { weekday: 'short' })
           }}
-          className="w-full [--cell-size:--spacing(10)] sm:[--cell-size:--spacing(9)]"
+          classNames={{ root: 'w-full' }}
+          className="w-full bg-transparent p-2 [--cell-size:--spacing(11)]"
         />
-        <p className="flex items-center gap-1.5 px-3 pb-2 text-xs text-muted-foreground"><CalendarDays className="size-3.5" aria-hidden="true" /> Underlined days have a shift or a vehicle.</p>
+        <p className="flex items-center gap-1.5 px-2 pt-2 text-xs text-muted-foreground"><span className="size-1.5 rounded-full bg-primary" aria-hidden="true" /> Days with a shift or a vehicle.</p>
       </Card>
     </div>
   );
