@@ -19,7 +19,7 @@ export const fetchRefundProofs = async (bookingIds = []) => {
   if (!ids.length) return new Map();
   const { data, error } = await supabase
     .from('refund_proofs')
-    .select('id, booking_id, refund_reference, storage_path, proof_reference, refund_method, created_at')
+    .select('id, booking_id, refund_reference, storage_path, proof_reference, detected_amount, refund_method, created_at')
     .in('booking_id', ids);
   if (error) {
     logger.warn('Could not load proofs of refund', error);

@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, MessageCircle, Search } from 'lucide-react';
 import BookingChat from '@/components/BookingChat';
+import GuestConversation from '@/features/guest-inquiries/GuestConversation';
+import { useGuestThreads } from '@/features/guest-inquiries/useGuestThreads';
 import { Badge } from '@/components/ui/badge';
 import { useGlobalChat } from '@/context/ChatContext';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -45,17 +47,21 @@ function Avatar({ name, size = 40 }) {
  * tokens, so light and dark follow the user's preference; below 900px it shows one pane at a time.
  */
 export default function AdminChat() {
-  const { threads, threadsLoading, threadUnread } = useGlobalChat();
+  const { threads: memberThreads, threadsLoading, threadUnread } = useGlobalChat();
+  const { guestThreads, refreshGuestThreads } = useGuestThreads();
+  // account conversations and website visitors (no account) share one list, newest first
+  const threads = useMemo(() => [...memberThreads, ...guestThreads].sort((a, b) => new Date(b.last_message_at || 0) - new Date(a.last_message_at || 0)), [memberThreads, guestThreads]);
   const isMobile = useMediaQuery('(max-width: 900px)');
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const selectedId = searchParams.get('customer');
+  const selectedId = searchParams.get('customer') || (searchParams.get('guest') ? `guest:${searchParams.get('guest')}` : null);
   const bookingTag = searchParams.get('booking') || undefined;
 
   const select = (customerId, booking) => {
     const next = new URLSearchParams();
-    if (customerId) next.set('customer', customerId);
+    if (customerId && String(customerId).startsWith('guest:')) next.set('guest', String(customerId).slice(6));
+    else if (customerId) next.set('customer', customerId);
     if (booking) next.set('booking', booking);
     setSearchParams(next, { replace: true });
   };
@@ -120,7 +126,7 @@ export default function AdminChat() {
             {threadsLoading && threads.length === 0 && <li className="p-4 text-sm text-muted-foreground">Loading conversations…</li>}
             {!threadsLoading && visible.length === 0 && (
               <li className="p-4 text-sm text-muted-foreground">
-                {threads.length === 0 ? 'No inquiries yet. They appear when a customer writes to the shop.' : 'No conversation matches.'}
+                {threads.length === 0 ? 'No inquiries yet. They appear when a customer or a website visitor writes to the shop.' : 'No conversation matches.'}
               </li>
             )}
             {visible.map((thread) => {
@@ -138,7 +144,7 @@ export default function AdminChat() {
                     <Avatar name={thread.customer_name} />
                     <span className="flex min-w-0 flex-1 flex-col gap-2">
                       <span className="flex items-center justify-between gap-3">
-                        <span className={`truncate text-sm ${unread ? 'font-bold' : 'font-semibold'}`}>{thread.customer_name}</span>
+                        <span className={`truncate text-sm ${unread ? 'font-bold' : 'font-semibold'}`}>{thread.customer_name}{thread.isGuest && <Badge variant="outline" className="ml-2 align-middle text-[10px]">Website</Badge>}</span>
                         <span className="shrink-0 text-[11px] text-muted-foreground">{timeLabel(thread.last_message_at)}</span>
                       </span>
                       <span className="flex items-center justify-between gap-3">
@@ -179,7 +185,9 @@ export default function AdminChat() {
               </header>
               <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-5">
                 <div className="h-full overflow-hidden rounded-xl border">
-                  <BookingChat key={selected.customer_id} customerId={selected.customer_id} bookingId={bookingTag} />
+                  {selected.isGuest
+                    ? <GuestConversation key={selected.inquiry_id} inquiryId={selected.inquiry_id} email={selected.customer_email} onChanged={refreshGuestThreads} />
+                    : <BookingChat key={selected.customer_id} customerId={selected.customer_id} bookingId={bookingTag} />}
                 </div>
               </div>
             </>

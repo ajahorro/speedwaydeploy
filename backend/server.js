@@ -3873,6 +3873,147 @@ setInterval(purgeExpiredPhotos, 6 * 60 * 60000);
 setTimeout(purgeExpiredPhotos, 4 * 60000);
 releaseExpiredUnpaidHolds();
 
+// ── Guest inquiries (landing page contact form) ─────────────────────────────────────────────────────────────
+// A visitor with no account writes to the shop. The message becomes (or joins) the thread of that e-mail address in
+// the administrators' Message Inquiries; the shop's own e-mail and every administrator are told. Each administrator
+// reply is e-mailed to the address the visitor gave, with an invitation to create an account.
+const guestInquiryHits = new Map(); // ip or e-mail -> times
+const tooManyGuestInquiries = (key, limit, windowMs) => {
+  const now = Date.now();
+  const recent = (guestInquiryHits.get(key) || []).filter((t) => now - t < windowMs);
+  if (recent.length >= limit) { guestInquiryHits.set(key, recent); return true; }
+  guestInquiryHits.set(key, [...recent, now]);
+  return false;
+};
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+const shopInboxEmail = async () => {
+  try {
+    const { data } = await supabaseAdmin.from('business_config').select('email_address').order('id').limit(1).maybeSingle();
+    const email = String(data?.email_address || '').trim();
+    if (EMAIL_PATTERN.test(email)) return email;
+  } catch { /* fall through */ }
+  const fromEnv = String(process.env.SHOP_INBOX_EMAIL || '').trim();
+  return EMAIL_PATTERN.test(fromEnv) ? fromEnv : null;
+};
+
+app.post('/api/public/inquiry', async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ success: false, error: 'The service is not available right now.' });
+  // a hidden field real visitors never fill in: bots do. Answer as if it worked.
+  if (String(req.body?.website || '').trim()) return res.json({ success: true });
+
+  const name = String(req.body?.name || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+  const email = String(req.body?.email || '').trim().toLowerCase().slice(0, 160);
+  const message = String(req.body?.message || '').trim().slice(0, 2000);
+  if (name.length < 2) return res.status(400).json({ success: false, error: 'Please enter your name.' });
+  if (!EMAIL_PATTERN.test(email)) return res.status(400).json({ success: false, error: 'Please enter a valid email address so we can reply.' });
+  if (message.length < 5) return res.status(400).json({ success: false, error: 'Please write your question.' });
+
+  const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() || 'unknown';
+  if (tooManyGuestInquiries(`ip:${ip}`, 5, 3600000) || tooManyGuestInquiries(`email:${email}`, 5, 86400000)) {
+    return res.status(429).json({ success: false, error: 'You have sent several messages already. Please wait a while before writing again.' });
+  }
+
+  try {
+    const { data: existing, error: findError } = await supabaseAdmin.from('guest_inquiries').select('id').ilike('email', email).maybeSingle();
+    if (findError) throw findError;
+    let inquiryId = existing?.id;
+    if (inquiryId) {
+      await supabaseAdmin.from('guest_inquiries').update({ name, last_message_at: new Date().toISOString() }).eq('id', inquiryId);
+    } else {
+      const { data: created, error: createError } = await supabaseAdmin.from('guest_inquiries').insert({ name, email }).select('id').single();
+      if (createError) throw createError;
+      inquiryId = created.id;
+    }
+    const { error: messageError } = await supabaseAdmin.from('guest_inquiry_messages').insert({ inquiry_id: inquiryId, sender: 'guest', body: message });
+    if (messageError) throw messageError;
+
+    // tell the administrators in the app
+    try {
+      const { data: admins } = await supabaseAdmin.from('profiles').select('id').eq('role', 'ADMIN').eq('is_active', true);
+      if ((admins || []).length) {
+        await supabaseAdmin.from('notifications').insert(admins.map((a) => ({
+          user_id: a.id, title: 'New website inquiry', message: `${name} wrote from the website: ${message.slice(0, 120)}`,
+          notification_type: 'GUEST_INQUIRY', action_url: `/admin/chat?guest=${inquiryId}`, is_read: false
+        })));
+      }
+    } catch (notifyError) { console.warn('[GUEST INQUIRY] admin notification failed:', notifyError.message); }
+
+    // and the shop's own inbox
+    try {
+      const inbox = await shopInboxEmail();
+      if (inbox && resendClient) {
+        await resendClient.emails.send({
+          from: RESEND_FROM, to: [inbox], reply_to: email,
+          subject: `[Comar Garage] Website inquiry from ${name}`,
+          html: `<div style="font-family:sans-serif;max-width:640px;color:#222"><h2 style="color:#A91B18;margin:0 0 12px">New website inquiry</h2>
+            <p style="margin:0 0 4px"><strong>From:</strong> ${escapeHtml(name)} (${escapeHtml(email)})</p>
+            <div style="white-space:pre-wrap;border:1px solid #eee;border-radius:6px;padding:12px;margin:12px 0">${escapeHtml(message)}</div>
+            <p style="font-size:12px;color:#666">Answer it in Message Inquiries (admin portal); your reply is emailed to the sender.</p></div>`
+        });
+      }
+    } catch (mailError) { console.warn('[GUEST INQUIRY] shop email failed:', mailError.message); }
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[GUEST INQUIRY] failed:', error.message);
+    return res.status(500).json({ success: false, error: 'Your message could not be sent. Please try again in a moment.' });
+  }
+});
+
+app.post('/api/admin/inquiries/reply', async (req, res) => {
+  const admin = await requireAdmin(req);
+  if (!admin) return res.status(403).json({ success: false, error: 'Authorized administrator required.' });
+  if (!supabaseAdmin) return res.status(500).json({ success: false, error: 'Supabase Admin not initialized' });
+  const inquiryId = String(req.body?.inquiryId || '').trim();
+  const body = String(req.body?.body || '').trim().slice(0, 4000);
+  if (!inquiryId || body.length < 1) return res.status(400).json({ success: false, error: 'Write a reply first.' });
+
+  try {
+    const { data: inquiry, error: findError } = await supabaseAdmin.from('guest_inquiries').select('id, name, email').eq('id', inquiryId).maybeSingle();
+    if (findError) throw findError;
+    if (!inquiry) return res.status(404).json({ success: false, error: 'Conversation not found.' });
+
+    const { data: saved, error: saveError } = await supabaseAdmin.from('guest_inquiry_messages')
+      .insert({ inquiry_id: inquiry.id, sender: 'admin', body, admin_id: admin.profile.id, read_by_admin: true }).select('id').single();
+    if (saveError) throw saveError;
+    await supabaseAdmin.from('guest_inquiries').update({ last_message_at: new Date().toISOString() }).eq('id', inquiry.id);
+
+    let emailed = false;
+    let emailError = null;
+    try {
+      if (!resendClient) throw new Error('Email is not configured');
+      const inbox = await shopInboxEmail();
+      const signUpLink = appUrl('/login');
+      const { error: sendError } = await resendClient.emails.send({
+        from: RESEND_FROM, to: [inquiry.email], reply_to: inbox || undefined,
+        subject: 'Re: your message to Comar Garage',
+        html: `<div style="font-family:sans-serif;max-width:600px;color:#222;border:1px solid #eee;border-radius:8px;overflow:hidden">
+          <div style="background:#A91B18;color:#fff;padding:16px 20px;font-weight:800;letter-spacing:1px">COMAR GARAGE</div>
+          <div style="padding:20px">
+            <p style="margin:0 0 12px">Hi ${escapeHtml(inquiry.name)},</p>
+            <div style="white-space:pre-wrap;line-height:1.55">${escapeHtml(body)}</div>
+            <p style="margin:20px 0 0;color:#666;font-size:13px">You can reply to this email to keep the conversation going.</p>
+          </div>
+          <div style="background:#f7f7f7;padding:16px 20px;text-align:center;border-top:1px solid #eee">
+            <p style="margin:0 0 10px;font-size:13px;color:#444">Book detailing online, follow your booking and chat with us directly: create your free Comar Garage account.</p>
+            <a href="${signUpLink}" style="background:#A91B18;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;font-weight:bold;display:inline-block;font-size:13px">CREATE YOUR ACCOUNT</a>
+          </div></div>`
+      });
+      if (sendError) throw new Error(sendError.message || 'The email provider did not accept the message.');
+      emailed = true;
+    } catch (error) {
+      emailError = error.message;
+      console.error('[GUEST INQUIRY] reply email failed:', error.message);
+    }
+    await supabaseAdmin.from('guest_inquiry_messages').update({ emailed_at: emailed ? new Date().toISOString() : null, email_error: emailError }).eq('id', saved.id);
+    return res.json({ success: true, emailed, emailError });
+  } catch (error) {
+    console.error('[GUEST INQUIRY] reply failed:', error.message);
+    return res.status(500).json({ success: false, error: 'The reply could not be saved. Please try again.' });
+  }
+});
+
 // ── Support reports ─────────────────────────────────────────────────────────────────────────────────────────
 // "Report an Issue" (and the data-deletion request) in Settings: the text is e-mailed to the developer support inbox,
 // with the signed-in person's name, role and e-mail so support can reply to them directly. The sender always comes
@@ -3983,12 +4124,16 @@ app.post('/api/admin/refunds/proof', receiveRefundProof, async (req, res) => {
 
     // Only a reference number is looked for. Anything else on the picture is ignored.
     let reference = null;
+    let detectedAmount = null;
     try {
       const ocr = await recognizeReceipt(req.file.buffer, {
-        validateCandidate: (parsed) => isValidReferenceNumber(String(parsed.referenceNumber || '').trim())
+        validateCandidate: (parsed) => isValidReferenceNumber(String(parsed.referenceNumber || '').trim()) && parsed.amount !== null
       });
       const read = String(ocr.referenceNumber || '').trim();
       if (isValidReferenceNumber(read)) reference = refundProofs.normalizeProofReference(read);
+      // the amount on the proof is only shown to the administrator for comparison; it never blocks a refund
+      const amountRead = Number(ocr.amount ?? ocr.grossAmount);
+      if (Number.isFinite(amountRead) && amountRead > 0) detectedAmount = Math.round(amountRead * 100) / 100;
     } catch (ocrError) {
       console.warn(`⚠️ [REFUND PROOF] Reading the picture failed: ${ocrError.message}`);
     }
@@ -4011,7 +4156,7 @@ app.post('/api/admin/refunds/proof', receiveRefundProof, async (req, res) => {
     }
 
     const stored = await refundProofs.storeProof(supabaseAdmin, {
-      bookingId, refundReference, reference, imageHash,
+      bookingId, refundReference, reference, imageHash, detectedAmount,
       buffer: req.file.buffer, mimetype: req.file.mimetype, refundMethod, uploadedBy: admin.profile.id
     });
 
@@ -4024,7 +4169,7 @@ app.post('/api/admin/refunds/proof', receiveRefundProof, async (req, res) => {
       bookingId
     });
 
-    return res.status(201).json({ success: true, proof: { id: stored.id, reference: stored.reference, hasReference: Boolean(stored.reference) } });
+    return res.status(201).json({ success: true, proof: { id: stored.id, reference: stored.reference, hasReference: Boolean(stored.reference), detectedAmount } });
   } catch (error) {
     if (error?.code === '23505') {
       return res.status(409).json({ success: false, code: 'REFERENCE_REUSED', error: 'This reference or picture has already been used as a proof.' });

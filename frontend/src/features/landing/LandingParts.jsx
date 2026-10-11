@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { LayoutDashboard, LogIn, LogOut, ChevronRight } from 'lucide-react';
+import { BACKEND_URL } from '@/config/api';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -120,19 +122,46 @@ export function ContactCards({ items }) {
   );
 }
 
+/**
+ * The landing page question box. The message goes to the shop's Message Inquiries (as a conversation with no account)
+ * and to the shop's email; answers are emailed back to the address given here.
+ */
 export function ContactForm() {
+  const [values, setValues] = useState({ name: '', email: '', message: '', website: '' });
+  const [status, setStatus] = useState({ state: 'idle', text: '' });
+  const set = (key) => (event) => setValues((prev) => ({ ...prev, [key]: event.target.value }));
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (status.state === 'sending') return;
+    setStatus({ state: 'sending', text: '' });
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/public/inquiry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values)
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.success) throw new Error(body.error || 'Your message could not be sent. Please try again.');
+      setValues({ name: '', email: '', message: '', website: '' });
+      setStatus({ state: 'sent', text: 'Thank you! Your message was sent. We will reply to your email address.' });
+    } catch (error) {
+      setStatus({ state: 'error', text: error.message === 'Failed to fetch' ? 'The server could not be reached. Please try again in a moment.' : error.message });
+    }
+  };
+
   return (
     <Card className="landing-ui gap-0 py-0">
       <CardContent className="p-6 sm:p-10">
-        <form className="grid gap-5" onSubmit={(e) => e.preventDefault()}>
+        <form className="grid gap-5" onSubmit={submit}>
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="contact-name" className="text-xs font-black uppercase tracking-wider text-muted-foreground">Name</Label>
-              <Input id="contact-name" type="text" className="h-11 bg-background" />
+              <Input id="contact-name" type="text" required minLength={2} maxLength={80} value={values.name} onChange={set('name')} className="h-11 bg-background" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="contact-email" className="text-xs font-black uppercase tracking-wider text-muted-foreground">Email</Label>
-              <Input id="contact-email" type="email" className="h-11 bg-background" />
+              <Input id="contact-email" type="email" required maxLength={160} value={values.email} onChange={set('email')} className="h-11 bg-background" />
             </div>
           </div>
           <div className="grid gap-2">
@@ -140,10 +169,25 @@ export function ContactForm() {
             <textarea
               id="contact-message"
               rows={5}
+              required
+              minLength={5}
+              maxLength={2000}
+              value={values.message}
+              onChange={set('message')}
               className="min-h-28 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm font-semibold text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
             />
           </div>
-          <Button type="submit" size="lg" className="h-12 font-black uppercase tracking-wider">Send message</Button>
+          {/* a field real visitors never see; only bots fill it in */}
+          <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
+            <label htmlFor="contact-website">Website</label>
+            <input id="contact-website" type="text" tabIndex={-1} autoComplete="off" value={values.website} onChange={set('website')} />
+          </div>
+          {status.text && (
+            <p role={status.state === 'error' ? 'alert' : 'status'} className={`text-sm font-semibold ${status.state === 'error' ? 'text-destructive' : 'text-emerald-500'}`}>{status.text}</p>
+          )}
+          <Button type="submit" size="lg" disabled={status.state === 'sending'} className="h-12 font-black uppercase tracking-wider">
+            {status.state === 'sending' ? 'Sending…' : 'Send message'}
+          </Button>
         </form>
       </CardContent>
     </Card>

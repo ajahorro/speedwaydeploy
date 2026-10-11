@@ -87,6 +87,7 @@ try {
   // 4 a proof with a reference is accepted
   const ok = await upload(admin.token, { bookingId: bookingA, refundReference: `RFD-T${tag}-1`, refundMethod: 'BANK TRANSFER', image: good });
   check('a proof showing a reference number is accepted', ok.status === 201 && ok.body.proof?.hasReference === true, `${ok.status} ${JSON.stringify(ok.body)}`);
+  check('the amount on the proof is read and kept', Number(ok.body.proof?.detectedAmount) === 1000 && Number(sql(`select detected_amount from public.refund_proofs where booking_id='${bookingA}'`)) === 1000, String(ok.body.proof?.detectedAmount));
   const stored = sql(`select proof_reference || '|' || storage_path from public.refund_proofs where booking_id='${bookingA}'`);
   check('the reference is stored without spaces', stored.startsWith(reference.replace(/\s+/g, '') + '|'), stored);
 

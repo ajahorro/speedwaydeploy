@@ -71,9 +71,11 @@ insert into t_results select 'cash proofs need no reference (two can exist witho
 select pg_temp.as_user('9e100000-0000-0000-0000-000000000003');
 select public.process_booking_refund_v2('9e1000aa-0000-0000-0000-000000000001', 1000, 'Customer Request', 'RFD-TEST-0001', 0, 'BANK TRANSFER', '9e100000-0000-0000-0000-000000000003');
 insert into t_results select 'with its proof the refund is recorded', exists (select 1 from public.payments where booking_id = '9e1000aa-0000-0000-0000-000000000001' and method = 'SYSTEM_REFUND' and reference_number = 'RFD-TEST-0001'), '';
-select pg_temp.try('a proof for another reference does not unlock a refund', $$select public.process_booking_refund_v2('9e1000aa-0000-0000-0000-000000000002', 500, 'Customer Request', 'RFD-TEST-OTHER', 0, 'CASH', '9e100000-0000-0000-0000-000000000003')$$, 'REFUND_PROOF_REQUIRED');
+select pg_temp.try('a proof for another reference does not unlock a refund', $$select public.process_booking_refund_v2('9e1000aa-0000-0000-0000-000000000002', 500, 'Customer Request', 'RFD-TEST-OTHER', 0, 'BANK TRANSFER', '9e100000-0000-0000-0000-000000000003')$$, 'REFUND_PROOF_REQUIRED');
 select public.process_booking_refund_v2('9e1000aa-0000-0000-0000-000000000002', 500, 'Customer Request', 'RFD-TEST-CASH1', 0, 'CASH', '9e100000-0000-0000-0000-000000000003');
 insert into t_results select 'a cash refund goes through with its picture alone', exists (select 1 from public.payments where booking_id = '9e1000aa-0000-0000-0000-000000000002' and method = 'SYSTEM_REFUND' and reference_number = 'RFD-TEST-CASH1'), '';
+select public.process_booking_refund_v2('9e1000aa-0000-0000-0000-000000000002', 300, 'Customer Request', 'RFD-TEST-CASH-NOPIC', 0, 'CASH', '9e100000-0000-0000-0000-000000000003');
+insert into t_results select 'a cash refund needs no picture at all', exists (select 1 from public.payments where booking_id = '9e1000aa-0000-0000-0000-000000000002' and method = 'SYSTEM_REFUND' and reference_number = 'RFD-TEST-CASH-NOPIC') and not exists (select 1 from public.refund_proofs where refund_reference = 'RFD-TEST-CASH-NOPIC'), '';
 
 -- who can read
 insert into t_results select 'an administrator sees every proof', pg_temp.proofs_visible() = 3, pg_temp.proofs_visible()::text;

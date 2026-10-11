@@ -45,7 +45,8 @@ const AdminRefunds = () => {
     proofStatus: 'idle',
     proofError: '',
     proofFileName: '',
-    proofHasReference: false
+    proofHasReference: false,
+    proofAmount: null
   });
   const proofInputRef = useRef(null);
   const pendingProofRef = useRef(null);
@@ -156,6 +157,16 @@ const AdminRefunds = () => {
   const deductionValue = isExcessRefund ? 0 : Math.max(0, Number(state.deduction) || 0);
   const derivedRefund = Math.max(0, Math.min(selectedRefundTotal - deductionValue, selectedRefundTotal));
   const deductionExceedsPaid = deductionValue > selectedRefundTotal;
+  // What the proof says against what is about to be refunded. Only informs: it never blocks the refund.
+  const money = (value) => `₱${Number(value || 0).toLocaleString()}`;
+  const proofCheck = (() => {
+    const read = state.proofAmount;
+    if (read === null || read === undefined) return { tone: 'none', text: 'The amount could not be read from this proof. Check it yourself before you confirm.' };
+    const gap = Math.round((read - derivedRefund) * 100) / 100;
+    if (gap === 0) return { tone: 'ok', text: `The proof shows ${money(read)}: it matches the refund.` };
+    if (gap > 0) return { tone: 'warn', text: `The proof shows ${money(read)}, which is ${money(gap)} MORE than this refund (${money(derivedRefund)}). Check for an over-refund.` };
+    return { tone: 'warn', text: `The proof shows ${money(read)}, which is ${money(-gap)} LESS than this refund (${money(derivedRefund)}).` };
+  })();
   const isRefundLocked = ['PROCESSED', 'COMPLETED'].includes(
     String(state.selectedItem?.refundStatus || '').trim().toUpperCase()
   );
@@ -164,7 +175,7 @@ const AdminRefunds = () => {
   const discardPendingProof = (bookingId, refundReference) => {
     if (bookingId && refundReference) discardRefundProof({ bookingId, refundReference });
   };
-  const clearProof = (prev) => ({ ...prev, proofRefundRef: '', proofStatus: 'idle', proofError: '', proofFileName: '', proofHasReference: false });
+  const clearProof = (prev) => ({ ...prev, proofRefundRef: '', proofStatus: 'idle', proofError: '', proofFileName: '', proofHasReference: false, proofAmount: null });
 
   const openRefundItem = (item) => {
     if (pendingProofRef.current) { discardPendingProof(pendingProofRef.current.bookingId, pendingProofRef.current.refundReference); pendingProofRef.current = null; }
@@ -209,7 +220,7 @@ const AdminRefunds = () => {
     const result = await uploadRefundProof({ bookingId: item.id, refundReference, refundMethod: state.refundMethod, file });
     if (result.ok) {
       pendingProofRef.current = { bookingId: item.id, refundReference };
-      setState(prev => ({ ...prev, proofStatus: 'accepted', proofHasReference: Boolean(result.proof?.hasReference) }));
+      setState(prev => ({ ...prev, proofStatus: 'accepted', proofHasReference: Boolean(result.proof?.hasReference), proofAmount: result.proof?.detectedAmount ?? null }));
       toast.success(result.proof?.hasReference ? 'Proof accepted. Reference number found.' : 'Proof accepted.');
     } else {
       setState(prev => ({ ...prev, proofStatus: 'rejected', proofError: result.error, proofHasReference: false }));
@@ -237,8 +248,12 @@ const AdminRefunds = () => {
 
       if (!['PROCESSED', 'EMAIL_PENDING'].includes(item.refundStatus)) {
         // Same reference the proof of refund was uploaded under.
-        refundRef = state.proofRefundRef;
-        if (!refundRef || state.proofStatus !== 'accepted') throw new Error('Upload the proof of refund first.');
+        if (state.refundMethod === 'CASH') {
+          refundRef = `RFD-${Date.now().toString().slice(-6)}-${item.id.substring(0, 4).toUpperCase()}`; // a cash refund has no proof picture
+        } else {
+          refundRef = state.proofRefundRef;
+          if (!refundRef || state.proofStatus !== 'accepted') throw new Error('Upload the proof of refund first.');
+        }
         const { data: { user } } = await supabase.auth.getUser();
         const rpcName = item.overpaymentRefundRemaining > 0
           ? 'process_overpayment_credit_refund_v2'
@@ -588,7 +603,10 @@ const AdminRefunds = () => {
                       </select>
                   </div>
 
-                  {/* Proof of refund: required. Read for a reference number (a cash refund needs the picture only). */}
+                  {/* Proof of refund: required for a bank transfer (read for its reference number and amount). A cash refund needs none. */}
+                  {state.refundMethod === 'CASH' ? (
+                    <div style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>Cash refund: no proof picture is needed.</div>
+                  ) : (
                   <div>
                     <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Proof of Refund</label>
                     <input ref={proofInputRef} type="file" accept={REFUND_PROOF_ACCEPT} onChange={chooseProof} style={{ display: 'none' }} />
@@ -607,10 +625,16 @@ const AdminRefunds = () => {
                     {state.proofStatus === 'rejected' && state.proofError && (
                       <div role="alert" style={{ marginTop: '0.4rem', fontSize: '0.68rem', fontWeight: '800', color: 'var(--status-danger)' }}>{state.proofError}</div>
                     )}
+                    {state.proofStatus === 'accepted' && (
+                      <div role="status" style={{ marginTop: '0.4rem', fontSize: '0.7rem', fontWeight: '800', color: proofCheck.tone === 'ok' ? '#10b981' : (proofCheck.tone === 'warn' ? '#f59e0b' : 'var(--admin-text-secondary)') }}>
+                        {proofCheck.text}
+                      </div>
+                    )}
                     <div style={{ marginTop: '0.4rem', fontSize: '0.62rem', fontWeight: '700', color: 'var(--admin-text-secondary)', lineHeight: 1.4 }}>
-                      {state.refundMethod === 'CASH' ? 'Cash: a picture of the signed cash-out slip. A reference number is not required.' : 'Bank transfer: the picture must show the reference number. A reference or picture used before is not accepted.'}
+                      Bank transfer: the picture must show the reference number. A reference or picture used before is not accepted.
                     </div>
                   </div>
+                  )}
 
                   <div>
                     <label htmlFor="refund-derived" style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Refund Amount (₱) — Derived</label>
@@ -668,7 +692,7 @@ const AdminRefunds = () => {
                     {state.selectedItem.refundProofRows.map(({ record, proof }) => (
                       <div key={record.id || record.reference_number} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.7rem' }}>
                         <span style={{ fontFamily: 'monospace', fontWeight: '800' }}>{record.reference_number} · ₱{Math.abs(Number(record.amount || 0)).toLocaleString()}</span>
-                        {proof ? <RefundProofButton proof={proof} /> : <span style={{ color: 'var(--admin-text-secondary)' }}>No proof on file</span>}
+                        {proof ? <RefundProofButton proof={proof} /> : <span style={{ color: 'var(--admin-text-secondary)' }}>{String(record.refund_method || '').toUpperCase() === 'CASH' ? 'Cash: no proof needed' : 'No proof on file'}</span>}
                       </div>
                     ))}
                   </div>
@@ -686,7 +710,7 @@ const AdminRefunds = () => {
                       Refund finalized — the financial trail is locked.
                     </div>
                   ) : (
-                    <Button className="w-full font-black" disabled={state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || !state.refundMethod || derivedRefund <= 0 || deductionExceedsPaid || state.proofStatus !== 'accepted')} onClick={() => setState(prev => ({ ...prev, confirmRefundItem: state.selectedItem }))}>
+                    <Button className="w-full font-black" disabled={state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || !state.refundMethod || derivedRefund <= 0 || deductionExceedsPaid || (state.refundMethod !== 'CASH' && state.proofStatus !== 'accepted'))} onClick={() => setState(prev => ({ ...prev, confirmRefundItem: state.selectedItem }))}>
                       {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'RETRY REFUND EMAIL' : state.selectedItem.refundStatus === 'PROCESSING' ? 'REFUND REMAINING' : 'PROCESS REFUND'}
                     </Button>
                   )
@@ -722,6 +746,32 @@ const AdminRefunds = () => {
                   ['Refund method', state.refundMethod],
                   ['Remaining to refund after this', `₱${Math.max(0, selectedRefundTotal - deductionValue - derivedRefund).toLocaleString()}`],
                 ].map(([label, value]) => <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', textAlign: 'left', fontSize: '0.74rem' }}><span style={{ color: 'var(--admin-text-secondary)' }}>{label}</span><strong style={{ textAlign: 'right', overflowWrap: 'anywhere' }}>{value}</strong></div>)}
+                {state.refundMethod !== 'CASH' && state.proofStatus === 'accepted' && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', textAlign: 'left', fontSize: '0.74rem' }}>
+                    <span style={{ color: 'var(--admin-text-secondary)' }}>Amount on the proof</span>
+                    <strong style={{ textAlign: 'right' }}>{state.proofAmount === null ? 'Could not be read' : money(state.proofAmount)}</strong>
+                  </div>
+                )}
+                {state.refundMethod !== 'CASH' && state.proofStatus === 'accepted' && proofCheck.tone !== 'ok' && (
+                  <div role="alert" style={{ padding: '0.55rem 0.7rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid rgba(245, 158, 11, 0.4)', background: 'rgba(245, 158, 11, 0.08)', color: '#f59e0b', fontSize: '0.72rem', fontWeight: '800', textAlign: 'left', lineHeight: 1.4 }}>
+                    {proofCheck.text} You can still continue.
+                  </div>
+                )}
+                <div style={{ borderTop: '1px dashed var(--admin-border)', paddingTop: '0.65rem', textAlign: 'left' }}>
+                  <div style={{ fontSize: '0.62rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Payment history</div>
+                  {(state.confirmRefundItem.payments || []).filter(p => String(p.method || '').toUpperCase() !== 'RECEIVABLE' && String(p.status || '').toUpperCase() !== 'REJECTED').map(p => (
+                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.7rem', padding: '0.15rem 0' }}>
+                      <span style={{ color: 'var(--admin-text-secondary)' }}>{new Date(p.created_at).toLocaleDateString()} · {String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' ? 'Refund' : p.method}</span>
+                      <span style={{ fontWeight: '800', color: Number(p.amount) < 0 ? '#ef4444' : 'inherit' }}>{Number(p.amount) < 0 ? '−' : ''}{money(Math.abs(Number(p.amount || 0)))}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.74rem', padding: '0.4rem 0 0', marginTop: '0.3rem', borderTop: '1px solid var(--admin-border)' }}>
+                    <span style={{ color: 'var(--admin-text-secondary)' }}>Total paid</span><strong>{money(state.confirmRefundItem.totalPaid)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.74rem' }}>
+                    <span style={{ color: 'var(--admin-text-secondary)' }}>Already refunded</span><strong>{money(state.confirmRefundItem.refundedAmount)}</strong>
+                  </div>
+                </div>
                 <p style={{ margin: '0.25rem 0 0', color: 'var(--admin-text-secondary)', fontSize: '0.7rem', lineHeight: 1.45 }}>The request remains open if the recorded refund plus deduction does not account for the full amount paid.</p>
               </div>
             )}
