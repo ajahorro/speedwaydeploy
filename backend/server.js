@@ -3277,8 +3277,57 @@ app.get('/api/promos/active', async (req, res) => {
  * ⏱️ Staff Shift Toggle Endpoint
  * Updates staff attendance availability and clock-in timestamp in database (bypasses RLS).
  * Does NOT send emails or notifications; simply updates staff status.
+ */
+app.post('/api/staff/toggle-shift', async (req, res) => {
+  const actor = await getLifecycleActor(req);
+  if (!actor) return res.status(401).json({ success: false, error: 'Authentication required.' });
+  // Shift state belongs to the caller only; a body userId is never trusted.
+  const userId = actor.profile.id;
+  const { newStatus } = req.body || {};
+  console.log(`⏱️ [STAFF] Shift toggle request: userId=${userId}, newStatus=${newStatus}`);
 
+  try {
+    // A technician with a job under way (started, or its before photo is saved) or one starting within 5 minutes
+    // may not clock out: an admin has to assign another staff member first.
+    if (!newStatus) {
+      const { data: blockers, error: blockerError } = await supabaseAdmin.rpc('staff_clock_out_blockers', { p_staff: userId });
+      if (blockerError) throw blockerError;
+      if ((blockers || []).length > 0) {
+        const first = blockers[0];
+        const what = first.reason === 'STARTS_SOON' ? 'starts within 5 minutes' : 'is already under way';
+        return res.status(409).json({
+          success: false,
+          code: 'CLOCK_OUT_BLOCKED',
+          blockers,
+          error: `You cannot clock out yet: ${first.vehicle_label || 'an assigned vehicle'} ${what}. If you really need to clock out, ask an admin to assign another staff member to it first.`
+        });
+      }
+    }
 
+    const timestamp = newStatus ? new Date().toISOString() : null;
+
+    // First attempt: update both is_clocked_in and clock_in_timestamp
+    let { data: updatedProfile, error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        is_clocked_in: Boolean(newStatus),
+        clock_in_timestamp: timestamp
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    // Fallback if clock_in_timestamp column is not yet in schema cache
+    if (updateError && (updateError.code === 'PGRST204' || updateError.message?.includes('clock_in_timestamp'))) {
+      console.warn('⚠️ clock_in_timestamp column missing, falling back to is_clocked_in update');
+      const fallbackResult = await supabaseAdmin
+        .from('profiles')
+        .update({
+          is_clocked_in: Boolean(newStatus)
+        })
+        .eq('id', userId)
+        .select()
+        .single();
 
       if (fallbackResult.error) throw fallbackResult.error;
       updatedProfile = fallbackResult.data;

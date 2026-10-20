@@ -22,6 +22,8 @@ const CustomerDashboard = () => {
 
   // The 'Active' booking is the most immediate one
   const activeBooking = activeTrackableBookings[0] || null;
+  // Fallback to latest finished/completed booking if no pending/ongoing appointment
+  const recentBooking = !activeBooking ? allBookings.find(b => ['completed', 'released'].includes(b.status?.toLowerCase())) || null : null;
   // The rest fall into the upcoming tracker
   const upcomingBookings = activeTrackableBookings.slice(1);
 
@@ -43,7 +45,7 @@ const CustomerDashboard = () => {
       <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
         {/* Left Column (Primary Focus) */}
         <div style={{ flex: '1 1 60%', minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          <ActiveBookingContainer booking={activeBooking} loading={loading} />
+          <ActiveBookingContainer booking={activeBooking} recentBooking={recentBooking} loading={loading} />
         </div>
 
         {/* Right Column (Secondary Focus) */}

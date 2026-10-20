@@ -114,13 +114,13 @@ const StaffReports = () => {
           </Suspense>
         </TabsContent>
         <TabsContent value="mine" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: '1rem' }}>
         <Stat icon={CalendarDays} label="Vehicles today" value={counts.today_total ?? 0} />
         <Stat icon={CheckCircle2} label="Finished today" value={counts.today_completed ?? 0} />
         <Stat icon={Wrench} label="In progress now" value={counts.today_in_progress ?? 0} />
         <Stat icon={Clock} label="Still to start today" value={counts.today_pending ?? 0} />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: '1rem' }}>
         <Stat icon={BarChart2} label="Finished this week" value={counts.week_completed ?? 0} />
         <Stat icon={BarChart2} label="Finished this month" value={counts.month_completed ?? 0} />
         <Stat icon={BarChart2} label="Finished all time" value={counts.all_completed ?? 0} />

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Send, Sparkles } from 'lucide-react';
+import { Send, Sparkles, RotateCcw, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { supabase } from '@/lib/supabase';
@@ -35,6 +35,11 @@ export default function AssistantPanel({
 
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [messages, busy]);
 
+  const resetChat = () => {
+    setMessages([]);
+    setInput('');
+  };
+
   const ask = async (question) => {
     const text = String(question || '').trim();
     if (!text || busy) return;
@@ -68,29 +73,61 @@ export default function AssistantPanel({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="ui-root flex w-full flex-col gap-0 sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2"><Sparkles className="size-4" /> {title}</SheetTitle>
+        <SheetHeader className="pb-3 border-b border-border">
+          <div className="flex items-center justify-between">
+            <SheetTitle className="flex items-center gap-2"><Sparkles className="size-4 text-primary" /> {title}</SheetTitle>
+            {messages.length > 0 && (
+              <Button type="button" variant="ghost" size="sm" onClick={resetChat} className="text-xs h-7 px-2 gap-1 text-muted-foreground hover:text-foreground">
+                <RotateCcw className="size-3" /> New chat
+              </Button>
+            )}
+          </div>
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 space-y-3 overflow-y-auto px-4 py-2" aria-live="polite">
+        <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3" aria-live="polite">
           {messages.length === 0 && (
-            <div className="flex flex-wrap gap-2">
-              {quickQuestions.map((question) => (
-                <Button key={question} variant="outline" size="sm" className="h-auto whitespace-normal text-left" onClick={() => ask(question)}>{question}</Button>
-              ))}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Suggested Questions</p>
+              <div className="flex flex-col gap-1.5">
+                {quickQuestions.map((question) => (
+                  <Button key={question} variant="outline" size="sm" className="h-auto py-2 px-3 whitespace-normal text-left justify-start font-normal text-xs hover:border-primary" onClick={() => ask(question)}>
+                    {question}
+                  </Button>
+                ))}
+              </div>
             </div>
           )}
           {messages.map((message, index) => (
             <div key={index} className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-              <div className={`max-w-[88%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm ${message.role === 'user' ? 'bg-primary text-primary-foreground' : message.error ? 'border border-destructive/50 text-destructive' : 'bg-muted'}`}>
+              <div className={`max-w-[88%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm ${message.role === 'user' ? 'bg-primary text-primary-foreground font-medium' : message.error ? 'border border-destructive/50 text-destructive bg-destructive/10' : 'bg-muted'}`}>
                 {message.content}
               </div>
             </div>
           ))}
-          {busy && <p className="text-xs text-muted-foreground">{busyText}</p>}
+          {busy && <p className="text-xs text-muted-foreground italic flex items-center gap-1.5"><Sparkles className="size-3 animate-spin text-primary" /> {busyText}</p>}
           <div ref={endRef} />
         </div>
+
+        {/* Quick prompt chips are ALWAYS accessible at the bottom above the input even after messages are sent */}
+        {messages.length > 0 && (
+          <div className="px-3 py-1.5 border-t border-border bg-muted/20">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[11px]">
+              <span className="text-muted-foreground font-semibold shrink-0 text-[10px] uppercase">Quick:</span>
+              {quickQuestions.map((question) => (
+                <button
+                  key={question}
+                  type="button"
+                  onClick={() => ask(question)}
+                  className="shrink-0 px-2.5 py-1 rounded-full border border-border bg-background hover:bg-accent text-foreground transition-colors truncate max-w-[200px]"
+                  title={question}
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <form className="flex gap-2 border-t p-3" onSubmit={(event) => { event.preventDefault(); ask(input); }}>
           <input

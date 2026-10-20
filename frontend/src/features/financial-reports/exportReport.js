@@ -5,9 +5,37 @@ import { toDateParam } from './useReportRange';
 const MAX_ROWS = 5000;
 const BATCH = 1000;
 
+const formatDate = (iso) => {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString('en-PH', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch {
+    return String(iso);
+  }
+};
+
+const formatMoney = (val) => {
+  if (val === null || val === undefined || val === '') return '0.00';
+  const num = Number(val);
+  return isNaN(num) ? String(val) : num.toFixed(2);
+};
+
+const formatStatus = (val) => String(val || '—').replace(/_/g, ' ').toUpperCase();
+
 const csvCell = (value) => {
-  const text = value === null || value === undefined ? '' : String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  if (value === null || value === undefined) return '';
+  let text = String(value).trim();
+  // Formula injection defense (Excel security best practice)
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 };
 
 const fetchAll = async (range, kind, method) => {
@@ -29,16 +57,27 @@ const TAB_NAMES = {
 };
 
 const transactionLines = (rows) => [
-  ['Recognized at', 'Receipt no.', 'Booking', 'Customer', 'Method', 'Status', 'Amount received', 'Reference'],
+  ['Recognized At', 'Receipt No.', 'Booking Ref', 'Customer', 'Method', 'Status', 'Amount (PHP)', 'Reference'],
   ...rows.map((row) => [
-    row.recognized_at || row.created_at, `RCP-${row.payment_id}`, row.booking_id, row.customer_name, formatMethod(row.method),
-    row.status, row.net_received, row.reference
+    formatDate(row.recognized_at || row.created_at),
+    `RCP-${row.payment_id}`,
+    row.booking_id ? `#${String(row.booking_id).substring(0, 8).toUpperCase()}` : '—',
+    row.customer_name || 'Customer',
+    formatMethod(row.method),
+    formatStatus(row.status),
+    formatMoney(row.net_received),
+    row.reference || ''
   ])
 ];
 
 const refundLines = (rows) => [
-  ['Created at', 'Booking', 'Customer', 'Amount refunded'],
-  ...rows.map((row) => [row.created_at, row.booking_id, row.customer_name, Math.abs(row.amount)])
+  ['Created At', 'Booking Ref', 'Customer', 'Amount Refunded (PHP)'],
+  ...rows.map((row) => [
+    formatDate(row.created_at),
+    row.booking_id ? `#${String(row.booking_id).substring(0, 8).toUpperCase()}` : '—',
+    row.customer_name || 'Customer',
+    formatMoney(Math.abs(row.amount))
+  ])
 ];
 
 /**
@@ -49,8 +88,9 @@ const refundLines = (rows) => [
 export async function downloadReportCsv({ tab = 'overview', range, method = 'ALL', report, daily = [] }) {
   const toLabel = new Date(range.to.getTime() - 1);
   const head = [
-    ['Comar Garage report', TAB_NAMES[tab] || tab],
-    ['From', toDateParam(range.from), 'To', toDateParam(toLabel)],
+    ['COMAR GARAGE FINANCIAL REPORT', (TAB_NAMES[tab] || tab).toUpperCase()],
+    ['Reporting Period', `${toDateParam(range.from)} to ${toDateParam(toLabel)}`],
+    ['Generated On', formatDate(new Date())],
     []
   ];
   let body = [];
@@ -61,70 +101,91 @@ export async function downloadReportCsv({ tab = 'overview', range, method = 'ALL
     const rows = data?.bookings || [];
     count = rows.length;
     body = [
-      ['Bookings'],
-      ['Start', 'Reference', 'Customer', 'Status', 'Vehicles and services', 'Total', 'Paid', 'Balance', 'To be received'],
+      ['BOOKINGS SUMMARY'],
+      ['Start Time', 'Reference', 'Customer', 'Status', 'Vehicles and Services', 'Total (PHP)', 'Paid (PHP)', 'Balance (PHP)', 'To Be Received (PHP)'],
       ...rows.map((b) => [
-        b.start_datetime, b.reference, b.customer_name, b.status,
+        formatDate(b.start_datetime),
+        `#${String(b.reference || '').toUpperCase()}`,
+        b.customer_name || 'Customer',
+        formatStatus(b.status),
         (b.vehicles || []).map((v) => `${[v.brand, v.model].filter(Boolean).join(' ')} ${v.plate || ''}: ${(v.services || []).map((x) => x.name).join(' + ')}`.trim()).join(' | '),
-        b.total, b.paid, b.balance, b.deferred
+        formatMoney(b.total),
+        formatMoney(b.paid),
+        formatMoney(b.balance),
+        formatMoney(b.deferred)
       ])
     ];
   } else if (tab === 'transactions') {
     const [settled, pending] = await Promise.all([fetchAll(range, 'settled', method), fetchAll(range, 'pending', 'ALL')]);
     count = settled.length + pending.length;
-    body = [['Money received'], ...transactionLines(settled), [], ['Awaiting verification (not counted as revenue)'], ...transactionLines(pending)];
+    body = [
+      ['SETTLED PAYMENTS (NET REVENUE)'],
+      ...transactionLines(settled),
+      [],
+      ['AWAITING VERIFICATION (NOT COUNTED AS REVENUE YET)'],
+      ...transactionLines(pending)
+    ];
   } else if (tab === 'refunds') {
     const refunds = await fetchAll(range, 'refund', 'ALL');
     count = refunds.length;
     body = [
-      ['Summary'],
-      ['Refunds in range', report?.refunds],
-      ['Overpayments held', report?.overpayments],
-      ['Customer credit (today)', report?.customer_credit_liability],
+      ['REFUNDS SUMMARY'],
+      ['Total Refunds in Range (PHP)', formatMoney(report?.refunds)],
+      ['Overpayments Held (PHP)', formatMoney(report?.overpayments)],
+      ['Customer Credit Liability (PHP)', formatMoney(report?.customer_credit_liability)],
       [],
-      ['Refund transactions'],
+      ['REFUND TRANSACTIONS'],
       ...refundLines(refunds)
     ];
   } else if (tab === 'outstanding') {
     const rows = await fetchOutstandingBookings({ limit: MAX_ROWS });
     count = rows.length;
     body = [
-      ['Outstanding balances (as of now)'],
-      ['Booking', 'Customer', 'Appointment', 'Status', 'Total', 'Paid', 'Owed'],
-      ...rows.map((row) => [row.booking_id, row.customer_name, row.start_datetime, row.booking_status, row.expected_amount, row.net_settled, row.outstanding_amount])
+      ['OUTSTANDING BALANCES (AS OF NOW)'],
+      ['Booking Ref', 'Customer', 'Appointment', 'Status', 'Total Expected (PHP)', 'Amount Settled (PHP)', 'Balance Owed (PHP)'],
+      ...rows.map((row) => [
+        `#${String(row.booking_id || '').substring(0, 8).toUpperCase()}`,
+        row.customer_name || 'Customer',
+        formatDate(row.start_datetime),
+        formatStatus(row.booking_status),
+        formatMoney(row.expected_amount),
+        formatMoney(row.net_settled),
+        formatMoney(row.outstanding_amount)
+      ])
     ];
   } else {
     count = daily.length;
     body = [
-      ['Summary'],
-      ['Net revenue', report?.net_revenue],
-      ['Net received', report?.net_received],
-      ['Refunds', report?.refunds],
-      ['Pending verification', report?.pending_verification],
-      ['Outstanding balance (today)', report?.outstanding_balance],
-      ['Customer credit (today)', report?.customer_credit_liability],
+      ['FINANCIAL OVERVIEW SUMMARY'],
+      ['Net Revenue (PHP)', formatMoney(report?.net_revenue)],
+      ['Net Received (PHP)', formatMoney(report?.net_received)],
+      ['Refunds (PHP)', formatMoney(report?.refunds)],
+      ['Pending Verification (PHP)', formatMoney(report?.pending_verification)],
+      ['Outstanding Balance (PHP)', formatMoney(report?.outstanding_balance)],
+      ['Customer Credit Liability (PHP)', formatMoney(report?.customer_credit_liability)],
       [],
-      ['By day'],
-      ['Day', 'Amount received', 'Refunds', 'Pending verification', 'Transactions'],
-      ...daily.map((d) => [d.day, d.net_received, d.refunds, d.pending_verification, d.transaction_count]),
+      ['DAILY BREAKDOWN'],
+      ['Day', 'Amount Received (PHP)', 'Refunds (PHP)', 'Pending Verification (PHP)', 'Transactions Count'],
+      ...daily.map((d) => [d.day, formatMoney(d.net_received), formatMoney(d.refunds), formatMoney(d.pending_verification), d.transaction_count]),
       [],
-      ['By payment method'],
-      ['Method', 'Amount received', 'Payments'],
-      ...(report?.by_method || []).map((m) => [formatMethod(m.method), m.net_received, m.count]),
+      ['BY PAYMENT METHOD'],
+      ['Method', 'Amount Received (PHP)', 'Payments Count'],
+      ...(report?.by_method || []).map((m) => [formatMethod(m.method), formatMoney(m.net_received), m.count]),
       [],
-      ['Top services'],
-      ['Service', 'Bookings'],
+      ['TOP SERVICES'],
+      ['Service', 'Bookings Count'],
       ...(report?.top_services || []).map((t) => [t.name, t.count])
     ];
   }
 
-  const csv = [...head, ...body].map((line) => line.map(csvCell).join(',')).join('\n');
-  // Byte-order mark so Excel opens the file as UTF-8 (₱ and names render correctly).
-  const blob = new Blob([String.fromCharCode(0xfeff), csv], { type: 'text/csv;charset=utf-8' });
+  // Windows-standard CRLF line endings with clean escaping
+  const csv = [...head, ...body].map((line) => line.map(csvCell).join(',')).join('\r\n');
+  // Byte-order mark (BOM) so Excel opens UTF-8 without garbled characters or formatting corruption
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `report-${TAB_NAMES[tab] || tab}_${toDateParam(range.from)}_${toDateParam(toLabel)}.csv`;
+  link.download = `Comar-Garage-${TAB_NAMES[tab] || tab}_${toDateParam(range.from)}_${toDateParam(toLabel)}.csv`;
   document.body.appendChild(link);
   link.click();
   link.remove();

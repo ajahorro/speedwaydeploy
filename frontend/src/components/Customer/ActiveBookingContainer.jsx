@@ -1,5 +1,5 @@
-import React from 'react';
-import { Clock, User, FileText, ChevronRight, Car, CalendarOff, Wallet } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Clock, User, FileText, ChevronRight, Car, CalendarOff, Wallet, CheckCircle2, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { describeLedgerState } from '../../services/bookingService';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,8 @@ const STATUS_COLOR = {
   confirmed: 'var(--admin-info)',
   in_progress: '#a855f7',
   ongoing: '#a855f7',
-  completed: 'var(--admin-success)'
+  completed: 'var(--admin-success)',
+  released: 'var(--admin-success)'
 };
 
 const TONE_COLOR = {
@@ -23,20 +24,29 @@ const TONE_COLOR = {
 };
 
 const timeAgo = (iso) => {
-  if (!iso) return '';
-  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
+  if (!iso) return 'just now';
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const seconds = Math.max(0, Math.floor(diffMs / 1000));
+  if (seconds < 45) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
 const label = { fontSize: '0.7rem', fontWeight: 950, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' };
 const box = { padding: '1rem', background: 'var(--admin-bg)', borderRadius: 'var(--admin-radius-md)', border: '1px solid var(--admin-border)' };
 
-const ActiveBookingContainer = ({ booking, loading }) => {
+const ActiveBookingContainer = ({ booking, recentBooking, loading }) => {
   const navigate = useNavigate();
+  // Live ticker so "Updated X ago" ticks dynamically in real-time
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 15000); // Ticks every 15s
+    return () => clearInterval(timer);
+  }, []);
 
   const cardStyle = {
     background: 'var(--admin-card)',
@@ -47,10 +57,14 @@ const ActiveBookingContainer = ({ booking, loading }) => {
   };
 
   if (loading) {
-    return <div style={{ ...cardStyle, padding: '3rem', textAlign: 'center', color: 'var(--admin-brand)', fontWeight: 900 }}>Loading active booking...</div>;
+    return <div style={{ ...cardStyle, padding: '3rem', textAlign: 'center', color: 'var(--admin-brand)', fontWeight: 900 }}>Loading booking overview...</div>;
   }
 
-  if (!booking) {
+  // If no current ongoing booking, but customer has a previous booking, display the recent booking overview
+  const displayedBooking = booking || recentBooking;
+  const isRecentOnly = !booking && Boolean(recentBooking);
+
+  if (!displayedBooking) {
     return (
       <div style={{ ...cardStyle, padding: '3rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
         <CalendarOff size={48} color="var(--admin-text-secondary)" style={{ opacity: 0.3 }} />
@@ -63,55 +77,64 @@ const ActiveBookingContainer = ({ booking, loading }) => {
     );
   }
 
-  const vehicles = booking.vehicles || [];
+  const vehicles = displayedBooking.vehicles || [];
   const statuses = vehicles.map((v) => String(v.status || '').toUpperCase());
   const finished = statuses.filter((s) => s === 'COMPLETED').length;
   const started = statuses.includes('IN_PROGRESS');
   const allFinished = statuses.length > 0 && statuses.every((s) => s === 'COMPLETED' || s === 'CANCELLED');
 
-  let status = String(booking.status || 'scheduled').toLowerCase();
+  let status = String(displayedBooking.status || 'scheduled').toLowerCase();
   if (started && ['scheduled', 'confirmed'].includes(status)) status = 'in_progress';
   if (allFinished && status !== 'cancelled') status = 'completed';
   const color = STATUS_COLOR[status] || 'var(--admin-text-secondary)';
 
-  const start = booking.start_datetime ? new Date(booking.start_datetime) : null;
+  const start = displayedBooking.start_datetime ? new Date(displayedBooking.start_datetime) : null;
   const when = start
     ? `${start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} · ${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
     : 'To be scheduled';
   const serviceCount = vehicles.reduce((sum, v) => sum + (v.services?.length || 0), 0);
 
   // money: always from the booking's ledger
-  const ledger = booking.ledger || null;
+  const ledger = displayedBooking.ledger || null;
   const state = describeLedgerState(ledger);
-  const total = Number(ledger?.expected_amount ?? ledger?.original_amount ?? booking.total_amount ?? 0);
-  const paid = Number(ledger?.net_settled ?? booking.totalPaid ?? 0);
+  const total = Number(ledger?.expected_amount ?? ledger?.original_amount ?? displayedBooking.total_amount ?? 0);
+  const paid = Number(ledger?.net_settled ?? displayedBooking.totalPaid ?? 0);
   const balance = Number(ledger?.outstanding_amount ?? Math.max(0, total - paid));
   const overpaid = Number(ledger?.excess_amount || 0);
 
-  const technicianNames = booking.technician_names || [];
+  const technicianNames = displayedBooking.technician_names || [];
   const unassigned = vehicles.filter((v) => !v.technician_name).length;
   const technicianText = technicianNames.length ? technicianNames.join(', ') : 'Not assigned yet';
   const technicianNote = technicianNames.length === 0
     ? 'The shop will assign a technician soon'
     : unassigned > 0 ? `${unassigned} vehicle${unassigned === 1 ? '' : 's'} still waiting` : 'All vehicles assigned';
 
+  const lastUpdatedIso = displayedBooking.updated_at || displayedBooking.created_at || new Date().toISOString();
+
   return (
     <div style={cardStyle}>
       <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--admin-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ minWidth: 0 }}>
-          <div style={label}>Your current booking</div>
+          <div style={label}>{isRecentOnly ? 'Latest Completed Booking' : 'Your current booking'}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', margin: '0.3rem 0' }}>
             <span style={{ width: 12, height: 12, borderRadius: '50%', background: color, boxShadow: `0 0 8px ${color}`, flexShrink: 0 }} />
             <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 950, textTransform: 'uppercase', color: 'var(--admin-text-primary)' }}>{status.replace(/_/g, ' ')}</h2>
+            {isRecentOnly && (
+              <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '0.15rem 0.5rem', borderRadius: '100px', background: 'rgba(34, 197, 94, 0.15)', color: 'var(--admin-success)', textTransform: 'uppercase' }}>
+                Completed
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 700, color: 'var(--admin-text-primary)' }}>
             <Clock size={14} color="var(--admin-text-secondary)" /> {when}
           </div>
-          {booking.updated_at && <div style={{ marginTop: '0.2rem', fontSize: '0.72rem', fontWeight: 600, color: 'var(--admin-text-secondary)' }}>Updated {timeAgo(booking.updated_at)}</div>}
+          <div style={{ marginTop: '0.2rem', fontSize: '0.72rem', fontWeight: 600, color: 'var(--admin-text-secondary)' }}>
+            Updated {timeAgo(lastUpdatedIso)}
+          </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={label}>Ref no.</div>
-          <div style={{ fontSize: '1.05rem', fontWeight: 900, fontFamily: 'monospace', color: 'var(--admin-text-primary)' }}>#{booking.id?.substring(0, 8).toUpperCase()}</div>
+          <div style={{ fontSize: '1.05rem', fontWeight: 900, fontFamily: 'monospace', color: 'var(--admin-text-primary)' }}>#{displayedBooking.id?.substring(0, 8).toUpperCase()}</div>
         </div>
       </div>
 
@@ -175,7 +198,7 @@ const ActiveBookingContainer = ({ booking, loading }) => {
           </div>
         </div>
 
-        <Button onClick={() => navigate(`/customer/bookings/${booking.id}`)} variant="default" className="w-full">
+        <Button onClick={() => navigate(`/customer/bookings/${displayedBooking.id}`)} variant="default" className="w-full">
           <FileText size={16} /> View full booking <ChevronRight size={16} />
         </Button>
       </div>

@@ -163,7 +163,7 @@ const StaffLayout = () => {
     padding: '0',
     position: 'fixed',
     top: 0,
-    left: isMobile ? (isSidebarOpen ? 0 : '-260px') : 0,
+    left: isMobile ? (isSidebarOpen ? 0 : '-260px') : (isDesktopCollapsed ? '-260px' : 0),
     height: '100vh',
     flexShrink: 0,
     zIndex: 1000,
@@ -316,7 +316,7 @@ const StaffLayout = () => {
       </aside>
 
       {/* Main Content */}
-      <main style={{ flex: 1, minWidth: 0, marginLeft: isMobile ? 0 : '260px', height: '100vh', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', position: 'relative', background: 'var(--admin-bg)' }}>
+      <main style={{ flex: 1, minWidth: 0, marginLeft: isMobile ? 0 : (isDesktopCollapsed ? 0 : '260px'), height: '100vh', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', position: 'relative', background: 'var(--admin-bg)', transition: 'margin-left 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
         {/* Top Header */}
         <header style={{
           height: '70px', background: 'var(--admin-card)', backdropFilter: 'blur(10px)',
@@ -326,11 +326,9 @@ const StaffLayout = () => {
           overflowX: 'visible', maxWidth: '100%', boxShadow: 'var(--admin-card-shadow)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '0.75rem', minWidth: 0, flexShrink: 1 }}>
-            {isMobile && (
-              <button onClick={() => setIsSidebarOpen(true)} aria-label="Open menu" style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0, minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginLeft: '-0.5rem' }}>
-                <Menu size={20} />
-              </button>
-            )}
+            <button onClick={toggleSidebar} aria-label="Toggle menu" style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0, minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginLeft: '-0.5rem' }}>
+              <Menu size={20} />
+            </button>
             {/* Hidden on mobile so the header stays within 375px. */}
             {!isMobile && (
               <h2 style={{ fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '2px', whiteSpace: 'nowrap' }}>

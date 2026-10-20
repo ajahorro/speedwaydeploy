@@ -32,12 +32,24 @@ const csvCell = (value) => {
 
 /** Downloads the bookings of the report as a CSV (no money, no contact details). */
 export const downloadStaffBookingsCsv = ({ report, fileLabel }) => {
-  const rows = [['Start', 'Reference', 'Customer', 'Status', 'Walk-in', 'Vehicle', 'Plate', 'Services', 'Technician']];
+  const rows = [
+    ['COMAR GARAGE — STAFF BOOKINGS REPORT'],
+    ['Report Period', fileLabel || 'All Bookings'],
+    [],
+    ['Start Time', 'Booking Ref', 'Customer', 'Status', 'Walk-in', 'Vehicle', 'Plate Number', 'Services', 'Assigned Technician']
+  ];
   (report?.bookings || []).forEach((b) => {
     const vehicles = b.vehicles?.length ? b.vehicles : [{}];
     vehicles.forEach((v) => rows.push([
-      when(b.start), b.reference, b.customer, statusWords(b.status), b.walk_in ? 'Yes' : 'No',
-      [v.brand, v.model].filter(Boolean).join(' '), v.plate || '', (v.services || []).join('; '), v.technician || ''
+      when(b.start),
+      `#${String(b.reference || '').toUpperCase()}`,
+      b.customer || 'Customer',
+      statusWords(b.status),
+      b.walk_in ? 'Yes' : 'No',
+      [v.brand, v.model].filter(Boolean).join(' ') || 'Vehicle',
+      v.plate || '—',
+      (v.services || []).join('; ') || 'None',
+      v.technician || 'Unassigned'
     ]));
   });
   const blob = new Blob(['﻿' + rows.map((row) => row.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });

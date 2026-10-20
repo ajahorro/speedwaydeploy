@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from '@/lib/toast';
-import { FileDown } from 'lucide-react';
+import { FileDown, Camera, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { fetchBookingsReport } from '@/services/ledgerService';
 import { formatPeso } from '@/features/finance/money';
 import { downloadBookingsPdf } from './bookingsPdf';
+import PhotoProofGallery from '@/components/Photos/PhotoProofGallery';
 
 const statusVariant = (status) => {
   const value = String(status || '').toUpperCase();
@@ -23,9 +25,11 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('en-PH', { timeZone: '
  * behind it (all figures from the payment ledger through bookings_report()), plus a PDF of the same.
  */
 export function BookingsTable({ range, rangeLabel, refreshKey, pdfRequest }) {
+  const navigate = useNavigate();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [evidenceBookingId, setEvidenceBookingId] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -57,7 +61,10 @@ export function BookingsTable({ range, rangeLabel, refreshKey, pdfRequest }) {
   }, [pdfRequest]);
 
   const totals = report?.totals || {};
-  const rows = report?.bookings || [];
+  // Sort most recent first (FIFO - newest appointments displayed at the top)
+  const rows = useMemo(() => {
+    return [...(report?.bookings || [])].sort((a, b) => new Date(b.start_datetime || 0) - new Date(a.start_datetime || 0));
+  }, [report]);
 
   return (
     <Card>
@@ -87,7 +94,7 @@ export function BookingsTable({ range, rangeLabel, refreshKey, pdfRequest }) {
         </div>
 
         <div className="overflow-x-auto">
-          <Table className="min-w-[760px]">
+          <Table className="min-w-[840px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Start</TableHead>
@@ -97,18 +104,29 @@ export function BookingsTable({ range, rangeLabel, refreshKey, pdfRequest }) {
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="text-right">Paid</TableHead>
                 <TableHead className="text-right">Balance</TableHead>
+                <TableHead className="text-center">Evidence / Details</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading && Array.from({ length: 4 }).map((_, i) => (
-                <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+                <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
               ))}
               {!loading && rows.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">No bookings start in this range.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">No bookings start in this range.</TableCell></TableRow>
               )}
               {!loading && rows.map((b) => (
                 <TableRow key={b.booking_id}>
-                  <TableCell className="whitespace-nowrap">{when(b.start_datetime)}<div className="font-mono text-xs text-muted-foreground">#{b.reference}</div></TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {when(b.start_datetime)}
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/admin/bookings/${b.booking_id}`)}
+                      className="font-mono text-xs text-primary hover:underline flex items-center gap-1 mt-0.5"
+                      title="View full booking in Admin"
+                    >
+                      #{b.reference} <ExternalLink className="size-3" />
+                    </button>
+                  </TableCell>
                   <TableCell>{b.customer_name}{b.technician && <div className="text-xs text-muted-foreground">Tech: {b.technician}</div>}</TableCell>
                   <TableCell>
                     {(b.vehicles || []).length === 0 && <span className="text-muted-foreground">—</span>}
@@ -126,12 +144,44 @@ export function BookingsTable({ range, rangeLabel, refreshKey, pdfRequest }) {
                     {formatPeso(b.balance)}
                     {Number(b.deferred) > 0 && <div className="text-xs font-normal text-muted-foreground">to be received {formatPeso(b.deferred)}</div>}
                   </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEvidenceBookingId(b.booking_id)}
+                        className="text-xs flex items-center gap-1 px-2.5 h-7"
+                        title="View photo proofs and intake/completion evidence"
+                      >
+                        <Camera className="size-3.5" /> Evidence
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/admin/bookings/${b.booking_id}`)}
+                        className="text-xs flex items-center gap-1 px-2 h-7"
+                        title="Open booking details"
+                      >
+                        <ExternalLink className="size-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
       </CardContent>
+
+      {evidenceBookingId && (
+        <PhotoProofGallery
+          bookingId={evidenceBookingId}
+          open={Boolean(evidenceBookingId)}
+          onClose={() => setEvidenceBookingId(null)}
+        />
+      )}
     </Card>
   );
 }

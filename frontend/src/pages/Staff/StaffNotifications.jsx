@@ -40,9 +40,9 @@ const StaffNotifications = () => {
   const isMobile = useMediaQuery('(max-width: 1024px)');
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  // latest 10 first, then "See more" adds 10 at a time
-  const [pageSize, setPageSize] = useState(10);
-  const [hasMore, setHasMore] = useState(false);
+  // Fixed 10-per-page arrow pagination (replaces the old "See more" pattern)
+  const PAGE_SIZE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
   const [filter, setFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -55,18 +55,15 @@ const StaffNotifications = () => {
     }
     setLoading(true);
     try {
-      const page = await fetchVisiblePage({
-        pageSize,
-        fetchChunk: (from, to) => supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).range(from, to),
-        visible: (rows) => rows.filter((notification) =>
+      const visible = (rows) => rows.filter((notification) =>
         isNotificationActionable(notification)
         && !isRedundantStaffTechnicianAssignment(notification)
         && notification.notification_type !== 'MESSAGE_RECEIVED'
         && !notification.title?.toLowerCase().includes('new message')
-        )
-      });
-      setNotifications(page.rows);
-      setHasMore(page.hasMore);
+      );
+      const { data: raw } = await supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(500);
+      setNotifications(visible(raw || []));
+      setCurrentPage(1);
     } catch (err) {
       logger.error('Staff Notification Fetch Error', err);
       toast.error('Failed to load notifications.');
@@ -93,7 +90,7 @@ const StaffNotifications = () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
       stopRealtime();
     };
-  }, [userId, pageSize]);
+  }, [userId]);
 
   const handleMarkAsRead = async (id, silent = false) => {
     try {
@@ -139,6 +136,10 @@ const StaffNotifications = () => {
     return matchesSearch;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredNotifications.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedNotifications = filteredNotifications.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
   return (
     <div className="ui-root flex flex-col gap-6 pb-8">
       {confirmDeleteId !== null && <DeleteConfirmModal onConfirm={handleConfirmDelete} onCancel={() => setConfirmDeleteId(null)} />}
@@ -156,9 +157,9 @@ const StaffNotifications = () => {
       <div className={`flex gap-3 rounded-md border bg-card p-3 ${isMobile ? 'flex-col' : 'flex-row'}`}>
         <div className="relative w-full flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input type="text" placeholder="Search notifications..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
+          <Input type="text" placeholder="Search notifications..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} className="pl-9" />
         </div>
-        <Tabs value={filter} onValueChange={setFilter}>
+        <Tabs value={filter} onValueChange={(f) => { setFilter(f); setCurrentPage(1); }}>
           <TabsList>
             {['ALL', 'UNREAD', 'READ'].map(f => (
               <TabsTrigger key={f} value={f} className="px-4 text-xs font-bold">{f}</TabsTrigger>
@@ -170,8 +171,8 @@ const StaffNotifications = () => {
       <div className="grid gap-3">
         {loading && notifications.length === 0 ? (
           [1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full" />)
-        ) : filteredNotifications.length > 0 ? (
-          filteredNotifications.map((notif) => (
+        ) : pagedNotifications.length > 0 ? (
+          pagedNotifications.map((notif) => (
             <Card
               key={notif.id}
               onClick={() => {
@@ -207,7 +208,28 @@ const StaffNotifications = () => {
             </div>
           </div>
         )}
-        {hasMore && <SeeMoreButton loading={loading} onClick={() => setPageSize((n) => n + 10)} />}
+        {/* ← Page X of Y → arrow pagination */}
+        {filteredNotifications.length > 0 && (
+          <div className="flex items-center justify-center gap-4 py-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              aria-label="Previous page"
+              className="rounded border border-border bg-background px-3 py-1.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40"
+            >←</button>
+            <span className="text-xs font-semibold text-muted-foreground">
+              Page {safePage} of {totalPages} <span className="opacity-50">({filteredNotifications.length})</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              aria-label="Next page"
+              className="rounded border border-border bg-background px-3 py-1.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40"
+            >→</button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -241,9 +241,9 @@ const AdminAuditLogs = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL');
-  // The latest 10 entries load first; "See more" adds 10 at a time so the database never loads the whole trail at once.
-  const [pageSize, setPageSize] = useState(10);
-  const [hasMore, setHasMore] = useState(false);
+  // Fixed 10-per-page arrow pagination (replaces the old "See more" pattern)
+  const PAGE_SIZE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedLog, setSelectedLog] = useState(null);
   const [isAuditListOpen, setIsAuditListOpen] = useState(false);
   const fetchSequence = useRef(0);
@@ -272,14 +272,11 @@ const AdminAuditLogs = () => {
           .map(([actionType]) => actionType);
         query = query.in('action_type', actionTypes);
       }
-      const { data: fetched, error } = await query.limit(pageSize + 1);
-      const data = (fetched || []).slice(0, pageSize);
-      if (sequence === fetchSequence.current) setHasMore((fetched || []).length > pageSize);
-
+      const { data: fetched, error } = await query.limit(500);
       if (error) throw error;
       if (sequence !== fetchSequence.current) return;
 
-      const rows = data || [];
+      const rows = fetched || [];
 
       // Resolve actor emails in one round-trip for every distinct actor id.
       const actorIds = Array.from(new Set(rows.map((l) => l.actor_id).filter(Boolean)));
@@ -314,6 +311,7 @@ const AdminAuditLogs = () => {
       });
 
       setLogs(visibleLogs);
+      setCurrentPage(1); // reset to page 1 on fresh fetch
       logger.admin('Audit trail synchronized.');
     } catch (err) {
       if (sequence !== fetchSequence.current) return;
@@ -322,7 +320,7 @@ const AdminAuditLogs = () => {
     } finally {
       if (sequence === fetchSequence.current) setLoading(false);
     }
-  }, [filterType, pageSize]);
+  }, [filterType]);
 
   useEffect(() => {
     fetchLogs();
@@ -338,6 +336,11 @@ const AdminAuditLogs = () => {
     const matchesFilter = filterType === 'ALL' || meta.category === filterType;
     return matchesSearch && matchesFilter;
   });
+
+  // Reset to page 1 whenever the search or filter changes (filter also triggers a re-fetch which resets)
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedLogs = filteredLogs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   // The technical record shown in the detail modal, as ordered key/value rows.
   //
@@ -437,7 +440,7 @@ const AdminAuditLogs = () => {
             type="text"
             placeholder="Search action or performer..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             style={{
               width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem',
               background: 'var(--admin-input-bg)', border: '1px solid var(--admin-input-border)',
@@ -450,7 +453,7 @@ const AdminAuditLogs = () => {
           <Filter size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
           <select
             value={filterType}
-            onChange={(e) => { setFilterType(e.target.value); setPageSize(10); }}
+            onChange={(e) => { setFilterType(e.target.value); setCurrentPage(1); }}
             style={{
               width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem',
               background: 'var(--admin-input-bg)', border: '1px solid var(--admin-input-border)',
@@ -497,8 +500,8 @@ const AdminAuditLogs = () => {
           [1, 2, 3, 4, 5].map((i) => (
             <div key={i} style={{ height: '58px', borderBottom: '1px solid var(--admin-border)' }} className="animate-pulse" />
           ))
-        ) : filteredLogs.length > 0 ? (
-          filteredLogs.map((log) => {
+        ) : pagedLogs.length > 0 ? (
+          pagedLogs.map((log) => {
             const meta = getMeta(log.event_type);
             return (
               <div key={log.id} style={{ borderBottom: '1px solid var(--admin-border)' }}>
@@ -541,10 +544,31 @@ const AdminAuditLogs = () => {
             <p style={{ fontWeight: 700, fontSize: '0.9rem', margin: 0 }}>No logs found</p>
           </div>
         )}
-        {hasMore && (
-          <button type="button" onClick={() => setPageSize((n) => n + 10)} disabled={loading} style={{ margin: '1rem auto', padding: '0.6rem 1.5rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', cursor: loading ? 'wait' : 'pointer' }}>
-            {loading ? 'Loading…' : 'See more'}
-          </button>
+        {/* ← Page X of Y → arrow pagination */}
+        {filteredLogs.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '1rem 0', borderTop: '1px solid var(--admin-border)', marginTop: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              aria-label="Previous page"
+              style={{ padding: '0.4rem 0.9rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.8rem', cursor: safePage <= 1 ? 'not-allowed' : 'pointer', opacity: safePage <= 1 ? 0.4 : 1, borderRadius: 'var(--admin-radius-sm)', transition: 'all 0.15s' }}
+            >
+              ←
+            </button>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--admin-text-secondary)', whiteSpace: 'nowrap' }}>
+              Page {safePage} of {totalPages} <span style={{ opacity: 0.5 }}>({filteredLogs.length} entries)</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              aria-label="Next page"
+              style={{ padding: '0.4rem 0.9rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.8rem', cursor: safePage >= totalPages ? 'not-allowed' : 'pointer', opacity: safePage >= totalPages ? 0.4 : 1, borderRadius: 'var(--admin-radius-sm)', transition: 'all 0.15s' }}
+            >
+              →
+            </button>
+          </div>
         )}
         </div>
       </div>

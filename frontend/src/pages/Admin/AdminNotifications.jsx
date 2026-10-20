@@ -99,9 +99,9 @@ const AdminNotifications = () => {
   const isMobile = useMediaQuery('(max-width: 1024px)');
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  // latest 10 first, then "See more" adds 10 at a time
-  const [pageSize, setPageSize] = useState(10);
-  const [hasMore, setHasMore] = useState(false);
+  // Fixed 10-per-page arrow pagination (replaces the old "See more" pattern)
+  const PAGE_SIZE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
   const [filter, setFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -186,13 +186,9 @@ const AdminNotifications = () => {
         return true;
       });
       };
-      const page = await fetchVisiblePage({
-        pageSize,
-        visible: dedupe,
-        fetchChunk: (from, to) => supabase.from('notifications').select('*').order('created_at', { ascending: false }).range(from, to)
-      });
-      setNotifications(page.rows);
-      setHasMore(page.hasMore);
+      const { data: raw } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(500);
+      setNotifications(dedupe(raw || []));
+      setCurrentPage(1);
       logger.admin('Signal spectrum synchronized.');
     } catch (err) {
       logger.error('Notification Fetch Error', err);
@@ -310,6 +306,10 @@ const AdminNotifications = () => {
     return matchesSearch;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredNotifications.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedNotifications = filteredNotifications.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
   const cardStyle = { background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', padding: '1.25rem' };
 
   return (
@@ -387,7 +387,7 @@ const AdminNotifications = () => {
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--admin-bg)', padding: '0.25rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
           {['ALL', 'UNREAD', 'READ'].map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{ padding: '0.5rem 1rem', borderRadius: 'var(--admin-radius-sm)', border: 'none', background: filter === f ? 'var(--admin-brand)' : 'transparent', color: filter === f ? 'white' : 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '950',  }}>{f}</button>
+            <button key={f} onClick={() => { setFilter(f); setCurrentPage(1); }} style={{ padding: '0.5rem 1rem', borderRadius: 'var(--admin-radius-sm)', border: 'none', background: filter === f ? 'var(--admin-brand)' : 'transparent', color: filter === f ? 'white' : 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '950',  }}>{f}</button>
           ))}
         </div>
       </div>
@@ -395,8 +395,8 @@ const AdminNotifications = () => {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
         {loading && notifications.length === 0 ? (
           [1,2,3].map(i => <div key={i} style={{ height: '100px', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)' }} className="animate-pulse" />)
-        ) : filteredNotifications.length > 0 ? (
-          filteredNotifications.map((notif) => {
+        ) : pagedNotifications.length > 0 ? (
+          pagedNotifications.map((notif) => {
             const targetUrl = resolveNotificationTarget(notif);
             return (
             <div
@@ -465,7 +465,28 @@ const AdminNotifications = () => {
             </div>
           </div>
         )}
-        {hasMore && <SeeMoreButton loading={loading} onClick={() => setPageSize((n) => n + 10)} />}
+        {/* ← Page X of Y → arrow pagination */}
+        {filteredNotifications.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '0.75rem 0' }}>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              aria-label="Previous page"
+              style={{ padding: '0.4rem 0.9rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.8rem', cursor: safePage <= 1 ? 'not-allowed' : 'pointer', opacity: safePage <= 1 ? 0.4 : 1, borderRadius: 'var(--admin-radius-sm)' }}
+            >←</button>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--admin-text-secondary)', whiteSpace: 'nowrap' }}>
+              Page {safePage} of {totalPages} <span style={{ opacity: 0.5 }}>({filteredNotifications.length} entries)</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              aria-label="Next page"
+              style={{ padding: '0.4rem 0.9rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.8rem', cursor: safePage >= totalPages ? 'not-allowed' : 'pointer', opacity: safePage >= totalPages ? 0.4 : 1, borderRadius: 'var(--admin-radius-sm)' }}
+            >→</button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -27,8 +27,21 @@ const CustomerLayout = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifPopover, setShowNotifPopover] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(() => localStorage.getItem('comar_sidebar_customer_collapsed') === 'true');
   const isMobile = useMediaQuery('(max-width: 1024px)');
   const notifRef = useRef(null);
+
+  const toggleSidebar = () => {
+    if (isMobile) {
+      setIsSidebarOpen((prev) => !prev);
+    } else {
+      setIsDesktopCollapsed((prev) => {
+        const next = !prev;
+        localStorage.setItem('comar_sidebar_customer_collapsed', String(next));
+        return next;
+      });
+    }
+  };
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notifRef.current && !notifRef.current.contains(event.target)) {
@@ -104,7 +117,7 @@ const CustomerLayout = () => {
     padding: '0',
     position: 'fixed',
     top: 0,
-    left: isMobile ? (isSidebarOpen ? 0 : '-260px') : 0,
+    left: isMobile ? (isSidebarOpen ? 0 : '-260px') : (isDesktopCollapsed ? '-260px' : 0),
     height: '100vh',
     flexShrink: 0,
     zIndex: 1000,
@@ -231,7 +244,7 @@ const CustomerLayout = () => {
         </div>
       </aside>
 
-      <div className="admin-main-wrapper" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', position: 'relative', maxWidth: '100%', height: '100vh', overflow: 'hidden', marginLeft: isMobile ? 0 : '260px' }}>
+      <div className="admin-main-wrapper" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', position: 'relative', maxWidth: '100%', height: '100vh', overflow: 'hidden', marginLeft: isMobile ? 0 : (isDesktopCollapsed ? 0 : '260px'), transition: 'margin-left 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
         <header className="no-print" style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -245,11 +258,9 @@ const CustomerLayout = () => {
           boxShadow: 'var(--admin-card-shadow)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '2rem' }}>
-            {isMobile && (
-              <button onClick={() => setIsSidebarOpen(true)} style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                <Menu size={20} />
-              </button>
-            )}
+            <button onClick={toggleSidebar} aria-label="Toggle menu" style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+              <Menu size={20} />
+            </button>
             <div
               style={{ fontSize: isMobile ? '0.9rem' : '1.1rem', fontWeight: '950', letterSpacing: '1px', cursor: 'pointer', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}
               onClick={() => navigate('/customer')}

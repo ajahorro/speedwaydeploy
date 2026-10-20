@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import toast from '@/lib/toast';
-import { FileDown, FileSpreadsheet, Sparkles } from 'lucide-react';
+import { FileDown, FileSpreadsheet, Sparkles, Camera, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,8 @@ import { fetchStaffBookingsReport } from '@/services/staffReportService';
 import { RangeFilter, formatRangeLabel } from '@/features/financial-reports/RangeFilter';
 import { useReportRange, toDateParam } from '@/features/financial-reports/useReportRange';
 import { downloadStaffBookingsCsv, downloadStaffBookingsPdf, statusGroup, statusWords } from './staffBookingsExport';
+import { supabase } from '@/lib/supabase';
+import PhotoProofGallery from '@/components/Photos/PhotoProofGallery';
 
 // The assistant loads only when it is opened, so the report's first paint is unchanged.
 const AssistantPanel = lazy(() => import('@/features/financial-reports/AssistantPanel'));
@@ -77,6 +79,7 @@ export default function StaffBookingsReport() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState('');
+  const [evidenceBookingId, setEvidenceBookingId] = useState(null);
 
   const rangeLabel = useMemo(() => formatRangeLabel(range), [range]);
 
@@ -94,6 +97,27 @@ export default function StaffBookingsReport() {
 
   useEffect(() => { load(); }, [load]);
 
+  const handleOpenEvidence = async (b) => {
+    let bid = b.booking_id || b.id;
+    if (!bid && b.reference) {
+      try {
+        const { data } = await supabase
+          .from('bookings')
+          .select('id')
+          .ilike('id', `${b.reference}%`)
+          .maybeSingle();
+        bid = data?.id;
+      } catch (err) {
+        console.warn('Could not resolve booking ID for evidence:', err);
+      }
+    }
+    if (!bid) {
+      toast.error('Booking ID could not be resolved for evidence view.');
+      return;
+    }
+    setEvidenceBookingId(bid);
+  };
+
   const totals = report?.totals || {};
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -102,7 +126,7 @@ export default function StaffBookingsReport() {
       if (!term) return true;
       const haystack = [b.reference, b.customer, ...(b.vehicles || []).flatMap((v) => [v.brand, v.model, v.plate, v.technician, ...(v.services || [])])].join(' ').toLowerCase();
       return haystack.includes(term);
-    });
+    }).sort((a, b) => new Date(b.start || 0) - new Date(a.start || 0));
   }, [report, statusFilter, search]);
 
   // The assistant (and the buttons) can ask for another day or period; the report itself is always the database's.
@@ -195,22 +219,71 @@ export default function StaffBookingsReport() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table className="min-w-[680px]">
+          {/* Mobile responsive cards view (for phone screens) */}
+          <div className="grid gap-3 md:hidden">
+            {loading && Array.from({ length: 3 }).map((_, i) => (
+              <Card key={i} className="p-4"><Skeleton className="h-20 w-full" /></Card>
+            ))}
+            {!loading && rows.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                {(report?.bookings || []).length ? 'No bookings match your search.' : 'No bookings start in this range.'}
+              </p>
+            )}
+            {!loading && rows.map((b, rowIndex) => (
+              <div key={`${b.reference}-${b.start}-${rowIndex}`} className="rounded-lg border bg-card p-3.5 space-y-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-bold text-sm text-foreground">{b.customer}{b.walk_in && <span className="ml-1.5 text-xs text-muted-foreground font-normal">(Walk-in)</span>}</div>
+                    <div className="text-xs text-muted-foreground font-mono mt-0.5">#{b.reference} · {when(b.start)}</div>
+                  </div>
+                  <Badge variant={statusVariant(b.status)}>{statusWords(b.status)}</Badge>
+                </div>
+
+                <div className="text-xs space-y-1.5 pt-1 border-t border-border">
+                  {(b.vehicles || []).length === 0 && <span className="text-muted-foreground">No vehicles listed</span>}
+                  {(b.vehicles || []).map((v, i) => (
+                    <div key={i} className="rounded bg-muted/40 p-2">
+                      <div className="font-semibold text-foreground">{[v.brand, v.model].filter(Boolean).join(' ') || 'Vehicle'}{v.plate ? ` (${v.plate})` : ''}</div>
+                      <div className="text-muted-foreground text-[11px] mt-0.5">{(v.services || []).join(', ') || 'No services'}</div>
+                      {v.technician && <div className="text-[11px] text-primary font-medium mt-0.5">Tech: {v.technician}</div>}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-1 flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenEvidence(b)}
+                    className="text-xs h-7 flex items-center gap-1.5"
+                    title="View photo proofs & evidence"
+                  >
+                    <Camera className="size-3.5" /> Evidence
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop & tablet table view */}
+          <div className="hidden md:block overflow-x-auto">
+            <Table className="min-w-[720px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Start</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Vehicles, services and technician</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-center">Evidence</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading && Array.from({ length: 4 }).map((_, i) => (
-                  <TableRow key={i}><TableCell colSpan={4}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+                  <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
                 ))}
                 {!loading && rows.length === 0 && (
-                  <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">{(report?.bookings || []).length ? 'No bookings match your search.' : 'No bookings start in this range.'}</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">{(report?.bookings || []).length ? 'No bookings match your search.' : 'No bookings start in this range.'}</TableCell></TableRow>
                 )}
                 {!loading && rows.map((b, rowIndex) => (
                   <TableRow key={`${b.reference}-${b.start}-${rowIndex}`}>
@@ -226,6 +299,18 @@ export default function StaffBookingsReport() {
                       ))}
                     </TableCell>
                     <TableCell><Badge variant={statusVariant(b.status)}>{statusWords(b.status)}</Badge></TableCell>
+                    <TableCell className="text-center">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenEvidence(b)}
+                        className="text-xs h-7 flex items-center gap-1 mx-auto"
+                        title="View photo proofs & evidence"
+                      >
+                        <Camera className="size-3.5" /> Evidence
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -236,6 +321,14 @@ export default function StaffBookingsReport() {
           )}
         </CardContent>
       </Card>
+
+      {evidenceBookingId && (
+        <PhotoProofGallery
+          bookingId={evidenceBookingId}
+          open={Boolean(evidenceBookingId)}
+          onClose={() => setEvidenceBookingId(null)}
+        />
+      )}
 
       {assistantOpen && (
         <Suspense fallback={null}>
