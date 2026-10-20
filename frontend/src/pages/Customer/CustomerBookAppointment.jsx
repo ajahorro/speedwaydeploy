@@ -308,7 +308,7 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
       // server-side REJECTION (reachable:true, valid:false) stops the submit.
       if (!slotCheck.valid && !slotCheck.reachable) {
         console.warn('[Booking] Slot validator unreachable — proceeding; the database capacity guard is still enforced.', slotCheck.details);
-        toast('Could not pre-check the slot (scheduling service offline). Continuing — a final capacity check still runs on save.', { icon: '⚠️' });
+        toastManager.warning('Could not pre-check the slot (scheduling service offline). Continuing — a final capacity check still runs on save.');
       } else if (!slotCheck.valid) {
         setValidationIssue({
           code: slotCheck.code,

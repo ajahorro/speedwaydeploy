@@ -4,7 +4,7 @@ import { subscribeTables } from '../../lib/realtimeHub';
 import { useNavigate } from 'react-router-dom';
 import {
   ClipboardList, Clock, CheckCircle2, AlertCircle,
-  Car, ArrowRight, TrendingUp, LogIn
+  Car, ArrowRight, TrendingUp, LogIn, LogOut
 } from 'lucide-react';
 import toast from '@/lib/toast';
 import { useAuth } from '../../hooks/useAuth';
@@ -183,6 +183,7 @@ const StaffDashboard = () => {
           badge="Today"
           title="Active Assignments"
           subtitle={`Ready for duty, ${profile?.full_name?.split(' ')[0]}. Vehicles assigned to you for detailing today.`}
+          onRefresh={fetchAssignedTasks}
         />
 
         <div style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', padding: '1.25rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', minWidth: isMobile ? 0 : '320px', width: isMobile ? '100%' : undefined, maxWidth: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -211,9 +212,13 @@ const StaffDashboard = () => {
               Shift exceeds 24 hours; duration is capped. Check your shift status with an administrator.
             </p>
           )}
-          {!profile?.is_clocked_in && (
+          {!profile?.is_clocked_in ? (
             <Button type="button" onClick={() => confirmThen({ title: 'Start your shift?', message: 'You will be marked on duty and can receive assignments.', confirmText: 'Start shift' }, handleClockIn)} disabled={!profile?.id || isClockingIn} variant="default" className="w-full uppercase">
               <LogIn size={16} /> {isClockingIn ? 'Clocking In...' : 'Clock In'}
+            </Button>
+          ) : (
+            <Button type="button" onClick={() => navigate('/staff/duty')} variant="outline" className="w-full uppercase border-destructive/50 text-destructive hover:bg-destructive/10">
+              <LogOut size={16} /> End Shift / Duty Settings
             </Button>
           )}
         </div>

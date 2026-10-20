@@ -21,9 +21,27 @@ const mapOptions = (options) => {
 };
 
 const render = (fn) => (id) => fn({ id, visible: true });
-const wrap = (show) => (message, options) => (typeof message === 'function'
-  ? sonner.custom(render(message), mapOptions(options))
-  : show(message, mapOptions(options)));
+
+const normalizeMessage = (message) => {
+  if (message === undefined || message === null) return null;
+  if (typeof message === 'function') return message;
+  if (typeof message === 'object') {
+    if (message.message && typeof message.message === 'string') return message.message;
+    // React elements or custom renderable objects
+    return message;
+  }
+  const str = String(message).trim();
+  if (!str || str === 'undefined' || str === 'null') return null;
+  return message;
+};
+
+const wrap = (show) => (message, options) => {
+  const cleanMsg = normalizeMessage(message);
+  if (!cleanMsg) return null;
+  return typeof cleanMsg === 'function'
+    ? sonner.custom(render(cleanMsg), mapOptions(options))
+    : show(cleanMsg, mapOptions(options));
+};
 
 const toast = wrap(sonner);
 toast.success = wrap(sonner.success);
@@ -31,7 +49,11 @@ toast.error = wrap(sonner.error);
 toast.warning = wrap(sonner.warning);
 toast.info = wrap(sonner.info);
 toast.loading = wrap(sonner.loading);
-toast.custom = (content, options) => sonner.custom(typeof content === 'function' ? render(content) : () => content, mapOptions(options));
+toast.custom = (content, options) => {
+  const cleanContent = normalizeMessage(content);
+  if (!cleanContent) return null;
+  return sonner.custom(typeof cleanContent === 'function' ? render(cleanContent) : () => cleanContent, mapOptions(options));
+};
 toast.promise = (promise, messages = {}, options) => sonner.promise(promise, { loading: messages.loading, success: messages.success, error: messages.error, ...mapOptions(options) });
 toast.dismiss = (id) => (id === undefined ? sonner.dismiss() : sonner.dismiss(id));
 toast.remove = toast.dismiss;

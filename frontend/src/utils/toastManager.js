@@ -120,6 +120,11 @@ export const createToastQueue = (engine) => {
    * ambient (non-user-initiated) toast.
    */
   const spawn = (kind, message, options = {}) => {
+    if (message === undefined || message === null) return null;
+    if (typeof message !== 'function' && typeof message !== 'object') {
+      const str = String(message).trim();
+      if (!str || str === 'undefined' || str === 'null') return null;
+    }
     const { id: explicitId, background = false, duration, dedupeKey, ...rest } = options;
 
     // ── RULE 3: background toasts never render over a modal ────────────────

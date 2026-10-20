@@ -27,8 +27,21 @@ const StaffLayout = () => {
   // menu open on desktop (`!isMobile`) left it open over the page on phones and
   // tablets. It starts closed; on desktop the menu is always shown regardless.
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = React.useState(() => localStorage.getItem('comar_sidebar_staff_collapsed') === 'true');
   const [unreadCount, setUnreadCount] = React.useState(0);
   const userId = user?.id || profile?.id;
+
+  const toggleSidebar = () => {
+    if (isMobile) {
+      setIsSidebarOpen((prev) => !prev);
+    } else {
+      setIsDesktopCollapsed((prev) => {
+        const next = !prev;
+        localStorage.setItem('comar_sidebar_staff_collapsed', String(next));
+        return next;
+      });
+    }
+  };
 
   // Close the menu whenever the page changes (small screens).
   React.useEffect(() => {

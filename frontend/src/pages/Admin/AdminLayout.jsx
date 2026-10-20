@@ -32,9 +32,22 @@ const AdminLayout = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifPopover, setShowNotifPopover] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(() => localStorage.getItem('comar_sidebar_admin_collapsed') === 'true');
   const isMobile = useMediaQuery('(max-width: 1024px)');
   const notifRef = useRef(null);
   const { openModal, closeModal } = useUI();
+
+  const toggleSidebar = () => {
+    if (isMobile) {
+      setIsSidebarOpen((prev) => !prev);
+    } else {
+      setIsDesktopCollapsed((prev) => {
+        const next = !prev;
+        localStorage.setItem('comar_sidebar_admin_collapsed', String(next));
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     document.body.classList.add('admin-account-active');
@@ -189,11 +202,11 @@ const AdminLayout = () => {
     padding: '0',
     position: 'fixed',
     top: 0,
-    left: isMobile ? (isSidebarOpen ? 0 : '-260px') : 0,
+    left: isMobile ? (isSidebarOpen ? 0 : '-260px') : (isDesktopCollapsed ? '-260px' : 0),
     height: '100vh',
     flexShrink: 0,
     zIndex: 1000,
-    transition: 'left 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+    transition: 'left 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
   };
 
   const overlayStyle = {
@@ -333,7 +346,7 @@ const AdminLayout = () => {
         </div>
       </aside>
 
-      <div className="admin-main-wrapper" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', position: 'relative', maxWidth: '100%', height: '100vh', overflow: 'hidden', marginLeft: isMobile ? 0 : '260px' }}>
+      <div className="admin-main-wrapper" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', position: 'relative', maxWidth: '100%', height: '100vh', overflow: 'hidden', marginLeft: isMobile ? 0 : (isDesktopCollapsed ? 0 : '260px'), transition: 'margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
         <header className="no-print" style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -346,12 +359,16 @@ const AdminLayout = () => {
           zIndex: 50,
           boxShadow: 'var(--admin-card-shadow)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '2rem' }}>
-            {isMobile && (
-              <button onClick={() => setIsSidebarOpen(true)} style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                <Menu size={20} />
-              </button>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '1.5rem' }}>
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              title="Toggle sidebar"
+              aria-label="Toggle sidebar"
+              style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.4rem', borderRadius: 'var(--admin-radius-sm)' }}
+            >
+              <Menu size={20} />
+            </button>
             <div
               style={{ fontSize: isMobile ? '0.9rem' : '1.1rem', fontWeight: '950', letterSpacing: '1px', cursor: 'pointer', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}
               onClick={() => navigate('/admin')}
