@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { subscribeTable } from '../../lib/realtimeHub';
 import PageHeader from '../../components/PageHeader';
-import { Bell, CheckCircle, Clock, Trash2, Filter, Search, AlertTriangle, X, ExternalLink } from 'lucide-react';
+import { Bell, CheckCircle, Trash2, Search, AlertTriangle, ExternalLink } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from '@/lib/toast';
 import { logger } from '../../utils/logger';
@@ -12,8 +13,14 @@ import NotificationDetailsModal from '../../components/NotificationDetailsModal'
 import { isNotificationActionable, resolveBookingId } from '../../utils/notificationRouting';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { matchesSearchText } from '../../utils/searchMatch';
-import SeeMoreButton from '../../components/SeeMoreButton';
-import { fetchVisiblePage } from '../../utils/pagedFetch';
+
+// ── MODULE-LEVEL CACHE (SWR Pattern) ─────────────────────────────────────────
+// Enables instant page transitions without loading flicker and background sync.
+let notificationsCache = {
+  data: null,
+  timestamp: 0,
+};
+const CACHE_TTL_MS = 30 * 1000; // 30s fresh window before background revalidation
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DELETE CONFIRMATION MODAL (REQ #5)
@@ -97,8 +104,8 @@ const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
 const AdminNotifications = () => {
   const { confirmThen } = useConfirmAction();
   const isMobile = useMediaQuery('(max-width: 1024px)');
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState(() => notificationsCache.data || []);
+  const [loading, setLoading] = useState(() => !notificationsCache.data);
   // Fixed 10-per-page arrow pagination (replaces the old "See more" pattern)
   const PAGE_SIZE = 10;
   const [currentPage, setCurrentPage] = useState(1);
@@ -108,6 +115,8 @@ const AdminNotifications = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [selectedNotification, setSelectedNotification] = useState(null);
+  const debounceRef = useRef(null);
+  const isMountedRef = useRef(true);
 
   // Traceability helper (audit finding): a notification must always tell the
   // admin WHERE the affected record lives. We resolve a target from the explicit
@@ -164,39 +173,94 @@ const AdminNotifications = () => {
   // ── Deletion Confirmation State ──────────────────────────────────────────
   const [confirmDeleteId, setConfirmDeleteId] = useState(null); // null = modal hidden
 
-  const fetchNotifications = async () => {
-    setLoading(true);
+  // Deduplicate ANNOUNCEMENT notifications:
+  // Admin sees only 1 entry per unique broadcast message (the most recent one),
+  // not one copy per user profile that was sent to.
+  const dedupe = (rows) => {
+    const seen = new Set();
+    return rows.filter(n => {
+      if (!isNotificationActionable(n)) return false;
+      if (n.notification_type === 'ANNOUNCEMENT') {
+        const key = n.message?.trim();
+        if (seen.has(key)) return false;
+        seen.add(key);
+      }
+      return true;
+    });
+  };
+
+  const fetchNotifications = useCallback(async (isBackground = false) => {
+    if (!isBackground && !notificationsCache.data) {
+      setLoading(true);
+    }
     try {
       logger.admin('Scanning for system signals...');
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Deduplicate ANNOUNCEMENT notifications:
-      // Admin sees only 1 entry per unique broadcast message (the most recent one),
-      // not one copy per user profile that was sent to.
-      const dedupe = (rows) => {
-      const seen = new Set();
-      return rows.filter(n => {
-        if (!isNotificationActionable(n)) return false;
-        if (n.notification_type === 'ANNOUNCEMENT') {
-          const key = n.message?.trim();
-          if (seen.has(key)) return false;
-          seen.add(key);
-        }
-        return true;
-      });
-      };
-      const { data: raw } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(500);
-      setNotifications(dedupe(raw || []));
-      setCurrentPage(1);
+      const { data: raw, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      if (error) throw error;
+
+      const deduped = dedupe(raw || []);
+      notificationsCache.data = deduped;
+      notificationsCache.timestamp = Date.now();
+
+      if (isMountedRef.current) {
+        setNotifications(deduped);
+      }
       logger.admin('Signal spectrum synchronized.');
     } catch (err) {
       logger.error('Notification Fetch Error', err);
-      toast.error('Failed to load signals.');
+      if (!isBackground) {
+        toast.error('Failed to load signals.');
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
+
+  const debouncedRefresh = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchNotifications(true);
+    }, 400);
+  }, [fetchNotifications]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    // Check if cached data is fresh
+    const isFresh = notificationsCache.data && (Date.now() - notificationsCache.timestamp < CACHE_TTL_MS);
+    if (!isFresh) {
+      fetchNotifications(Boolean(notificationsCache.data));
+    }
+
+    // Refresh when tab becomes visible if stale
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const isStale = !notificationsCache.timestamp || (Date.now() - notificationsCache.timestamp > CACHE_TTL_MS);
+        if (isStale) fetchNotifications(true);
+      }
+    };
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Multi-client / real-time updates: listen for notification inserts/updates
+    const stopRealtime = subscribeTable({ table: 'notifications' }, debouncedRefresh);
+
+    return () => {
+      isMountedRef.current = false;
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      stopRealtime();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [fetchNotifications, debouncedRefresh]);
 
   const handleBroadcast = async (e) => {
     e.preventDefault();
@@ -232,7 +296,8 @@ const AdminNotifications = () => {
 
       toast.success(`Broadcast signal transmitted to ${result.receiversCount} receivers`);
       setBroadcastForm({ message: '' });
-      fetchNotifications();
+      fetchNotifications(false);
+      window.dispatchEvent(new Event('notificationsRead'));
       logger.admin('Global broadcast complete.');
     } catch (err) {
       logger.error('Broadcast Error', err);
@@ -242,10 +307,6 @@ const AdminNotifications = () => {
     }
   };
 
-  useEffect(() => {
-    fetchNotifications();
-  }, [pageSize]);
-
   const handleMarkAsRead = async (id, silent = false) => {
     try {
       const { error } = await supabase
@@ -254,7 +315,12 @@ const AdminNotifications = () => {
         .eq('id', id);
 
       if (error) throw error;
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+      setNotifications(prev => {
+        const next = prev.map(n => n.id === id ? { ...n, is_read: true } : n);
+        notificationsCache.data = next;
+        return next;
+      });
+      window.dispatchEvent(new Event('notificationsRead'));
       if (!silent) toast.success('Signal acknowledged');
     } catch (err) {
       logger.error('Mark Read Error', err);
@@ -262,14 +328,21 @@ const AdminNotifications = () => {
   };
 
   const handleMarkAllAsRead = async () => {
+    const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
+    if (unreadIds.length === 0) return;
     try {
       const { error } = await supabase
         .from('notifications')
         .update({ is_read: true })
-        .eq('is_read', false);
+        .in('id', unreadIds);
 
       if (error) throw error;
-      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      setNotifications(prev => {
+        const next = prev.map(n => ({ ...n, is_read: true }));
+        notificationsCache.data = next;
+        return next;
+      });
+      window.dispatchEvent(new Event('notificationsRead'));
       toast.success('All signals acknowledged');
     } catch (err) {
       logger.error('Mark All Read Error', err);
@@ -290,7 +363,12 @@ const AdminNotifications = () => {
         .eq('id', id);
 
       if (error) throw error;
-      setNotifications(prev => prev.filter(n => n.id !== id));
+      setNotifications(prev => {
+        const next = prev.filter(n => n.id !== id);
+        notificationsCache.data = next;
+        return next;
+      });
+      window.dispatchEvent(new Event('notificationsRead'));
       toast.success('Signal purged');
       // ⚠️ Intentionally NO audit_log insert here — per system design (REQ #5 CRITICAL)
     } catch (err) {
@@ -331,7 +409,7 @@ const AdminNotifications = () => {
         profile={profile}
       />
 
-      <PageHeader badge="SYSTEM SIGNALS" title="NOTIFICATIONS" subtitle="Operational alerts and system activity logs." onRefresh={fetchNotifications}>
+      <PageHeader badge="SYSTEM SIGNALS" title="NOTIFICATIONS" subtitle="Operational alerts and system activity logs." onRefresh={() => fetchNotifications(false)}>
         <button onClick={() => confirmThen({ title: 'Mark all as read?', message: 'Every unread notification will be marked as read.', confirmText: 'Mark all as read' }, handleMarkAllAsRead)} disabled={!notifications.some((n) => !n.is_read)} title={notifications.some((n) => !n.is_read) ? undefined : 'Nothing unread'} style={{ opacity: notifications.some((n) => !n.is_read) ? 1 : 0.45, cursor: notifications.some((n) => !n.is_read) ? 'pointer' : 'not-allowed', padding: '0.75rem 1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.7rem', fontWeight: '950',  textTransform: 'uppercase' }}>mark all as read</button>
       </PageHeader>
 
@@ -383,11 +461,11 @@ const AdminNotifications = () => {
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '1rem', background: 'var(--admin-card)', padding: '0.75rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)' }}>
         <div style={{ position: 'relative', flex: 1, width: '100%' }}>
           <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
-          <input type="text" placeholder="Search signals..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: '600', outline: 'none' }} />
+          <input type="text" placeholder="Search signals..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: '600', outline: 'none' }} />
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--admin-bg)', padding: '0.25rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
           {['ALL', 'UNREAD', 'READ'].map(f => (
-            <button key={f} onClick={() => { setFilter(f); setCurrentPage(1); }} style={{ padding: '0.5rem 1rem', borderRadius: 'var(--admin-radius-sm)', border: 'none', background: filter === f ? 'var(--admin-brand)' : 'transparent', color: filter === f ? 'white' : 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '950',  }}>{f}</button>
+            <button key={f} onClick={() => { setFilter(f); setCurrentPage(1); }} style={{ padding: '0.5rem 1rem', borderRadius: 'var(--admin-radius-sm)', border: 'none', background: filter === f ? 'var(--admin-brand)' : 'transparent', color: filter === f ? 'white' : 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '950', cursor: 'pointer' }}>{f}</button>
           ))}
         </div>
       </div>
