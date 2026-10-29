@@ -9,9 +9,9 @@ const UnifiedContext = createContext();
 
 export const UnifiedProvider = ({ children }) => {
     const { user, profile } = useAuth();
-    // Bookings here are the customer's own. Admin and staff screens load their own
-    // data, so fetching it (and listening to every booking change) for them was
-    // pure overhead on every page.
+    // Bookings and notifications here are the customer's own. Admin and staff screens
+    // load their own data on-demand only when their respective pages are looked at.
+    // Eagerly fetching it (and listening to every change) for them was pure overhead on every page.
     const isCustomer = String(profile?.role || '').toUpperCase() === 'CUSTOMER';
 
     const [bookings, setBookings] = useState([]);
@@ -24,7 +24,7 @@ export const UnifiedProvider = ({ children }) => {
         try {
             const [bookingsData, notificationsData] = await Promise.all([
                 isCustomer ? fetchCustomerBookings(user.id) : Promise.resolve([]),
-                fetchNotifications(user.id)
+                isCustomer ? fetchNotifications(user.id) : Promise.resolve([])
             ]);
             setBookings(bookingsData);
             setNotifications(notificationsData);
@@ -36,18 +36,12 @@ export const UnifiedProvider = ({ children }) => {
     }, [user, isCustomer]);
 
     // Refresh the booking list without letting a failure escape.
-    //
-    // `fetchCustomerBookings` THROWS on a request error, and this runs from a
-    // realtime callback: the rejection had no `.catch`, so it escaped the promise
-    // chain and was caught by the global error boundary — which unmounted the
-    // entire screen ("allBookings.filter is not a function") and marked the
-    // context's array as undefined for every consumer. A failed refresh must
-    // leave the previous list on screen, not take the app down with it.
     const refreshBookings = useCallback(() => {
+        if (!isCustomer) return;
         fetchCustomerBookings(user.id)
             .then((data) => setBookings(Array.isArray(data) ? data : []))
             .catch((error) => console.error('[UnifiedContext] Booking refresh failed:', error));
-    }, [user]);
+    }, [user, isCustomer]);
 
     useEffect(() => {
         if (!user) {
@@ -59,22 +53,19 @@ export const UnifiedProvider = ({ children }) => {
 
         loadData();
 
-        // Real-Time Listeners. Every burst of events becomes one refetch.
+        // Real-Time Listeners. Only active for customer portal.
         const scheduleBookingRefresh = createCoalescer(refreshBookings);
         const bookingSub = isCustomer ? subscribeToCustomerBookings(user.id, scheduleBookingRefresh) : null;
 
-        // Booking status is also represented by child vehicle and payment rows.
-        // Subscribe to those tables as well so list/dashboard projections do not
-        // wait for a master-row update or a manual refresh.
         const stopChildState = isCustomer
             ? subscribeTables([{ table: 'booking_vehicles' }, { table: 'payments' }], scheduleBookingRefresh)
             : null;
 
-        const notificationSub = subscribeToNotifications(user.id, () => {
+        const notificationSub = isCustomer ? subscribeToNotifications(user.id, () => {
             fetchNotifications(user.id)
                 .then((data) => setNotifications(Array.isArray(data) ? data : []))
                 .catch((error) => console.error('[UnifiedContext] Notification refresh failed:', error));
-        });
+        }) : null;
 
         return () => {
             scheduleBookingRefresh.cancel();

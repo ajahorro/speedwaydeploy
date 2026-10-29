@@ -88,18 +88,20 @@ export default function InactiveStaffPanel({ onChanged, confirmThen }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4">
+          <div className="flex items-center justify-between sm:justify-start gap-3 py-1">
+            <Label htmlFor="auto-deactivate" className="cursor-pointer text-sm font-semibold select-none">
+              Deactivate automatically
+            </Label>
             <Switch id="auto-deactivate" checked={form.enabled} onCheckedChange={(enabled) => setForm((prev) => ({ ...prev, enabled }))} />
-            <Label htmlFor="auto-deactivate">Deactivate automatically</Label>
           </div>
-          <div className="grid gap-1">
-            <Label htmlFor="auto-deactivate-after" className="text-xs">After no sign-in for</Label>
+          <div className="grid gap-1.5 flex-1 sm:max-w-xs">
+            <Label htmlFor="auto-deactivate-after" className="text-xs text-muted-foreground font-semibold">After no sign-in for</Label>
             <div className="flex gap-2">
-              <Input id="auto-deactivate-after" type="number" min={1} className="w-24" value={form.after} disabled={!form.enabled} onChange={(event) => setForm((prev) => ({ ...prev, after: event.target.value }))} aria-invalid={!valid} />
+              <Input id="auto-deactivate-after" type="number" min={1} className="w-20 sm:w-24 bg-background" value={form.after} disabled={!form.enabled} onChange={(event) => setForm((prev) => ({ ...prev, after: event.target.value }))} aria-invalid={!valid} />
               <select
                 aria-label="Unit"
-                className="rounded-md border bg-background px-2 text-sm"
+                className="rounded-md border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
                 value={form.unit}
                 disabled={!form.enabled}
                 onChange={(event) => setForm((prev) => ({ ...prev, unit: event.target.value }))}
@@ -110,6 +112,7 @@ export default function InactiveStaffPanel({ onChanged, confirmThen }) {
             </div>
           </div>
           <Button
+            className="w-full sm:w-auto font-bold uppercase tracking-wider text-xs px-5"
             disabled={!changed || !valid || saving}
             onClick={() => confirmThen
               ? confirmThen({ title: 'Save this setting?', message: form.enabled ? `Staff who have not signed in for ${afterNumber} ${form.unit} will be deactivated automatically.` : 'Automatic deactivation will be turned off.', confirmText: 'Save' }, save)

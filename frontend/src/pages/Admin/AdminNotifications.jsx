@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { subscribeTable } from '../../lib/realtimeHub';
 import PageHeader from '../../components/PageHeader';
 import { Bell, CheckCircle, Trash2, Search, AlertTriangle, ExternalLink } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -13,14 +12,6 @@ import NotificationDetailsModal from '../../components/NotificationDetailsModal'
 import { isNotificationActionable, resolveBookingId } from '../../utils/notificationRouting';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { matchesSearchText } from '../../utils/searchMatch';
-
-// ── MODULE-LEVEL CACHE (SWR Pattern) ─────────────────────────────────────────
-// Enables instant page transitions without loading flicker and background sync.
-let notificationsCache = {
-  data: null,
-  timestamp: 0,
-};
-const CACHE_TTL_MS = 30 * 1000; // 30s fresh window before background revalidation
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DELETE CONFIRMATION MODAL (REQ #5)
@@ -104,8 +95,8 @@ const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
 const AdminNotifications = () => {
   const { confirmThen } = useConfirmAction();
   const isMobile = useMediaQuery('(max-width: 1024px)');
-  const [notifications, setNotifications] = useState(() => notificationsCache.data || []);
-  const [loading, setLoading] = useState(() => !notificationsCache.data);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
   // Fixed 10-per-page arrow pagination (replaces the old "See more" pattern)
   const PAGE_SIZE = 10;
   const [currentPage, setCurrentPage] = useState(1);
@@ -115,15 +106,9 @@ const AdminNotifications = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [selectedNotification, setSelectedNotification] = useState(null);
-  const debounceRef = useRef(null);
   const isMountedRef = useRef(true);
 
-  // Traceability helper (audit finding): a notification must always tell the
-  // admin WHERE the affected record lives. We resolve a target from the explicit
-  // `action_url` first (set by the dispatchers), then from `booking_id`, and
-  // finally from a `#ABCD1234` reference embedded in the message text. Returns
-  // null when the notification genuinely has no record to open (e.g. a general
-  // announcement), so the row renders without a dead "View" affordance.
+  // Traceability helper: resolves a target link for actionable notifications.
   const resolveNotificationTarget = (notif) => {
     if (!notif) return null;
     const explicit = notif.action_url || notif.link_url;
@@ -189,10 +174,9 @@ const AdminNotifications = () => {
     });
   };
 
-  const fetchNotifications = useCallback(async (isBackground = false) => {
-    if (!isBackground && !notificationsCache.data) {
-      setLoading(true);
-    }
+  // Load notifications purely on-demand once the page is looked at.
+  const fetchNotifications = useCallback(async () => {
+    setLoading(true);
     try {
       logger.admin('Scanning for system signals...');
       const { data: { user } } = await supabase.auth.getUser();
@@ -206,19 +190,13 @@ const AdminNotifications = () => {
 
       if (error) throw error;
 
-      const deduped = dedupe(raw || []);
-      notificationsCache.data = deduped;
-      notificationsCache.timestamp = Date.now();
-
       if (isMountedRef.current) {
-        setNotifications(deduped);
+        setNotifications(dedupe(raw || []));
       }
       logger.admin('Signal spectrum synchronized.');
     } catch (err) {
       logger.error('Notification Fetch Error', err);
-      if (!isBackground) {
-        toast.error('Failed to load signals.');
-      }
+      toast.error('Failed to load signals.');
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
@@ -226,41 +204,15 @@ const AdminNotifications = () => {
     }
   }, []);
 
-  const debouncedRefresh = useCallback(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      fetchNotifications(true);
-    }, 400);
-  }, [fetchNotifications]);
-
+  // Fetch only when the Notifications page is looked at (on mount).
   useEffect(() => {
     isMountedRef.current = true;
-
-    // Check if cached data is fresh
-    const isFresh = notificationsCache.data && (Date.now() - notificationsCache.timestamp < CACHE_TTL_MS);
-    if (!isFresh) {
-      fetchNotifications(Boolean(notificationsCache.data));
-    }
-
-    // Refresh when tab becomes visible if stale
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        const isStale = !notificationsCache.timestamp || (Date.now() - notificationsCache.timestamp > CACHE_TTL_MS);
-        if (isStale) fetchNotifications(true);
-      }
-    };
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // Multi-client / real-time updates: listen for notification inserts/updates
-    const stopRealtime = subscribeTable({ table: 'notifications' }, debouncedRefresh);
+    fetchNotifications();
 
     return () => {
       isMountedRef.current = false;
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
-      stopRealtime();
-      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [fetchNotifications, debouncedRefresh]);
+  }, [fetchNotifications]);
 
   const handleBroadcast = async (e) => {
     e.preventDefault();
@@ -296,7 +248,7 @@ const AdminNotifications = () => {
 
       toast.success(`Broadcast signal transmitted to ${result.receiversCount} receivers`);
       setBroadcastForm({ message: '' });
-      fetchNotifications(false);
+      fetchNotifications();
       window.dispatchEvent(new Event('notificationsRead'));
       logger.admin('Global broadcast complete.');
     } catch (err) {
@@ -315,11 +267,7 @@ const AdminNotifications = () => {
         .eq('id', id);
 
       if (error) throw error;
-      setNotifications(prev => {
-        const next = prev.map(n => n.id === id ? { ...n, is_read: true } : n);
-        notificationsCache.data = next;
-        return next;
-      });
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
       window.dispatchEvent(new Event('notificationsRead'));
       if (!silent) toast.success('Signal acknowledged');
     } catch (err) {
@@ -337,11 +285,7 @@ const AdminNotifications = () => {
         .in('id', unreadIds);
 
       if (error) throw error;
-      setNotifications(prev => {
-        const next = prev.map(n => ({ ...n, is_read: true }));
-        notificationsCache.data = next;
-        return next;
-      });
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       window.dispatchEvent(new Event('notificationsRead'));
       toast.success('All signals acknowledged');
     } catch (err) {
@@ -363,11 +307,7 @@ const AdminNotifications = () => {
         .eq('id', id);
 
       if (error) throw error;
-      setNotifications(prev => {
-        const next = prev.filter(n => n.id !== id);
-        notificationsCache.data = next;
-        return next;
-      });
+      setNotifications(prev => prev.filter(n => n.id !== id));
       window.dispatchEvent(new Event('notificationsRead'));
       toast.success('Signal purged');
       // ⚠️ Intentionally NO audit_log insert here — per system design (REQ #5 CRITICAL)
@@ -409,7 +349,7 @@ const AdminNotifications = () => {
         profile={profile}
       />
 
-      <PageHeader badge="SYSTEM SIGNALS" title="NOTIFICATIONS" subtitle="Operational alerts and system activity logs." onRefresh={() => fetchNotifications(false)}>
+      <PageHeader badge="SYSTEM SIGNALS" title="NOTIFICATIONS" subtitle="Operational alerts and system activity logs." onRefresh={fetchNotifications}>
         <button onClick={() => confirmThen({ title: 'Mark all as read?', message: 'Every unread notification will be marked as read.', confirmText: 'Mark all as read' }, handleMarkAllAsRead)} disabled={!notifications.some((n) => !n.is_read)} title={notifications.some((n) => !n.is_read) ? undefined : 'Nothing unread'} style={{ opacity: notifications.some((n) => !n.is_read) ? 1 : 0.45, cursor: notifications.some((n) => !n.is_read) ? 'pointer' : 'not-allowed', padding: '0.75rem 1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.7rem', fontWeight: '950',  textTransform: 'uppercase' }}>mark all as read</button>
       </PageHeader>
 

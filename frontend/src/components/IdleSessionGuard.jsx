@@ -21,7 +21,6 @@ const writeLast = (value) => {
  *  - A warning with a countdown appears shortly before; "Stay signed in" keeps the session.
  *  - Activity in any open tab keeps every tab signed in (the last-activity time is shared).
  *  - While the warning is open, ordinary clicks elsewhere do not count, only the button does.
- *  - Administrator and staff sign-outs are written to the audit log.
  *  - The user lands on the login page with a message that explains why.
  * Booking drafts are saved as they are typed, so nothing the user was filling in is lost.
  */
@@ -46,12 +45,9 @@ export default function IdleSessionGuard() {
   const endSession = useCallback(async () => {
     if (signingOutRef.current) return;
     signingOutRef.current = true;
-    try {
-      if (role === 'ADMIN' || role === 'STAFF') await supabase.rpc('record_idle_signout');
-    } catch { /* the audit entry is best effort; the sign-out must still happen */ }
     await signOut();
     window.location.assign('/login?reason=idle');
-  }, [role, signOut]);
+  }, [signOut]);
 
   useEffect(() => {
     if (!signedIn) {
@@ -59,7 +55,7 @@ export default function IdleSessionGuard() {
       warningRef.current = false;
       setWarning(false);
       // Signed out (not merely still loading): forget the old activity time so the next sign-in starts fresh.
-      if (isInitialized) { try { localStorage.removeItem(LAST_ACTIVITY_KEY); } catch { /* ignore */ } }
+      if (isInitialized) { try { localStorage.getItem(LAST_ACTIVITY_KEY) && localStorage.removeItem(LAST_ACTIVITY_KEY); } catch { /* ignore */ } }
       return undefined;
     }
     // A page load with a saved session keeps the stored time: a browser reopened after the limit is signed out at once.

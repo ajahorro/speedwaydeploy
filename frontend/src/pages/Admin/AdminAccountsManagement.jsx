@@ -253,14 +253,29 @@ const AdminAccountsManagement = () => {
 
       <div style={{ ...cardStyle }}>
         {/* Tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--admin-border)', marginBottom: '1.5rem', gap: '2rem' }}>
+        <div style={{
+          display: 'flex',
+          borderBottom: '1px solid var(--admin-border)',
+          marginBottom: '1.5rem',
+          gap: isMobile ? '0.5rem' : '2rem',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch'
+        }}>
           <button
             onClick={() => setActiveTab('STAFF')}
             style={{
-              padding: '1rem 0.5rem', background: 'none', border: 'none',
+              flex: isMobile ? 1 : 'none',
+              padding: isMobile ? '0.75rem 0.5rem' : '1rem 0.5rem',
+              background: 'none',
+              border: 'none',
               color: activeTab === 'STAFF' ? 'var(--admin-brand)' : 'var(--admin-text-secondary)',
               borderBottom: activeTab === 'STAFF' ? '2px solid var(--admin-brand)' : '2px solid transparent',
-              fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer', textTransform: 'uppercase'
+              fontWeight: '950',
+              fontSize: isMobile ? '0.7rem' : '0.75rem',
+              cursor: 'pointer',
+              textTransform: 'uppercase',
+              whiteSpace: 'nowrap',
+              textAlign: 'center'
             }}
           >
             Staff Accounts
@@ -269,10 +284,18 @@ const AdminAccountsManagement = () => {
             <button
               onClick={() => setActiveTab('ADMIN')}
               style={{
-                padding: '1rem 0.5rem', background: 'none', border: 'none',
+                flex: isMobile ? 1 : 'none',
+                padding: isMobile ? '0.75rem 0.5rem' : '1rem 0.5rem',
+                background: 'none',
+                border: 'none',
                 color: activeTab === 'ADMIN' ? 'var(--admin-brand)' : 'var(--admin-text-secondary)',
                 borderBottom: activeTab === 'ADMIN' ? '2px solid var(--admin-brand)' : '2px solid transparent',
-                fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer', textTransform: 'uppercase'
+                fontWeight: '950',
+                fontSize: isMobile ? '0.7rem' : '0.75rem',
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                whiteSpace: 'nowrap',
+                textAlign: 'center'
               }}
             >
               Admin Accounts
@@ -300,6 +323,8 @@ const AdminAccountsManagement = () => {
           <button
             onClick={() => setIsModalOpen(true)}
             style={{
+              width: isMobile ? '100%' : 'auto',
+              justifyContent: isMobile ? 'center' : 'flex-start',
               padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)',
               border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950',
               fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem'

@@ -4,9 +4,7 @@ import { supabase } from '../../lib/supabase';
 import PageHeader from '../../components/PageHeader';
 import { 
   Users, Search, Mail, Phone, User, ChevronRight, 
-  History, ExternalLink, X, Calendar, Clock, CheckCircle2, 
-  AlertCircle, Trash2, RefreshCcw, ShieldCheck, UserCog,
-  ShieldAlert, MoreVertical, Shield
+  History, Calendar, CheckCircle2, Shield, UserCog, ExternalLink
 } from 'lucide-react';
 import toast from '@/lib/toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -14,10 +12,12 @@ import { logger } from '../../utils/logger';
 import { BACKEND_URL, authHeaders } from '../../config/api';
 import { matchesSearchText } from '../../utils/searchMatch';
 import { normalizePhPhone } from '../../utils/contactValidation';
+import { useLanguage } from '../../context/LanguageContext';
 
 const AdminUserManagement = () => {
   const navigate = useNavigate();
   const isMobile = useMediaQuery('(max-width: 768px)');
+  const { language } = useLanguage();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,9 +83,7 @@ const AdminUserManagement = () => {
 
   const filteredUsers = users.filter(u => {
     const matchesSearch = matchesSearchText(searchQuery, u.full_name, u.email, u.phone_number, normalizePhPhone(u.phone_number), u.role);
-    
     const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
-    
     return matchesSearch && matchesRole;
   });
 
@@ -98,13 +96,33 @@ const AdminUserManagement = () => {
   };
 
   const getStatusColor = (status) => {
-    const s = (status || '').toUpperCase();
+    const s = String(status || '').toUpperCase();
     switch (s) {
-      case 'COMPLETED': return { bg: 'rgba(16, 185, 129, 0.1)', text: '#10b981' };
-      case 'CANCELLED': return { bg: 'rgba(239, 68, 68, 0.1)', text: '#ef4444' };
-      case 'PAID': return { bg: 'rgba(59, 130, 246, 0.1)', text: '#3b82f6' };
-      default: return { bg: 'var(--admin-bg)', text: 'var(--admin-text-secondary)' };
+      case 'COMPLETED':
+      case 'RELEASED':
+        return { bg: 'rgba(16, 185, 129, 0.12)', text: 'var(--status-success, #10b981)', border: 'rgba(16, 185, 129, 0.3)' };
+      case 'CANCELLED':
+      case 'FLAGGED_NOSHOW':
+      case 'NO_SHOW':
+        return { bg: 'rgba(239, 68, 68, 0.12)', text: 'var(--status-danger, #ef4444)', border: 'rgba(239, 68, 68, 0.3)' };
+      case 'CONFIRMED':
+      case 'SCHEDULED':
+      case 'PAID':
+        return { bg: 'rgba(59, 130, 246, 0.12)', text: 'var(--status-info, #3b82f6)', border: 'rgba(59, 130, 246, 0.3)' };
+      default:
+        return { bg: 'var(--admin-bg)', text: 'var(--admin-text-secondary)', border: 'var(--admin-border)' };
     }
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString(language === 'tl' ? 'fil-PH' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
   };
 
   return (
@@ -120,7 +138,7 @@ const AdminUserManagement = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
           {/* Controls Bar */}
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative', flex: 1, minWidth: '300px' }}>
+            <div style={{ position: 'relative', flex: 1, minWidth: isMobile ? '100%' : '300px' }}>
               <Search size={18} style={{ position: 'absolute', left: '1.25rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
               <input 
                 type="text" 
@@ -130,22 +148,23 @@ const AdminUserManagement = () => {
                 style={{ 
                   width: '100%', padding: '0.85rem 1.25rem 0.85rem 3.5rem', 
                   background: 'var(--admin-card)', border: '1px solid var(--admin-border)', 
-                  borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '700', outline: 'none'
+                  borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: '700', outline: 'none'
                 }}
               />
             </div>
             
-            <div style={{ display: 'flex', background: 'var(--admin-card)', padding: '0.25rem', borderRadius: '4px', border: '1px solid var(--admin-border)' }}>
+            <div style={{ display: 'flex', background: 'var(--admin-card)', padding: '0.25rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', width: isMobile ? '100%' : 'auto', overflowX: 'auto' }}>
               {['ALL', 'CUSTOMER', 'STAFF', 'ADMIN'].map((role) => (
                 <button
                   key={role}
                   onClick={() => setRoleFilter(role)}
                   style={{
-                    padding: '0.6rem 1rem', border: 'none', borderRadius: '4px',
+                    flex: isMobile ? 1 : 'none',
+                    padding: '0.6rem 1rem', border: 'none', borderRadius: 'var(--admin-radius-sm)',
                     background: roleFilter === role ? 'var(--admin-brand)' : 'transparent',
                     color: roleFilter === role ? 'white' : 'var(--admin-text-secondary)',
                     fontSize: '0.7rem', fontWeight: '950', cursor: 'pointer',
-                    transition: '0.2s', textTransform: 'uppercase'
+                    transition: '0.2s', textTransform: 'uppercase', whiteSpace: 'nowrap', textAlign: 'center'
                   }}
                 >
                   {role}
@@ -154,11 +173,11 @@ const AdminUserManagement = () => {
             </div>
           </div>
 
-          {/* User Grid - RE-DESIGNED TO SQUARES */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1.25rem' }}>
+          {/* User Grid - STACKED RECTANGLE CONTAINERS */}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1rem' }}>
             {loading ? (
-              [1,2,3,4,5,6,7,8].map(i => (
-                <div key={i} style={{ height: '240px', background: 'var(--admin-card)', borderRadius: '4px', border: '1px solid var(--admin-border)' }} className="animate-pulse"></div>
+              [1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} style={{ height: '140px', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)' }} className="animate-pulse"></div>
               ))
             ) : filteredUsers.length > 0 ? (
               filteredUsers.map((user) => {
@@ -166,61 +185,115 @@ const AdminUserManagement = () => {
                 return (
                   <div 
                     key={user.id}
-                    className="user-card"
+                    className="user-rectangle-card"
                     style={{ 
-                      background: 'var(--admin-card)', border: '1px solid var(--admin-border)', 
-                      borderRadius: '4px', padding: '1.5rem', display: 'flex', flexDirection: 'column', 
-                      alignItems: 'center', textAlign: 'center', position: 'relative', gap: '1rem'
+                      background: 'var(--admin-card)',
+                      border: '1px solid var(--admin-border)', 
+                      borderRadius: 'var(--admin-radius)',
+                      padding: '1.25rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '0.85rem',
+                      transition: 'all 0.2s ease',
+                      boxShadow: 'var(--admin-card-shadow)'
                     }}
                   >
-                    {/* Compact History Action */}
-                    <button 
-                      onClick={() => handleSeeHistory(user)}
-                      title="View Booking History"
-                      style={{ 
-                        position: 'absolute', top: '1rem', right: '1rem',
-                        padding: '0.4rem', borderRadius: '4px', background: 'var(--admin-bg)', 
-                        color: 'var(--admin-text-secondary)', border: '1px solid var(--admin-border)', cursor: 'pointer',
-                        transition: '0.2s'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.color = 'var(--admin-brand)'}
-                      onMouseLeave={(e) => e.currentTarget.style.color = 'var(--admin-text-secondary)'}
-                    >
-                      <History size={14} />
-                    </button>
-
-                    <div style={{ 
-                      width: '64px', height: '64px', borderRadius: '4px', 
-                      background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', 
-                      justifyContent: 'center', color: roleBadge.color, 
-                      fontSize: '1.75rem', fontWeight: '950', border: `1px solid ${roleBadge.color}44`,
-                      marginBottom: '0.5rem'
-                    }}>
-                      {user.full_name?.charAt(0).toUpperCase() || <User size={28} />}
-                    </div>
-
-                    <div style={{ width: '100%' }}>
-                      <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>{user.full_name}</h3>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.55rem', fontWeight: '950', color: roleBadge.color, background: `${roleBadge.color}11`, padding: '0.15rem 0.5rem', borderRadius: '2px', border: `1px solid ${roleBadge.color}33`, textTransform: 'uppercase' }}>
-                        {roleBadge.icon} {roleBadge.label}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: '100%', borderTop: '1px solid var(--admin-border)', paddingTop: '1rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '700' }}>
-                        <Mail size={10} /> {user.email}
-                      </div>
-                      {user.phone_number && (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '700' }}>
-                          <Phone size={10} /> {user.phone_number}
+                    {/* Top Row: Avatar, Name & Role, and View History Button */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                        <div style={{ 
+                          width: '42px', height: '42px', borderRadius: 'var(--admin-radius-sm)', 
+                          background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', 
+                          justifyContent: 'center', color: roleBadge.color, 
+                          fontSize: '1.15rem', fontWeight: '950', border: `1px solid ${roleBadge.color}44`,
+                          flexShrink: 0
+                        }}>
+                          {user.full_name?.charAt(0).toUpperCase() || <User size={20} />}
                         </div>
-                      )}
+
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <h3 style={{ 
+                            margin: 0, 
+                            fontSize: '0.95rem', 
+                            fontWeight: '950', 
+                            color: 'var(--admin-text-primary)', 
+                            textTransform: 'uppercase',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {user.full_name}
+                          </h3>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.55rem', fontWeight: '950', color: roleBadge.color, background: `${roleBadge.color}15`, padding: '0.1rem 0.45rem', borderRadius: '3px', border: `1px solid ${roleBadge.color}33`, textTransform: 'uppercase', marginTop: '0.2rem' }}>
+                            {roleBadge.icon} {roleBadge.label}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* View History Button */}
+                      <button 
+                        onClick={() => handleSeeHistory(user)}
+                        title="View Booking History"
+                        style={{ 
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.45rem 0.8rem',
+                          borderRadius: 'var(--admin-radius-sm)',
+                          background: 'var(--admin-bg)', 
+                          border: '1px solid var(--admin-border)',
+                          color: 'var(--admin-text-primary)',
+                          fontSize: '0.68rem',
+                          fontWeight: '950',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--admin-brand)';
+                          e.currentTarget.style.color = 'var(--admin-brand)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--admin-border)';
+                          e.currentTarget.style.color = 'var(--admin-text-primary)';
+                        }}
+                      >
+                        <History size={13} color="var(--admin-brand)" /> View History
+                      </button>
+                    </div>
+
+                    {/* Bottom Details: Email, Phone, Joined Date */}
+                    <div style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '0.35rem', 
+                      borderTop: '1px solid var(--admin-border)', 
+                      paddingTop: '0.75rem',
+                      fontSize: '0.72rem',
+                      color: 'var(--admin-text-secondary)',
+                      fontWeight: '700'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                        <Mail size={12} color="var(--admin-brand)" style={{ flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email || '—'}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Phone size={12} color="var(--admin-brand)" style={{ flexShrink: 0 }} />
+                        <span>{user.phone_number || 'No phone provided'}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.9 }}>
+                        <Calendar size={12} color="var(--admin-brand)" style={{ flexShrink: 0 }} />
+                        <span>Joined at: <strong style={{ color: 'var(--admin-text-primary)' }}>{formatDate(user.created_at)}</strong></span>
+                      </div>
                     </div>
                   </div>
                 );
               })
             ) : (
-              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '5rem', background: 'var(--admin-card)', borderRadius: '4px', border: '1px dashed var(--admin-border)' }}>
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '5rem', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px dashed var(--admin-border)' }}>
                 <Users size={64} style={{ color: 'var(--admin-text-secondary)', marginBottom: '1.5rem', opacity: 0.1 }} />
                 <h3 style={{ fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>No matching profiles found</h3>
               </div>
@@ -232,99 +305,154 @@ const AdminUserManagement = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <button 
               onClick={() => setView('list')}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', color: 'var(--admin-brand)', fontWeight: '950', cursor: 'pointer', fontSize: '0.8rem', textTransform: 'uppercase' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', color: 'var(--admin-brand)', fontWeight: '950', cursor: 'pointer', fontSize: '0.8rem', textTransform: 'uppercase', width: 'fit-content' }}
             >
               <ChevronRight size={18} style={{ transform: 'rotate(180deg)' }} /> BACK TO DIRECTORY
             </button>
 
+            {/* Customer Summary Banner */}
             <div style={{ 
-              background: 'var(--admin-card)', borderRadius: '4px', 
-              padding: '2rem', border: '1px solid var(--admin-border)',
-              display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'center'
+              background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', 
+              padding: isMobile ? '1.25rem' : '1.75rem', border: '1px solid var(--admin-border)',
+              display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '1.25rem', alignItems: isMobile ? 'flex-start' : 'center',
+              boxShadow: 'var(--admin-card-shadow)'
             }}>
               <div style={{ 
-                width: '80px', height: '80px', borderRadius: '4px', 
+                width: isMobile ? '56px' : '72px', height: isMobile ? '56px' : '72px', borderRadius: 'var(--admin-radius-sm)', 
                 background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', 
-                justifyContent: 'center', color: 'var(--admin-brand)', fontSize: '2.5rem',
-                fontWeight: '950', border: '1px solid var(--admin-border)'
+                justifyContent: 'center', color: 'var(--admin-brand)', fontSize: isMobile ? '1.75rem' : '2.25rem',
+                fontWeight: '950', border: '1px solid var(--admin-border)', flexShrink: 0
               }}>
                 {selectedUser?.full_name?.charAt(0)}
               </div>
               
-              <div style={{ flex: 1 }}>
-                <h2 style={{ fontSize: '2rem', fontWeight: '950', color: 'var(--admin-text-primary)', margin: '0', textTransform: 'uppercase' }}>{selectedUser?.full_name}</h2>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', marginTop: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '800' }}>
-                    <Mail size={16} color="var(--admin-brand)" /> {selectedUser?.email}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h2 style={{ fontSize: isMobile ? '1.35rem' : '1.75rem', fontWeight: '950', color: 'var(--admin-text-primary)', margin: 0, textTransform: 'uppercase', wordBreak: 'break-word' }}>
+                  {selectedUser?.full_name}
+                </h2>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', marginTop: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '800' }}>
+                    <Mail size={15} color="var(--admin-brand)" /> {selectedUser?.email}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '800' }}>
-                    <CheckCircle2 size={16} color="var(--admin-brand)" /> {userBookings.length} SYSTEM RECORDS
+                  {selectedUser?.phone_number && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '800' }}>
+                      <Phone size={15} color="var(--admin-brand)" /> {selectedUser?.phone_number}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '800' }}>
+                    <CheckCircle2 size={15} color="var(--admin-brand)" /> {userBookings.length} SYSTEM RECORDS
                   </div>
                 </div>
               </div>
             </div>
 
+            {/* History Bookings List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {loadingHistory ? (
-                [1,2,3].map(i => (
-                  <div key={i} style={{ height: '110px', background: 'var(--admin-card)', borderRadius: '4px', border: '1px solid var(--admin-border)' }} className="animate-pulse"></div>
+                [1, 2, 3].map(i => (
+                  <div key={i} style={{ height: '110px', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)' }} className="animate-pulse"></div>
                 ))
               ) : userBookings.length > 0 ? (
                 userBookings.map((booking) => {
                   const statusInfo = getStatusColor(booking.status);
+                  const bookingDate = new Date(booking.start_datetime);
+                  const isValidDate = !Number.isNaN(bookingDate.getTime());
+                  const day = isValidDate ? bookingDate.getDate() : '—';
+                  const monthYear = isValidDate 
+                    ? bookingDate.toLocaleDateString(language === 'tl' ? 'fil-PH' : 'en-US', { month: 'short', year: 'numeric' }) 
+                    : '';
+
                   return (
                     <div 
                       key={booking.id}
+                      onClick={() => navigate(`/admin/bookings/${booking.id}`)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          navigate(`/admin/bookings/${booking.id}`);
+                        }
+                      }}
+                      title="Click to view full booking details"
+                      className="booking-history-card"
                       style={{
-                        background: 'var(--admin-card)', borderRadius: '4px',
-                        padding: '1.5rem', border: '1px solid var(--admin-border)',
-                        display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'center'
+                        background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)',
+                        padding: isMobile ? '1rem 1.25rem' : '1.5rem', border: '1px solid var(--admin-border)',
+                        display: 'flex', flexDirection: isMobile ? 'column' : 'row',
+                        gap: isMobile ? '1rem' : '1.75rem', alignItems: isMobile ? 'flex-start' : 'center',
+                        cursor: 'pointer', transition: 'all 0.2s ease', position: 'relative',
+                        boxShadow: 'var(--admin-card-shadow)'
                       }}
                     >
+                      {/* Date Block */}
                       <div style={{ 
-                        minWidth: '140px', padding: '1rem', background: 'var(--admin-bg)', 
-                        borderRadius: '4px', textAlign: 'center', border: '1px solid var(--admin-border)'
+                        width: isMobile ? '100%' : '110px', padding: isMobile ? '0.6rem 1rem' : '0.85rem', background: 'var(--admin-bg)', 
+                        borderRadius: 'var(--admin-radius-sm)', textAlign: 'center', border: '1px solid var(--admin-border)',
+                        display: 'flex', flexDirection: isMobile ? 'row' : 'column', alignItems: 'center', justifyContent: 'center', gap: isMobile ? '0.75rem' : '0.15rem'
                       }}>
-                        <div style={{ fontSize: '1.75rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>
-                          {new Date(booking.start_datetime).getDate()}
+                        <div style={{ fontSize: isMobile ? '1.3rem' : '1.75rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>
+                          {day}
                         </div>
-                        <div style={{ fontSize: '0.7rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                          {new Date(booking.start_datetime).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                        <div style={{ fontSize: '0.7rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          {monthYear}
                         </div>
                       </div>
 
-                      <div style={{ flex: 1, minWidth: '280px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                      {/* Info & Services Block */}
+                      <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : 'auto' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                           <span style={{ 
-                            padding: '0.2rem 0.6rem', borderRadius: '2px', 
+                            padding: '0.2rem 0.6rem', borderRadius: '3px', 
                             background: statusInfo.bg, color: statusInfo.text, fontSize: '0.65rem', 
-                            fontWeight: '950', textTransform: 'uppercase', border: `1px solid ${statusInfo.text}44`
+                            fontWeight: '950', textTransform: 'uppercase', border: `1px solid ${statusInfo.border}`
                           }}>
-                            {booking.status.replace('_', ' ')}
+                            {String(booking.status || '').replace('_', ' ')}
                           </span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '800' }}>#{booking.id.slice(0, 8).toUpperCase()}</span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '800' }}>
+                            #{String(booking.id || '').slice(0, 8).toUpperCase()}
+                          </span>
                         </div>
                         
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                          {booking.services.map((s, idx) => (
-                            <span key={idx} style={{ fontSize: '0.8rem', fontWeight: '900', color: 'var(--admin-text-primary)', background: 'var(--admin-bg)', padding: '0.35rem 0.75rem', borderRadius: '4px', border: '1px solid var(--admin-border)', textTransform: 'uppercase' }}>
-                              {s.service_name}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                          {(booking.services || []).length > 0 ? (
+                            booking.services.map((s, idx) => (
+                              <span key={idx} style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--admin-text-primary)', background: 'var(--admin-bg)', padding: '0.3rem 0.65rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', textTransform: 'uppercase' }}>
+                                {s.service_name}
+                              </span>
+                            ))
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontStyle: 'italic' }}>
+                              Standard Service
                             </span>
-                          ))}
+                          )}
                         </div>
                       </div>
 
-                      <div style={{ textAlign: 'right', minWidth: '120px' }}>
-                        <div style={{ fontSize: '1.5rem', fontWeight: '950', color: 'var(--admin-brand)' }}>
-                          ₱{booking.total_amount?.toLocaleString()}
+                      {/* Revenue & Arrow Block */}
+                      <div style={{ 
+                        display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'space-between' : 'flex-end',
+                        gap: '1rem', width: isMobile ? '100%' : 'auto', minWidth: isMobile ? 'auto' : '160px',
+                        borderTop: isMobile ? '1px solid var(--admin-border)' : 'none', paddingTop: isMobile ? '0.75rem' : 0
+                      }}>
+                        <div style={{ textAlign: isMobile ? 'left' : 'right' }}>
+                          <div style={{ fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '950', color: 'var(--admin-brand)' }}>
+                            ₱{Number(booking.total_amount || 0).toLocaleString()}
+                          </div>
+                          <div style={{ fontSize: '0.62rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>TOTAL REVENUE</div>
                         </div>
-                        <div style={{ fontSize: '0.65rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>TOTAL REVENUE</div>
+                        <div style={{
+                          padding: '0.4rem', borderRadius: 'var(--admin-radius-sm)', background: 'var(--admin-bg)',
+                          border: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                          <ChevronRight size={16} color="var(--admin-brand)" />
+                        </div>
                       </div>
                     </div>
                   );
                 })
               ) : (
-                <div style={{ textAlign: 'center', padding: '4rem', background: 'var(--admin-card)', borderRadius: '4px', border: '1px dashed var(--admin-border)' }}>
+                <div style={{ textAlign: 'center', padding: '4rem', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px dashed var(--admin-border)' }}>
                   <Calendar size={48} style={{ color: 'var(--admin-text-secondary)', marginBottom: '1.25rem', opacity: 0.1 }} />
                   <h3 style={{ fontSize: '1.15rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>No system records found</h3>
                 </div>
@@ -335,8 +463,16 @@ const AdminUserManagement = () => {
       )}
       
       <style>{`
-        .user-card { transition: all 0.3s ease; }
-        .user-card:hover { transform: translateY(-4px); border-color: var(--admin-brand); box-shadow: 0 10px 30px rgba(230, 30, 42, 0.05); }
+        .user-rectangle-card:hover { 
+          transform: translateY(-2px); 
+          border-color: var(--admin-brand); 
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); 
+        }
+        .booking-history-card:hover {
+          border-color: var(--admin-brand);
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
       `}</style>
     </div>
   );

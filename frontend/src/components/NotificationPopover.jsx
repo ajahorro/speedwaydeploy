@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useUnifiedData } from '../context/UnifiedContext';
@@ -31,9 +31,6 @@ export const parseChatNotification = (notification) => {
   const isChat = notification.notification_type === 'MESSAGE_RECEIVED' || (notification.title || '').toLowerCase().includes('new message');
   if (!isChat) return null;
   const raw = String(notification.message || '').replace(/\s+/g, ' ').trim();
-  // Two persisted shapes: "<Sender> sent[: <kind>]: <body>" and the attachment-less
-  // fallback "<Sender> sent a new message on booking #REF." — the sender must be
-  // recoverable from both so the UI always attributes the message.
   const match = raw.match(/^(.+?) sent(?: (an image|a file))?:\s*([\s\S]*)$/)
     || raw.match(/^(.+?) sent (?:a new message|an image|a file) on booking #.+$/);
   if (!match) return { sender: null, body: raw, kind: null };
@@ -48,21 +45,53 @@ function timeAgo(dateStr) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// 1. Destructured `onRead` from props
 const NotificationPopover = ({ profile, onClose, onRead }) => {
   const navigate = useNavigate();
-  // 2. Extracted `refreshData` from global context
   const { notifications, isLoading: loading, refreshData } = useUnifiedData();
   const [selectedNotification, setSelectedNotification] = useState(null);
   const isStaff = profile?.role?.toUpperCase() === 'STAFF';
 
-  const visibleNotifications = profile?.role?.toUpperCase() === 'STAFF'
-    ? (notifications || []).filter((notification) => !isRedundantStaffTechnicianAssignment(notification))
-    : (notifications || []);
+  // On-demand load for Admin and Staff: load only when the popover is opened.
+  const [roleNotifications, setRoleNotifications] = useState(null);
+  const [roleLoading, setRoleLoading] = useState(false);
+  const role = profile?.role?.toUpperCase();
+  const isNonCustomer = role === 'ADMIN' || role === 'STAFF';
+
+  const fetchRoleNotifications = useCallback(async () => {
+    if (!isNonCustomer) return;
+    setRoleLoading(true);
+    try {
+      let query = supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(10);
+      if (role === 'STAFF' && profile?.id) {
+        query = query.eq('user_id', profile.id);
+      }
+      const { data, error } = await query;
+      if (!error) {
+        setRoleNotifications(data || []);
+      }
+    } catch {
+      // safe fallback
+    } finally {
+      setRoleLoading(false);
+    }
+  }, [isNonCustomer, role, profile?.id]);
+
+  useEffect(() => {
+    if (isNonCustomer) {
+      fetchRoleNotifications();
+    }
+  }, [isNonCustomer, fetchRoleNotifications]);
+
+  const activeNotifications = isNonCustomer ? (roleNotifications || []) : (notifications || []);
+  const activeLoading = isNonCustomer ? roleLoading : loading;
+
+  const visibleNotifications = isStaff
+    ? activeNotifications.filter((notification) => !isRedundantStaffTechnicianAssignment(notification))
+    : activeNotifications;
   const recentNotifications = visibleNotifications.slice(0, 5);
 
   const handleMarkAllRead = async () => {
-    const unreadIds = (notifications || []).filter(n => !n.is_read).map(n => n.id);
+    const unreadIds = activeNotifications.filter(n => !n.is_read).map(n => n.id);
     if (unreadIds.length === 0) return;
 
     const { error } = await supabase
@@ -71,8 +100,11 @@ const NotificationPopover = ({ profile, onClose, onRead }) => {
       .in('id', unreadIds);
 
     if (!error) {
-      // 3. Sync global context and refresh header count in CustomerLayout
-      if (typeof refreshData === 'function') await refreshData();
+      if (isNonCustomer) {
+        setRoleNotifications(prev => (prev || []).map(n => ({ ...n, is_read: true })));
+      } else if (typeof refreshData === 'function') {
+        await refreshData();
+      }
       if (typeof onRead === 'function') await onRead();
       window.dispatchEvent(new Event('notificationsRead'));
     }
@@ -89,11 +121,6 @@ const NotificationPopover = ({ profile, onClose, onRead }) => {
     navigate(`${rolePrefix}/bookings/${n.booking_id}?chat=open`);
   };
 
-  /**
-   * Lock-screen style preview: the author on their own line, then a CSS-clamped
-   * body. Truncation is a pure render concern here, so the persisted message is
-   * never mutated and "See More" is never duplicated into the stored text.
-   */
   const renderNotificationPreview = (n) => {
     const chat = isChatNotification(n) ? parseChatNotification(n) : null;
 
@@ -127,8 +154,13 @@ const NotificationPopover = ({ profile, onClose, onRead }) => {
   const handleNotificationClick = async (n) => {
     if (!n.is_read) {
       await supabase.from('notifications').update({ is_read: true }).eq('id', n.id);
-      if (typeof refreshData === 'function') await refreshData();
+      if (isNonCustomer) {
+        setRoleNotifications(prev => (prev || []).map(item => item.id === n.id ? { ...item, is_read: true } : item));
+      } else if (typeof refreshData === 'function') {
+        await refreshData();
+      }
       if (typeof onRead === 'function') await onRead();
+      window.dispatchEvent(new Event('notificationsRead'));
     }
 
     if (n.booking_id && isStaff) {
@@ -196,7 +228,7 @@ const NotificationPopover = ({ profile, onClose, onRead }) => {
 
       {/* Notification List */}
       <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
-        {loading ? (
+        {activeLoading ? (
           <div style={{ padding: '2rem', textAlign: 'center', fontSize: '0.7rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>
             Loading...
           </div>

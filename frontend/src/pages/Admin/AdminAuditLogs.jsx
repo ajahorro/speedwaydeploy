@@ -24,7 +24,6 @@ import { matchesSearchText } from '../../utils/searchMatch';
 const ACTION_META = {
   INVITE_ACCOUNT: { category: 'ACCOUNTS', title: 'Account invited' },
   REVOKE_ACCESS: { category: 'ACCOUNTS', title: 'Access revoked' },
-  IDLE_SIGNOUT: { category: 'ACCOUNTS', title: 'Signed out for inactivity' },
   AUTO_DEACTIVATE_STAFF: { category: 'ACCOUNTS', title: 'Staff deactivated for inactivity' },
   REACTIVATE_STAFF: { category: 'ACCOUNTS', title: 'Staff account reactivated' },
   ACCOUNT_DEACTIVATION: { category: 'ACCOUNTS', title: 'Account deactivated' },
@@ -265,6 +264,7 @@ const AdminAuditLogs = () => {
       let query = supabase
         .from('audit_logs')
         .select('*')
+        .neq('action_type', 'IDLE_SIGNOUT')
         .order('created_at', { ascending: false });
       if (filterType !== 'ALL') {
         const actionTypes = Object.entries(ACTION_META)
@@ -298,6 +298,7 @@ const AdminAuditLogs = () => {
       }));
 
       const visibleLogs = processed.filter((log) => {
+        if (String(log.action_type || '').toUpperCase() === 'IDLE_SIGNOUT') return false;
         if (String(log.action_type || '').toUpperCase() !== 'NOSHOW_FLAG_UNDONE') return true;
         const legacyTimestamp = new Date(log.created_at).getTime();
         return !processed.some((candidate) => {
@@ -715,3 +716,4 @@ const AdminAuditLogs = () => {
 };
 
 export default AdminAuditLogs;
+
