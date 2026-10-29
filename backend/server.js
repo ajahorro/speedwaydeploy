@@ -946,6 +946,33 @@ app.post('/customer/register', async (req, res) => {
       throw new Error('Failed to generate action link from Supabase');
     }
 
+    // 1b. Upsert the profile row so phone_number is stored immediately.
+    // generateLink creates the auth user and returns data.user — we write the
+    // profile the same way the staff-invite flow does so the admin User Directory
+    // always shows the phone number.
+    const registrationUserId = data.user?.id;
+    if (registrationUserId) {
+      const safeFirst = String(firstName || '').trim();
+      const safeLast  = String(lastName  || '').trim();
+      const fullName  = [safeFirst, safeLast].filter(Boolean).join(' ') || email;
+      const { error: profileUpsertError } = await supabaseAdmin
+        .from('profiles')
+        .upsert({
+          id: registrationUserId,
+          email,
+          first_name: safeFirst || null,
+          last_name:  safeLast  || null,
+          full_name:  fullName,
+          phone_number: phone,
+          role: 'CUSTOMER',
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+      if (profileUpsertError) {
+        console.warn('[CUSTOMER REGISTRATION] Profile upsert failed (non-fatal):', profileUpsertError.message);
+      }
+    }
+
     // 2. Dispatch via Resend
     if (!resendClient) {
       throw new Error('RESEND_API_KEY is not configured or Resend is not initialized');
