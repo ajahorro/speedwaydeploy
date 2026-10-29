@@ -2202,7 +2202,90 @@ app.get('/api/admin/profiles', async (req, res) => {
       .order('full_name');
 
     if (error) throw error;
-    const staffIds = (data || [])
+
+    // ── Phone Enrichment & Backfill ───────────────────────────────────────────
+    // Existing accounts may have registered when phone was stored in Auth metadata
+    // (raw_user_meta_data) or entered during bookings (contact_number/customer_phone).
+    // We resolve phone numbers across all available system records and backfill
+    // missing profile rows so the User Directory and Staff cards display them.
+    const authPhoneById = new Map();
+    const authPhoneByEmail = new Map();
+    try {
+      const { data: authList } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      for (const u of (authList?.users || [])) {
+        const meta = u.user_metadata || u.raw_user_meta_data || {};
+        const p = meta.phone_number || meta.phone || meta.contact_number || u.phone || null;
+        if (p) {
+          const cleanPhone = String(p).trim();
+          authPhoneById.set(u.id, cleanPhone);
+          if (u.email) authPhoneByEmail.set(String(u.email).toLowerCase().trim(), cleanPhone);
+        }
+      }
+    } catch (authErr) {
+      console.warn('⚠️ [ADMIN] Could not inspect auth users for phone enrichment:', authErr.message);
+    }
+
+    const bookingPhoneById = new Map();
+    const bookingPhoneByEmail = new Map();
+    try {
+      const { data: bookingPhones } = await supabaseAdmin
+        .from('bookings')
+        .select('customer_id, customer_email, contact_number, customer_phone')
+        .order('created_at', { ascending: false });
+
+      for (const b of (bookingPhones || [])) {
+        const p = b.contact_number || b.customer_phone;
+        if (p) {
+          const cleanPhone = String(p).trim();
+          if (b.customer_id && !bookingPhoneById.has(b.customer_id)) {
+            bookingPhoneById.set(b.customer_id, cleanPhone);
+          }
+          if (b.customer_email && !bookingPhoneByEmail.has(String(b.customer_email).toLowerCase().trim())) {
+            bookingPhoneByEmail.set(String(b.customer_email).toLowerCase().trim(), cleanPhone);
+          }
+        }
+      }
+    } catch (bookingErr) {
+      console.warn('⚠️ [ADMIN] Could not inspect bookings for phone enrichment:', bookingErr.message);
+    }
+
+    const backfillUpdates = [];
+
+    const enrichedProfiles = (data || []).map((profile) => {
+      const emailKey = String(profile.email || '').toLowerCase().trim();
+      const existingPhone = profile.phone_number || profile.phone || profile.contact_number || null;
+      const resolvedPhone = existingPhone ||
+        authPhoneById.get(profile.id) ||
+        authPhoneByEmail.get(emailKey) ||
+        bookingPhoneById.get(profile.id) ||
+        bookingPhoneByEmail.get(emailKey) ||
+        null;
+
+      if (resolvedPhone && !profile.phone_number) {
+        backfillUpdates.push(
+          supabaseAdmin
+            .from('profiles')
+            .update({ phone_number: resolvedPhone })
+            .eq('id', profile.id)
+            .then(({ error: bErr }) => {
+              if (bErr) console.warn(`⚠️ [ADMIN] Failed to backfill phone for ${profile.email}:`, bErr.message);
+              else console.log(`✅ [ADMIN] Backfilled phone for ${profile.email}: ${resolvedPhone}`);
+            })
+            .catch(() => {})
+        );
+      }
+
+      return {
+        ...profile,
+        phone_number: resolvedPhone || profile.phone_number || null,
+      };
+    });
+
+    if (backfillUpdates.length > 0) {
+      Promise.all(backfillUpdates).catch(() => {});
+    }
+
+    const staffIds = (enrichedProfiles || [])
       .filter((profile) => String(profile.role || '').toUpperCase() === 'STAFF')
       .map((profile) => profile.id);
     let activeServicesByStaff = new Map();
@@ -2233,8 +2316,9 @@ app.get('/api/admin/profiles', async (req, res) => {
         }
       }
     }
-    const profilesWithServiceState = (data || []).map((profile) => ({
+    const profilesWithServiceState = (enrichedProfiles || []).map((profile) => ({
       ...toPublicProfile(profile),
+      phone_number: profile.phone_number || null,
       ...(String(profile.role || '').toUpperCase() === 'STAFF'
         ? {
             activeServiceCount: activeServicesByStaff.get(profile.id) || 0,

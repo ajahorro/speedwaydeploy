@@ -82,7 +82,8 @@ const AdminUserManagement = () => {
   };
 
   const filteredUsers = users.filter(u => {
-    const matchesSearch = matchesSearchText(searchQuery, u.full_name, u.email, u.phone_number, normalizePhPhone(u.phone_number), u.role);
+    const phone = u.phone_number || u.phone || u.contact_number || '';
+    const matchesSearch = matchesSearchText(searchQuery, u.full_name, u.email, phone, normalizePhPhone(phone), u.role);
     const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
     return matchesSearch && matchesRole;
   });
@@ -282,7 +283,7 @@ const AdminUserManagement = () => {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Phone size={12} color="var(--admin-brand)" style={{ flexShrink: 0 }} />
-                        <span>{user.phone_number || 'No phone provided'}</span>
+                        <span>{user.phone_number || user.phone || user.contact_number || 'No phone provided'}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.9 }}>
                         <Calendar size={12} color="var(--admin-brand)" style={{ flexShrink: 0 }} />
@@ -334,9 +335,9 @@ const AdminUserManagement = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '800' }}>
                     <Mail size={15} color="var(--admin-brand)" /> {selectedUser?.email}
                   </div>
-                  {selectedUser?.phone_number && (
+                  {(selectedUser?.phone_number || selectedUser?.phone || selectedUser?.contact_number || (userBookings.find(b => b.contact_number || b.customer_phone)?.contact_number || userBookings.find(b => b.contact_number || b.customer_phone)?.customer_phone)) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '800' }}>
-                      <Phone size={15} color="var(--admin-brand)" /> {selectedUser?.phone_number}
+                      <Phone size={15} color="var(--admin-brand)" /> {selectedUser?.phone_number || selectedUser?.phone || selectedUser?.contact_number || (userBookings.find(b => b.contact_number || b.customer_phone)?.contact_number || userBookings.find(b => b.contact_number || b.customer_phone)?.customer_phone)}
                     </div>
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '800' }}>
