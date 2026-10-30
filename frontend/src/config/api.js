@@ -80,23 +80,51 @@ export const authHeaders = async (extra = {}) => {
 
 /**
  * Standardized Centralized API Fetch Helper
+ *
+ * Cold-start retry: on Render free tier the backend takes 30-60 s to wake
+ * up after inactivity. A cold fetch() returns a network error immediately
+ * (ERR_CONNECTION_REFUSED), not a timeout, so the user gets an error before
+ * the server is ready. On a network-level failure we trigger
+ * ensureBackendOnline(), which probes /api/health with back-off until the
+ * server responds, then retries the original request once.
+ *
+ *   Warm server  : zero overhead (first attempt succeeds instantly).
+ *   Cold server  : ColdStartBanner shown for ~30 s, then auto-retried.
+ *   Offline      : fails after back-off, surfaces original error.
  */
 export const apiFetch = async (endpoint, options = {}) => {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = endpoint.startsWith('http') ? endpoint : `${BACKEND_URL}${cleanEndpoint}`;
-  
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
+
+  const doFetch = async () => {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      }
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
     }
-  });
+    return response.json();
+  };
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
+  try {
+    const result = await doFetch();
+    // A successful call means the server is up — keep status in sync.
+    import('../lib/backendHealth').then(({ resetBackendStatus }) => resetBackendStatus()).catch(() => {});
+    return result;
+  } catch (err) {
+    // Only retry on a raw network error (TypeError), not on 4xx / 5xx.
+    const isNetworkError = err instanceof TypeError && /fetch|network|failed/i.test(err.message);
+    if (!isNetworkError) throw err;
+
+    // Wait for the server to wake, then retry once.
+    const { ensureBackendOnline } = await import('../lib/backendHealth');
+    const serverStatus = await ensureBackendOnline();
+    if (serverStatus !== 'online') throw err; // never came up, surface original
+    return doFetch();
   }
-
-  return await response.json();
 };

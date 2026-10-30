@@ -4,22 +4,38 @@ import { useAuth } from '../hooks/useAuth';
 import { logger } from '../utils/logger';
 import MustChangePasswordGate from './auth/MustChangePasswordGate';
 
+/** Full-screen skeleton shown while auth / profile resolves. */
+const AuthLoadingScreen = ({ message }) => (
+  <div style={{
+    height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center',
+    background: 'var(--admin-bg)', gap: '1rem',
+  }}>
+    <div style={{
+      width: '44px', height: '44px',
+      border: '3px solid var(--admin-border)',
+      borderTopColor: 'var(--admin-brand)',
+      borderRadius: '50%',
+      animation: 'authSpin 0.9s linear infinite',
+    }} />
+    <span style={{
+      color: 'var(--admin-text-secondary)',
+      fontWeight: '800',
+      fontSize: '0.72rem',
+      letterSpacing: '1.5px',
+      textTransform: 'uppercase',
+    }}>{message}</span>
+    <style>{'@keyframes authSpin { to { transform: rotate(360deg); } }'}</style>
+  </div>
+);
+
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { user, profile, isInitialized, loading } = useAuth();
   const location = useLocation();
 
   // 1. Session Gate: Only block UI while we're unsure if a session exists
   if (!isInitialized) {
-    return (
-      <div style={{
-        height: '100vh', width: '100vw', display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        background: 'var(--admin-bg)', color: 'var(--admin-brand)',
-        fontWeight: '950', letterSpacing: '2px', fontSize: '0.8rem'
-      }}>
-        AUTHENTICATING...
-      </div>
-    );
+    return <AuthLoadingScreen message="Authenticating..." />;
   }
 
   // 2. Authentication Check: No session? Straight to Login.
@@ -32,17 +48,7 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   // 3. Optional Profile Enrichment Gate:
   // If a route specifically requires a role check, we only wait if we don't have the profile yet.
   if (allowedRoles.length > 0 && !profile) {
-    // If it's still loading the profile, show a subtle progress bar or message
-    return (
-      <div style={{
-        height: '100vh', width: '100vw', display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        background: 'var(--admin-bg)', color: 'var(--admin-text-secondary)',
-        fontSize: '0.7rem', fontWeight: '950', letterSpacing: '1px'
-      }}>
-        SYNCHRONIZING PERMISSIONS...
-      </div>
-    );
+    return <AuthLoadingScreen message="Synchronizing permissions..." />;
   }
 
   // 3b. Section 1.1 — First-login password reset interception.
