@@ -25,8 +25,6 @@ const AdminUserManagement = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState('ALL');
-  
   const [view, setView] = useState('list');
   const [selectedUser, setSelectedUser] = useState(null);
   const [userBookings, setUserBookings] = useState([]);
@@ -52,7 +50,7 @@ const AdminUserManagement = () => {
       logger.admin('System directory synchronized.');
     } catch (err) {
       logger.error('User Fetch Error', err);
-      toast.error('Failed to load user directory.');
+      toast.error('Failed to load client directory.');
     } finally {
       setLoading(false);
     }
@@ -94,10 +92,11 @@ const AdminUserManagement = () => {
   };
 
   const filteredUsers = users.filter(u => {
+    // Client directory only displays CUSTOMER accounts
+    if (u.role !== 'CUSTOMER') return false;
     const phone = u.phone_number || u.phone || u.contact_number || '';
-    const matchesSearch = matchesSearchText(searchQuery, u.full_name, u.email, phone, normalizePhPhone(phone), u.role);
-    const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
-    return matchesSearch && matchesRole;
+    const matchesSearch = matchesSearchText(searchQuery, u.full_name, u.email, phone, normalizePhPhone(phone));
+    return matchesSearch;
   });
 
   const handleDeleteUser = async (userToDelete) => {
@@ -173,15 +172,15 @@ const AdminUserManagement = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'fadeIn 0.5s ease' }}>
       <PageHeader 
         badge="ACCESS CONTROL"
-        title={view === 'list' ? "User Directory" : "Customer History"}
-        subtitle={view === 'list' ? "Manage authority levels and monitor system activity" : `Service timeline for ${selectedUser?.full_name}`}
+        title={view === 'list' ? "Client Directory" : "Client History"}
+        subtitle={view === 'list' ? "Manage client accounts and monitor customer history" : `Service timeline for ${selectedUser?.full_name}`}
         onRefresh={view === 'list' ? fetchUsers : () => handleSeeHistory(selectedUser)}
       />
 
       {view === 'list' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
           {/* Controls Bar */}
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: isMobile ? '100%' : '300px' }}>
               <Search size={18} style={{ position: 'absolute', left: '1.25rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
               <input 
@@ -197,23 +196,22 @@ const AdminUserManagement = () => {
               />
             </div>
             
-            <div style={{ display: 'flex', background: 'var(--admin-card)', padding: '0.25rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', width: isMobile ? '100%' : 'auto', overflowX: 'auto' }}>
-              {['ALL', 'CUSTOMER', 'STAFF', 'ADMIN'].map((role) => (
-                <button
-                  key={role}
-                  onClick={() => setRoleFilter(role)}
-                  style={{
-                    flex: isMobile ? 1 : 'none',
-                    padding: '0.6rem 1rem', border: 'none', borderRadius: 'var(--admin-radius-sm)',
-                    background: roleFilter === role ? 'var(--admin-brand)' : 'transparent',
-                    color: roleFilter === role ? 'white' : 'var(--admin-text-secondary)',
-                    fontSize: '0.7rem', fontWeight: '950', cursor: 'pointer',
-                    transition: '0.2s', textTransform: 'uppercase', whiteSpace: 'nowrap', textAlign: 'center'
-                  }}
-                >
-                  {role}
-                </button>
-              ))}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.65rem 1.25rem',
+              background: 'var(--admin-card)',
+              border: '1px solid var(--admin-border)',
+              borderRadius: 'var(--admin-radius-sm)',
+              color: 'var(--admin-text-secondary)',
+              fontSize: '0.75rem',
+              fontWeight: '900',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}>
+              <Users size={14} color="var(--admin-brand)" />
+              <span>{filteredUsers.length} {filteredUsers.length === 1 ? 'Client' : 'Clients'}</span>
             </div>
           </div>
 
@@ -370,7 +368,7 @@ const AdminUserManagement = () => {
             ) : (
               <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '5rem', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px dashed var(--admin-border)' }}>
                 <Users size={64} style={{ color: 'var(--admin-text-secondary)', marginBottom: '1.5rem', opacity: 0.1 }} />
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>No matching profiles found</h3>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>No matching clients found</h3>
               </div>
             )}
           </div>
@@ -382,7 +380,7 @@ const AdminUserManagement = () => {
               onClick={() => setView('list')}
               style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', color: 'var(--admin-brand)', fontWeight: '950', cursor: 'pointer', fontSize: '0.8rem', textTransform: 'uppercase', width: 'fit-content' }}
             >
-              <ChevronRight size={18} style={{ transform: 'rotate(180deg)' }} /> BACK TO DIRECTORY
+              <ChevronRight size={18} style={{ transform: 'rotate(180deg)' }} /> BACK TO CLIENT DIRECTORY
             </button>
 
             {/* Customer Summary Banner */}
