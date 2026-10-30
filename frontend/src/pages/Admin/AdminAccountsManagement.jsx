@@ -21,6 +21,7 @@ import EditStaffDialog from '../../features/accounts/EditStaffDialog';
 import InactiveStaffPanel from '../../features/accounts/InactiveStaffPanel';
 import StaffTables from '../../features/accounts/StaffTables';
 import { matchesSearchText } from '../../utils/searchMatch';
+import { fetchWithCache, invalidateCache } from '../../lib/cache';
 
 const AdminAccountsManagement = () => {
   const { confirmThen } = useConfirmAction();
@@ -47,13 +48,17 @@ const AdminAccountsManagement = () => {
     forcePasswordChange: true
   });
 
-  const fetchAccounts = useCallback(async () => {
+  const fetchAccounts = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     try {
       logger.admin('Synchronizing account directory...');
-      const response = await fetch(`${BACKEND_URL}/api/admin/profiles`, { headers: await authHeaders() });
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error);
+      const result = await fetchWithCache('admin_profiles', async () => {
+        const response = await fetch(`${BACKEND_URL}/api/admin/profiles`, { headers: await authHeaders() });
+        const json = await response.json();
+        if (!json.success) throw new Error(json.error);
+        return json;
+      }, { ttl: 60000, swr: true, forceRefresh });
+
       // Store the default admin ID from the backend (single source of truth)
       setDefaultAdminId(result.defaultAdminId || null);
       // Filter to only STAFF and ADMIN roles
@@ -147,7 +152,8 @@ const AdminAccountsManagement = () => {
       }
       setIsModalOpen(false);
       setInviteForm({ email: '', firstName: '', lastName: '', forcePasswordChange: true });
-      fetchAccounts();
+      invalidateCache('admin_profiles');
+      fetchAccounts(true);
     } catch (err) {
       logger.error('Invitation Error', err);
       toast.error(err.message || 'Failed to send invitation', { id: toastId });
@@ -214,7 +220,8 @@ const AdminAccountsManagement = () => {
           const result = await response.json();
           if (!result.success) throw new Error(result.error);
           toast.success('Account access revoked successfully');
-          fetchAccounts();
+          invalidateCache('admin_profiles');
+          fetchAccounts(true);
         } catch (err) {
           toast.error(err.message || 'Failed to revoke account access');
         } finally {

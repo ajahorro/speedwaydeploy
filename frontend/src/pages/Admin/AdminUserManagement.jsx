@@ -13,6 +13,7 @@ import { BACKEND_URL, authHeaders } from '../../config/api';
 import { matchesSearchText } from '../../utils/searchMatch';
 import { normalizePhPhone } from '../../utils/contactValidation';
 import { useLanguage } from '../../context/LanguageContext';
+import { fetchWithCache, invalidateCache } from '../../lib/cache';
 import { useAuth } from '../../context/AuthContext';
 
 const AdminUserManagement = () => {
@@ -35,13 +36,17 @@ const AdminUserManagement = () => {
     fetchUsers();
   }, []);
 
-  const fetchUsers = async () => {
-    setLoading(true);
+  const fetchUsers = async (forceRefresh = false) => {
+    if (!users.length) setLoading(true);
     try {
       logger.admin('Fetching system directory...');
-      const response = await fetch(`${BACKEND_URL}/api/admin/profiles`, { headers: await authHeaders() });
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error);
+      const result = await fetchWithCache('admin_profiles', async () => {
+        const response = await fetch(`${BACKEND_URL}/api/admin/profiles`, { headers: await authHeaders() });
+        const json = await response.json();
+        if (!json.success) throw new Error(json.error);
+        return json;
+      }, { ttl: 60000, swr: true, forceRefresh });
+
       setUsers(result.data || []);
       if (result.defaultAdminId) setDefaultAdminId(result.defaultAdminId);
       logger.admin('System directory synchronized.');
@@ -59,16 +64,19 @@ const AdminUserManagement = () => {
     setLoadingHistory(true);
     try {
       logger.admin(`Fetching history for user: ${user.id}`);
-      const { data, error } = await supabase
-        .from('bookings')
-        .select(`
-          *,
-          vehicles:booking_vehicles(*, services:booking_vehicle_services(*))
-        `)
-        .eq('customer_id', user.id)
-        .order('start_datetime', { ascending: false });
+      const data = await fetchWithCache(`user_history_${user.id}`, async () => {
+        const { data: bData, error } = await supabase
+          .from('bookings')
+          .select(`
+            *,
+            vehicles:booking_vehicles(*, services:booking_vehicle_services(*))
+          `)
+          .eq('customer_id', user.id)
+          .order('start_datetime', { ascending: false });
 
-      if (error) throw error;
+        if (error) throw error;
+        return bData;
+      }, { ttl: 30000, swr: true });
       
       const processed = (data || []).map(b => ({
         ...b,
@@ -116,7 +124,8 @@ const AdminUserManagement = () => {
       if (!response.ok || !result.success) throw new Error(result.error || 'Failed to delete account');
       toast.success(`Account for ${name} permanently deleted.`, { id: toastId });
       if (view === 'history') setView('list');
-      fetchUsers();
+      invalidateCache('admin_profiles');
+      fetchUsers(true);
     } catch (err) {
       toast.error(err.message || 'Failed to delete account', { id: toastId });
     }
