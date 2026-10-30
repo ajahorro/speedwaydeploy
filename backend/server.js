@@ -2940,6 +2940,151 @@ app.post('/api/admin/revoke-access', async (req, res) => {
   }
 });
 
+// ─── Section 1.5: Permanent Account Deletion (Admin-Only) ──────────────────────
+// Completely removes an account (auth user + profile) and cleans up references
+// while preserving booking history and financial integrity.
+const permanentlyDeleteAccount = async (identifier, actor = null) => {
+  if (!supabaseAdmin) throw new Error('Database service unavailable');
+
+  const cleanId = String(identifier || '').trim();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+  const query = supabaseAdmin.from('profiles').select('*');
+  const { data: profile, error: readErr } = isUuid
+    ? await query.eq('id', cleanId).maybeSingle()
+    : await query.ilike('email', cleanId.toLowerCase()).maybeSingle();
+
+  if (readErr) throw readErr;
+
+  let targetId = profile?.id;
+  let targetEmail = profile?.email || (!isUuid ? cleanId.toLowerCase() : null);
+  let targetRole = profile?.role || 'UNKNOWN';
+  let targetName = profile?.full_name || cleanId;
+
+  // If not found in profiles, check auth.users directly
+  if (!profile) {
+    try {
+      const { data: authList } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const authUser = (authList?.users || []).find((u) =>
+        u.id === cleanId || String(u.email || '').toLowerCase() === cleanId.toLowerCase()
+      );
+      if (authUser) {
+        targetId = authUser.id;
+        targetEmail = authUser.email;
+        targetRole = authUser.user_metadata?.role || 'CUSTOMER';
+        targetName = authUser.user_metadata?.full_name || authUser.email;
+      }
+    } catch (authLookupErr) {
+      console.warn('⚠️ [PURGE] Auth user lookup failed:', authLookupErr.message);
+    }
+  }
+
+  if (!targetId) {
+    return { success: false, notFound: true, message: `Account not found: ${cleanId}` };
+  }
+
+  // Safety Guards
+  if (targetId === DEFAULT_ADMIN_ID) {
+    throw new Error('The Default Admin account cannot be deleted.');
+  }
+  if (actor && actor.profile?.id === targetId) {
+    throw new Error('You cannot delete your own account.');
+  }
+  if (String(targetRole || '').toUpperCase() === 'ADMIN') {
+    const { count, error: countErr } = await supabaseAdmin
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'ADMIN');
+    if (countErr) throw countErr;
+    if ((count || 0) <= 1) {
+      throw new Error('Cannot delete the last remaining administrator account.');
+    }
+  }
+
+  console.log(`🧹 [PURGE] Permanently deleting account ${targetEmail} (${targetId}, ${targetRole})...`);
+
+  // 1. Snapshot customer booking details so past shop records stay complete
+  try {
+    await supabaseAdmin
+      .from('bookings')
+      .update({
+        customer_name: targetName || targetEmail,
+        customer_first_name: profile?.first_name || null,
+        customer_last_name: profile?.last_name || null,
+        customer_email: targetEmail || null,
+        contact_number: profile?.phone_number || null,
+        customer_id: null
+      })
+      .eq('customer_id', targetId);
+  } catch (err) {
+    console.warn(`⚠️ [PURGE] Failed to snapshot bookings for ${targetEmail}:`, err.message);
+  }
+
+  // 2. Unassign from staff bookings
+  try {
+    await supabaseAdmin.from('bookings').update({ staff_id: null }).eq('staff_id', targetId);
+    await supabaseAdmin.from('booking_vehicles').update({ staff_id: null }).eq('staff_id', targetId);
+  } catch (err) {
+    console.warn(`⚠️ [PURGE] Failed to unassign staff bookings for ${targetEmail}:`, err.message);
+  }
+
+  // 3. Clear dependent or owned records
+  try { await supabaseAdmin.from('booking_draft_invites').delete().eq('created_by', targetId); } catch {}
+  try { await supabaseAdmin.from('vehicles').delete().eq('owner_id', targetId); } catch {}
+  try { await supabaseAdmin.from('notifications').delete().eq('user_id', targetId); } catch {}
+  try { await supabaseAdmin.from('staff_shifts').delete().eq('staff_id', targetId); } catch {}
+  try { await supabaseAdmin.from('account_recovery_otps').delete().eq('user_id', targetId); } catch {}
+  try { await supabaseAdmin.from('password_confirmation_requests').delete().eq('user_id', targetId); } catch {}
+  try { await supabaseAdmin.from('customer_credit_ledger').update({ customer_id: null }).eq('customer_id', targetId); } catch {}
+  try { await supabaseAdmin.from('audit_logs').update({ actor_id: null, actor_name: 'Deleted account' }).eq('actor_id', targetId); } catch {}
+  try { await supabaseAdmin.from('audit_trails').update({ actor_id: null }).eq('actor_id', targetId); } catch {}
+  try { await supabaseAdmin.from('booking_events').update({ actor_id: null }).eq('actor_id', targetId); } catch {}
+  if (targetEmail) {
+    try { await supabaseAdmin.from('invites').delete().ilike('email', targetEmail); } catch {}
+  }
+
+  // 4. Delete from auth.users (cascades dependent auth rows)
+  try {
+    await supabaseAdmin.auth.admin.deleteUser(targetId);
+  } catch (authDelErr) {
+    console.warn(`⚠️ [PURGE] Auth deleteUser error for ${targetEmail}:`, authDelErr.message);
+  }
+
+  // 5. Delete from public.profiles
+  try {
+    await supabaseAdmin.from('profiles').delete().eq('id', targetId);
+  } catch (profDelErr) {
+    console.warn(`⚠️ [PURGE] Profile delete error for ${targetEmail}:`, profDelErr.message);
+  }
+
+  // 6. Record audit log
+  await writeAuditLog({
+    actionType: 'ACCOUNT_PURGED',
+    actorName: actor?.profile?.full_name || actor?.profile?.email || 'System',
+    actorRole: actor?.profile?.role || 'SYSTEM',
+    details: `Account ${targetEmail} (${targetRole}) was permanently deleted as requested.`
+  });
+
+  console.log(`✅ [PURGE] Account ${targetEmail} permanently deleted.`);
+  return { success: true, id: targetId, email: targetEmail, role: targetRole };
+};
+
+app.post('/api/admin/delete-account', async (req, res) => {
+  const actor = await requireAdmin(req);
+  if (!actor) return res.status(403).json({ success: false, error: 'Administrator access required.' });
+  const { memberId, email } = req.body || {};
+  const target = memberId || email;
+  if (!target) return res.status(400).json({ success: false, error: 'Account identifier is required.' });
+
+  try {
+    const result = await permanentlyDeleteAccount(target, actor);
+    return res.json({ success: true, result });
+  } catch (err) {
+    console.error('Delete account failed:', err.message);
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+
 /**
  * 📣 REQ-ADM-13: Global Broadcast (Service Role — bypasses RLS)
  * Inserts a notification for every profile and logs the action in audit logs.
@@ -4010,6 +4155,29 @@ const purgeExpiredPhotos = async () => {
 setInterval(purgeExpiredPhotos, 6 * 60 * 60000);
 setTimeout(purgeExpiredPhotos, 4 * 60000);
 releaseExpiredUnpaidHolds();
+
+// Targeted cleanup on startup: permanently remove requested accounts if they still exist.
+const purgeRequestedTargetAccounts = async () => {
+  if (!supabaseAdmin) return;
+  const targetAccounts = [
+    'jamesvillanueva@gmail.com',
+    'gopilotfor@gmail.com',
+    'mauirayos100@gmail.com',
+    'ehdlemuelrefuerzo8@gmail.com'
+  ];
+  for (const account of targetAccounts) {
+    try {
+      const res = await permanentlyDeleteAccount(account);
+      if (res.success && !res.notFound) {
+        console.log(`🧹 [STARTUP PURGE] Removed target account: ${account}`);
+      }
+    } catch (err) {
+      console.warn(`⚠️ [STARTUP PURGE] Could not remove ${account}:`, err.message);
+    }
+  }
+};
+setTimeout(purgeRequestedTargetAccounts, 4000);
+
 
 // ── Guest inquiries (landing page contact form) ─────────────────────────────────────────────────────────────
 // A visitor with no account writes to the shop. The message becomes (or joins) the thread of that e-mail address in

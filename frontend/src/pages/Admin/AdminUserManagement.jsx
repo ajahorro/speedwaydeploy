@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import PageHeader from '../../components/PageHeader';
 import { 
   Users, Search, Mail, Phone, User, ChevronRight, 
-  History, Calendar, CheckCircle2, Shield, UserCog, ExternalLink
+  History, Calendar, CheckCircle2, Shield, UserCog, ExternalLink, Trash2
 } from 'lucide-react';
 import toast from '@/lib/toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -13,11 +13,14 @@ import { BACKEND_URL, authHeaders } from '../../config/api';
 import { matchesSearchText } from '../../utils/searchMatch';
 import { normalizePhPhone } from '../../utils/contactValidation';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
 
 const AdminUserManagement = () => {
   const navigate = useNavigate();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const { language } = useLanguage();
+  const { user: currentUser } = useAuth();
+  const [defaultAdminId, setDefaultAdminId] = useState(null);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,6 +43,7 @@ const AdminUserManagement = () => {
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
       setUsers(result.data || []);
+      if (result.defaultAdminId) setDefaultAdminId(result.defaultAdminId);
       logger.admin('System directory synchronized.');
     } catch (err) {
       logger.error('User Fetch Error', err);
@@ -87,6 +91,36 @@ const AdminUserManagement = () => {
     const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
     return matchesSearch && matchesRole;
   });
+
+  const handleDeleteUser = async (userToDelete) => {
+    if (!userToDelete) return;
+    const isSelf = userToDelete.id === currentUser?.id;
+    const isDefault = userToDelete.id === defaultAdminId;
+    if (isSelf) return toast.error('You cannot delete your own account.');
+    if (isDefault) return toast.error('The Default Admin account cannot be deleted.');
+
+    const name = userToDelete.full_name || userToDelete.email;
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently DELETE the account for ${name}? This will remove their credentials and account access.`
+    );
+    if (!confirmed) return;
+
+    const toastId = toast.loading(`Deleting account ${name}...`);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/admin/delete-account`, {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify({ memberId: userToDelete.id, email: userToDelete.email })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to delete account');
+      toast.success(`Account for ${name} permanently deleted.`, { id: toastId });
+      if (view === 'history') setView('list');
+      fetchUsers();
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete account', { id: toastId });
+    }
+  };
 
   const getRoleBadge = (role) => {
     switch (role) {
@@ -232,9 +266,10 @@ const AdminUserManagement = () => {
                         </div>
                       </div>
 
-                      {/* View History Button */}
-                      <button 
-                        onClick={() => handleSeeHistory(user)}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                        {/* View History Button */}
+                        <button 
+                          onClick={() => handleSeeHistory(user)}
                         title="View Booking History"
                         style={{ 
                           display: 'inline-flex',
@@ -263,7 +298,37 @@ const AdminUserManagement = () => {
                         }}
                       >
                         <History size={13} color="var(--admin-brand)" /> View History
-                      </button>
+                        </button>
+
+                        {user.id !== defaultAdminId && user.id !== currentUser?.id && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }}
+                            title="Delete Account Permanently"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '0.45rem 0.55rem',
+                              borderRadius: 'var(--admin-radius-sm)',
+                              background: 'rgba(239, 68, 68, 0.08)',
+                              border: '1px solid rgba(239, 68, 68, 0.25)',
+                              color: 'var(--status-danger)',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'var(--status-danger)';
+                              e.currentTarget.style.color = '#ffffff';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
+                              e.currentTarget.style.color = 'var(--status-danger)';
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Bottom Details: Email, Phone, Joined Date */}
@@ -328,9 +393,32 @@ const AdminUserManagement = () => {
               </div>
               
               <div style={{ flex: 1, minWidth: 0 }}>
-                <h2 style={{ fontSize: isMobile ? '1.35rem' : '1.75rem', fontWeight: '950', color: 'var(--admin-text-primary)', margin: 0, textTransform: 'uppercase', wordBreak: 'break-word' }}>
-                  {selectedUser?.full_name}
-                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                  <h2 style={{ fontSize: isMobile ? '1.35rem' : '1.75rem', fontWeight: '950', color: 'var(--admin-text-primary)', margin: 0, textTransform: 'uppercase', wordBreak: 'break-word' }}>
+                    {selectedUser?.full_name}
+                  </h2>
+                  {selectedUser?.id !== defaultAdminId && selectedUser?.id !== currentUser?.id && (
+                    <button
+                      onClick={() => handleDeleteUser(selectedUser)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        padding: '0.45rem 0.85rem',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        borderRadius: 'var(--admin-radius-sm)',
+                        color: 'var(--status-danger)',
+                        fontSize: '0.72rem',
+                        fontWeight: '950',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Trash2 size={13} /> Delete Account
+                    </button>
+                  )}
+                </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', marginTop: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '800' }}>
                     <Mail size={15} color="var(--admin-brand)" /> {selectedUser?.email}
