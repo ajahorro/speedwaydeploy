@@ -157,6 +157,55 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
    */
   const scanIdRef = useRef(0);
 
+  /**
+   * Compress a receipt image before uploading to reduce payload size and
+   * speed up server-side Tesseract processing.
+   *
+   * WHY: Phone screenshots of GCash/Maya receipts are often 2-5 MB at full
+   * resolution. The backend Sharp pipeline already downscales to 1000 px for
+   * OCR pass 1 and 1500 px for pass 2, so sending a 4 MP image wastes upload
+   * bandwidth without improving recognition quality.
+   *
+   * Cap width at 1400 px (above the backend hard limit so already-small images
+   * are left untouched), re-encode as JPEG at 85 % quality, and skip entirely
+   * when the file is already under 512 KB to avoid a pointless Canvas
+   * round-trip for already-compressed screenshots.
+   */
+  const compressReceiptImage = (origFile) => new Promise((resolve) => {
+    const MAX_W = 1400;
+    const QUALITY = 0.85;
+    const SKIP_THRESHOLD_BYTES = 512 * 1024; // 512 KB - already small, skip
+
+    if (!origFile || origFile.size <= SKIP_THRESHOLD_BYTES) {
+      resolve(origFile);
+      return;
+    }
+
+    const img = new Image();
+    const blobUrl = URL.createObjectURL(origFile);
+    img.onload = () => {
+      URL.revokeObjectURL(blobUrl);
+      const scale = img.naturalWidth > MAX_W ? MAX_W / img.naturalWidth : 1;
+      const w = Math.round(img.naturalWidth * scale);
+      const h = Math.round(img.naturalHeight * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => {
+        if (!blob || blob.size >= origFile.size) {
+          resolve(origFile); // canvas output not smaller, send original
+        } else {
+          const name = origFile.name.replace(/\.[^.]+$/, '.jpg');
+          resolve(new File([blob], name, { type: 'image/jpeg' }));
+        }
+      }, 'image/jpeg', QUALITY);
+    };
+    img.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(origFile); };
+    img.src = blobUrl;
+  });
+
   const RECEIPT_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif';
   const isImageFile = (file) => Boolean(file && /^image\//i.test(file.type || ''));
 
@@ -205,7 +254,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
       setIsUploading(true);
       setReceiptDetails(null);
-      setScanStep('READING RECEIPT...');
+      setScanStep('PREPARING IMAGE...');
 
       // Save the file reference
       setBookingData(prev => ({
@@ -223,6 +272,15 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
         // parses amounts, so a wrong payee aborts the scan immediately.
         const expectedRecipientName = qrTarget?.QR_ACCOUNT_NAME || settings.qr_account_name || settings.QR_ACCOUNT_NAME || settings.PAYMENT_ACCOUNT_NAME || '';
 
+        setScanStep('COMPRESSING IMAGE...');
+
+        // Downscale large phone screenshots before sending to the server.
+        // This cuts upload time and reduces the image the backend Tesseract
+        // pipeline has to decode, with no loss in OCR quality (backend Sharp
+        // already rescales to 1000/1500 px internally).
+        const uploadFile = await compressReceiptImage(file);
+        logger.debug('[OCR] Image size after compression:', uploadFile.size, 'bytes (original:', file.size, ')');
+
         setScanStep('SCANNING RECEIPT ON SERVER...');
 
         // A newer scan owns the UI and its eventual server-issued scan session.
@@ -230,7 +288,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
 
         const formData = new FormData();
         // The server performs OCR and hashes these exact uploaded bytes.
-        formData.append('receipt', file);
+        formData.append('receipt', uploadFile);
         formData.append('bookingId', bookingData.id || 'PENDING');
         formData.append('requiredAmount', targetAmount);
         formData.append('fullAmount', grandTotal);
