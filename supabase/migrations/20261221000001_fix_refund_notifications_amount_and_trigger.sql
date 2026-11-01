@@ -307,3 +307,4 @@ from (
 ) p
 where n.booking_id = p.booking_id
   and n.message ilike '%PHP 0.00%';
+

@@ -14,7 +14,7 @@ import { matchesSearchText } from '../../utils/searchMatch';
 import { normalizePhPhone } from '../../utils/contactValidation';
 import { useLanguage } from '../../context/LanguageContext';
 import { fetchWithCache, invalidateCache } from '../../lib/cache';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 
 const AdminUserManagement = () => {
   const navigate = useNavigate();
