@@ -30,7 +30,6 @@ export function TermsEditorCard() {
   // Switching audience, or another admin publishing, resets the editor to the live text.
   useEffect(() => {
     setDraft(current.text);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audience, current.text, current.version]);
 
   const isDirty = draft.trim() !== current.text.trim();

@@ -87,7 +87,9 @@ export const invalidateCache = (keyOrPrefix) => {
       if (typeof window !== 'undefined') {
         try {
           sessionStorage.removeItem(`comar_cache_${k}`);
-        } catch {}
+        } catch {
+          // ignore storage quota / security errors
+        }
       }
     }
   }
