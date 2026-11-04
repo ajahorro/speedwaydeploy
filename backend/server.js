@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const crypto = require('crypto');
@@ -149,7 +150,30 @@ const decryptPendingPassword = ({ ciphertext, iv, tag }) => {
 const hashConfirmationToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 const app = express();
+app.use(compression({ threshold: 1024 }));
 app.use(cors());
+
+// ── Server-Side In-Memory Response Cache ─────────────────────────────────────
+const serverCache = new Map();
+const getCachedResponse = (key) => {
+  const item = serverCache.get(key);
+  if (!item) return null;
+  if (Date.now() > item.expiresAt) {
+    serverCache.delete(key);
+    return null;
+  }
+  return item.data;
+};
+const setCachedResponse = (key, data, ttlMs = 20000) => {
+  serverCache.set(key, { data, expiresAt: Date.now() + ttlMs });
+};
+const invalidateServerCache = (keyPrefix) => {
+  for (const k of serverCache.keys()) {
+    if (!keyPrefix || k.startsWith(keyPrefix)) {
+      serverCache.delete(k);
+    }
+  }
+};
 
 // Standard browser-protection headers on every API response (the API serves data, never a page).
 app.disable('x-powered-by');
@@ -2193,6 +2217,12 @@ const toPublicProfile = (profile) => Object.fromEntries(
 app.get('/api/admin/profiles', async (req, res) => {
   const actor = await requireAdmin(req);
   if (!actor) return res.status(403).json({ success: false, error: 'Administrator access required.' });
+
+  const cached = getCachedResponse('admin:profiles');
+  if (cached) {
+    return res.json(cached);
+  }
+
   console.log('📋 [ADMIN] Fetching all profiles...');
   try {
     const { data, error } = await supabaseAdmin
@@ -2203,50 +2233,63 @@ app.get('/api/admin/profiles', async (req, res) => {
 
     if (error) throw error;
 
-    // ── Phone Enrichment & Backfill ───────────────────────────────────────────
-    // Existing accounts may have registered when phone was stored in Auth metadata
-    // (raw_user_meta_data) or entered during bookings (contact_number/customer_phone).
-    // We resolve phone numbers across all available system records and backfill
-    // missing profile rows so the User Directory and Staff cards display them.
+    // Check if any profiles are missing a phone number
+    const missingPhoneProfiles = (data || []).filter(
+      (p) => !p.phone_number && !p.phone && !p.contact_number
+    );
+
     const authPhoneById = new Map();
     const authPhoneByEmail = new Map();
-    try {
-      const { data: authList } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      for (const u of (authList?.users || [])) {
-        const meta = u.user_metadata || u.raw_user_meta_data || {};
-        const p = meta.phone_number || meta.phone || meta.contact_number || u.phone || null;
-        if (p) {
-          const cleanPhone = String(p).trim();
-          authPhoneById.set(u.id, cleanPhone);
-          if (u.email) authPhoneByEmail.set(String(u.email).toLowerCase().trim(), cleanPhone);
-        }
-      }
-    } catch (authErr) {
-      console.warn('⚠️ [ADMIN] Could not inspect auth users for phone enrichment:', authErr.message);
-    }
-
     const bookingPhoneById = new Map();
     const bookingPhoneByEmail = new Map();
-    try {
-      const { data: bookingPhones } = await supabaseAdmin
-        .from('bookings')
-        .select('customer_id, customer_email, contact_number, customer_phone')
-        .order('created_at', { ascending: false });
 
-      for (const b of (bookingPhones || [])) {
-        const p = b.contact_number || b.customer_phone;
-        if (p) {
-          const cleanPhone = String(p).trim();
-          if (b.customer_id && !bookingPhoneById.has(b.customer_id)) {
-            bookingPhoneById.set(b.customer_id, cleanPhone);
-          }
-          if (b.customer_email && !bookingPhoneByEmail.has(String(b.customer_email).toLowerCase().trim())) {
-            bookingPhoneByEmail.set(String(b.customer_email).toLowerCase().trim(), cleanPhone);
+    if (missingPhoneProfiles.length > 0) {
+      try {
+        const { data: authList } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        for (const u of (authList?.users || [])) {
+          const meta = u.user_metadata || u.raw_user_meta_data || {};
+          const p = meta.phone_number || meta.phone || meta.contact_number || u.phone || null;
+          if (p) {
+            const cleanPhone = String(p).trim();
+            authPhoneById.set(u.id, cleanPhone);
+            if (u.email) authPhoneByEmail.set(String(u.email).toLowerCase().trim(), cleanPhone);
           }
         }
+      } catch (authErr) {
+        console.warn('⚠️ [ADMIN] Could not inspect auth users for phone enrichment:', authErr.message);
       }
-    } catch (bookingErr) {
-      console.warn('⚠️ [ADMIN] Could not inspect bookings for phone enrichment:', bookingErr.message);
+
+      try {
+        const missingIds = missingPhoneProfiles.map((p) => p.id);
+        const missingEmails = missingPhoneProfiles.map((p) => String(p.email || '').toLowerCase().trim()).filter(Boolean);
+        let bookingQuery = supabaseAdmin
+          .from('bookings')
+          .select('customer_id, customer_email, contact_number, customer_phone')
+          .order('created_at', { ascending: false });
+
+        if (missingIds.length <= 100) {
+          bookingQuery = bookingQuery.or(`customer_id.in.(${missingIds.join(',')}),customer_email.in.(${missingEmails.join(',')})`);
+        } else {
+          bookingQuery = bookingQuery.limit(500);
+        }
+
+        const { data: bookingPhones } = await bookingQuery;
+
+        for (const b of (bookingPhones || [])) {
+          const p = b.contact_number || b.customer_phone;
+          if (p) {
+            const cleanPhone = String(p).trim();
+            if (b.customer_id && !bookingPhoneById.has(b.customer_id)) {
+              bookingPhoneById.set(b.customer_id, cleanPhone);
+            }
+            if (b.customer_email && !bookingPhoneByEmail.has(String(b.customer_email).toLowerCase().trim())) {
+              bookingPhoneByEmail.set(String(b.customer_email).toLowerCase().trim(), cleanPhone);
+            }
+          }
+        }
+      } catch (bookingErr) {
+        console.warn('⚠️ [ADMIN] Could not inspect bookings for phone enrichment:', bookingErr.message);
+      }
     }
 
     const backfillUpdates = [];
@@ -2290,9 +2333,11 @@ app.get('/api/admin/profiles', async (req, res) => {
       .map((profile) => profile.id);
     let activeServicesByStaff = new Map();
     if (staffIds.length) {
+      // PERFORMANCE OPTIMIZATION: filter out completed/cancelled/released bookings
       const { data: assignments, error: assignmentsError } = await supabaseAdmin
         .from('bookings')
-        .select('id, staff_id, status, vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(status, staff_id)');
+        .select('id, staff_id, status, vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(status, staff_id)')
+        .not('status', 'in', '("cancelled","completed","released","flagged_noshow","no_show")');
       if (assignmentsError) throw assignmentsError;
 
       const activeBookingStatuses = new Set([
@@ -2303,7 +2348,6 @@ app.get('/api/admin/profiles', async (req, res) => {
       for (const booking of assignments || []) {
         const bookingStatus = String(booking.status || '').toLowerCase();
         const terminal = ['cancelled', 'completed', 'released', 'flagged_noshow', 'no_show'].includes(bookingStatus);
-        // a booking counts once for each technician who has a vehicle on it
         const techs = new Set((booking.vehicles || []).map((vehicle) => vehicle.staff_id).filter(Boolean));
         for (const techId of techs) {
           if (!activeServicesByStaff.has(techId)) continue;
@@ -2326,8 +2370,9 @@ app.get('/api/admin/profiles', async (req, res) => {
           }
         : {})
     }));
-    // Include defaultAdminId so frontend knows which account is protected
-    return res.json({ success: true, data: profilesWithServiceState, defaultAdminId: DEFAULT_ADMIN_ID });
+    const responsePayload = { success: true, data: profilesWithServiceState, defaultAdminId: DEFAULT_ADMIN_ID };
+    setCachedResponse('admin:profiles', responsePayload, 20000); // 20s in-memory TTL
+    return res.json(responsePayload);
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -2349,6 +2394,7 @@ const generateTemporaryPassword = () => {
 };
 
 app.post('/api/admin/invite-account', async (req, res) => {
+  invalidateServerCache('admin:profiles');
   const { email, firstName, lastName, role } = req.body || {};
   // An invited account must always set its own password on first sign-in (not optional).
   const forcePasswordChange = true;
@@ -3069,6 +3115,7 @@ const permanentlyDeleteAccount = async (identifier, actor = null) => {
 };
 
 app.post('/api/admin/delete-account', async (req, res) => {
+  invalidateServerCache('admin:profiles');
   const actor = await requireAdmin(req);
   if (!actor) return res.status(403).json({ success: false, error: 'Administrator access required.' });
   const { memberId, email } = req.body || {};

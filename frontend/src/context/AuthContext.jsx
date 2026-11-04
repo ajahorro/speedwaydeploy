@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { supabase, createUniqueChannel } from '../lib/supabase';
 import { logger } from '../utils/logger';
 import toast from '@/lib/toast';
@@ -692,12 +692,18 @@ export const AuthProvider = ({ children }) => {
     };
   }, [user?.id, profile?.id, profile?.role, profile?.role_version, signOut]);
 
+  const authContextValue = useMemo(() => ({
+    user, profile, loading, isInitialized, signInWithPassword, signOut, resetPassword, requestPasswordReset, changePassword,
+    updateProfile, verifyPassword, requestPasswordChange, resendPasswordChange, requestEmailChange, confirmEmailChange, deactivateAccount, recoverAccount, fetchProfile, setProfile,
+    toggleShift
+  }), [
+    user, profile, loading, isInitialized, signInWithPassword, signOut, resetPassword, requestPasswordReset, changePassword,
+    updateProfile, verifyPassword, requestPasswordChange, resendPasswordChange, requestEmailChange, confirmEmailChange, deactivateAccount, recoverAccount, fetchProfile, setProfile,
+    toggleShift
+  ]);
+
   return (
-    <AuthContext.Provider value={{
-      user, profile, loading, isInitialized, signInWithPassword, signOut, resetPassword, requestPasswordReset, changePassword,
-      updateProfile, verifyPassword, requestPasswordChange, resendPasswordChange, requestEmailChange, confirmEmailChange, deactivateAccount, recoverAccount, fetchProfile, setProfile,
-      toggleShift
-    }}>
+    <AuthContext.Provider value={authContextValue}>
       {children}
     </AuthContext.Provider>
   );

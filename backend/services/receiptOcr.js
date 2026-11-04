@@ -2,6 +2,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const sharp = require('sharp');
+sharp.concurrency(1);
 const { createWorker } = require('tesseract.js');
 const { parseReceiptText } = require('./receiptTextParser');
 
@@ -156,6 +157,7 @@ const createReceiptOcr = ({
   try {
     const maxPasses = 2;
     for (let index = 0; index < maxPasses; index += 1) {
+      await new Promise((resolve) => setImmediate(resolve));
       const variant = await buildVariant(buffer, index);
       const { text, confidence } = await recognize(variant, index + 1);
       const parsed = parseReceiptText(text);

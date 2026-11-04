@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { fetchCustomerBookings, subscribeToCustomerBookings } from '../services/bookingService';
 import { fetchNotifications, subscribeToNotifications } from '../services/notificationService';
 import { useAuth } from '../hooks/useAuth';
@@ -75,16 +75,18 @@ export const UnifiedProvider = ({ children }) => {
         };
     }, [user, isCustomer, loadData, refreshBookings]);
 
-    const unreadCount = notifications.filter(n => !n.is_read).length;
+    const unreadCount = useMemo(() => notifications.filter(n => !n.is_read).length, [notifications]);
+
+    const contextValue = useMemo(() => ({
+        bookings,
+        notifications,
+        unreadCount,
+        isLoading,
+        refreshData: loadData
+    }), [bookings, notifications, unreadCount, isLoading, loadData]);
 
     return (
-        <UnifiedContext.Provider value={{
-            bookings,
-            notifications,
-            unreadCount,
-            isLoading,
-            refreshData: loadData // <-- Exposed here so components can call it!
-        }}>
+        <UnifiedContext.Provider value={contextValue}>
             {children}
         </UnifiedContext.Provider>
     );
