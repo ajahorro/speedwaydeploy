@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { LayoutDashboard, LogIn, LogOut, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import { BACKEND_URL } from '@/config/api';
+import { photosForService } from '@/config/servicePhotos';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -62,7 +63,7 @@ export function MobileMenu({ open, onOpenChange, links, onNavigate, user, pendin
 }
 
 export function ServiceCard({ service, formatPrice }) {
-  const photoUrl = service.image_url || service.imageUrl || service.photo_url || service.image;
+  const photoUrl = photosForService(service)[0];
 
   return (
     <Card className="landing-ui lp-card-hover h-full gap-0 py-0 overflow-hidden flex flex-col">
