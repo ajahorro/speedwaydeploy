@@ -4,8 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { subscribeTables } from '../../lib/realtimeHub';
 import { formatBookingDate, formatBookingTime, getStatusColor } from '../../utils/bookingHelpers';
 import {
-  CreditCard, Users, AlertCircle, Clock,
-  ChevronRight, ShieldAlert, RefreshCcw, CheckCircle
+  Receipt, UserX, Flag, ArrowLeftRight, PackageCheck, ChevronRight, ChevronsRight
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { useUI } from '../../context/UIContext';
@@ -359,7 +358,6 @@ const AdminDashboard = () => {
       <div className="dashboard-columns">
         <section style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <ShieldAlert size={20} color="var(--admin-brand)" />
           <h2 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>Needs Immediate Attention</h2>
         </div>
 
@@ -367,7 +365,7 @@ const AdminDashboard = () => {
           <AttentionCard
             count={state.stats.pendingPayments}
             label="Pending Verifications"
-            icon={CreditCard}
+            icon={Receipt}
             color="var(--status-warning)"
             bg="rgba(245, 158, 11, 0.1)"
             onClick={() => navigate('/admin/payments')}
@@ -375,7 +373,7 @@ const AdminDashboard = () => {
           <AttentionCard
             count={state.stats.unassignedBookings}
             label="Unassigned Fleets"
-            icon={Users}
+            icon={UserX}
             color="#3b82f6"
             bg="rgba(59, 130, 246, 0.1)"
             onClick={() => navigate('/admin/bookings?filter=unassigned')}
@@ -383,7 +381,7 @@ const AdminDashboard = () => {
           <AttentionCard
             count={state.stats.overdueServices}
             label="No-Show Flagged"
-            icon={AlertCircle}
+            icon={Flag}
             color="var(--admin-brand)"
             bg="rgba(196, 31, 43, 0.1)"
             onClick={() => navigate('/admin/bookings?filter=overdue')}
@@ -391,7 +389,7 @@ const AdminDashboard = () => {
           <AttentionCard
             count={state.stats.refundRequests}
             label="Refund Requests"
-            icon={RefreshCcw}
+            icon={ArrowLeftRight}
             color="#f97316"
             bg="rgba(249, 115, 22, 0.1)"
             onClick={() => navigate('/admin/refunds')}
@@ -399,7 +397,7 @@ const AdminDashboard = () => {
           <AttentionCard
             count={state.stats.releaseBay}
             label="Release Bay"
-            icon={CheckCircle}
+            icon={PackageCheck}
             color="var(--status-success)"
             bg="rgba(16, 185, 129, 0.1)"
             onClick={() => navigate('/admin/bookings?filter=completed')}
@@ -439,7 +437,7 @@ const AdminDashboard = () => {
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         <Badge variant="outline" className="text-[0.6rem] font-black uppercase tracking-wider" style={{ background: statusStyle.background, borderColor: statusStyle.border, color: statusStyle.color }}>{String(booking.status).replace('_', ' ')}</Badge>
-                        <ChevronRight size={14} style={{ color: 'var(--admin-text-secondary)' }} />
+                        <ChevronsRight size={14} style={{ color: 'var(--admin-text-secondary)' }} />
                       </div>
                     </div>
                   );
