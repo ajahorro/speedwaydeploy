@@ -1,33 +1,32 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutGrid, Building2, ClipboardList, CalendarDays, CalendarPlus, UserPlus, MessageCircle,
-  BadgeCheck, Undo2, BarChart2, History, Users, BookUser, Bell, CreditCard, Car, Clock, Settings, LogOut,
+  ArrowLeftRight, BellRing, Calendar, Car, Clock, Contact2, Footprints, HardHat, History, Inbox, LayoutGrid, LineChart, ListChecks, LogOut, PlusSquare, Receipt, Settings, Store, Wallet,
 } from 'lucide-react';
 
 /**
  * The side panel's items, shared by the admin, staff and customer layouts so all three look and behave the same.
  *
  * NAV_ICONS gives each kind of page ONE Lucide icon (the icon set shadcn/ui uses), whichever account type shows it:
- * every list of bookings or jobs is a clipboard, every report a bar chart, every history the history clock.
+ * every list of bookings or jobs is a checklist, every report a line chart, every history the history clock.
  * Styling lives in index.css (.sidebar-link): no side line, no lift or shadow on hover, one icon size and stroke.
  */
 export const NAV_ICONS = {
   dashboard: LayoutGrid,
-  business: Building2,
-  bookings: ClipboardList,
-  calendar: CalendarDays,
-  newBooking: CalendarPlus,
-  walkIn: UserPlus,
-  messages: MessageCircle,
-  paymentVerification: BadgeCheck,
-  refunds: Undo2,
-  reports: BarChart2,
+  business: Store,
+  bookings: ListChecks,
+  calendar: Calendar,
+  newBooking: PlusSquare,
+  walkIn: Footprints,
+  messages: Inbox,
+  paymentVerification: Receipt,
+  refunds: ArrowLeftRight,
+  reports: LineChart,
   history: History,
-  staff: Users,
-  clients: BookUser,
-  notifications: Bell,
-  billing: CreditCard,
+  staff: HardHat,
+  clients: Contact2,
+  notifications: BellRing,
+  billing: Wallet,
   garage: Car,
   duty: Clock,
   settings: Settings,
