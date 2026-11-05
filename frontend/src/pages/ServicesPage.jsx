@@ -34,6 +34,26 @@ const lowestPrice = (prices = {}) => {
 
 const sameEverywhere = (prices = {}) => new Set(Object.values(prices).map(Number)).size <= 1;
 
+/**
+ * The Business Hub saves a service once per vehicle type (Basic Carwash for Sedan, for SUV, …), and the catalog keeps
+ * each as its own entry. For customers that is one service, so entries with the same name in a category become one
+ * card whose price list covers every vehicle type.
+ */
+const mergeSameNamed = (catalog) => Object.fromEntries(Object.entries(catalog).map(([category, list]) => {
+  const byName = new Map();
+  for (const service of list || []) {
+    const key = String(service?.name || '').trim().toLowerCase();
+    if (!key) continue;
+    const seen = byName.get(key);
+    if (!seen) { byName.set(key, { ...service, prices: { ...(service.prices || {}) } }); continue; }
+    Object.assign(seen.prices, service.prices || {});
+    if (!seen.desc && service.desc) seen.desc = service.desc;
+    if (!seen.estTime && service.estTime) seen.estTime = service.estTime;
+    if (!seen.image_url && service.image_url) seen.image_url = service.image_url;
+  }
+  return [category, [...byName.values()]];
+}));
+
 function PhotoSlot({ src, alt, className = '', label = 'Photo coming soon' }) {
   const [failed, setFailed] = useState(false);
   if (src && !failed) {
@@ -133,9 +153,9 @@ export default function ServicesPage() {
   const authPending = Boolean(user && (!isInitialized || authLoading));
 
   // The catalog follows the Business Hub: rebuild it whenever the shop config arrives or changes.
-  const [catalog, setCatalog] = useState(() => getServiceCatalog());
+  const [catalog, setCatalog] = useState(() => mergeSameNamed(getServiceCatalog()));
   useEffect(() => {
-    const refresh = () => setCatalog(getServiceCatalog());
+    const refresh = () => setCatalog(mergeSameNamed(getServiceCatalog()));
     refresh();
     window.addEventListener('storage', refresh);
     return () => window.removeEventListener('storage', refresh);
