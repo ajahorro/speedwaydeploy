@@ -6,6 +6,7 @@ import { User, Mail, Lock, Shield, Save, Key } from 'lucide-react';
 import toast from '@/lib/toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { supabase } from '../../lib/supabase';
+import PasswordInput from '../../components/PasswordInput';
 
 const AdminProfile = () => {
   const navigate = useNavigate();
@@ -266,7 +267,7 @@ const AdminProfile = () => {
               </div>
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{ position: 'absolute', left: '1.25rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
-                <input 
+                <PasswordInput 
                   type="password"
                   autoComplete="off"
                   name="profile-current-password"
@@ -284,7 +285,7 @@ const AdminProfile = () => {
               <label style={labelStyle}>New Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{ position: 'absolute', left: '1.25rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
-                <input 
+                <PasswordInput 
                   type="password"
                   autoComplete="new-password"
                   style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text', paddingLeft: '3.25rem' }} 
@@ -299,7 +300,7 @@ const AdminProfile = () => {
               <label style={labelStyle}>Confirm New Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{ position: 'absolute', left: '1.25rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
-                <input 
+                <PasswordInput 
                   type="password"
                   autoComplete="new-password"
                   style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text', paddingLeft: '3.25rem' }} 
@@ -379,7 +380,7 @@ const AdminProfile = () => {
             <h2 style={{ fontWeight: '950', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Authorize Action</h2>
             <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '700', marginBottom: '2rem' }}>Please enter your current password to verify your identity.</p>
             
-            <input 
+            <PasswordInput 
               type="password"
               autoComplete="off"
               name="profile-verify-current-password"

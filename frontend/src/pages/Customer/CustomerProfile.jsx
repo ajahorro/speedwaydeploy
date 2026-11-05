@@ -18,6 +18,7 @@ import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescript
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import PasswordInput from '../../components/PasswordInput';
 
 const CustomerProfile = () => {
   const { confirmThen } = useConfirmAction();
@@ -324,7 +325,7 @@ const CustomerProfile = () => {
               />
               <div className="grid gap-1.5">
                 <Label htmlFor="profile-current-password">Current Password</Label>
-                <Input
+                <PasswordInput as={Input}
                   id="profile-current-password"
                   type="password"
                   name="verification-password"
@@ -342,7 +343,7 @@ const CustomerProfile = () => {
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="profile-new-password">New Password</Label>
-                <Input
+                <PasswordInput as={Input}
                   id="profile-new-password"
                   type="password"
                   autoComplete="new-password"
@@ -356,7 +357,7 @@ const CustomerProfile = () => {
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="profile-confirm-password">Confirm Password</Label>
-                <Input
+                <PasswordInput as={Input}
                   id="profile-confirm-password"
                   type="password"
                   autoComplete="new-password"
@@ -407,7 +408,7 @@ const CustomerProfile = () => {
             <DialogTitle className="flex items-center gap-2"><Shield className="size-5 text-primary" aria-hidden="true" />Confirm Your Identity</DialogTitle>
             <DialogDescription>Enter your current password to confirm this change.</DialogDescription>
           </DialogHeader>
-          <Input
+          <PasswordInput as={Input}
             type="password"
             name="verification-password-modal"
             autoComplete="off"

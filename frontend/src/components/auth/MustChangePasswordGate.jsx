@@ -4,6 +4,7 @@ import { Lock, ShieldAlert, CheckCircle2, Loader2, LogOut } from 'lucide-react';
 import toast from '@/lib/toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import PasswordInput from '../PasswordInput';
 
 /**
  * Section 1.1 — <MustChangePasswordGate>
@@ -195,7 +196,7 @@ const MustChangePasswordGate = () => {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ position: 'relative' }}>
             <Lock size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
-            <input
+            <PasswordInput
               type="password"
               autoComplete="new-password"
               placeholder="New Password"
@@ -207,7 +208,7 @@ const MustChangePasswordGate = () => {
           </div>
           <div style={{ position: 'relative' }}>
             <Lock size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
-            <input
+            <PasswordInput
               type="password"
               autoComplete="new-password"
               placeholder="Confirm New Password"

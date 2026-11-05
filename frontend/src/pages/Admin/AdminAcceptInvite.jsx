@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import toast from '@/lib/toast';
 import { BACKEND_URL } from '../../config/api';
+import PasswordInput from '../../components/PasswordInput';
 
 const AdminAcceptInvite = () => {
   const [searchParams] = useSearchParams();
@@ -189,7 +190,7 @@ const AdminAcceptInvite = () => {
               <label style={labelStyle}>Set Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', width: '1rem', height: '1rem', color: '#444' }} />
-                <input
+                <PasswordInput
                   type="password"
                   required
                   style={inputStyle}
@@ -204,7 +205,7 @@ const AdminAcceptInvite = () => {
               <label style={labelStyle}>Confirm Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', width: '1rem', height: '1rem', color: '#444' }} />
-                <input
+                <PasswordInput
                   type="password"
                   required
                   style={inputStyle}

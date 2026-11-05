@@ -6,6 +6,7 @@ import toast from '@/lib/toast';
 import PageHeader from '../../components/PageHeader';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
+import PasswordInput from '../../components/PasswordInput';
 
 const StaffProfile = () => {
   const { profile, user, verifyPassword, requestPasswordChange, resendPasswordChange } = useAuth();
@@ -176,7 +177,7 @@ const StaffProfile = () => {
               <div style={{ marginBottom: '0.5rem' }}>
                 <div style={labelStyle}>Current Password</div>
               </div>
-              <input
+              <PasswordInput
                 type="password"
                 value={currentPassword}
                 onFocus={() => setCurrentPassword('')}
@@ -191,7 +192,7 @@ const StaffProfile = () => {
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '1.5rem' }}>
               <div>
                 <div style={labelStyle}>New Password</div>
-                <input
+                <PasswordInput
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -203,7 +204,7 @@ const StaffProfile = () => {
               </div>
               <div>
                 <div style={labelStyle}>Confirm New Password</div>
-                <input
+                <PasswordInput
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
