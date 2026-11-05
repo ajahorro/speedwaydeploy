@@ -26,8 +26,8 @@ import { ThemeToggle } from '../components/ThemeToggle';
 export default function ServicesPage() {
   const navigate = useNavigate();
   const { user, profile, loading: authLoading, signOut } = useAuth();
-  const { config } = useConfig();
-  const businessName = config?.business_name || 'Comar Garage';
+  const { settings } = useConfig();
+  const businessName = settings?.BUSINESS_NAME || settings?.config?.business_name || 'Comar Garage';
 
   const [catalog, setCatalog] = useState(() => getServiceCatalog());
   const [activeCategory, setActiveCategory] = useState('ALL');

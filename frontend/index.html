@@ -6,16 +6,6 @@
     <title>Comar Garage</title>
     <meta name="description" content="Comar Garage: premium auto detailing. Book your car wash and detailing online, pay securely and follow your booking." />
     <meta name="theme-color" content="#F9FAFB" />
-    <script>
-      (function() {
-        try {
-          var t = localStorage.getItem('comar-theme') || localStorage.getItem('speedway-theme') || 'light';
-          var resolved = t === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : t;
-          document.documentElement.dataset.theme = resolved;
-          document.documentElement.style.colorScheme = resolved;
-        } catch (e) {}
-      })();
-    </script>
     <!-- the logo in the browser tab, bookmarks and the phone home screen -->
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
