@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Tag, Layers, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { Tag, Layers, ChevronDown, ChevronUp, AlertTriangle, Archive } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { formatDateRange } from '@/utils/dateRange';
 import toast from '@/lib/toast';
 import { getServicesForVehicle, getPackageStandaloneSum } from '../../data/servicesCatalog';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -839,7 +842,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.75rem' }}>
         <div style={{ fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--admin-text-secondary)' }}>
-          {showPastPromos ? `Archived and expired promos (${pastRules.length})` : `Campaign Promo Rules (${currentRules.length})`}
+          {showPastPromos ? `Archived promos (${pastRules.length})` : `Campaign Promo Rules (${currentRules.length})`}
         </div>
         <button
           type="button"
@@ -849,107 +852,54 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
           {showPastPromos ? 'Back to current promos' : `View archived (${pastRules.length})`}
         </button>
       </div>
-      {shownRules.length === 0 && (
-        <div style={{ padding: '1rem', color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: 700 }}>
-          {showPastPromos ? 'No archived or expired promos.' : 'No current promos.'}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {shownRules.map(rule => {
-          const status = rule.archived_at ? 'ARCHIVED' : getPromoStatus(rule);
-          const isOngoing = status === 'ONGOING PROMO';
-
-          return (
-            <div
-              key={rule.id}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: '0.75rem',
-                background: 'var(--admin-bg)',
-                border: isOngoing
-                  ? '1px solid var(--status-success-border, rgba(16, 185, 129, 0.4))'
-                  : '1px solid var(--admin-border)',
-                borderRadius: '4px',
-                padding: '0.9rem 1rem',
-                animation: 'promoCardPulse 0.7s ease',
-                fontFamily: 'inherit'
-              }}
-            >
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-                  <div style={{ fontWeight: '950', fontSize: '0.88rem' }}>
-                    {rule.name}
-                  </div>
-                  {/* Dynamic Status Badge */}
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      fontSize: '0.62rem',
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '4px',
-                      fontWeight: '950',
-                      letterSpacing: '0.06em',
-                      textTransform: 'uppercase',
-                      color: isOngoing ? 'var(--status-success)' : status === 'UPCOMING' ? '#3b82f6' : 'var(--admin-text-secondary)',
-                      background: isOngoing ? 'var(--status-success-soft, rgba(16, 185, 129, 0.12))' : status === 'UPCOMING' ? 'rgba(59, 130, 246, 0.12)' : 'var(--admin-input-bg)',
-                      border: `1px solid ${isOngoing ? 'var(--status-success-border, rgba(16, 185, 129, 0.35))' : status === 'UPCOMING' ? 'rgba(59, 130, 246, 0.35)' : 'var(--admin-border)'}`
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        background: isOngoing ? 'var(--status-success)' : status === 'UPCOMING' ? '#3b82f6' : 'var(--admin-text-secondary)'
-                      }}
-                    />
-                    {status}
-                  </span>
-                </div>
-
-                <div style={{ color: 'var(--admin-text-secondary)', fontSize: '0.72rem', marginTop: '0.2rem' }}>
-                  <span style={{ fontWeight: '800', color: rule.mode === 'package' ? '#818cf8' : 'var(--status-success)', marginRight: '0.5rem' }}>
-                    {rule.mode === 'package' ? `[PACKAGE: ₱${Number(rule.value || 0).toLocaleString()}]` : rule.type === 'percentage' ? `[${rule.value}% OFF]` : `[₱${Number(rule.value || 0).toLocaleString()} OFF]`}
-                  </span>
-                  · {rule.vehicleServiceMatrix
-                    ? Object.entries(rule.vehicleServiceMatrix).map(([v, svcs]) => `${v} (${svcs.length} svcs)`).join(' · ')
-                    : `${(rule.vehicleTypes || []).join(', ')} · ${(rule.serviceMatches || []).join(', ')}`}
-                </div>
-                <div style={{ fontSize: '0.66rem', color: 'var(--admin-text-secondary)', marginTop: '0.3rem', fontWeight: '700' }}>
-                  Valid: {formatPromoDate(rule.validFrom)} to {rule.neverExpires ? 'Never' : formatPromoDate(rule.validUntil)}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                {/* Section 4 — Immutable Promo Action Rule: promotions are CREATE or
-                    DELETE only. The Edit action is removed entirely so a historical
-                    financial record can never be mutated after the fact. To change a
-                    promotion, delete it and create a new one. */}
-                {!showPastPromos && <button
-                  type="button"
-                  onClick={() => handleArchivePromo(rule.id)}
-                  style={{
-                    border: '1px solid var(--status-danger)',
-                    background: 'transparent',
-                    color: 'var(--status-danger)',
-                    padding: '0.5rem 0.8rem',
-                    borderRadius: '4px',
-                    fontWeight: '900',
-                    cursor: 'pointer',
-                    fontSize: '0.68rem'
-                  }}
-                >
-                  Archive
-                </button>}
-              </div>
-            </div>
-          );
-        })}
+      {/* Same table as Promo codes: name, discount, what it applies to, dates, status */}
+      <div className="ui-root overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead>
+            <tr className="border-b text-left text-xs uppercase text-muted-foreground">
+              <th className="py-2 pr-3">Promo</th><th className="pr-3">Discount</th><th className="pr-3">Applies to</th><th className="pr-3">Valid</th><th className="pr-3">Status</th><th />
+            </tr>
+          </thead>
+          <tbody>
+            {shownRules.length === 0 && (
+              <tr><td colSpan={6} className="py-4 text-muted-foreground">{showPastPromos ? 'No archived promos.' : 'No current promos.'}</td></tr>
+            )}
+            {shownRules.map((rule) => {
+              const status = rule.archived_at ? 'ARCHIVED' : getPromoStatus(rule);
+              const badge = status === 'ONGOING PROMO' ? { label: 'Active', variant: 'default' }
+                : status === 'UPCOMING' ? { label: 'Scheduled', variant: 'secondary' }
+                : status === 'ARCHIVED' ? { label: 'Archived', variant: 'outline' }
+                : { label: 'Expired', variant: 'outline' };
+              const matrix = rule.vehicleServiceMatrix || null;
+              const vehicles = matrix ? Object.keys(matrix) : (rule.vehicleTypes || []);
+              const servicesDetail = matrix
+                ? Object.entries(matrix).map(([v, svcs]) => `${v}: ${svcs.length} service${svcs.length === 1 ? '' : 's'}`).join('\n')
+                : (rule.serviceMatches || []).join(', ');
+              const discount = rule.mode === 'package'
+                ? `Package ₱${Number(rule.value || 0).toLocaleString()}`
+                : rule.type === 'percentage' ? `${rule.value}% off` : `₱${Number(rule.value || 0).toLocaleString()} off`;
+              return (
+                <tr key={rule.id} className="border-b">
+                  <td className="py-2 pr-3 font-semibold">{rule.name}<div className="text-xs font-normal text-muted-foreground">{rule.mode === 'package' ? 'Package' : 'Discount'}</div></td>
+                  <td className="whitespace-nowrap pr-3">{discount}</td>
+                  <td className="pr-3" title={servicesDetail}>{vehicles.length ? vehicles.join(', ') : 'All vehicles'}</td>
+                  <td className="whitespace-nowrap pr-3" title={`${formatPromoDate(rule.validFrom)} to ${rule.neverExpires ? 'no end date' : formatPromoDate(rule.validUntil)}`}>
+                    {formatDateRange(rule.validFrom, rule.neverExpires ? null : rule.validUntil)}
+                  </td>
+                  <td className="pr-3"><Badge variant={badge.variant}>{badge.label}</Badge></td>
+                  <td className="text-right">
+                    {/* Promos are create-or-archive only (no editing), so past bookings keep the terms they used. */}
+                    {!showPastPromos && (
+                      <Button size="sm" variant="outline" aria-label={`Archive ${rule.name}`} onClick={() => handleArchivePromo(rule.id)}>
+                        <Archive /> Archive
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
       {promoPager}
     </div>
