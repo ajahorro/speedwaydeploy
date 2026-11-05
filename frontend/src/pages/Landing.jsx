@@ -72,6 +72,8 @@ function Reveal({ children, delay = 0, direction = 'up', style: extraStyle = {},
 // ─── Landing ──────────────────────────────────────────────────────────────────
 const Landing = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
+  // Where the sign-in pop-up sends someone afterwards: the booking form for "Book" buttons, otherwise their dashboard.
+  const [loginNext, setLoginNext] = useState(undefined);
   const [menuOpen, setMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
   const [openService, setOpenService] = useState(null);
@@ -132,6 +134,7 @@ const Landing = () => {
 
   const handleAuthAction = () => {
     if (!user) {
+      setLoginNext(undefined);
       setShowLoginModal(true);
       setMenuOpen(false);
       return;
@@ -147,6 +150,17 @@ const Landing = () => {
       navigate('/customer');
     }
     setMenuOpen(false);
+  };
+
+  // "Book" buttons: signed-out visitors get the sign-in pop-up and continue to the booking form afterwards.
+  const handleBookAction = () => {
+    if (!user) {
+      setLoginNext('/customer/book');
+      setShowLoginModal(true);
+      setMenuOpen(false);
+      return;
+    }
+    handleAuthAction();
   };
 
   useEffect(() => {
@@ -169,13 +183,15 @@ const Landing = () => {
   }, [menuOpen]);
 
   useEffect(() => {
+    // While the sign-in pop-up is open it decides where to go (e.g. the booking form after "Book now").
+    if (showLoginModal) return;
     if (isInitialized && !authLoading && user?.id && profile?.role) {
       const roleKey = String(profile.role || '').toUpperCase();
       const routes = { ADMIN: '/admin', STAFF: '/staff', CUSTOMER: '/customer' };
       const targetRoute = routes[roleKey] || '/customer';
       if (window.location.pathname !== targetRoute) navigate(targetRoute, { replace: true });
     }
-  }, [isInitialized, authLoading, user, profile, navigate]);
+  }, [isInitialized, authLoading, user, profile, navigate, showLoginModal]);
 
   const scrollToSection = useCallback((id) => {
     setMenuOpen(false);
@@ -538,7 +554,7 @@ const Landing = () => {
           </Reveal>
 
           <Reveal delay={1050} direction="up">
-            <HeroActions user={user} pending={authActionPending} onAuth={handleAuthAction} />
+            <HeroActions user={user} pending={authActionPending} onAuth={handleBookAction} />
           </Reveal>
         </div>
       </section>
@@ -644,7 +660,7 @@ const Landing = () => {
 
                 <button
                   type="button"
-                  onClick={handleAuthAction}
+                  onClick={handleBookAction}
                   style={{
                     background: 'rgba(255,255,255,0.06)',
                     color: '#fff',
@@ -713,7 +729,7 @@ const Landing = () => {
       />
 
       {/* LOGIN MODAL */}
-      {showLoginModal && <Login isModal onClose={() => setShowLoginModal(false)} />}
+      {showLoginModal && <Login isModal next={loginNext} onClose={() => setShowLoginModal(false)} />}
     </div>
   );
 };

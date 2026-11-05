@@ -12,6 +12,7 @@ import {
   CATEGORY_BLURBS, SERVICE_PHOTO_SLOTS, photosForCategory, photosForService
 } from '../config/servicePhotos';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import Login from './Login';
 
 /**
  * Public services catalog (/services). One category at a time, chosen from the tabs (kept in the URL as
@@ -173,6 +174,8 @@ export default function ServicesPage() {
   const [query, setQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [selected, setSelected] = useState(null); // { service, category }
+  // Sign-in pop-up: null = closed, otherwise where to go after signing in ('' = the person's own dashboard).
+  const [loginNext, setLoginNext] = useState(null);
 
   // The app shell locks page scrolling; public pages opt back in (same as the landing page).
   useEffect(() => {
@@ -201,14 +204,14 @@ export default function ServicesPage() {
   }, [query, categories, catalog]);
 
   const goToDashboard = () => {
-    if (!user) { navigate('/login'); return; }
+    if (!user) { setLoginNext(''); return; }
     if (authPending) return;
     navigate(DASHBOARD_ROUTES[String(profile?.role || '').toUpperCase()] || '/customer');
   };
 
   const book = () => {
     setSelected(null);
-    if (!user) { navigate('/login'); return; }
+    if (!user) { setLoginNext('/customer/book'); return; }
     const role = String(profile?.role || '').toUpperCase();
     navigate(role === 'CUSTOMER' || !role ? '/customer/book' : (DASHBOARD_ROUTES[role] || '/customer'));
   };
@@ -396,6 +399,10 @@ export default function ServicesPage() {
           { label: 'Twitter', icon: Twitter },
         ]}
       />
+
+      {loginNext !== null && !user && (
+        <Login isModal next={loginNext || undefined} onClose={() => setLoginNext(null)} />
+      )}
 
       <ServiceDetail
         service={selected?.service}

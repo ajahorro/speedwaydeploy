@@ -11,7 +11,7 @@ import { X, Mail } from 'lucide-react';
 import toast from '@/lib/toast';
 import { supabase } from '../lib/supabase';
 
-const Login = ({ isModal = false, onClose }) => {
+const Login = ({ isModal = false, onClose, next }) => {
   const isMobile = useMediaQuery('(max-width: 640px)');
   const {
     mode,
@@ -26,7 +26,20 @@ const Login = ({ isModal = false, onClose }) => {
     completeEmergencyRecovery,
     loginError,
     clearLoginError
-  } = useAuthFlow();
+  } = useAuthFlow({ next });
+
+  // As a pop-up: Escape closes it, and the page behind does not scroll while it is open.
+  useEffect(() => {
+    if (!isModal) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isModal, onClose]);
 
   // The automatic sign-out sends the user here with ?reason=idle: say why, once.
   useEffect(() => {

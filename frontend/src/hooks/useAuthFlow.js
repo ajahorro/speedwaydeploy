@@ -7,7 +7,11 @@ import { BACKEND_URL } from '../config/api';
 import { emailError, phoneError, normalizePhPhone } from '../utils/contactValidation';
 import { safeNextPath } from '../utils/safeNextPath';
 
-export const useAuthFlow = () => {
+/**
+ * @param {{ next?: string }} [options] next: where to go after sign-in when the page address has no ?next=
+ *   (the sign-in pop-up passes it, e.g. /customer/book after a "Book" button). Checked by safeNextPath like ?next=.
+ */
+export const useAuthFlow = ({ next: nextOption } = {}) => {
   const navigate = useNavigate();
   const { user, profile, signInWithPassword, requestPasswordReset } = useAuth();
 
@@ -32,11 +36,11 @@ export const useAuthFlow = () => {
       if (mode !== 'RESET' && mode !== 'AWAIT_LINK') {
         // An email button or a guarded page sends people here with ?next=<page>;
         // after sign-in they continue to it (when it is theirs to open).
-        const next = safeNextPath(new URLSearchParams(window.location.search).get('next'), roleKey);
+        const next = safeNextPath(new URLSearchParams(window.location.search).get('next') || nextOption, roleKey);
         navigate(next || routes[roleKey] || '/customer');
       }
     }
-  }, [user, profile, mode, navigate]);
+  }, [user, profile, mode, navigate, nextOption]);
 
   const login = async (email, password) => {    setIsLoading(true);
     setLoginError('');
