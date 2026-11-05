@@ -514,7 +514,7 @@ const Landing = () => {
           alignItems: 'center',
           justifyContent: 'center',
           overflow: 'hidden',
-          background: 'radial-gradient(ellipse at center, rgba(169, 27, 24, 0.22) 0%, rgba(10, 11, 13, 0.88) 65%, #0A0B0D 100%)'
+          background: 'radial-gradient(ellipse at center, rgba(196, 31, 43, 0.22) 0%, rgba(10, 11, 13, 0.88) 65%, #0A0B0D 100%)'
         }}
       >
         {/* Background video — zoom to fit phone screen on mobile, cover widescreen on desktop */}
@@ -587,7 +587,7 @@ const Landing = () => {
         <div className="container-wide">
           <Reveal direction="up">
             <div style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(196, 31, 43, 0.12)', border: '1px solid rgba(196, 31, 43, 0.3)', borderRadius: '999px', padding: '0.4rem 1rem', marginBottom: '1rem', color: '#ff4d5a', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(196, 31, 43, 0.12)', border: '1px solid rgba(196, 31, 43, 0.3)', borderRadius: '999px', padding: '0.4rem 1rem', marginBottom: '1rem', color: '#C41F2B', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px' }}>
                 <Sparkles size={14} /> Full Catalog On Dedicated Page
               </div>
               <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '1rem', fontWeight: 950 }}>OUR SERVICES & PACKAGES</h2>

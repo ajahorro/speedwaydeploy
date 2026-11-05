@@ -456,7 +456,7 @@ const AdminRefunds = () => {
                 padding: isMobile ? '1rem' : '1.25rem',
                 cursor: 'pointer',
                 border: state.selectedItem?.id === b.id ? '2px solid var(--admin-brand)' : '1px solid var(--admin-border)',
-                background: state.selectedItem?.id === b.id ? 'rgba(169, 27, 24, 0.03)' : 'var(--admin-card)'
+                background: state.selectedItem?.id === b.id ? 'rgba(196, 31, 43, 0.03)' : 'var(--admin-card)'
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
@@ -472,12 +472,12 @@ const AdminRefunds = () => {
                     ? 'rgba(16, 185, 129, 0.1)'
                     : b.refundStatus === 'EMAIL_PENDING'
                     ? 'rgba(245, 158, 11, 0.1)'
-                    : 'rgba(239, 68, 68, 0.1)',
+                    : 'rgba(196, 31, 43, 0.1)',
                   color: b.refundStatus === 'PROCESSED'
                     ? '#10b981'
                     : b.refundStatus === 'EMAIL_PENDING'
                     ? '#f59e0b'
-                    : '#ef4444',
+                    : '#C41F2B',
                   fontWeight: '900'
                 }}>
                   {b.refundStatus === 'EMAIL_PENDING' ? 'EMAIL PENDING' : b.refundStatus}
@@ -768,7 +768,7 @@ const AdminRefunds = () => {
                   {(state.confirmRefundItem.payments || []).filter(p => String(p.method || '').toUpperCase() !== 'RECEIVABLE' && String(p.status || '').toUpperCase() !== 'REJECTED').map(p => (
                     <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.7rem', padding: '0.15rem 0' }}>
                       <span style={{ color: 'var(--admin-text-secondary)' }}>{new Date(p.created_at).toLocaleDateString()} · {String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' ? 'Refund' : p.method}</span>
-                      <span style={{ fontWeight: '800', color: Number(p.amount) < 0 ? '#ef4444' : 'inherit' }}>{Number(p.amount) < 0 ? '−' : ''}{money(Math.abs(Number(p.amount || 0)))}</span>
+                      <span style={{ fontWeight: '800', color: Number(p.amount) < 0 ? '#C41F2B' : 'inherit' }}>{Number(p.amount) < 0 ? '−' : ''}{money(Math.abs(Number(p.amount || 0)))}</span>
                     </div>
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.74rem', padding: '0.4rem 0 0', marginTop: '0.3rem', borderTop: '1px solid var(--admin-border)' }}>

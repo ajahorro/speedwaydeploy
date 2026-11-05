@@ -27,7 +27,7 @@ const messageStyle = {
   margin: '0.35rem 0 0',
   fontSize: '0.7rem',
   fontWeight: 700,
-  color: '#ef4444',
+  color: '#C41F2B',
   lineHeight: 1.3
 };
 

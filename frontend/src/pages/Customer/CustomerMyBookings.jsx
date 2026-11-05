@@ -38,7 +38,7 @@ const CustomerMyBookings = () => {
       case 'in_progress': return '#a855f7';
       case 'completed': return 'var(--admin-success)';
       case 'cancelled':
-      case 'flagged_noshow': return '#ef4444';
+      case 'flagged_noshow': return '#C41F2B';
       default: return 'var(--admin-text-secondary)';
     }
   };

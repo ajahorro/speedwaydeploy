@@ -245,11 +245,11 @@ export const extractOcrDetails = (booking?: BookingLike | null, payment?: Paymen
 
 const shell = (title: string, inner: string): string => `
   <div style="font-family:'Segoe UI',Tahoma,sans-serif;max-width:640px;margin:0 auto;background:#ffffff;color:#111827;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-    <div style="background:#a91b18;padding:22px;text-align:center;color:#ffffff;">
+    <div style="background:#C41F2B;padding:22px;text-align:center;color:#ffffff;">
       <h1 style="margin:0;font-size:23px;letter-spacing:2px;">COMAR GARAGE</h1>
     </div>
     <div style="padding:30px;">
-      <h2 style="color:#a91b18;margin:0 0 18px;">${escapeHtml(title)}</h2>
+      <h2 style="color:#C41F2B;margin:0 0 18px;">${escapeHtml(title)}</h2>
       ${inner}
     </div>
     <div style="background:#f8fafc;padding:16px;text-align:center;font-size:12px;color:#6b7280;">
@@ -273,14 +273,14 @@ const renderLifecycle = (statusKey: string): string => {
       ${lifecycleSteps.map((step, index) => {
         const isActive = index === activeIndex;
         const isPast = activeIndex >= 0 && index < activeIndex;
-        const color = isException && index === 0 ? '#dc2626' : (isActive || isPast ? '#e61e2a' : '#cbd5e1');
+        const color = isException && index === 0 ? '#C41F2B' : (isActive || isPast ? '#C41F2B' : '#cbd5e1');
         return `<td style="width:${100 / lifecycleSteps.length}%;text-align:center;vertical-align:top;">
           <div style="margin:0 auto 8px;width:18px;height:18px;line-height:18px;border-radius:50%;background:${color};color:#fff;font-size:11px;font-weight:700;">${isPast || isActive ? '&#10003;' : ''}</div>
           <div style="font-size:10px;line-height:13px;color:${isActive ? '#111827' : '#6b7280'};font-weight:${isActive ? '700' : '400'};">${step}</div>
         </td>`;
       }).join('')}
     </tr></table>
-    ${isException ? `<div style="margin-top:12px;text-align:center;color:#dc2626;font-size:12px;font-weight:700;">${escapeHtml(normalized)}</div>` : ''}
+    ${isException ? `<div style="margin-top:12px;text-align:center;color:#C41F2B;font-size:12px;font-weight:700;">${escapeHtml(normalized)}</div>` : ''}
   </div>`;
 };
 
@@ -379,7 +379,7 @@ const portalUrlFor = (booking: BookingLike): { url: string; label: string } => {
 
 const ctaButton = (booking: BookingLike, _label?: string): string => {
   const portal = portalUrlFor(booking)
-  return `<div style="margin-top:28px;text-align:center;"><a href="${escapeHtml(portal.url)}" style="background:#a91b18;color:#ffffff;padding:13px 26px;text-decoration:none;border-radius:5px;font-weight:700;display:inline-block;">${escapeHtml(portal.label)}</a></div>`
+  return `<div style="margin-top:28px;text-align:center;"><a href="${escapeHtml(portal.url)}" style="background:#C41F2B;color:#ffffff;padding:13px 26px;text-decoration:none;border-radius:2px;font-weight:700;display:inline-block;">${escapeHtml(portal.label)}</a></div>`
 }
 
 // ── Public API ──────────────────────────────────────────────────────────────
@@ -532,7 +532,7 @@ export const buildStatusEmail = ({ booking, payment, ledger, customerName, newSt
     ${bookingTable(booking, appointmentDate, amounts)}
     ${paymentBlock(amounts, extractOcrDetails(booking, payment))}
     ${renderLifecycle(statusKey)}
-    ${remarks ? `<p style="margin-top:15px;padding:10px;background:#f8fafc;border-left:4px solid #a91b18;"><strong>Note:</strong> ${escapeHtml(remarks)}</p>` : ''}
+    ${remarks ? `<p style="margin-top:15px;padding:10px;background:#f8fafc;border-left:4px solid #C41F2B;"><strong>Note:</strong> ${escapeHtml(remarks)}</p>` : ''}
     ${ctaButton(booking, 'VIEW BOOKING DETAILS')}`;
 
   return {

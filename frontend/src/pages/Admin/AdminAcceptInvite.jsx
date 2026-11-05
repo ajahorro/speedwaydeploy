@@ -86,7 +86,7 @@ const AdminAcceptInvite = () => {
   if (loading) {
     return (
       <div style={{ minHeight: '100 screen', background: '#0A0A0A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Loader2 style={{ width: '2rem', height: '2rem', color: '#A91B18' }} className="animate-spin" />
+        <Loader2 style={{ width: '2rem', height: '2rem', color: '#C41F2B' }} className="animate-spin" />
       </div>
     );
   }
@@ -100,7 +100,7 @@ const AdminAcceptInvite = () => {
           <p style={{ color: '#888', marginBottom: '1.5rem', fontSize: '0.9rem' }}>{error}</p>
           <button 
             onClick={() => navigate('/login')}
-            style={{ width: '100%', background: '#A91B18', color: 'var(--admin-text-primary)', padding: '1rem', borderRadius: '0.75rem', fontWeight: '900', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}
+            style={{ width: '100%', background: '#C41F2B', color: 'var(--admin-text-primary)', padding: '1rem', borderRadius: '0.75rem', fontWeight: '900', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}
           >
             Go to Login
           </button>
@@ -149,7 +149,7 @@ const AdminAcceptInvite = () => {
             <h2 style={{ fontSize: '1.25rem', fontWeight: '900', color: 'var(--admin-text-primary)', margin: '0 0 0.5rem' }}>Welcome aboard!</h2>
             <p style={{ fontSize: '0.85rem', color: '#666', margin: 0 }}>
               You're joining as <strong style={{ color: 'var(--admin-text-primary)' }}>{inviteData?.role}</strong> for <br/>
-              <span style={{ color: '#A91B18', fontWeight: '700' }}>{inviteData?.email}</span>
+              <span style={{ color: '#C41F2B', fontWeight: '700' }}>{inviteData?.email}</span>
             </p>
           </div>
 
@@ -220,7 +220,7 @@ const AdminAcceptInvite = () => {
               disabled={submitting}
               style={{ 
                 width: '100%', 
-                background: '#A91B18', 
+                background: '#C41F2B', 
                 color: 'var(--admin-text-primary)', 
                 padding: '1.25rem', 
                 borderRadius: '1rem', 
@@ -231,7 +231,7 @@ const AdminAcceptInvite = () => {
                 border: 'none', 
                 cursor: submitting ? 'not-allowed' : 'pointer',
                 opacity: submitting ? 0.7 : 1,
-                boxShadow: '0 10px 15px -3px rgba(169, 27, 24, 0.3)',
+                boxShadow: '0 10px 15px -3px rgba(196, 31, 43, 0.3)',
                 marginTop: '1rem',
                 transition: 'transform 0.2s'
               }}

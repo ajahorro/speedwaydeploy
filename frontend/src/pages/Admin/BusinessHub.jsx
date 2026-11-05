@@ -1978,9 +1978,9 @@ export default function BusinessHub() {
           borderRadius: 'var(--admin-radius)',
           fontSize: '0.78rem',
           fontWeight: 700,
-          background: message.type === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'var(--status-success-soft)',
-          border: `1px solid ${message.type === 'error' ? 'rgba(239, 68, 68, 0.35)' : 'var(--status-success-border)'}`,
-          color: message.type === 'error' ? '#f87171' : 'var(--status-success)'
+          background: message.type === 'error' ? 'rgba(196, 31, 43, 0.1)' : 'var(--status-success-soft)',
+          border: `1px solid ${message.type === 'error' ? 'rgba(196, 31, 43, 0.35)' : 'var(--status-success-border)'}`,
+          color: message.type === 'error' ? '#C41F2B' : 'var(--status-success)'
         }}>
           {message.type === 'error' ? <AlertCircle size={16} /> : <CheckCircle size={16} />}
           <span>{message.text}</span>
@@ -2194,7 +2194,7 @@ export default function BusinessHub() {
                               </button>
                               <button type="button" onClick={() => editFaq(faq)} style={ghostButton}>Edit answer</button>
                               {!faq.isStarter && (
-                                <button type="button" onClick={() => removeFaq(faq.id)} style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}>
+                                <button type="button" onClick={() => removeFaq(faq.id)} style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(196, 31, 43, 0.4)' }}>
                                   <Trash2 size={13} /> Delete
                                 </button>
                               )}
@@ -2401,7 +2401,7 @@ export default function BusinessHub() {
                           style={{
                             borderRadius: '0.75rem',
                             border: `1px solid ${isClosed ? 'var(--status-danger)' : 'var(--admin-border)'}`,
-                            background: isClosed ? 'rgba(239, 68, 68, 0.09)' : 'var(--admin-input-bg, var(--admin-bg))',
+                            background: isClosed ? 'rgba(196, 31, 43, 0.09)' : 'var(--admin-input-bg, var(--admin-bg))',
                             color: 'var(--admin-text-primary)',
                             padding: '0.7rem 0.45rem',
                             textAlign: 'center',
@@ -2430,7 +2430,7 @@ export default function BusinessHub() {
                               letterSpacing: '0.04em',
                               textTransform: 'uppercase',
                               border: `1px solid ${isClosed ? 'var(--status-danger)' : 'var(--status-success-border)'}`,
-                              background: isClosed ? 'rgba(239, 68, 68, 0.12)' : 'var(--status-success-soft)',
+                              background: isClosed ? 'rgba(196, 31, 43, 0.12)' : 'var(--status-success-soft)',
                               color: isClosed ? 'var(--status-danger)' : 'var(--status-success)'
                             }}
                           >
@@ -2887,7 +2887,7 @@ export default function BusinessHub() {
                                       {isArchivedService(service) ? (
                                         <button type="button" onClick={() => requestRestoreService(service)} style={{ ...ghostButton, color: 'var(--admin-brand)' }}>Restore</button>
                                       ) : (
-                                        <button type="button" onClick={() => requestArchiveService(service)} style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(239,68,68,0.4)' }}>Archive</button>
+                                        <button type="button" onClick={() => requestArchiveService(service)} style={{ ...ghostButton, color: 'var(--status-danger)', borderColor: 'rgba(196, 31, 43,0.4)' }}>Archive</button>
                                       )}
                                     </>
                                   )}

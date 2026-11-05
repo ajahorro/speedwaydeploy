@@ -20,8 +20,8 @@
    * ---------------------------------------------------------------------- */
   --app-shell-header-height: 76px;
 
-  --admin-brand: #E61E2A; /* Comar Garage brand red */
-  --admin-brand-rgb: 230, 30, 42;
+  --admin-brand: #C41F2B; /* Comar Garage brand red */
+  --admin-brand-rgb: 196, 31, 43;
   --admin-bg: #0A0B0D; /* Deep Charcoal */
   --admin-sidebar: #0F1012;
   --admin-card: #15171A;
@@ -29,8 +29,8 @@
   --admin-text-primary: #FFFFFF;
   --admin-text-secondary: #8E9196;
   --admin-card-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  --admin-sidebar-active-bg: rgba(230, 30, 42, 0.1);
-  --admin-sidebar-active-text: #E61E2A;
+  --admin-sidebar-active-bg: rgba(196, 31, 43, 0.1);
+  --admin-sidebar-active-text: #C41F2B;
   --admin-input-bg: #1A1C20;
   --admin-input-border: rgba(255, 255, 255, 0.1);
   --admin-radius: 4px; /* Sharper corners as requested */
@@ -45,7 +45,7 @@
   --admin-text-on-brand: #FFFFFF;
   --admin-text-on-status: #FFFFFF;
 
-  --primary-color: #E61E2A;
+  --primary-color: #C41F2B;
   --page-header-gap: clamp(0.5rem, 1vw, 0.75rem);
 
   /* Status / saving colours. Dark theme keeps Emerald 500 (~6.5:1 on the
@@ -54,7 +54,7 @@
   --status-success-soft: rgba(16, 185, 129, 0.12);
   --status-success-border: rgba(16, 185, 129, 0.35);
   --status-warning: #f59e0b;
-  --status-danger: #ef4444;
+  --status-danger: #C41F2B;
   --status-info: #60a5fa;
   --status-accent: #a78bfa;
 
@@ -70,7 +70,7 @@
   --admin-info: #3b82f6;
   --admin-info-rgb: 59, 130, 246;
   --admin-surface: var(--admin-card);
-  --admin-brand-light: #f05663;
+  --admin-brand-light: #C41F2B;
   --admin-radius-md: 10px;
   --admin-radius-lg: 16px;
 }
@@ -83,7 +83,7 @@
   --admin-text-primary: #111827;
   --admin-text-secondary: #6B7280;
   --admin-card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --admin-sidebar-active-bg: rgba(230, 30, 42, 0.05);
+  --admin-sidebar-active-bg: rgba(196, 31, 43, 0.05);
   --admin-sidebar-active-text: var(--admin-brand);
   --admin-input-bg: #F3F4F6;
   --admin-input-border: rgba(0, 0, 0, 0.1);
@@ -102,7 +102,7 @@
   --status-success-soft: rgba(4, 120, 87, 0.10);
   --status-success-border: rgba(4, 120, 87, 0.30);
   --status-warning: #b45309;
-  --status-danger: #b91c1c;
+  --status-danger: #C41F2B;
   --status-info: #1d4ed8;
   --status-accent: #6d28d9;
 
@@ -114,7 +114,7 @@
   --admin-info: #1d4ed8;
   --admin-info-rgb: 29, 78, 216;
   --admin-surface: var(--admin-card);
-  --admin-brand-light: #f05663;
+  --admin-brand-light: #C41F2B;
 }
 
 @media (max-width: 480px) {
@@ -495,7 +495,7 @@ img, video {
   --muted-foreground: rgba(255, 255, 255, 0.55);
   --accent: #1d2024;
   --accent-foreground: #ffffff;
-  --destructive: #ef4444;
+  --destructive: #C41F2B;
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.14);
   --ring: #C41F2B;
@@ -523,6 +523,14 @@ body.admin-account-active :where(*:not(svg):not(img):not([style*="border-radius:
   border-radius: 4px !important;
 }
 
-body.admin-account-active :where(button, input, select, textarea, [role="button"]) {
+body.admin-account-active :where(input, select, textarea) {
   border-radius: 4px !important;
+}
+
+/* ── Uniform buttons ──────────────────────────────────────────────────────────
+   Every button uses the same sharp 2px corners as the landing page's "Book now",
+   whatever its own classes or inline style say. Circles stay circles: round icon
+   buttons (rounded-full or a 50% radius), toggle switches and radio dots. */
+:where(button, [role="button"], [role="tab"], input[type="button"], input[type="submit"], input[type="reset"]):not([class*="rounded-full"]):not([role="switch"]):not([role="radio"]):not([style*="radius: 50%"]) {
+  border-radius: 2px !important;
 }

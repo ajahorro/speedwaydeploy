@@ -296,7 +296,7 @@ const AdminSchedule = () => {
                         fontWeight: '900',
                         color: isSelected || isToday ? 'var(--admin-text-primary)' : 'var(--admin-text-secondary)',
                         position: 'relative',
-                        border: isSelected ? '2px solid var(--admin-brand)' : isToday ? '1px solid rgba(230,30,42,0.4)' : 'none'
+                        border: isSelected ? '2px solid var(--admin-brand)' : isToday ? '1px solid rgba(196, 31, 43,0.4)' : 'none'
                       }}
                     >
                       {day}
@@ -319,7 +319,7 @@ const AdminSchedule = () => {
             {blockedSlots.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {blockedSlots.map(block => (
-                  <div key={block.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(230,30,42,0.05)', padding: '0.75rem', borderRadius: '4px', border: '1px solid rgba(230,30,42,0.1)' }}>
+                  <div key={block.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(196, 31, 43,0.05)', padding: '0.75rem', borderRadius: '4px', border: '1px solid rgba(196, 31, 43,0.1)' }}>
                     <div>
                       <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>{block.reason || 'MAINTENANCE'}</p>
                       <p style={{ margin: 0, fontSize: '0.6rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>

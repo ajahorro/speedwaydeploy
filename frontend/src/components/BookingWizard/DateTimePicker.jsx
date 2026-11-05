@@ -16,7 +16,7 @@ function toDateString(dateObj) {
 function getCapacityColor(bays) {
   if (bays >= 4) return '#10b981';
   if (bays >= 2) return '#f59e0b';
-  return '#ef4444';
+  return '#C41F2B';
 }
 
 const MONTH_NAMES = [
@@ -200,7 +200,7 @@ function SlotList({ slots, selectedTime, onSelect, isLoading, selectedDate, date
 
   if (slots.length === 0) {
     return (
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '1rem', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '10px', color: 'var(--status-danger)', fontSize: '0.8rem', fontWeight: '700' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '1rem', background: 'rgba(196, 31, 43,0.08)', border: '1px solid rgba(196, 31, 43,0.25)', borderRadius: '10px', color: 'var(--status-danger)', fontSize: '0.8rem', fontWeight: '700' }}>
         <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '0.1rem' }} />
         <span>
           {dateGate && !dateGate.bookable

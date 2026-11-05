@@ -133,14 +133,14 @@ const Login = ({ isModal = false, onClose, next }) => {
             <div style={{
               width: '64px',
               height: '64px',
-              background: 'rgba(169, 27, 24, 0.1)',
+              background: 'rgba(196, 31, 43, 0.1)',
               borderRadius: '1.5rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 1.5rem',
               color: 'var(--admin-brand)',
-              border: '1px solid rgba(169, 27, 24, 0.2)'
+              border: '1px solid rgba(196, 31, 43, 0.2)'
             }}>
               <Mail size={32} />
             </div>
@@ -191,7 +191,7 @@ const Login = ({ isModal = false, onClose, next }) => {
       position: 'absolute',
       top, left, right, bottom,
       width: size, height: size,
-      background: color || 'rgba(169, 27, 24, 0.2)',
+      background: color || 'rgba(196, 31, 43, 0.2)',
       filter: 'blur(150px)',
       borderRadius: '50%',
       zIndex: 0,
@@ -205,9 +205,9 @@ const Login = ({ isModal = false, onClose, next }) => {
       {/* Background Glows */}
       {!isModal && (
         <>
-          <BlurGlow top="-5%" left="-5%" size="800px" color="rgba(169, 27, 24, 0.3)" />
-          <BlurGlow top="20%" right="-5%" size="700px" color="rgba(169, 27, 24, 0.2)" />
-          <BlurGlow bottom="5%" right="0%" size="800px" color="rgba(169, 27, 24, 0.2)" />
+          <BlurGlow top="-5%" left="-5%" size="800px" color="rgba(196, 31, 43, 0.3)" />
+          <BlurGlow top="20%" right="-5%" size="700px" color="rgba(196, 31, 43, 0.2)" />
+          <BlurGlow bottom="5%" right="0%" size="800px" color="rgba(196, 31, 43, 0.2)" />
         </>
       )}
 

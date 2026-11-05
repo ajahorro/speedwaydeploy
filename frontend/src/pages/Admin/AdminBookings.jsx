@@ -322,7 +322,7 @@ const AdminBookings = () => {
                       event.stopPropagation();
                       requestCancelBooking(booking);
                     }}
-                    style={{ width: '100%', marginTop: '0.85rem', padding: '0.75rem', background: 'transparent', border: '1px solid var(--status-danger, #dc2626)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-danger, #dc2626)', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', textTransform: 'uppercase' }}
+                    style={{ width: '100%', marginTop: '0.85rem', padding: '0.75rem', background: 'transparent', border: '1px solid var(--status-danger, #C41F2B)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--status-danger, #C41F2B)', fontSize: '0.7rem', fontWeight: 900, cursor: 'pointer', textTransform: 'uppercase' }}
                   >
                     Cancel
                   </button>
@@ -389,7 +389,7 @@ const AdminBookings = () => {
                           <button
                             type="button"
                             onClick={() => requestCancelBooking(booking)}
-                            style={{ background: 'transparent', border: '1px solid var(--status-danger, #dc2626)', color: 'var(--status-danger, #dc2626)', padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.65rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}
+                            style={{ background: 'transparent', border: '1px solid var(--status-danger, #C41F2B)', color: 'var(--status-danger, #C41F2B)', padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.65rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}
                           >
                             CANCEL
                           </button>

@@ -32,7 +32,7 @@ const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
         <div style={{
           width: '40px', height: '40px', borderRadius: '50%',
-          background: 'rgba(239,68,68,0.1)',
+          background: 'rgba(196, 31, 43,0.1)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           flexShrink: 0
         }}>

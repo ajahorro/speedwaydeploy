@@ -71,7 +71,7 @@ const AdminSchedulingGrid = ({ onBack }) => {
       case 'scheduled': return 'var(--admin-brand)';
       case 'in_progress': return '#a855f7';
       case 'completed': return '#10b981';
-      case 'cancelled': return '#ef4444';
+      case 'cancelled': return '#C41F2B';
       default: return 'var(--admin-text-secondary)';
     }
   };
@@ -135,7 +135,7 @@ const AdminSchedulingGrid = ({ onBack }) => {
   };
 
   const renderRow = (label, rowBookings, isUnassigned = false) => (
-    <div style={{ display: 'grid', gridTemplateColumns: `180px repeat(${timeSlots.length}, 1fr)`, borderBottom: '1px solid var(--admin-border)', minHeight: '80px', position: 'relative', background: isUnassigned ? 'rgba(230, 30, 42, 0.03)' : 'transparent' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `180px repeat(${timeSlots.length}, 1fr)`, borderBottom: '1px solid var(--admin-border)', minHeight: '80px', position: 'relative', background: isUnassigned ? 'rgba(196, 31, 43, 0.03)' : 'transparent' }}>
       <div style={{ padding: '1rem', borderRight: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         {isUnassigned ? <AlertCircle size={14} color="var(--admin-brand)" /> : <User size={14} color="var(--admin-text-secondary)" />}
         <span style={{ fontSize: '0.7rem', fontWeight: '950', color: isUnassigned ? 'var(--admin-brand)' : 'var(--admin-text-primary)', textTransform: 'uppercase' }}>{label}</span>

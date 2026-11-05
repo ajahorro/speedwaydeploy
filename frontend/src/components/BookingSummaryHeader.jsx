@@ -108,7 +108,7 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
               </span>
             )}
             <span style={{ display: 'block', marginTop: '0.2rem', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase' }}>
-              <span style={{ color: booking?.customer_id ? 'var(--admin-brand)' : 'rgba(230, 30, 42, 0.62)' }}>
+              <span style={{ color: booking?.customer_id ? 'var(--admin-brand)' : 'rgba(196, 31, 43, 0.62)' }}>
                 {booking?.customer_id ? 'Customer Account' : (booking?.is_walk_in === false ? 'Account Deleted' : 'Walk-in Guest')}
               </span>
             </span>
@@ -138,8 +138,8 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
           style={{
             display: 'flex', alignItems: 'center', gap: '0.75rem',
             padding: '1rem', borderRadius: 'var(--admin-radius-sm)',
-            color: 'var(--status-danger)', background: 'rgba(239, 68, 68, 0.08)',
-            border: '1px solid rgba(239, 68, 68, 0.3)'
+            color: 'var(--status-danger)', background: 'rgba(196, 31, 43, 0.08)',
+            border: '1px solid rgba(196, 31, 43, 0.3)'
           }}
         >
           <AlertTriangle size={20} aria-hidden="true" />

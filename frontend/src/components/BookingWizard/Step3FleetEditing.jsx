@@ -377,7 +377,7 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
         )}
         <div style={{ position: 'relative' }}>
           {vehicles.length === 0 && (
-            <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-danger)', padding: '0.4rem 0.8rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '950', textTransform: 'uppercase', border: '1px solid rgba(239, 68, 68, 0.2)', whiteSpace: 'nowrap' }}>
+            <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: '0.5rem', background: 'rgba(196, 31, 43, 0.1)', color: 'var(--status-danger)', padding: '0.4rem 0.8rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '950', textTransform: 'uppercase', border: '1px solid rgba(196, 31, 43, 0.2)', whiteSpace: 'nowrap' }}>
               At least one vehicle required to proceed
             </div>
           )}

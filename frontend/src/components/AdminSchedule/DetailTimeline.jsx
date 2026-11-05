@@ -34,7 +34,7 @@ const DetailTimeline = ({
       }}>
         <div style={{
           width: '56px', height: '56px', borderRadius: '50%',
-          background: 'rgba(230, 30, 42, 0.15)',
+          background: 'rgba(196, 31, 43, 0.15)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: COLORS.MUTED, border: `1px solid ${COLORS.BORDER}`
         }}>

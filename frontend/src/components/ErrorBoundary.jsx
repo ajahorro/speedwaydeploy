@@ -96,7 +96,7 @@ class ErrorBoundary extends React.Component {
               background: 'rgba(var(--admin-brand-rgb, 230,30,42), 0.12)',
             }}
           >
-            <AlertTriangle size={28} color="var(--admin-brand, #E61E2A)" aria-hidden="true" />
+            <AlertTriangle size={28} color="var(--admin-brand, #C41F2B)" aria-hidden="true" />
           </div>
 
           <h1
@@ -141,7 +141,7 @@ class ErrorBoundary extends React.Component {
                 borderRadius: 'var(--admin-radius-sm, 4px)',
                 background: 'var(--admin-bg, #0A0B0D)',
                 border: '1px solid var(--admin-border, rgba(255,255,255,0.08))',
-                color: 'var(--status-danger, #ef4444)',
+                color: 'var(--status-danger, #C41F2B)',
               }}
             >
               {detail}
@@ -170,9 +170,9 @@ class ErrorBoundary extends React.Component {
                 gap: '0.5rem',
                 padding: '0.85rem 1.25rem',
                 borderRadius: 'var(--admin-radius-sm, 4px)',
-                background: 'var(--admin-brand, #E61E2A)',
+                background: 'var(--admin-brand, #C41F2B)',
                 color: 'var(--admin-text-on-brand)',
-                border: '1px solid var(--admin-brand, #E61E2A)',
+                border: '1px solid var(--admin-brand, #C41F2B)',
                 fontSize: '0.8rem',
                 fontWeight: 950,
                 textTransform: 'uppercase',

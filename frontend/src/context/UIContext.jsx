@@ -131,9 +131,9 @@ export const UIProvider = ({ children }) => {
         };
       default:
         return {
-          brandColor: 'var(--admin-brand, #E61E2A)',
-          icon: <Info size={28} color="var(--admin-brand, #E61E2A)" />,
-          buttonBg: 'var(--admin-brand, #E61E2A)',
+          brandColor: 'var(--admin-brand, #C41F2B)',
+          icon: <Info size={28} color="var(--admin-brand, #C41F2B)" />,
+          buttonBg: 'var(--admin-brand, #C41F2B)',
         };
     }
   };

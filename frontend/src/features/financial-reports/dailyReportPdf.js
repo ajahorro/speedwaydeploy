@@ -57,13 +57,13 @@ export const buildDailyReportHtml = (report) => {
     const vehicles = (b.vehicles || []).map((v) => {
       const name = [v.brand, v.model].filter(Boolean).join(' ') || 'Vehicle';
       const services = (v.services || []).map((s) => esc(s.name)).join(', ') || 'No services listed';
-      return `<div style="margin-top:3px"><strong>${esc(name)}</strong>${v.plate ? ` (${esc(v.plate)})` : ''}: ${services}${v.technician ? ` <span style="color:#555">— technician ${esc(v.technician)}</span>` : ' <span style="color:#a00">— no technician yet</span>'}</div>`;
+      return `<div style="margin-top:3px"><strong>${esc(name)}</strong>${v.plate ? ` (${esc(v.plate)})` : ''}: ${services}${v.technician ? ` <span style="color:#555">— technician ${esc(v.technician)}</span>` : ' <span style="color:#C41F2B">— no technician yet</span>'}</div>`;
     }).join('') || '<div style="color:#666">No vehicles listed</div>';
     const cancelledMark = String(b.status || '').toUpperCase() === 'CANCELLED';
     return `<div style="border:1px solid #bbb;border-radius:6px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">
       <div style="display:flex;justify-content:space-between;gap:8px">
         <div><strong style="font-size:12px">${esc(when(b.start_datetime))} · Booking #${esc(b.reference)}</strong></div>
-        <div style="color:${cancelledMark ? '#a00' : '#333'}">${esc(statusWords(b.status))} · ${esc(paidWords(b.paid_status))}</div>
+        <div style="color:${cancelledMark ? '#C41F2B' : '#333'}">${esc(statusWords(b.status))} · ${esc(paidWords(b.paid_status))}</div>
       </div>
       <div style="margin-top:3px">Booked by <strong>${esc(b.customer_name || 'Walk-in customer')}</strong>${b.contact_number ? ` · ${esc(b.contact_number)}` : ''}</div>
       ${vehicles}

@@ -47,7 +47,7 @@ const EmergencyRecoveryForm = ({ onRequest, onComplete, onSwitchMode, isLoading,
 
 
   const errorBox = localError && (
-    <div role="alert" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '1rem', padding: '0.75rem', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '0.65rem', color: '#fca5a5', fontSize: '0.8rem', fontWeight: '700', lineHeight: 1.4 }}>
+    <div role="alert" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '1rem', padding: '0.75rem', background: 'rgba(196, 31, 43, 0.12)', border: '1px solid rgba(196, 31, 43, 0.35)', borderRadius: '0.65rem', color: '#C41F2B', fontSize: '0.8rem', fontWeight: '700', lineHeight: 1.4 }}>
       <ShieldQuestion size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
       <span>{localError}</span>
     </div>

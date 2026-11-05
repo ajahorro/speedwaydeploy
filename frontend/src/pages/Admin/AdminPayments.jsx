@@ -246,7 +246,7 @@ const AdminPayments = () => {
   const getStatusBadgeColor = (status) => {
     if (status === 'PAID') return '#10b981';
     if (status === 'REFUND_PENDING' || status === 'REFUNDED') return '#f59e0b';
-    if (status === 'REJECTED') return '#ef4444';
+    if (status === 'REJECTED') return '#C41F2B';
     return '#3b82f6'; // Blue for FOR_VERIFICATION / Pending
   };
 
@@ -309,7 +309,7 @@ const AdminPayments = () => {
             body { font-family: Arial, sans-serif; background: #fff; color: #111; margin: 0; padding: 32px; }
             .wrap { max-width: 720px; margin: 0 auto; border: 1px solid #111; border-radius: 16px; padding: 24px; }
             .brand { text-align: center; margin-bottom: 24px; }
-            h1 { margin: 0; font-size: 2.2rem; letter-spacing: 2px; color: #a91b18; }
+            h1 { margin: 0; font-size: 2.2rem; letter-spacing: 2px; color: #C41F2B; }
             .subtitle { font-size: 12px; letter-spacing: 2px; color: #666; text-transform: uppercase; }
             .line { height: 2px; background: #000; width: 48px; margin: 12px auto 0; }
             .meta { display: flex; justify-content: space-between; gap: 16px; margin: 20px 0; }
@@ -454,7 +454,7 @@ const AdminPayments = () => {
                 padding: isMobile ? '1rem' : '1.25rem',
                 cursor: 'pointer',
                 border: state.selectedItem?.id === p.id ? '2px solid var(--admin-brand)' : '1px solid var(--admin-border)',
-                background: state.selectedItem?.id === p.id ? 'rgba(169, 27, 24, 0.03)' : 'var(--admin-card)',
+                background: state.selectedItem?.id === p.id ? 'rgba(196, 31, 43, 0.03)' : 'var(--admin-card)',
                 transition: '0.2s'
               }}
             >
@@ -552,7 +552,7 @@ const AdminPayments = () => {
                 <div style={{ marginTop: 'auto', display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
                   {state.selectedItem.status === 'FOR_VERIFICATION' && !isPaymentLocked(state.selectedItem) && (
                     <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <Button variant="outline" className="flex-1 border-red-500 bg-red-500/10 text-red-500 hover:bg-red-500/20 font-black uppercase tracking-wider" onClick={() => handleRejectPayment(state.selectedItem)}>REJECT</Button>
+                      <Button variant="outline" className="flex-1 border-[#C41F2B] bg-[#C41F2B]/10 text-[#C41F2B] hover:bg-[#C41F2B]/20 font-black uppercase tracking-wider" onClick={() => handleRejectPayment(state.selectedItem)}>REJECT</Button>
                       <Button variant="default" className="flex-[2] font-black uppercase tracking-wider" onClick={() => requestVerifyPayment(state.selectedItem)}>VERIFY PAID</Button>
                     </div>
                   )}
@@ -630,7 +630,7 @@ const AdminPayments = () => {
             <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
               {state.selectedItem.status === 'FOR_VERIFICATION' && !isPaymentLocked(state.selectedItem) && (
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <Button variant="outline" className="flex-1 border-red-500 bg-red-500/10 text-red-500 hover:bg-red-500/20 font-black uppercase tracking-wider" onClick={() => handleRejectPayment(state.selectedItem)}>REJECT</Button>
+                  <Button variant="outline" className="flex-1 border-[#C41F2B] bg-[#C41F2B]/10 text-[#C41F2B] hover:bg-[#C41F2B]/20 font-black uppercase tracking-wider" onClick={() => handleRejectPayment(state.selectedItem)}>REJECT</Button>
                   <Button variant="default" className="flex-[2] font-black uppercase tracking-wider" onClick={() => requestVerifyPayment(state.selectedItem)}>VERIFY PAID</Button>
                 </div>
               )}

@@ -400,7 +400,7 @@ const AdminDashboard = () => {
             label="No-Show Flagged"
             icon={AlertCircle}
             color="var(--admin-brand)"
-            bg="rgba(230, 30, 42, 0.1)"
+            bg="rgba(196, 31, 43, 0.1)"
             onClick={() => navigate('/admin/bookings?filter=overdue')}
           />
           <AttentionCard

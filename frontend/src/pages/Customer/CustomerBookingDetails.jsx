@@ -440,8 +440,8 @@ const CustomerBookingDetails = () => {
       {booking.refund_status === 'PROCESSED' && (
         <div style={cardStyle}>
           <div style={{
-            marginBottom: '1.5rem', padding: '1rem', background: 'rgba(239, 68, 68, 0.05)',
-            border: '1px solid #ef4444', borderRadius: 'var(--admin-radius-sm)',
+            marginBottom: '1.5rem', padding: '1rem', background: 'rgba(196, 31, 43, 0.05)',
+            border: '1px solid #C41F2B', borderRadius: 'var(--admin-radius-sm)',
             display: 'flex', alignItems: 'center', gap: '1rem'
           }}>
             <ShieldCheck color="var(--status-danger)" size={24} />
@@ -576,25 +576,25 @@ const CustomerBookingDetails = () => {
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div>
-                            <div style={{ fontWeight: '900', fontSize: '0.85rem', color: p.status === 'REFUNDED' ? '#ef4444' : 'var(--admin-text-primary)' }}>
+                            <div style={{ fontWeight: '900', fontSize: '0.85rem', color: p.status === 'REFUNDED' ? '#C41F2B' : 'var(--admin-text-primary)' }}>
                               {p.status === 'REFUNDED' ? 'REFUND RECORD' : 'PAYMENT'} #{idx + 1} • {p.method}
                             </div>
                             <div style={{ fontSize: '0.7rem', color: 'var(--admin-text-secondary)', fontWeight: '800' }}>{new Date(p.created_at).toLocaleString()}</div>
                           </div>
                           <div style={{
                             fontSize: '0.6rem', fontWeight: '950', padding: '0.2rem 0.5rem', borderRadius: '4px',
-                            background: p.status === 'PAID' ? 'rgba(16,185,129,0.1)' : p.status === 'REJECTED' || p.status === 'REFUNDED' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
-                            color: p.status === 'PAID' ? '#10b981' : p.status === 'REJECTED' || p.status === 'REFUNDED' ? '#ef4444' : '#f59e0b',
+                            background: p.status === 'PAID' ? 'rgba(16,185,129,0.1)' : p.status === 'REJECTED' || p.status === 'REFUNDED' ? 'rgba(196, 31, 43,0.1)' : 'rgba(245,158,11,0.1)',
+                            color: p.status === 'PAID' ? '#10b981' : p.status === 'REJECTED' || p.status === 'REFUNDED' ? '#C41F2B' : '#f59e0b',
                             border: '1px solid currentColor'
                           }}>
                             {p.status}
                           </div>
                         </div>
-                        <div style={{ fontWeight: '950', fontSize: '1.1rem', marginTop: '0.25rem', color: p.status === 'REFUNDED' ? '#ef4444' : 'var(--admin-text-primary)' }}>
+                        <div style={{ fontWeight: '950', fontSize: '1.1rem', marginTop: '0.25rem', color: p.status === 'REFUNDED' ? '#C41F2B' : 'var(--admin-text-primary)' }}>
                           {p.amount < 0 ? '-' : ''}₱{Math.abs(p.amount || 0).toLocaleString()}
                         </div>
                         {p.status === 'REJECTED' && p.rejection_reason && (
-                          <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', fontWeight: '700', color: 'var(--status-danger)', background: 'rgba(239,68,68,0.05)', padding: '0.5rem', borderRadius: '4px' }}>
+                          <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', fontWeight: '700', color: 'var(--status-danger)', background: 'rgba(196, 31, 43,0.05)', padding: '0.5rem', borderRadius: '4px' }}>
                             <AlertCircle size={12} style={{ marginRight: '0.25rem', verticalAlign: 'middle' }} /> {p.rejection_reason}
                           </div>
                         )}
@@ -747,7 +747,7 @@ const CustomerBookingDetails = () => {
 
           {/* ===== ACTIONS ===== */}
           {canCancelBooking && (
-            <div style={{ ...cardStyle, border: '1px solid rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.02)' }}>
+            <div style={{ ...cardStyle, border: '1px solid rgba(196, 31, 43, 0.2)', background: 'rgba(196, 31, 43, 0.02)' }}>
               <div style={{ ...labelStyle, color: 'var(--status-danger)' }}>Danger Zone</div>
               <p style={{ margin: '0.5rem 0 1rem 0', fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
                 You may cancel before service starts. Any eligible payment will be queued in the Refund Hub for review.

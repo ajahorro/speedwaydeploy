@@ -409,9 +409,9 @@ const AdminAccountsManagement = () => {
                       : undefined}
                     style={{
                       padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)',
-                      background: member.role === 'STAFF' && member.hasActiveServices ? 'var(--admin-border)' : 'rgba(239, 68, 68, 0.05)',
+                      background: member.role === 'STAFF' && member.hasActiveServices ? 'var(--admin-border)' : 'rgba(196, 31, 43, 0.05)',
                       color: member.role === 'STAFF' && member.hasActiveServices ? 'var(--admin-text-secondary)' : 'var(--status-danger)',
-                      fontSize: '0.65rem', fontWeight: '950', border: '1px solid rgba(239, 68, 68, 0.2)',
+                      fontSize: '0.65rem', fontWeight: '950', border: '1px solid rgba(196, 31, 43, 0.2)',
                       cursor: member.role === 'STAFF' && member.hasActiveServices ? 'not-allowed' : 'pointer',
                       opacity: isSubmitting ? 0.6 : 1,
                       textTransform: 'uppercase'
@@ -518,7 +518,7 @@ const AdminAccountsManagement = () => {
 
               {/* The invited user always has to set their own password on first sign-in. */}
 
-              <div style={{ padding: '1rem', background: 'rgba(169, 27, 24, 0.1)', borderRadius: 'var(--admin-radius-sm)', border: '1px solid rgba(169, 27, 24, 0.2)' }}>
+              <div style={{ padding: '1rem', background: 'rgba(196, 31, 43, 0.1)', borderRadius: 'var(--admin-radius-sm)', border: '1px solid rgba(196, 31, 43, 0.2)' }}>
                 <p style={{ fontSize: '0.7rem', color: 'var(--admin-text-secondary)', margin: 0, fontWeight: '700' }}>
                   The user will be invited as <strong style={{ color: 'var(--admin-brand)' }}>{activeTab}</strong>. A temporary password will be emailed to them.
                 </p>

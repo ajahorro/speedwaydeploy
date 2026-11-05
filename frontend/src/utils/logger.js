@@ -30,6 +30,6 @@ export const logger = {
 
   error: (message, ...args) => {
     // Errors are always logged, even in production, for debugging purposes
-    console.error(`%c${formatMessage('error', message)}`, 'color: #ef4444; font-weight: bold;', ...args);
+    console.error(`%c${formatMessage('error', message)}`, 'color: #C41F2B; font-weight: bold;', ...args);
   }
 };

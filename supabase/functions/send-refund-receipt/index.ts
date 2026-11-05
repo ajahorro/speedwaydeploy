@@ -99,7 +99,7 @@ serve(async (req) => {
 
     const emailHtml = `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-        <div style="background-color: #ef4444; padding: 20px; text-align: center; color: white;">
+        <div style="background-color: #C41F2B; padding: 20px; text-align: center; color: white;">
           <h1 style="margin: 0; font-size: 24px;">OFFICIAL REFUND SLIP</h1>
           <p style="margin: 5px 0 0 0; opacity: 0.9;">Comar Garage</p>
         </div>

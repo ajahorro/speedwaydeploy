@@ -33,7 +33,7 @@ const CODE_PRESENTATION = {
   PAST_DATE: {
     icon: CalendarX2,
     accent: 'var(--status-danger)',
-    accentRgb: '239, 68, 68',
+    accentRgb: '196, 31, 43',
     eyebrow: 'Invalid date',
     title: 'That date has passed',
     guidance: 'Please choose today or a future date to continue.',
@@ -49,7 +49,7 @@ const CODE_PRESENTATION = {
   BLOCKED_DATE: {
     icon: Ban,
     accent: 'var(--status-danger)',
-    accentRgb: '239, 68, 68',
+    accentRgb: '196, 31, 43',
     eyebrow: 'Date unavailable',
     title: 'This date is blocked',
     guidance: 'The shop has marked this date as unavailable. Please pick a different day.',
@@ -81,7 +81,7 @@ const CODE_PRESENTATION = {
   CAPACITY_EXCEEDED: {
     icon: Users,
     accent: 'var(--status-danger)',
-    accentRgb: '239, 68, 68',
+    accentRgb: '196, 31, 43',
     eyebrow: 'Fully booked',
     title: 'That slot is fully booked',
     guidance: 'All bays are taken for this time. Try a different time or another day.',
@@ -90,7 +90,7 @@ const CODE_PRESENTATION = {
   INVALID_DATE: {
     icon: CalendarX2,
     accent: 'var(--status-danger)',
-    accentRgb: '239, 68, 68',
+    accentRgb: '196, 31, 43',
     eyebrow: 'Check the date',
     title: 'We could not read that date',
     guidance: 'Please reselect a valid date and try again.',
@@ -98,7 +98,7 @@ const CODE_PRESENTATION = {
   INVALID_SLOT: {
     icon: Clock3,
     accent: 'var(--status-danger)',
-    accentRgb: '239, 68, 68',
+    accentRgb: '196, 31, 43',
     eyebrow: 'Check the time',
     title: 'We could not read that time',
     guidance: 'Please reselect a valid start time and try again.',

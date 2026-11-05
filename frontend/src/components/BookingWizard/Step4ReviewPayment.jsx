@@ -547,7 +547,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
       );
     }
     return (
-      <div role="alert" style={{ padding: '1rem', borderRadius: 'var(--admin-radius-sm)', background: 'rgba(239, 68, 68, 0.07)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+      <div role="alert" style={{ padding: '1rem', borderRadius: 'var(--admin-radius-sm)', background: 'rgba(196, 31, 43, 0.07)', border: '1px solid rgba(196, 31, 43, 0.3)' }}>
         <strong style={{ color: 'var(--status-danger)', fontSize: '.82rem' }}>
           {receiptValidationErrors.length > 1 ? 'We found a few issues with this receipt' : 'We couldn’t verify this receipt'}
         </strong>
@@ -1335,7 +1335,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           </div>
 
           {!requirementCheck.ok && (
-            <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.4)', padding: '1rem 1.25rem', borderRadius: 'var(--admin-radius-md)', color: 'var(--status-danger)', display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
+            <div style={{ background: 'rgba(196, 31, 43,0.1)', border: '1px solid rgba(196, 31, 43,0.4)', padding: '1rem 1.25rem', borderRadius: 'var(--admin-radius-md)', color: 'var(--status-danger)', display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
               <ShieldAlert size={20} style={{ flexShrink: 0, marginTop: '1px' }} />
               <div style={{ fontSize: '0.85rem', fontWeight: '700', lineHeight: 1.5 }}>
                 {requirementMessage}

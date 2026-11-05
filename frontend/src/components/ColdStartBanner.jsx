@@ -60,7 +60,7 @@ const ColdStartBanner = () => {
           gap: '0.65rem',
           padding: '0.7rem 1.1rem',
           borderRadius: '10px',
-          background: isOffline ? 'rgba(127, 29, 29, 0.96)' : 'rgba(20, 20, 24, 0.96)',
+          background: isOffline ? 'rgba(196, 31, 43, 0.96)' : 'rgba(20, 20, 24, 0.96)',
           border: '1px solid rgba(255,255,255,0.1)',
           boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
           backdropFilter: 'blur(12px)',

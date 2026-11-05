@@ -1008,12 +1008,12 @@ app.post('/customer/register', async (req, res) => {
       subject: 'WELCOME TO THE FLEET',
       html: `
         <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; border: 1px solid #eee;">
-          <h2 style="color: #A91B18;">COMAR GARAGE</h2>
+          <h2 style="color: #C41F2B;">COMAR GARAGE</h2>
           <h3 style="margin-top: 0; text-transform: uppercase;">WELCOME TO THE FLEET</h3>
           <p>Hi ${firstName},</p>
           <p>Thank you for creating an account with Comar Garage. Please confirm your email address to activate your customer portal.</p>
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${confirmLink}" style="background-color: #A91B18; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">CONFIRM EMAIL ADDRESS</a>
+            <a href="${confirmLink}" style="background-color: #C41F2B; color: white; padding: 12px 24px; text-decoration: none; border-radius: 2px; font-weight: bold; display: inline-block;">CONFIRM EMAIL ADDRESS</a>
           </div>
           <p style="font-size: 11px; color: #888;">If you did not request this, please ignore this email.</p>
         </div>
@@ -2097,7 +2097,7 @@ app.post('/api/auth/request-email-change', async (req, res) => {
         subject: 'Comar Garage: Authorize Email Change',
         html: `
           <div style="font-family: sans-serif; padding: 20px; color: #333;">
-            <h2 style="color: #A91B18;">COMAR GARAGE SECURITY</h2>
+            <h2 style="color: #C41F2B;">COMAR GARAGE SECURITY</h2>
             <p>You requested to change your account email to <strong>${newEmail}</strong>.</p>
             <p>Enter the following authorization code to confirm this change:</p>
             <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; padding: 10px; background: #f4f4f4; border-radius: 5px; display: inline-block;">
@@ -3207,7 +3207,7 @@ app.post('/api/admin/broadcast', async (req, res) => {
                 to: [p.email],
                 subject: 'System Announcement 📣',
                 html: `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
-                  <h2 style="color: #E61E2A;">Comar Garage System Announcement</h2>
+                  <h2 style="color: #C41F2B;">Comar Garage System Announcement</h2>
                   <p style="font-size: 16px; color: #e5e7eb;">${message.trim()}</p>
                   <hr style="border: none; border-top: 1px solid #374151; margin: 20px 0;" />
                   <p style="font-size: 12px; color: #9ca3af;">This is an automated operational signal from Comar Garage Admin Command Center.</p>
@@ -4302,7 +4302,7 @@ app.post('/api/public/inquiry', async (req, res) => {
         await resendClient.emails.send({
           from: RESEND_FROM, to: [inbox], reply_to: email,
           subject: `[Comar Garage] Website inquiry from ${name}`,
-          html: `<div style="font-family:sans-serif;max-width:640px;color:#222"><h2 style="color:#A91B18;margin:0 0 12px">New website inquiry</h2>
+          html: `<div style="font-family:sans-serif;max-width:640px;color:#222"><h2 style="color:#C41F2B;margin:0 0 12px">New website inquiry</h2>
             <p style="margin:0 0 4px"><strong>From:</strong> ${escapeHtml(name)} (${escapeHtml(email)})</p>
             <div style="white-space:pre-wrap;border:1px solid #eee;border-radius:6px;padding:12px;margin:12px 0">${escapeHtml(message)}</div>
             <p style="font-size:12px;color:#666">Answer it in Message Inquiries (admin portal); your reply is emailed to the sender.</p></div>`
@@ -4345,7 +4345,7 @@ app.post('/api/admin/inquiries/reply', async (req, res) => {
         from: RESEND_FROM, to: [inquiry.email], reply_to: inbox || undefined,
         subject: 'Re: your message to Comar Garage',
         html: `<div style="font-family:sans-serif;max-width:600px;color:#222;border:1px solid #eee;border-radius:8px;overflow:hidden">
-          <div style="background:#A91B18;color:#fff;padding:16px 20px;font-weight:800;letter-spacing:1px">COMAR GARAGE</div>
+          <div style="background:#C41F2B;color:#fff;padding:16px 20px;font-weight:800;letter-spacing:1px">COMAR GARAGE</div>
           <div style="padding:20px">
             <p style="margin:0 0 12px">Hi ${escapeHtml(inquiry.name)},</p>
             <div style="white-space:pre-wrap;line-height:1.55">${escapeHtml(body)}</div>
@@ -4353,7 +4353,7 @@ app.post('/api/admin/inquiries/reply', async (req, res) => {
           </div>
           <div style="background:#f7f7f7;padding:16px 20px;text-align:center;border-top:1px solid #eee">
             <p style="margin:0 0 10px;font-size:13px;color:#444">Book detailing online, follow your booking and chat with us directly: create your free Comar Garage account.</p>
-            <a href="${signUpLink}" style="background:#A91B18;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;font-weight:bold;display:inline-block;font-size:13px">CREATE YOUR ACCOUNT</a>
+            <a href="${signUpLink}" style="background:#C41F2B;color:#fff;padding:10px 20px;text-decoration:none;border-radius:2px;font-weight:bold;display:inline-block;font-size:13px">CREATE YOUR ACCOUNT</a>
           </div></div>`
       });
       if (sendError) throw new Error(sendError.message || 'The email provider did not accept the message.');
@@ -4407,7 +4407,7 @@ app.post('/api/support/report', async (req, res) => {
       reply_to: email || undefined,
       subject: `[Comar Garage] ${kind.label} from ${who} (${role})`,
       html: `<div style="font-family:sans-serif;max-width:640px;color:#222">
-        <h2 style="color:#A91B18;margin:0 0 12px">${escapeHtml(kind.label)}</h2>
+        <h2 style="color:#C41F2B;margin:0 0 12px">${escapeHtml(kind.label)}</h2>
         <p style="margin:0 0 4px"><strong>From:</strong> ${escapeHtml(who)} (${escapeHtml(role)})</p>
         <p style="margin:0 0 4px"><strong>Email:</strong> ${escapeHtml(email || 'not on file')}</p>
         ${page ? `<p style="margin:0 0 4px"><strong>Page:</strong> ${escapeHtml(page)}</p>` : ''}

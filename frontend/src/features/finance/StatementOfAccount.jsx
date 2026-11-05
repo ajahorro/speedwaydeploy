@@ -88,7 +88,7 @@ export function StatementOfAccount({ booking, vehicles = [], ledger, transaction
             <div className="mt-3 text-xs text-neutral-500">123 Comar Garage Drive, Quezon City, Metro Manila</div>
           </div>
           <div className="sm:text-right">
-            <div className="text-xs font-black text-[#E61E2A]">STATEMENT OF ACCOUNT</div>
+            <div className="text-xs font-black text-[#C41F2B]">STATEMENT OF ACCOUNT</div>
             <div className="mt-2 text-sm"><strong>Statement No.</strong> {statementNo}</div>
             <div className="mt-1 text-xs text-neutral-500">Issued {dateLabel(new Date().toISOString())}</div>
           </div>
@@ -146,7 +146,7 @@ export function StatementOfAccount({ booking, vehicles = [], ledger, transaction
                   <td className="py-2 pr-3 whitespace-nowrap">{dateLabel(line.date)}</td>
                   <td className="py-2 pr-3 font-mono text-[0.65rem] break-all">{line.kind === 'refund' ? 'Refund' : line.receiptNumber}</td>
                   <td className="py-2 pr-3">{line.kind === 'refund' ? 'Refund' : formatMethod(line.method)}</td>
-                  <td className={`py-2 text-right font-mono font-semibold tabular-nums ${line.kind === 'refund' ? 'text-[#b91c1c]' : ''}`}>{formatPeso(line.netReceived)}</td>
+                  <td className={`py-2 text-right font-mono font-semibold tabular-nums ${line.kind === 'refund' ? 'text-[#C41F2B]' : ''}`}>{formatPeso(line.netReceived)}</td>
                 </tr>
               ))}
             </tbody>
@@ -160,7 +160,7 @@ export function StatementOfAccount({ booking, vehicles = [], ledger, transaction
           {totals.creditHeld > 0 && <TotalRow label="Credit held for you" value={formatPeso(totals.creditHeld)} />}
           <div className="mt-2 flex justify-between rounded bg-neutral-100 px-3 py-2 font-bold">
             <span>Balance due</span>
-            <span className="font-mono tabular-nums text-[#E61E2A]">{formatPeso(totals.balanceDue)}</span>
+            <span className="font-mono tabular-nums text-[#C41F2B]">{formatPeso(totals.balanceDue)}</span>
           </div>
           {totals.deferredAmount > 0 && (
             <p className="mt-1 text-right text-xs text-neutral-500">Of this, {formatPeso(totals.deferredAmount)} is marked to be received by the shop.</p>

@@ -783,7 +783,7 @@ const AdminBookingDetails = () => {
     if (Number(paymentAmount) > balance) {
       return toast.error(`Excess payment detected. Maximum allowed: ₱${balance.toLocaleString()}`, {
         icon: '!',
-        style: { border: '2px solid #ef4444', background: 'var(--admin-card)', color: 'var(--admin-text-on-brand)' }
+        style: { border: '2px solid #C41F2B', background: 'var(--admin-card)', color: 'var(--admin-text-on-brand)' }
       });
     }
 
@@ -1428,7 +1428,7 @@ const AdminBookingDetails = () => {
                 gap: '0.5rem',
                 textTransform: 'uppercase',
                 letterSpacing: '1px',
-                boxShadow: '0 4px 14px rgba(230, 30, 42, 0.35)',
+                boxShadow: '0 4px 14px rgba(196, 31, 43, 0.35)',
                 transition: 'all 0.2s ease'
               }}
             >
@@ -1469,13 +1469,13 @@ const AdminBookingDetails = () => {
             justifyContent: 'space-between',
             gap: '1rem',
             width: '100%',
-            background: 'rgba(127, 29, 29, 0.28)',
-            border: '1px solid rgba(127, 29, 29, 0.5)',
+            background: 'rgba(196, 31, 43, 0.28)',
+            border: '1px solid rgba(196, 31, 43, 0.5)',
             borderRadius: '0.75rem',
             padding: '1rem 1.25rem',
             marginBottom: '1rem',
             color: 'var(--admin-text-primary)',
-            boxShadow: 'inset 0 0 0 1px rgba(248, 113, 113, 0.08)',
+            boxShadow: 'inset 0 0 0 1px rgba(196, 31, 43, 0.08)',
             flexDirection: isMobile ? 'column' : 'row',
             alignItems: isMobile ? 'flex-start' : 'center'
           }}
@@ -1497,9 +1497,9 @@ const AdminBookingDetails = () => {
                 gap: '0.5rem',
                 padding: '0.6rem 0.9rem',
                 borderRadius: '0.5rem',
-                border: '1px solid rgba(248, 113, 113, 0.55)',
-                background: 'rgba(239, 68, 68, 0.05)',
-                color: '#fca5a5',
+                border: '1px solid rgba(196, 31, 43, 0.55)',
+                background: 'rgba(196, 31, 43, 0.05)',
+                color: '#C41F2B',
                 fontSize: '0.68rem',
                 fontWeight: '900',
                 letterSpacing: '0.1em',
@@ -1507,17 +1507,17 @@ const AdminBookingDetails = () => {
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
                 width: isMobile ? '100%' : 'auto',
-                boxShadow: '0 8px 16px rgba(127, 29, 29, 0.12)'
+                boxShadow: '0 8px 16px rgba(196, 31, 43, 0.12)'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-                e.currentTarget.style.borderColor = 'rgba(248, 113, 113, 0.8)';
+                e.currentTarget.style.background = 'rgba(196, 31, 43, 0.1)';
+                e.currentTarget.style.borderColor = 'rgba(196, 31, 43, 0.8)';
                 e.currentTarget.style.color = '#fecaca';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.05)';
-                e.currentTarget.style.borderColor = 'rgba(248, 113, 113, 0.55)';
-                e.currentTarget.style.color = '#fca5a5';
+                e.currentTarget.style.background = 'rgba(196, 31, 43, 0.05)';
+                e.currentTarget.style.borderColor = 'rgba(196, 31, 43, 0.55)';
+                e.currentTarget.style.color = '#C41F2B';
               }}
             >
               <span aria-hidden="true">↺</span>
@@ -1639,11 +1639,11 @@ const AdminBookingDetails = () => {
             {/* 💰 DYNAMIC FINANCIAL LEDGER - REQ-ADM-05 */}
             <div style={{
               padding: '1rem',
-              background: isLocked ? 'rgba(255, 255, 255, 0.05)' : (surplus > 0 ? 'rgba(59, 130, 246, 0.05)' : (balance <= 0 ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)')),
+              background: isLocked ? 'rgba(255, 255, 255, 0.05)' : (surplus > 0 ? 'rgba(59, 130, 246, 0.05)' : (balance <= 0 ? 'rgba(16, 185, 129, 0.05)' : 'rgba(196, 31, 43, 0.05)')),
               borderRadius: '4px',
               textAlign: 'center',
-              border: `1px solid ${isLocked ? 'rgba(255, 255, 255, 0.2)' : (surplus > 0 ? 'rgba(59, 130, 246, 0.3)' : (balance <= 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'))}`,
-              color: isLocked ? '#a0a0a0' : (surplus > 0 ? '#3b82f6' : (balance <= 0 ? '#10b981' : '#ef4444')),
+              border: `1px solid ${isLocked ? 'rgba(255, 255, 255, 0.2)' : (surplus > 0 ? 'rgba(59, 130, 246, 0.3)' : (balance <= 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(196, 31, 43, 0.3)'))}`,
+              color: isLocked ? '#a0a0a0' : (surplus > 0 ? '#3b82f6' : (balance <= 0 ? '#10b981' : '#C41F2B')),
               fontSize: '0.8rem',
               fontWeight: '950',
               textTransform: 'uppercase',
@@ -1935,14 +1935,14 @@ const AdminBookingDetails = () => {
           {(hasPaymentAudit || hasPaymentEvidence) && (
             <div style={{
               ...cardStyle,
-              border: booking.payment_status === 'Flagged for Review' ? '2px solid #ef4444' : (booking.ocr_metadata?.isMatch ? '1px solid var(--admin-success)' : '1px solid var(--admin-border)'),
-              boxShadow: booking.payment_status === 'Flagged for Review' ? '0 0 25px rgba(239, 68, 68, 0.2)' : 'none',
+              border: booking.payment_status === 'Flagged for Review' ? '2px solid #C41F2B' : (booking.ocr_metadata?.isMatch ? '1px solid var(--admin-success)' : '1px solid var(--admin-border)'),
+              boxShadow: booking.payment_status === 'Flagged for Review' ? '0 0 25px rgba(196, 31, 43, 0.2)' : 'none',
               transition: 'all 0.3s ease'
             }}>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <ShieldCheck size={18} color={booking.payment_status === 'Flagged for Review' ? '#ef4444' : 'var(--admin-brand)'} />
+                  <ShieldCheck size={18} color={booking.payment_status === 'Flagged for Review' ? '#C41F2B' : 'var(--admin-brand)'} />
                   <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: '950', textTransform: 'uppercase', color: 'var(--admin-text-primary)', letterSpacing: '1px' }}>Payment</h3>
                 </div>
                 {hasPaymentAudit && <div style={{ fontSize: '0.55rem', fontWeight: '950', color: 'var(--admin-text-secondary)', opacity: 0.6 }}>READ FROM RECEIPT</div>}
@@ -1953,7 +1953,7 @@ const AdminBookingDetails = () => {
                   <div style={labelStyle}>Payment status</div>
                   <div style={{ 
                     fontSize: '0.85rem', fontWeight: '950', 
-                    color: totalPaid === 0 ? '#ef4444' : (balance <= 0 ? '#10b981' : '#f59e0b'),
+                    color: totalPaid === 0 ? '#C41F2B' : (balance <= 0 ? '#10b981' : '#f59e0b'),
                     textTransform: 'uppercase', letterSpacing: '0.5px'
                   }}>
                     {totalPaid === 0 ? 'UNPAID' : (balance <= 0 ? 'FULLY SETTLED' : 'PARTIALLY PAID')}
@@ -1963,7 +1963,7 @@ const AdminBookingDetails = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'space-between', gap: '1rem' }}>
                   <div>
                     <div style={labelStyle}>Paid so far</div>
-                    <div style={{ ...valueStyle, whiteSpace: 'nowrap', color: totalPaid > 0 ? 'var(--admin-text-primary)' : '#ef4444' }}>
+                    <div style={{ ...valueStyle, whiteSpace: 'nowrap', color: totalPaid > 0 ? 'var(--admin-text-primary)' : '#C41F2B' }}>
                       {formatCurrency(totalPaid)}
                     </div>
                   </div>
@@ -1978,7 +1978,7 @@ const AdminBookingDetails = () => {
                 {/* Conflict Resolution Buttons */}
                 {booking.payment_status === 'Flagged for Review' && (
                   <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <div style={{ padding: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ padding: '0.75rem', background: 'rgba(196, 31, 43, 0.1)', borderRadius: '4px', border: '1px solid rgba(196, 31, 43, 0.2)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <ShieldAlert size={14} color="var(--status-danger)" />
                       <span style={{ fontSize: '0.65rem', fontWeight: '900', color: 'var(--status-danger)', textTransform: 'uppercase' }}>Financial Mismatch Detected</span>
                     </div>
@@ -2051,9 +2051,9 @@ const AdminBookingDetails = () => {
                       </div>
                     ) : (
                       <div style={{ 
-                        padding: '0.75rem', background: p.status === 'PAID' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)', 
-                        border: `1px solid ${p.status === 'PAID' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
-                        borderRadius: '4px', textAlign: 'center', color: p.status === 'PAID' ? '#10b981' : '#ef4444', 
+                        padding: '0.75rem', background: p.status === 'PAID' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(196, 31, 43, 0.05)', 
+                        border: `1px solid ${p.status === 'PAID' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(196, 31, 43, 0.2)'}`,
+                        borderRadius: '4px', textAlign: 'center', color: p.status === 'PAID' ? '#10b981' : '#C41F2B', 
                         fontSize: '0.65rem', fontWeight: '950', textTransform: 'uppercase'
                       }}>
                         {p.status === 'PAID' ? '✓ Verified' : '✗ Rejected'}
@@ -2109,7 +2109,7 @@ const AdminBookingDetails = () => {
                 </p>
 
                 {undoNoShowModal.validationMessage && (
-                  <div style={{ marginTop: '0.75rem', padding: '0.7rem 0.8rem', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.18)', color: 'var(--status-danger)', fontSize: '0.75rem', fontWeight: '800' }}>
+                  <div style={{ marginTop: '0.75rem', padding: '0.7rem 0.8rem', borderRadius: '8px', background: 'rgba(196, 31, 43, 0.08)', border: '1px solid rgba(196, 31, 43, 0.18)', color: 'var(--status-danger)', fontSize: '0.75rem', fontWeight: '800' }}>
                     {undoNoShowModal.validationMessage}
                   </div>
                 )}
@@ -2349,7 +2349,7 @@ const AdminBookingDetails = () => {
               ) : !rescheduleDate ? (
                 <div style={{ padding: '1rem', color: 'var(--admin-text-secondary)', textAlign: 'center', fontSize: '0.75rem', fontWeight: '700' }}>Please select a date above to check available slots.</div>
               ) : rescheduleSlots.length === 0 ? (
-                <div style={{ padding: '1rem', color: 'var(--status-danger)', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.78rem', fontWeight: '800', textAlign: 'center' }}>No available bay capacity for this date. Please select another date.</div>
+                <div style={{ padding: '1rem', color: 'var(--status-danger)', background: 'rgba(196, 31, 43,0.06)', border: '1px solid rgba(196, 31, 43,0.25)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.78rem', fontWeight: '800', textAlign: 'center' }}>No available bay capacity for this date. Please select another date.</div>
               ) : (
                 <TimeSlotPicker
                   slots={rescheduleSlots}
@@ -2375,7 +2375,7 @@ const AdminBookingDetails = () => {
 
             <div style={{ display: 'flex', flexDirection: isMobile ? 'column-reverse' : 'row', gap: '0.75rem' }}>
               <button type="button" onClick={() => setShowRescheduleModal(false)} disabled={isRescheduling} style={{ flex: 1, padding: '1rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-primary)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', cursor: 'pointer', fontSize: '0.78rem', textTransform: 'uppercase' }}>Go Back</button>
-              <button type="button" onClick={confirmReschedule} disabled={!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling} style={{ flex: 1.5, padding: '1rem', background: (!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling) ? 'var(--admin-border)' : 'var(--admin-brand)', color: (!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling) ? 'var(--admin-text-secondary)' : '#fff', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: (!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling) ? 'not-allowed' : 'pointer', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '1px', boxShadow: (!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling) ? 'none' : '0 4px 15px rgba(230, 30, 42, 0.35)' }}>{isRescheduling ? 'Rescheduling...' : 'Confirm Reschedule'}</button>
+              <button type="button" onClick={confirmReschedule} disabled={!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling} style={{ flex: 1.5, padding: '1rem', background: (!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling) ? 'var(--admin-border)' : 'var(--admin-brand)', color: (!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling) ? 'var(--admin-text-secondary)' : '#fff', border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950', cursor: (!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling) ? 'not-allowed' : 'pointer', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '1px', boxShadow: (!rescheduleDate || !rescheduleTime || !rescheduleReason.trim() || isRescheduling) ? 'none' : '0 4px 15px rgba(196, 31, 43, 0.35)' }}>{isRescheduling ? 'Rescheduling...' : 'Confirm Reschedule'}</button>
             </div>
           </div>
         </div>

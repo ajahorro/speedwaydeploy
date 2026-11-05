@@ -161,11 +161,11 @@ const AuthCallback = () => {
         padding: '32px 28px',
         textAlign: 'center',
       }}>
-        <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: '#e61e2a' }}>
+        <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: '#C41F2B' }}>
           COMAR GARAGE
         </div>
 
-        <p style={{ marginTop: '20px', fontSize: '15px', lineHeight: 1.6, color: state.status === 'error' ? '#fca5a5' : '#d1d5db' }}>
+        <p style={{ marginTop: '20px', fontSize: '15px', lineHeight: 1.6, color: state.status === 'error' ? '#C41F2B' : '#d1d5db' }}>
           {state.message}
         </p>
 
@@ -175,7 +175,7 @@ const AuthCallback = () => {
             onClick={() => navigate('/login', { replace: true })}
             style={{
               marginTop: '22px',
-              background: '#e61e2a',
+              background: '#C41F2B',
               color: '#fff',
               border: 'none',
               borderRadius: '6px',

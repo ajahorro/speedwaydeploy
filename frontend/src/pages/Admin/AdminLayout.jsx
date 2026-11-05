@@ -184,7 +184,7 @@ const AdminLayout = () => {
       top, left, right, bottom,
       width: size,
       height: size,
-      background: color || 'rgba(169, 27, 24, 0.4)',
+      background: color || 'rgba(196, 31, 43, 0.4)',
       filter: 'blur(120px)',
       borderRadius: '50%',
       zIndex: 0,

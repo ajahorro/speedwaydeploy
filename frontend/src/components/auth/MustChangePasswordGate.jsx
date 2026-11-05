@@ -178,7 +178,7 @@ const MustChangePasswordGate = () => {
     <div style={{ minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--admin-bg)', padding: '1rem', position: 'fixed', inset: 0, zIndex: 5000 }}>
       <div style={cardStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '0.85rem', background: 'rgba(169, 27, 24, 0.12)', border: '1px solid rgba(169, 27, 24, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '0.85rem', background: 'rgba(196, 31, 43, 0.12)', border: '1px solid rgba(196, 31, 43, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand)' }}>
             <ShieldAlert size={24} />
           </div>
           <div>
@@ -223,7 +223,7 @@ const MustChangePasswordGate = () => {
             <span>At least {MIN_PASSWORD_LENGTH} characters</span>
           </div>
           {confirmPassword.length > 0 && !matches && (
-            <div style={{ fontSize: '0.72rem', fontWeight: '800', color: '#ef4444' }}>Passwords do not match.</div>
+            <div style={{ fontSize: '0.72rem', fontWeight: '800', color: '#C41F2B' }}>Passwords do not match.</div>
           )}
 
           <button

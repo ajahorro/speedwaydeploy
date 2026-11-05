@@ -626,7 +626,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                       position: 'relative',
                       zIndex: isPopoverOpen ? 50 : 'auto',
                       border: isVehicleSelected ? '1px solid var(--admin-brand)' : '1px solid var(--admin-border)',
-                      background: isVehicleSelected ? 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.04)' : 'var(--admin-bg)',
+                      background: isVehicleSelected ? 'rgba(var(--admin-brand-rgb, 196, 31, 43), 0.04)' : 'var(--admin-bg)',
                       borderRadius: '4px',
                       padding: '0.5rem 0.65rem',
                       transition: 'all 0.15s ease'

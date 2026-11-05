@@ -169,13 +169,13 @@ export const CREDIT_LEDGER = Object.freeze({
 // ─── UNIFIED STATUS COLORS ──────────────────────────────────────
 // Extracted from AdminBookings, SchedulingGrid, CustomerBookingDetails
 export const STATUS_COLORS = {
-  scheduled: '#E61E2A',                 // Brand red
+  scheduled: '#C41F2B',                 // Brand red
   confirmed: '#3b82f6',                 // Info blue
   in_progress: '#a855f7',              // Purple
   completed: '#10b981',                // Green
   released: '#14b8a6',                 // Teal
-  cancelled: '#ef4444',                // Red
-  flagged_noshow: '#ef4444',           // Red (urgent)
+  cancelled: '#C41F2B',                // Red
+  flagged_noshow: '#C41F2B',           // Red (urgent)
   queued: '#f59e0b',                   // Amber
   pending: '#f59e0b',                  // Amber
   default: '#6b7280',                  // Muted gray
@@ -186,7 +186,7 @@ export const COLORS = {
   BRAND: 'var(--admin-brand)',
   SUCCESS: '#10b981',
   WARNING: '#f59e0b',
-  DANGER: '#ef4444',
+  DANGER: '#C41F2B',
   MUTED: '#6b7280',
   BG_CARD: 'var(--admin-card)',
   BORDER: 'var(--admin-border)'

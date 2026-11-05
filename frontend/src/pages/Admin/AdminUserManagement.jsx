@@ -147,7 +147,7 @@ const AdminUserManagement = () => {
       case 'CANCELLED':
       case 'FLAGGED_NOSHOW':
       case 'NO_SHOW':
-        return { bg: 'rgba(239, 68, 68, 0.12)', text: 'var(--status-danger, #ef4444)', border: 'rgba(239, 68, 68, 0.3)' };
+        return { bg: 'rgba(196, 31, 43, 0.12)', text: 'var(--status-danger, #C41F2B)', border: 'rgba(196, 31, 43, 0.3)' };
       case 'CONFIRMED':
       case 'SCHEDULED':
       case 'PAID':
@@ -317,8 +317,8 @@ const AdminUserManagement = () => {
                               justifyContent: 'center',
                               padding: '0.45rem 0.55rem',
                               borderRadius: 'var(--admin-radius-sm)',
-                              background: 'rgba(239, 68, 68, 0.08)',
-                              border: '1px solid rgba(239, 68, 68, 0.25)',
+                              background: 'rgba(196, 31, 43, 0.08)',
+                              border: '1px solid rgba(196, 31, 43, 0.25)',
                               color: 'var(--status-danger)',
                               cursor: 'pointer',
                               transition: 'all 0.2s ease'
@@ -328,7 +328,7 @@ const AdminUserManagement = () => {
                               e.currentTarget.style.color = '#ffffff';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
+                              e.currentTarget.style.background = 'rgba(196, 31, 43, 0.08)';
                               e.currentTarget.style.color = 'var(--status-danger)';
                             }}
                           >
@@ -412,8 +412,8 @@ const AdminUserManagement = () => {
                         alignItems: 'center',
                         gap: '0.4rem',
                         padding: '0.45rem 0.85rem',
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        background: 'rgba(196, 31, 43, 0.1)',
+                        border: '1px solid rgba(196, 31, 43, 0.3)',
                         borderRadius: 'var(--admin-radius-sm)',
                         color: 'var(--status-danger)',
                         fontSize: '0.72rem',

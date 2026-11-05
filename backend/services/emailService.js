@@ -19,13 +19,13 @@ const buildEmailShell = ({ title, eyebrow = 'COMAR GARAGE', bodyHtml, ctaLink, c
   <div style="margin: 0; padding: 0; background: #f5f5f3; font-family: Arial, Helvetica, sans-serif; color: #171717;">
     <div style="max-width: 640px; margin: 0 auto; padding: 24px 16px;">
       <div style="background: linear-gradient(135deg, #111827 0%, #1f2937 100%); border: 1px solid #d4d4d4; border-radius: 18px; overflow: hidden;">
-        <div style="padding: 22px 24px 14px; background: linear-gradient(135deg, rgba(169,27,24,0.12), rgba(17,24,39,0.05)); border-bottom: 1px solid rgba(255,255,255,0.12);">
-          <div style="font-size: 11px; letter-spacing: 2px; font-weight: 800; color: #fca5a5; text-transform: uppercase; margin-bottom: 8px;">${escapeHtml(eyebrow)}</div>
+        <div style="padding: 22px 24px 14px; background: linear-gradient(135deg, rgba(196, 31, 43,0.12), rgba(17,24,39,0.05)); border-bottom: 1px solid rgba(255,255,255,0.12);">
+          <div style="font-size: 11px; letter-spacing: 2px; font-weight: 800; color: #C41F2B; text-transform: uppercase; margin-bottom: 8px;">${escapeHtml(eyebrow)}</div>
           <div style="font-size: 28px; line-height: 1.2; font-weight: 900; color: #f5f5f4; margin: 0;">${escapeHtml(title)}</div>
         </div>
         <div style="padding: 24px; background: #ffffff; color: #171717;">
           ${bodyHtml}
-          ${ctaLink ? `<div style="text-align: center; margin: 28px 0 8px;"><a href="${escapeHtml(ctaLink)}" style="display: inline-block; background: #a91b18; color: #ffffff; text-decoration: none; padding: 14px 22px; border-radius: 999px; font-weight: 900; font-size: 12px; letter-spacing: 1px; text-transform: uppercase;">${escapeHtml(ctaLabel)}</a></div>` : ''}
+          ${ctaLink ? `<div style="text-align: center; margin: 28px 0 8px;"><a href="${escapeHtml(ctaLink)}" style="display: inline-block; background: #C41F2B; color: #ffffff; text-decoration: none; padding: 14px 22px; border-radius: 2px; font-weight: 900; font-size: 12px; letter-spacing: 1px; text-transform: uppercase;">${escapeHtml(ctaLabel)}</a></div>` : ''}
         </div>
         <div style="padding: 18px 24px 26px; background: #f9fafb; color: #52525b; border-top: 1px solid #e5e7eb; font-size: 11px; line-height: 1.6; text-align: center;">
           ${escapeHtml(footerNote)}
@@ -93,7 +93,7 @@ const sendBookingConfirmationEmail = async ({ customerEmail, customerName, booki
         </div>
         <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
           <span style="color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Total Amount</span>
-          <strong style="color: #a91b18; text-align: right; font-size: 20px;">PHP ${escapeHtml(totalAmount)}</strong>
+          <strong style="color: #C41F2B; text-align: right; font-size: 20px;">PHP ${escapeHtml(totalAmount)}</strong>
         </div>
       </div>
       <p style="margin: 0; font-size: 15px; color: #374151; line-height: 1.7;">You can check your booking status anytime through your customer dashboard.</p>
@@ -150,7 +150,7 @@ const sendAdminInviteEmail = async ({ recipientEmail, firstName, lastName, role,
       <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Email Address</p>
       <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-family: 'Courier New', Courier, monospace; font-size: 15px; color: #111827; font-weight: 700;">${escapeHtml(recipientEmail)}</div>
       <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Temporary Password</p>
-      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; font-family: 'Courier New', Courier, monospace; font-size: 20px; letter-spacing: 2px; color: #a91b18; font-weight: 900;">${escapeHtml(defaultPassword)}</div>
+      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; font-family: 'Courier New', Courier, monospace; font-size: 20px; letter-spacing: 2px; color: #C41F2B; font-weight: 900;">${escapeHtml(defaultPassword)}</div>
       <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.6;">For your security you will be required to set a new password the first time you sign in. Your temporary password cannot be used to access the platform beyond that first login.</p>
     `,
     ctaLink: loginLink,
@@ -171,7 +171,7 @@ const sendInviteAccountEmail = async ({ recipientEmail, firstName, lastName, rol
       <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Email Address</p>
       <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-family: 'Courier New', Courier, monospace; font-size: 15px; color: #111827; font-weight: 700;">${escapeHtml(recipientEmail)}</div>
       <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Temporary Password</p>
-      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; font-family: 'Courier New', Courier, monospace; font-size: 20px; letter-spacing: 2px; color: #a91b18; font-weight: 900;">${escapeHtml(temporaryPassword)}</div>
+      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; font-family: 'Courier New', Courier, monospace; font-size: 20px; letter-spacing: 2px; color: #C41F2B; font-weight: 900;">${escapeHtml(temporaryPassword)}</div>
       <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.6;">For your security, you will be required to set a new password on your first sign-in. Your temporary password cannot be used to access the platform beyond that first login.</p>
     `,
     ctaLink: loginLink,
@@ -231,9 +231,9 @@ const sendQrChangeOtpEmail = async ({ recipientEmail, otp, requestedAt, requestI
         <div style="text-align: center; margin-bottom: 16px;">
           <div style="display: inline-block; font-family: 'Courier New', Courier, monospace; font-size: 28px; font-weight: 900; letter-spacing: 10px; padding: 16px 24px; background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; color: #111827;">${escapeHtml(otp)}</div>
         </div>
-        <p style="margin: 0 0 16px; font-size: 14px; color: #374151; line-height: 1.7; text-align: center;">Enter this 6-digit code to authorize the change. <strong style="color: #a91b18;">This code expires in 5 minutes</strong> and can only be used once.</p>
+        <p style="margin: 0 0 16px; font-size: 14px; color: #374151; line-height: 1.7; text-align: center;">Enter this 6-digit code to authorize the change. <strong style="color: #C41F2B;">This code expires in 5 minutes</strong> and can only be used once.</p>
         <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 14px 16px;">
-          <p style="margin: 0; font-size: 13px; color: #991b1b; line-height: 1.6; font-weight: 600;">Security warning: If you did not request this change, do not share this code with anyone. Review your account immediately and contact the studio administrator.</p>
+          <p style="margin: 0; font-size: 13px; color: #C41F2B; line-height: 1.6; font-weight: 600;">Security warning: If you did not request this change, do not share this code with anyone. Review your account immediately and contact the studio administrator.</p>
         </div>
       `,
       footerNote: 'Comar Garage Detail Studio | Security Verification'
@@ -318,7 +318,7 @@ const sendWrongPasswordSecurityNotice = async ({ email, attempts, lockedUntil, r
       <p style="margin: 0 0 12px; font-size: 15px; color: #374151; line-height: 1.7;"><strong>If this was you</strong>, just reset your password with the button below and you can sign in again right away.</p>
       <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;"><strong>If this was not you</strong>, someone may be trying to get into your account. You can safely ignore this email and your account will stay locked — but for your security we strongly recommend changing your password now.</p>
       <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 14px 16px;">
-        <p style="margin: 0; font-size: 13px; color: #991b1b; line-height: 1.6; font-weight: 600;">For your protection, sign-in stays locked until the time shown above. Resetting your password lifts the lock immediately.</p>
+        <p style="margin: 0; font-size: 13px; color: #C41F2B; line-height: 1.6; font-weight: 600;">For your protection, sign-in stays locked until the time shown above. Resetting your password lifts the lock immediately.</p>
       </div>
     `,
     ctaLink: resetLink,

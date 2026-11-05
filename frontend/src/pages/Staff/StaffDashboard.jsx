@@ -272,7 +272,7 @@ const StaffDashboard = () => {
 
         <div style={{ width: isMobile ? '100%' : '320px', display: 'flex', flexDirection: 'column', gap: '2rem', position: 'sticky', top: '100px' }}>
           {!profile?.is_clocked_in && (
-            <div style={{ padding: '1.25rem', background: 'rgba(var(--admin-brand-rgb, 169, 27, 24), 0.05)', border: '1px solid rgba(var(--admin-brand-rgb, 169, 27, 24), 0.15)', borderRadius: 'var(--admin-radius)', textAlign: 'center' }}>
+            <div style={{ padding: '1.25rem', background: 'rgba(var(--admin-brand-rgb, 196, 31, 43), 0.05)', border: '1px solid rgba(var(--admin-brand-rgb, 196, 31, 43), 0.15)', borderRadius: 'var(--admin-radius)', textAlign: 'center' }}>
               <Clock size={24} color="var(--admin-brand)" style={{ margin: '0 auto 0.75rem' }} />
               <div style={{ fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Not Clocked In</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Open Duty &amp; Shift to clock in and enable service controls.</div>

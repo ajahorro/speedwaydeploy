@@ -63,7 +63,7 @@ const CustomerReceipt = () => {
   if (state.error || !state.booking) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#F3F4F6', gap: '1rem' }}>
-        <div style={{ fontSize: '0.9rem', color: '#EF4444', fontWeight: '700' }}>Unable to load statement: {state.error}</div>
+        <div style={{ fontSize: '0.9rem', color: '#C41F2B', fontWeight: '700' }}>Unable to load statement: {state.error}</div>
         <Button type="button" onClick={() => navigate(-1)}>Go Back</Button>
       </div>
     );

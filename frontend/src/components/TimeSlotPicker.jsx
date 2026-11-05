@@ -27,7 +27,7 @@ function getPeriodKey(hour) {
 function getCapacityColor(bays) {
   if (bays >= 4) return '#10b981'; // green
   if (bays >= 2) return '#f59e0b'; // amber
-  return '#ef4444';                // red
+  return '#C41F2B';                // red
 }
 
 export default function TimeSlotPicker({ slots = [], selectedTime, onSelect, compact = false }) {
