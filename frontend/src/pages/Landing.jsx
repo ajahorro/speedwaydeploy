@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ChevronRight,
   Sparkles,
@@ -81,6 +81,7 @@ const Landing = () => {
   const { user, profile, signOut, isInitialized, loading: authLoading } = useAuth();
   const { settings } = useConfig();
   const navigate = useNavigate();
+  const location = useLocation();
   const authActionPending = Boolean(user && (!isInitialized || authLoading));
 
   const businessName = settings?.BUSINESS_NAME || 'COMAR GARAGE';
@@ -187,6 +188,18 @@ const Landing = () => {
       if (element) element.scrollIntoView({ behavior: 'smooth' });
     }, 100);
   }, [navigate]);
+
+  // Arriving from another page (e.g. /services → About): scroll to the requested section, then clear the request
+  // so a reload or the back button does not jump again.
+  useEffect(() => {
+    const target = location.state?.scrollTo;
+    if (!target) return undefined;
+    const timer = setTimeout(() => {
+      document.getElementById(target)?.scrollIntoView({ behavior: 'smooth' });
+      navigate(location.pathname, { replace: true, state: null });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [location.state, location.pathname, navigate]);
 
   const featuredServices = useMemo(() => {
     const list = [
