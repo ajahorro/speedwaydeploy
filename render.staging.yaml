@@ -10,7 +10,7 @@ services:
   - type: web
     name: comar-backend-staging
     runtime: node
-    plan: starter            # the free plan sleeps after 15 minutes and wakes slowly; starter keeps it awake
+    plan: free               # free tier only; it sleeps after ~15 idle minutes and wakes on the next request
     region: singapore
     rootDir: backend
     branch: staging

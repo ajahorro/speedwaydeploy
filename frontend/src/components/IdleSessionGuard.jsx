@@ -9,6 +9,8 @@ import {
 } from './ui/alert-dialog';
 
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'];
+// The audit write gets this long before sign-out goes ahead without it.
+const AUDIT_TIMEOUT_MS = 2000;
 const readLast = () => {
   try { return Number(localStorage.getItem(LAST_ACTIVITY_KEY)) || 0; } catch { return 0; }
 };
@@ -21,6 +23,7 @@ const writeLast = (value) => {
  *  - A warning with a countdown appears shortly before; "Stay signed in" keeps the session.
  *  - Activity in any open tab keeps every tab signed in (the last-activity time is shared).
  *  - While the warning is open, ordinary clicks elsewhere do not count, only the button does.
+ *  - Administrator and staff sign-outs are written to the audit log (best effort, never delays sign-out).
  *  - The user lands on the login page with a message that explains why.
  * Booking drafts are saved as they are typed, so nothing the user was filling in is lost.
  */
@@ -45,9 +48,17 @@ export default function IdleSessionGuard() {
   const endSession = useCallback(async () => {
     if (signingOutRef.current) return;
     signingOutRef.current = true;
+    if (role === 'ADMIN' || role === 'STAFF') {
+      // Record who was signed out for inactivity. Must run before signOut (it needs the session),
+      // but a slow or failed call must never keep an unattended admin/staff screen signed in.
+      await Promise.race([
+        supabase.rpc('record_idle_signout').then(() => undefined, () => undefined),
+        new Promise((resolve) => setTimeout(resolve, AUDIT_TIMEOUT_MS))
+      ]);
+    }
     await signOut();
     window.location.assign('/login?reason=idle');
-  }, [signOut]);
+  }, [role, signOut]);
 
   useEffect(() => {
     if (!signedIn) {
