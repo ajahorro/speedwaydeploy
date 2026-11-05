@@ -89,7 +89,7 @@ export const authHeaders = async (extra = {}) => {
  * server responds, then retries the original request once.
  *
  *   Warm server  : zero overhead (first attempt succeeds instantly).
- *   Cold server  : ColdStartBanner shown for ~30 s, then auto-retried.
+ *   Cold server  : retried once the server is up; ColdStartBanner shows a short note if it takes > 4 s.
  *   Offline      : fails after back-off, surfaces original error.
  */
 export const apiFetch = async (endpoint, options = {}) => {

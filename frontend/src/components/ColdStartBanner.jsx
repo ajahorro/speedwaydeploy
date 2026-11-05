@@ -4,102 +4,92 @@ import { subscribeBackendStatus } from '../lib/backendHealth';
 /**
  * ColdStartBanner
  * ─────────────────────────────────────────────────────────────────────────────
- * A non-blocking, self-dismissing status banner that appears when the backend
- * is cold-starting (Render free tier spins down after ~15 min of inactivity).
+ * A small, non-blocking note shown while something the user did is waiting on the backend
+ * (Render's free tier puts it to sleep after ~15 idle minutes and it takes a while to wake).
  *
- * • Shows ONLY when backendHealth reports 'waking' — never on page transitions
- *   or normal navigation where the server is already up.
- * • Auto-dismisses 2 s after the server comes online.
- * • Does NOT block any UI — the form behind it remains interactive so a fast
- *   typist is never held up.
- * • Communicates progress via an animated pulse dot + descriptive copy so the
- *   user understands why they are waiting instead of thinking the app is broken.
+ * • Only reacts to 'waking', which apiFetch reports when a real request could not reach the server.
+ *   Page loads never trigger it (main.jsx only sends a silent warm-up request).
+ * • Stays hidden for the first SHOW_AFTER_MS, so short waits never flash a message.
+ * • Plain wording that talks about the user's action, not about servers.
+ * • Closes on its own: right away if the wait ended before it appeared, shortly after otherwise.
  */
+const SHOW_AFTER_MS = 4000;
+const HIDE_AFTER_READY_MS = 1500;
+const HIDE_AFTER_FAIL_MS = 6000;
+
 const ColdStartBanner = () => {
   const [status, setStatus] = useState('unknown');
   const [visible, setVisible] = useState(false);
 
+  useEffect(() => subscribeBackendStatus(setStatus), []);
+
   useEffect(() => {
-    const unsub = subscribeBackendStatus((s) => {
-      setStatus(s);
-      if (s === 'waking') {
-        setVisible(true);
-      } else if (s === 'online' || s === 'offline') {
-        // Keep banner visible briefly so the user sees the resolution.
-        const timer = setTimeout(() => setVisible(false), 2000);
-        return () => clearTimeout(timer);
-      }
-    });
-    return unsub;
-  }, []);
+    if (status === 'waking') {
+      const timer = setTimeout(() => setVisible(true), SHOW_AFTER_MS);
+      return () => clearTimeout(timer);
+    }
+    if (!visible) return undefined;
+    const timer = setTimeout(() => setVisible(false), status === 'offline' ? HIDE_AFTER_FAIL_MS : HIDE_AFTER_READY_MS);
+    return () => clearTimeout(timer);
+  }, [status, visible]);
 
   if (!visible) return null;
 
   const isOffline = status === 'offline';
   const isOnline = status === 'online';
 
-  const bannerStyle = {
-    position: 'fixed',
-    bottom: '1.25rem',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    zIndex: 9999,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-    padding: '0.75rem 1.25rem',
-    borderRadius: '8px',
-    background: isOnline
-      ? 'rgba(16, 185, 129, 0.95)'
-      : isOffline
-        ? 'rgba(239, 68, 68, 0.95)'
-        : 'rgba(20, 20, 24, 0.96)',
-    border: `1px solid ${isOnline ? 'rgba(16,185,129,0.4)' : isOffline ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.08)'}`,
-    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-    backdropFilter: 'blur(12px)',
-    color: '#fff',
-    fontSize: '0.8rem',
-    fontWeight: '700',
-    letterSpacing: '0.5px',
-    whiteSpace: 'nowrap',
-    animation: 'coldStartSlideUp 0.35s cubic-bezier(0.16,1,0.3,1)',
-    maxWidth: 'calc(100vw - 2rem)',
-  };
-
-  const dotStyle = {
-    width: '8px',
-    height: '8px',
-    borderRadius: '50%',
-    background: isOnline ? '#fff' : isOffline ? '#fff' : 'var(--admin-brand, #a91b18)',
-    flexShrink: 0,
-    animation: (!isOnline && !isOffline) ? 'coldStartPulse 1.2s ease-in-out infinite' : 'none',
-  };
-
   const message = isOnline
-    ? '✓ Server is ready'
+    ? 'All set.'
     : isOffline
-      ? '⚠ Server unreachable — check your connection'
-      : '⏳ Server waking up… this takes ~30 seconds on first visit';
+      ? 'We couldn’t connect. Please check your internet and try again.'
+      : 'Just a moment, getting this ready for you…';
 
   return (
     <>
-      <div style={bannerStyle} role="status" aria-live="polite">
-        <div style={dotStyle} />
+      <div
+        role="status"
+        aria-live="polite"
+        style={{
+          position: 'fixed',
+          bottom: '1.25rem',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.65rem',
+          padding: '0.7rem 1.1rem',
+          borderRadius: '10px',
+          background: isOffline ? 'rgba(127, 29, 29, 0.96)' : 'rgba(20, 20, 24, 0.96)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
+          backdropFilter: 'blur(12px)',
+          color: '#fff',
+          fontSize: '0.82rem',
+          fontWeight: 600,
+          lineHeight: 1.4,
+          maxWidth: 'calc(100vw - 2rem)',
+          animation: 'coldStartSlideUp 0.3s cubic-bezier(0.16,1,0.3,1)',
+        }}
+      >
+        {!isOnline && !isOffline && <span className="cold-start-spinner" aria-hidden="true" />}
         <span>{message}</span>
       </div>
       <style>{`
         @keyframes coldStartSlideUp {
-          from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+          from { opacity: 0; transform: translateX(-50%) translateY(10px); }
           to   { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
-        @keyframes coldStartPulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50%       { opacity: 0.4; transform: scale(0.7); }
+        @keyframes coldStartSpin { to { transform: rotate(360deg); } }
+        .cold-start-spinner {
+          width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
+          border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff;
+          animation: coldStartSpin 0.8s linear infinite;
         }
+        @media (prefers-reduced-motion: reduce) { .cold-start-spinner { animation-duration: 2.4s; } }
       `}</style>
     </>
   );
 };
 
 export default ColdStartBanner;
-
