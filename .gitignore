@@ -34,10 +34,12 @@ scratch/
 
 # Build / lint noise
 frontend/eslint-report.json
-node_modules/.package-lock.jsonnode_modules/
+node_modules/.package-lock.json
 
-# Supabase CLI local scratch state (never deployment content)
-supabase/.temp/
-backend/supabase/.temp/
+# Supabase CLI local scratch state, in any folder (never deployment content)
+**/supabase/.temp/
+
+# Local dev noise
+dev_log.txt
 .staging-secrets/
 scripts/.i18n-report/

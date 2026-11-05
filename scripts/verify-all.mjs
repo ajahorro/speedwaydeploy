@@ -28,6 +28,9 @@ for (const script of ['verify-single-source', 'verify-email-source', 'verify-ema
   run(script, 'node', [`scripts/${script}.mjs`], { note: (out) => out.trim().split('\n').pop().slice(0, 70) });
 }
 
+// React hook order: a memoized value used by an effect declared above it crashed production once.
+run('check-hook-order', 'node', ['scripts/check-hook-order.cjs'], { cwd: 'frontend', note: (out) => out.trim().split('\n').pop().slice(0, 70) });
+
 // Catalog sync: static always; with a scratch database also the browser-vs-database property test.
 run(
   `verify-catalog-sync${container ? ' (+db)' : ''}`,
