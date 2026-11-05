@@ -63,7 +63,7 @@ export const SettingRow = ({ title, subtitle, children, onClick, align = 'center
         flexWrap: 'wrap',
       }}
     >
-      <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+      <div style={{ minWidth: 0, flex: '1 1 12rem' }}>
         <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--admin-text-primary)' }}>{title}</div>
         {subtitle && (
           <div style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--admin-text-secondary)', marginTop: '0.2rem', maxWidth: '60ch', lineHeight: 1.5 }}>

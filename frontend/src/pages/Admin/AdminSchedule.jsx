@@ -215,7 +215,9 @@ const AdminSchedule = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
+    // Desktop: the page fills exactly the content area (height 100% of the scrolling <main>), so the page itself never
+    // scrolls; only the hour grid on the right does. Phones stack everything and scroll the page as usual.
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1600px', margin: '0 auto', ...(isMobile ? { paddingBottom: '2rem' } : { height: '100%', minHeight: 0, overflow: 'hidden' }) }}>
       <PageHeader
         title="STUDIO CALENDAR"
         subtitle="Track bay utilization and live service flow."
@@ -230,8 +232,8 @@ const AdminSchedule = () => {
         </button>
       </PageHeader>
 
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '350px 1fr', gap: '2rem', alignItems: 'start' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', ...(isMobile ? {} : { position: 'sticky', top: 'calc(var(--app-shell-header-height, 76px) + 1rem)', alignSelf: 'start' }) }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '350px 1fr', gap: '2rem', ...(isMobile ? { alignItems: 'start' } : { flex: 1, minHeight: 0, alignItems: 'stretch' }) }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', ...(isMobile ? {} : { minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }) }}>
           <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.25rem', borderBottom: '1px solid var(--admin-border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -335,7 +337,7 @@ const AdminSchedule = () => {
 
         </div>
 
-        <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', ...(isMobile ? { overflow: 'hidden' } : { overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(100vh - var(--app-shell-header-height, 76px) - 2rem)', overscrollBehavior: 'contain' }) }}>
+        <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', ...(isMobile ? { overflow: 'hidden' } : { minHeight: 0, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain' }) }}>
           <div style={{ padding: '1.5rem' }}>
             <OccupancyShelf
               bookings={bookings}

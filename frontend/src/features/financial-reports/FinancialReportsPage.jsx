@@ -132,31 +132,36 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
           onPresetChange={setPreset}
           onCustomRange={setCustomRange}
         />
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={handleExport} disabled={exporting || loading} title={`Download the ${TAB_LABELS[tab]} tab for ${rangeLabel} as a spreadsheet`}>
-            <Download /> {exporting ? 'Exporting…' : 'Download CSV'}
-          </Button>
-          <Button variant="outline" onClick={handleDailyReport} disabled={dailyBusy} title={`A full PDF report for ${rangeLabel}`}>
-            <FileText /> {dailyBusy ? 'Preparing…' : 'Report PDF'}
-          </Button>
-          <Button variant="outline" onClick={() => window.print()} disabled={loading} title={`Print the ${TAB_LABELS[tab]} tab`}>
-            <Printer /> Print
-          </Button>
-          <Button variant="outline" onClick={() => setAssistantOpen(true)}>
-            <Sparkles /> Ask AI
-          </Button>
-        </div>
       </div>
-      <p className="-mt-3 text-xs text-muted-foreground print:hidden">The buttons above apply to the <strong>{TAB_LABELS[tab]}</strong> tab and the dates shown: {rangeLabel}.</p>
 
       <Tabs value={tab} onValueChange={setTab} className="gap-4">
-        <TabsList className="w-full justify-start overflow-x-auto sm:w-fit print:hidden">
+        {/* Scrolls sideways only when the tabs don't fit; never up and down. */}
+        <TabsList className="w-full max-w-full justify-start overflow-x-auto overflow-y-hidden sm:w-fit print:hidden">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="bookings">Bookings</TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="refunds">Refunds &amp; credits</TabsTrigger>
           <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
         </TabsList>
+
+        {/* What these export or print depends on the tab chosen above, so they sit right under the tabs. */}
+        <div className="flex flex-col gap-2 print:hidden">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={handleExport} disabled={exporting || loading} title={`Download the ${TAB_LABELS[tab]} tab for ${rangeLabel} as a spreadsheet`}>
+              <Download /> {exporting ? 'Exporting…' : 'Download CSV'}
+            </Button>
+            <Button variant="outline" onClick={handleDailyReport} disabled={dailyBusy} title={`A full PDF report for ${rangeLabel}`}>
+              <FileText /> {dailyBusy ? 'Preparing…' : 'Report PDF'}
+            </Button>
+            <Button variant="outline" onClick={() => window.print()} disabled={loading} title={`Print the ${TAB_LABELS[tab]} tab`}>
+              <Printer /> Print
+            </Button>
+            <Button variant="outline" onClick={() => setAssistantOpen(true)}>
+              <Sparkles /> Ask AI
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">These apply to the <strong>{TAB_LABELS[tab]}</strong> tab and the dates shown: {rangeLabel}.</p>
+        </div>
 
         <TabsContent value="overview" className="flex flex-col gap-4">
           <KpiCards report={report} loading={loading} />

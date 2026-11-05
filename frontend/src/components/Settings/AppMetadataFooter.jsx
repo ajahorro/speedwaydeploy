@@ -29,15 +29,15 @@ const FALLBACK_FAQS = [
   { question: 'Can I reschedule my booking?', answer: 'Yes — you may reschedule a confirmed booking to another available slot at no extra cost, subject to availability.' },
 ];
 
-const sendSupportReport = async ({ kind, message }) => {
+const sendSupportReport = async ({ kind, message, elapsedMs, website = '' }) => {
   try {
     const response = await fetch(`${BACKEND_URL}/api/support/report`, {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ kind, message, page: typeof window !== 'undefined' ? window.location.pathname : '' })
+      body: JSON.stringify({ kind, message, elapsedMs, website, page: typeof window !== 'undefined' ? window.location.pathname : '' })
     });
     const body = await response.json().catch(() => ({}));
-    return { ok: response.ok && body.success !== false, error: body.error };
+    return { ok: response.ok && body.success !== false, error: body.error, message: body.message, retryAfterSec: body.retryAfterSec };
   } catch {
     return { ok: false, error: 'The server could not be reached.' };
   }
@@ -50,6 +50,20 @@ const AppMetadataFooter = ({ onRequestDeletion = null, role = 'customer' }) => {
   const [faqOpen, setFaqOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportText, setReportText] = useState('');
+  // Anti-spam helpers (the server enforces the real limits): when the form opened, a hidden field only bots fill,
+  // and a short local cooldown after a send or a "too many" answer.
+  const [openedAt, setOpenedAt] = useState(0);
+  const [trap, setTrap] = useState('');
+  const [blockedUntil, setBlockedUntil] = useState(0);
+  const [, forceTick] = useState(0);
+  React.useEffect(() => {
+    if (!blockedUntil) return undefined;
+    const timer = setInterval(() => { if (Date.now() >= blockedUntil) setBlockedUntil(0); else forceTick((n) => n + 1); }, 1000);
+    return () => clearInterval(timer);
+  }, [blockedUntil]);
+  const waitLeft = blockedUntil ? Math.max(0, Math.ceil((blockedUntil - Date.now()) / 1000)) : 0;
+  const REPORT_MIN = 15;
+  const REPORT_MAX = 2000;
 
   // Staff/admin accounts are operational accounts that must not be self-purged —
   // the studio owner controls their lifecycle. The data-deletion action is
@@ -64,15 +78,18 @@ const AppMetadataFooter = ({ onRequestDeletion = null, role = 'customer' }) => {
 
   const submitReport = async () => {
     const message = reportText.trim();
-    if (message.length < 5) { toast.error('Please describe the problem in a few words.'); return; }
+    if (message.length < REPORT_MIN) { toast.error(`Please describe the problem in at least ${REPORT_MIN} characters.`); return; }
+    if (waitLeft > 0) return;
     setFiling(true);
-    const result = await sendSupportReport({ kind: 'ISSUE', message });
+    const result = await sendSupportReport({ kind: 'ISSUE', message, elapsedMs: openedAt ? Date.now() - openedAt : null, website: trap });
     setFiling(false);
     if (result.ok) {
-      toast.success('Report sent to our support team. Thank you!');
+      toast.success(result.message || 'Report sent to our support team. Thank you!');
       setReportText('');
       setReportOpen(false);
+      setBlockedUntil(Date.now() + 60000);
     } else {
+      if (result.retryAfterSec) setBlockedUntil(Date.now() + Math.min(result.retryAfterSec, 3600) * 1000);
       toast.error(result.error || `The report could not be sent. You can email us at ${APP_METADATA.supportEmail}.`);
     }
   };
@@ -116,7 +133,7 @@ const AppMetadataFooter = ({ onRequestDeletion = null, role = 'customer' }) => {
       </SettingRow>
 
       <SettingRow title="Report an Issue" subtitle="Tell our team about a problem you encountered.">
-        <SettingButton onClick={() => setReportOpen(true)} disabled={filing}>
+        <SettingButton onClick={() => { setOpenedAt(Date.now()); setTrap(''); setReportOpen(true); }} disabled={filing}>
           <Bug size={14} /> Report
         </SettingButton>
       </SettingRow>
@@ -155,11 +172,17 @@ const AppMetadataFooter = ({ onRequestDeletion = null, role = 'customer' }) => {
           </DialogHeader>
           <div className="grid gap-1.5">
             <Label htmlFor="support-report">What went wrong?</Label>
-            <Textarea id="support-report" rows={5} value={reportText} onChange={(event) => setReportText(event.target.value)} maxLength={4000} placeholder="e.g. My receipt upload keeps failing on the payment step." />
+            <Textarea id="support-report" rows={5} value={reportText} onChange={(event) => setReportText(event.target.value)} maxLength={REPORT_MAX} placeholder="e.g. My receipt upload keeps failing on the payment step." aria-describedby="support-report-hint" />
+            <p id="support-report-hint" className="flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
+              <span>{waitLeft > 0 ? `You can send another report in ${waitLeft >= 120 ? `${Math.ceil(waitLeft / 60)} minutes` : `${waitLeft} s`}.` : `At least ${REPORT_MIN} characters. One report a minute, up to 3 an hour.`}</span>
+              <span>{reportText.trim().length}/{REPORT_MAX}</span>
+            </p>
+            {/* Bot trap: hidden from people and screen readers; real users never fill it in. */}
+            <input type="text" name="website" value={trap} onChange={(event) => setTrap(event.target.value)} tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ position: 'absolute', left: '-10000px', width: 1, height: 1, opacity: 0 }} />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setReportOpen(false)} disabled={filing}>Cancel</Button>
-            <Button type="button" onClick={submitReport} disabled={filing || reportText.trim().length < 5}>{filing ? 'Sending…' : 'Submit Report'}</Button>
+            <Button type="button" onClick={submitReport} disabled={filing || waitLeft > 0 || reportText.trim().length < REPORT_MIN}>{filing ? 'Sending…' : 'Submit Report'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

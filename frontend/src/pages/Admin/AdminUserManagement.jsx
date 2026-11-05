@@ -15,6 +15,7 @@ import { normalizePhPhone } from '../../utils/contactValidation';
 import { useLanguage } from '../../context/LanguageContext';
 import { fetchWithCache, invalidateCache } from '../../lib/cache';
 import { useAuth } from '../../hooks/useAuth';
+import ClientDirectoryList from '../../features/clients/ClientDirectoryList';
 
 const AdminUserManagement = () => {
   const navigate = useNavigate();
@@ -214,163 +215,16 @@ const AdminUserManagement = () => {
             </div>
           </div>
 
-          {/* User Grid - STACKED RECTANGLE CONTAINERS */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1rem' }}>
-            {loading ? (
-              [1, 2, 3, 4, 5, 6].map(i => (
-                <div key={i} style={{ height: '140px', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)' }} className="animate-pulse"></div>
-              ))
-            ) : filteredUsers.length > 0 ? (
-              filteredUsers.map((user) => {
-                const roleBadge = getRoleBadge(user.role);
-                return (
-                  <div 
-                    key={user.id}
-                    className="user-rectangle-card"
-                    style={{ 
-                      background: 'var(--admin-card)',
-                      border: '1px solid var(--admin-border)', 
-                      borderRadius: 'var(--admin-radius)',
-                      padding: '1.25rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      gap: '0.85rem',
-                      transition: 'all 0.2s ease',
-                      boxShadow: 'var(--admin-card-shadow)'
-                    }}
-                  >
-                    {/* Top Row: Avatar, Name & Role, and View History Button */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
-                        <div style={{ 
-                          width: '42px', height: '42px', borderRadius: 'var(--admin-radius-sm)', 
-                          background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', 
-                          justifyContent: 'center', color: roleBadge.color, 
-                          fontSize: '1.15rem', fontWeight: '950', border: `1px solid ${roleBadge.color}44`,
-                          flexShrink: 0
-                        }}>
-                          {user.full_name?.charAt(0).toUpperCase() || <User size={20} />}
-                        </div>
-
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <h3 style={{ 
-                            margin: 0, 
-                            fontSize: '0.95rem', 
-                            fontWeight: '950', 
-                            color: 'var(--admin-text-primary)', 
-                            textTransform: 'uppercase',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                          }}>
-                            {user.full_name}
-                          </h3>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.55rem', fontWeight: '950', color: roleBadge.color, background: `${roleBadge.color}15`, padding: '0.1rem 0.45rem', borderRadius: '3px', border: `1px solid ${roleBadge.color}33`, textTransform: 'uppercase', marginTop: '0.2rem' }}>
-                            {roleBadge.icon} {roleBadge.label}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-                        {/* View History Button */}
-                        <button 
-                          onClick={() => handleSeeHistory(user)}
-                        title="View Booking History"
-                        style={{ 
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          padding: '0.45rem 0.8rem',
-                          borderRadius: 'var(--admin-radius-sm)',
-                          background: 'var(--admin-bg)', 
-                          border: '1px solid var(--admin-border)',
-                          color: 'var(--admin-text-primary)',
-                          fontSize: '0.68rem',
-                          fontWeight: '950',
-                          textTransform: 'uppercase',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0,
-                          transition: 'all 0.2s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--admin-brand)';
-                          e.currentTarget.style.color = 'var(--admin-brand)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--admin-border)';
-                          e.currentTarget.style.color = 'var(--admin-text-primary)';
-                        }}
-                      >
-                        <History size={13} color="var(--admin-brand)" /> View History
-                        </button>
-
-                        {user.id !== defaultAdminId && user.id !== currentUser?.id && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }}
-                            title="Delete Account Permanently"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '0.45rem 0.55rem',
-                              borderRadius: 'var(--admin-radius-sm)',
-                              background: 'rgba(196, 31, 43, 0.08)',
-                              border: '1px solid rgba(196, 31, 43, 0.25)',
-                              color: 'var(--status-danger)',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = 'var(--status-danger)';
-                              e.currentTarget.style.color = '#ffffff';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'rgba(196, 31, 43, 0.08)';
-                              e.currentTarget.style.color = 'var(--status-danger)';
-                            }}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Bottom Details: Email, Phone, Joined Date */}
-                    <div style={{ 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      gap: '0.35rem', 
-                      borderTop: '1px solid var(--admin-border)', 
-                      paddingTop: '0.75rem',
-                      fontSize: '0.72rem',
-                      color: 'var(--admin-text-secondary)',
-                      fontWeight: '700'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-                        <Mail size={12} color="var(--admin-brand)" style={{ flexShrink: 0 }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email || '—'}</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Phone size={12} color="var(--admin-brand)" style={{ flexShrink: 0 }} />
-                        <span>{user.phone_number || user.phone || user.contact_number || 'No phone provided'}</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.9 }}>
-                        <Calendar size={12} color="var(--admin-brand)" style={{ flexShrink: 0 }} />
-                        <span>Joined at: <strong style={{ color: 'var(--admin-text-primary)' }}>{formatDate(user.created_at)}</strong></span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '5rem', background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px dashed var(--admin-border)' }}>
-                <Users size={64} style={{ color: 'var(--admin-text-secondary)', marginBottom: '1.5rem', opacity: 0.1 }} />
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>No matching clients found</h3>
-              </div>
-            )}
-          </div>
+          <ClientDirectoryList
+            users={filteredUsers}
+            loading={loading}
+            isMobile={isMobile}
+            searchKey={searchQuery}
+            formatDate={formatDate}
+            canDelete={(u) => u.id !== defaultAdminId && u.id !== currentUser?.id}
+            onHistory={handleSeeHistory}
+            onDelete={handleDeleteUser}
+          />
         </div>
       ) : (
         <div style={{ width: '100%' }}>

@@ -81,6 +81,14 @@ html, body {
     min-height: 44px; /* Apple/Google recommended minimum */
   }
 
+  /* ...except toggles, checkboxes and radios: stretching them to 44px tall turned the round switch into a
+     tall lozenge and pushed its knob off-centre. They keep their own shape; the switch gets its 44px tap
+     area from an invisible margin instead (components/ui/switch.jsx). */
+  button[role="switch"], button[role="checkbox"], button[role="radio"],
+  input[type="checkbox"], input[type="radio"] {
+    min-height: 0;
+  }
+
   /* ST-1: the app-shell <header> uses 0.75rem padding on small screens instead
      of the desktop 1rem, so its sticky offset is proportionally shorter. Keep
      the scroll-padding token in step with the header it offsets. */

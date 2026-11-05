@@ -19,7 +19,7 @@ import { EmailInput } from '../../components/common/ContactInputs';
 import { emailError } from '../../utils/contactValidation';
 import EditStaffDialog from '../../features/accounts/EditStaffDialog';
 import InactiveStaffPanel from '../../features/accounts/InactiveStaffPanel';
-import StaffTables from '../../features/accounts/StaffTables';
+import StaffTables, { AdminTable } from '../../features/accounts/StaffTables';
 import { matchesSearchText } from '../../utils/searchMatch';
 import { fetchWithCache, invalidateCache } from '../../lib/cache';
 
@@ -255,88 +255,84 @@ const AdminAccountsManagement = () => {
         onRefresh={fetchAccounts}
       />
 
-      {activeTab === 'STAFF' && <InactiveStaffPanel confirmThen={confirmThen} onChanged={fetchAccounts} />}
-
-      <div style={{ ...cardStyle }}>
-        {/* Tabs */}
-        <div style={{
+      <div style={{ ...cardStyle, padding: isMobile ? '1rem' : '1.5rem' }}>
+        {/* Tabs: same look on both; scroll sideways only if they ever don't fit */}
+        <div role="tablist" style={{
           display: 'flex',
           borderBottom: '1px solid var(--admin-border)',
-          marginBottom: '1.5rem',
-          gap: isMobile ? '0.5rem' : '2rem',
+          marginBottom: '1.25rem',
+          gap: isMobile ? '0.25rem' : '2rem',
           overflowX: 'auto',
+          overflowY: 'hidden',
           WebkitOverflowScrolling: 'touch'
         }}>
-          <button
-            onClick={() => setActiveTab('STAFF')}
-            style={{
-              flex: isMobile ? 1 : 'none',
-              padding: isMobile ? '0.75rem 0.5rem' : '1rem 0.5rem',
-              background: 'none',
-              border: 'none',
-              color: activeTab === 'STAFF' ? 'var(--admin-brand)' : 'var(--admin-text-secondary)',
-              borderBottom: activeTab === 'STAFF' ? '2px solid var(--admin-brand)' : '2px solid transparent',
-              fontWeight: '950',
-              fontSize: isMobile ? '0.7rem' : '0.75rem',
-              cursor: 'pointer',
-              textTransform: 'uppercase',
-              whiteSpace: 'nowrap',
-              textAlign: 'center'
-            }}
-          >
-            Staff Accounts
-          </button>
-          {isAdmin && (
+          {[['STAFF', 'Staff accounts'], ...(isAdmin ? [['ADMIN', 'Admin accounts']] : [])].map(([key, label]) => (
             <button
-              onClick={() => setActiveTab('ADMIN')}
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === key}
+              onClick={() => { setActiveTab(key); setSearchQuery(''); }}
               style={{
                 flex: isMobile ? 1 : 'none',
-                padding: isMobile ? '0.75rem 0.5rem' : '1rem 0.5rem',
+                minHeight: '44px',
+                padding: '0.5rem 0.5rem',
                 background: 'none',
                 border: 'none',
-                color: activeTab === 'ADMIN' ? 'var(--admin-brand)' : 'var(--admin-text-secondary)',
-                borderBottom: activeTab === 'ADMIN' ? '2px solid var(--admin-brand)' : '2px solid transparent',
-                fontWeight: '950',
-                fontSize: isMobile ? '0.7rem' : '0.75rem',
+                color: activeTab === key ? 'var(--admin-brand)' : 'var(--admin-text-secondary)',
+                borderBottom: activeTab === key ? '2px solid var(--admin-brand)' : '2px solid transparent',
+                fontWeight: 700,
+                fontSize: '0.85rem',
                 cursor: 'pointer',
-                textTransform: 'uppercase',
                 whiteSpace: 'nowrap',
                 textAlign: 'center'
               }}
             >
-              Admin Accounts
+              {label}
             </button>
-          )}
+          ))}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-          <div style={{ position: 'relative', width: isMobile ? '100%' : '300px' }}>
-            <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)', opacity: 0.5 }} />
+        {/* Auto-deactivate settings and deactivated staff: Staff tab only, under the tabs, above search */}
+        {activeTab === 'STAFF' && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <InactiveStaffPanel confirmThen={confirmThen} onChanged={fetchAccounts} />
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', marginBottom: '1.25rem', gap: '0.75rem' }}>
+          <div style={{ position: 'relative', width: isMobile ? '100%' : '300px', maxWidth: '100%' }}>
+            <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)', opacity: 0.6, pointerEvents: 'none' }} />
             <input
-              type="text"
-              placeholder={`SEARCH ${activeTab}S...`}
+              type="search"
+              aria-label={activeTab === 'STAFF' ? 'Search staff' : 'Search admins'}
+              placeholder={activeTab === 'STAFF' ? 'Search staff' : 'Search admins'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
-                width: '100%', padding: '0.75rem 1rem 0.75rem 2.5rem', background: 'var(--admin-bg)',
+                width: '100%', minHeight: '44px', padding: '0.6rem 0.85rem 0.6rem 2.35rem', background: 'var(--admin-input-bg, var(--admin-bg))',
                 border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)',
-                color: 'var(--admin-text-primary)', fontSize: '0.75rem', fontWeight: '950',
-                outline: 'none', textTransform: 'uppercase'
+                color: 'var(--admin-text-primary)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box'
               }}
             />
           </div>
 
           <button
+            type="button"
             onClick={() => setIsModalOpen(true)}
             style={{
               width: isMobile ? '100%' : 'auto',
-              justifyContent: isMobile ? 'center' : 'flex-start',
-              padding: '0.75rem 1.25rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)',
-              border: 'none', borderRadius: 'var(--admin-radius-sm)', fontWeight: '950',
-              fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem'
+              maxWidth: '100%',
+              minHeight: '44px',
+              justifyContent: 'center',
+              padding: '0.6rem 1.1rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand, #fff)',
+              border: 'none', borderRadius: '2px', fontWeight: 700,
+              fontSize: '0.85rem', lineHeight: 1.25, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+              whiteSpace: 'normal', textAlign: 'center', boxSizing: 'border-box'
             }}
           >
-            <UserPlus size={16} /> SEND {activeTab} INVITE
+            <UserPlus size={16} style={{ flexShrink: 0 }} aria-hidden="true" />
+            <span>{activeTab === 'STAFF' ? 'Send staff invite' : 'Send admin invite'}</span>
           </button>
         </div>
 
@@ -350,89 +346,15 @@ const AdminAccountsManagement = () => {
             isProtected={(member) => isDefaultAdmin(member) || isSelf(member) || isLastAdmin(member)}
           />
         ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {loading ? (
-            [1,2,3].map(i => (
-              <div key={i} style={{ height: '80px', background: 'var(--admin-bg)', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }} className="animate-pulse"></div>
-            ))
-          ) : filteredAccounts.length > 0 ? (
-            filteredAccounts.map((member) => (
-              <div
-                key={member.id}
-                style={{
-                  padding: '1rem 1.5rem', background: 'var(--admin-bg)',
-                  borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)',
-                  display: 'flex', alignItems: 'center', gap: '1.25rem'
-                }}
-              >
-                <div style={{
-                  width: '42px', height: '42px', borderRadius: 'var(--admin-radius-sm)',
-                  background: 'var(--admin-card)', display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', color: member.role === 'ADMIN' ? '#f59e0b' : 'var(--admin-brand)',
-                  fontSize: '1rem', fontWeight: '950', border: '1px solid var(--admin-border)'
-                }}>
-                  {member.role === 'ADMIN' ? <Shield size={18} /> : member.full_name?.charAt(0).toUpperCase()}
-                </div>
-
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '0.9rem', fontWeight: '950', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {member.full_name}
-                    {isDefaultAdmin(member) && (
-                      <span style={{ fontSize: '0.55rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', padding: '0.1rem 0.4rem', borderRadius: '2px' }}>DEFAULT ADMIN</span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '700' }}>
-                    <Mail size={12} /> {member.email}
-                  </div>
-                </div>
-
-                {member.role !== 'ADMIN' && <button
-                  type="button"
-                  onClick={() => setEditingMember(member)}
-                  aria-label={`Edit ${member.full_name || member.email}`}
-                  style={{
-                    padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)',
-                    background: 'transparent', color: 'var(--admin-text-primary)',
-                    fontSize: '0.65rem', fontWeight: '950', border: '1px solid var(--admin-border)',
-                    cursor: 'pointer', textTransform: 'uppercase'
-                  }}
-                >
-                  Edit
-                </button>}
-                {!isDefaultAdmin(member) && !isSelf(member) && !isLastAdmin(member) && (
-                  <button
-                    onClick={() => handleDeactivate(member)}
-                    disabled={isSubmitting || (member.role === 'STAFF' && member.hasActiveServices)}
-                    title={member.role === 'STAFF' && member.hasActiveServices
-                      ? `Assigned to ${member.activeServiceCount} active service(s). Reassign or complete them before deactivation.`
-                      : undefined}
-                    style={{
-                      padding: '0.6rem 1rem', borderRadius: 'var(--admin-radius-sm)',
-                      background: member.role === 'STAFF' && member.hasActiveServices ? 'var(--admin-border)' : 'rgba(196, 31, 43, 0.05)',
-                      color: member.role === 'STAFF' && member.hasActiveServices ? 'var(--admin-text-secondary)' : 'var(--status-danger)',
-                      fontSize: '0.65rem', fontWeight: '950', border: '1px solid rgba(196, 31, 43, 0.2)',
-                      cursor: member.role === 'STAFF' && member.hasActiveServices ? 'not-allowed' : 'pointer',
-                      opacity: isSubmitting ? 0.6 : 1,
-                      textTransform: 'uppercase'
-                    }}
-                  >
-                    {member.role === 'STAFF' && member.hasActiveServices ? 'Assigned to Service' : 'Deactivate'}
-                  </button>
-                )}
-                {(isDefaultAdmin(member) || isSelf(member) || isLastAdmin(member)) && (
-                  <span style={{ fontSize: '0.6rem', fontWeight: '900', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', opacity: 0.7 }}>
-                    {isSelf(member) ? 'This is you' : 'Protected'}
-                  </span>
-                )}
-              </div>
-            ))
-          ) : (
-            <div style={{ textAlign: 'center', padding: '4rem', background: 'var(--admin-bg)', borderRadius: 'var(--admin-radius-sm)', border: '1px dashed var(--admin-border)' }}>
-              <Users size={40} style={{ marginBottom: '1rem', opacity: 0.15 }} />
-              <p style={{ fontWeight: '950', fontSize: '0.7rem', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>No accounts found in this category</p>
-            </div>
-          )}
-        </div>
+          <AdminTable
+            members={filteredAccounts}
+            loading={loading}
+            isSubmitting={isSubmitting}
+            onDeactivate={handleDeactivate}
+            isDefaultAdmin={isDefaultAdmin}
+            isSelf={isSelf}
+            isProtected={(member) => isDefaultAdmin(member) || isSelf(member) || isLastAdmin(member)}
+          />
         )}
       </div>
 

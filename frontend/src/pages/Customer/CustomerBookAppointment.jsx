@@ -46,7 +46,7 @@ const hasMeaningfulBookingInput = (data) => {
   );
 };
 
-const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = null, renderAdminPanel, onAdminSubmit, draftExtras = null, onDraftRestore = null }) => {
+const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = null, renderAdminPanel, onAdminSubmit, onAdminReset = null, draftExtras = null, onDraftRestore = null }) => {
   const { confirmThen } = useConfirmAction();
   const draftKind = adminMode ? 'admin_walkin' : 'customer';
   const [draftReady, setDraftReady] = useState(false);
@@ -402,14 +402,36 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
     
   };
 
-  const discardAndLeave = async () => {
+  // Throws away everything entered (saved draft, vehicles, the admin's customer choice) and starts a blank booking.
+  const discardDraft = async () => {
     if (user?.id) await deleteDraft(user.id, draftKind);
     resetBookingData();
+    onAdminReset?.();
     setCurrentStep(1);
     setCustomerDetailsLocked(false);
     setDraftRestored(false);
     setHasDraftChanges(false);
+  };
+
+  const discardAndLeave = async () => {
+    await discardDraft();
     navigate(adminMode ? '/admin' : '/customer');
+  };
+
+  // "Start over" on the restored-booking notice: same clean slate, but stay on this page.
+  const handleStartOver = () => {
+    const restart = async () => {
+      await discardDraft();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    if (!hasMeaningfulBookingInput(bookingData)) { restart(); return; }
+    confirmThen({
+      title: 'Start this booking over?',
+      message: 'Everything entered so far will be cleared and you can begin again on this page. This cannot be undone.',
+      confirmText: 'Yes, start over',
+      cancelText: 'Keep editing',
+      type: 'danger'
+    }, restart);
   };
 
   // Cancel throws away everything entered, including the saved draft. Nothing
@@ -546,7 +568,7 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
             <AlertCircle size={18} color="var(--admin-brand)" aria-hidden="true" style={{ flexShrink: 0 }} />
             We restored the booking you were working on.
           </span>
-          <Button type="button" variant="outline" size="xs" onClick={handleCancelBooking} className="border-destructive/60 text-destructive uppercase hover:text-destructive">Start over</Button>
+          <Button type="button" variant="outline" size="xs" onClick={handleStartOver} className="border-destructive/60 text-destructive uppercase hover:text-destructive">Start over</Button>
         </div>
       )}
 

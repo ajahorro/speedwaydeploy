@@ -158,3 +158,46 @@ export default function StaffTables({ members, loading, isSubmitting, onEdit, on
     </div>
   );
 }
+
+/**
+ * Admin tab of Accounts: the same table as the staff list, so both tabs look alike.
+ * Protected accounts (the default admin, yourself, the last admin) show why instead of a Deactivate button.
+ */
+export function AdminTable({ members, loading, isSubmitting, onDeactivate, isDefaultAdmin, isSelf, isProtected }) {
+  return (
+    <section className="ui-root rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="pl-4">Name</TableHead>
+            <TableHead className="pr-4 text-right"> </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading && <TableRow><TableCell colSpan={2} className="py-6 text-center text-muted-foreground">Loading…</TableCell></TableRow>}
+          {!loading && members.length === 0 && <TableRow><TableCell colSpan={2} className="py-6 text-center text-muted-foreground">No admins found.</TableCell></TableRow>}
+          {!loading && members.map((member) => (
+            <TableRow key={member.id}>
+              <TableCell className="pl-4">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-medium">
+                  {member.full_name || member.email}
+                  {isDefaultAdmin(member) && <span className="text-xs font-normal text-muted-foreground">· Default admin</span>}
+                </div>
+                <div className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{member.email}</div>
+              </TableCell>
+              <TableCell className="pr-4 text-right">
+                {isProtected(member) ? (
+                  <span className="text-xs text-muted-foreground">{isSelf(member) ? 'This is you' : 'Protected'}</span>
+                ) : (
+                  <Button size="sm" variant="outline" className="text-destructive" disabled={isSubmitting} onClick={() => onDeactivate(member)}>
+                    Deactivate
+                  </Button>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </section>
+  );
+}

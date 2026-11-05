@@ -4375,29 +4375,149 @@ app.post('/api/admin/inquiries/reply', async (req, res) => {
 // with the signed-in person's name, role and e-mail so support can reply to them directly. The sender always comes
 // from the verified sign-in, never from the request body.
 const SUPPORT_INBOX = process.env.SUPPORT_INBOX_EMAIL || 'ajahorro@gmail.com';
-const supportReportTimes = new Map();
 const SUPPORT_KINDS = {
   ISSUE: { label: 'Issue report', action: 'SUPPORT_ISSUE_REPORTED' },
   DELETION_REQUEST: { label: 'Account data deletion request', action: 'ACCOUNT_DATA_DELETION_REQUESTED' }
 };
 
+// Anti-spam for support reports. Every report is kept in public.support_reports, so the limits survive restarts
+// and the team never loses a report that was held back from the inbox. Layers, cheapest first:
+//   1. signed in, active account with a confirmed email (no anonymous or throwaway sign-ups);
+//   2. bot traps: a hidden "website" field and a minimum time between opening the form and sending it —
+//      tripped requests get a normal-looking "sent" answer, are stored, and are never emailed;
+//   3. content checks: real sentences only (length, word count, at most 2 links, no keyboard-mashing);
+//   4. rate limits per account (1 a minute, 3 an hour, 6 a day; 1 deletion request a day) and per network
+//      (10 a day across all accounts, so one person cannot rotate accounts);
+//   5. duplicates: the same text from the same account within 7 days is not sent again; the same text from
+//      anyone within a day is stored but not emailed;
+//   6. an inbox budget: at most SUPPORT_DAILY_EMAIL_CAP emails a day in total; anything past it is stored and
+//      shows up in the audit log, so a flood can never bury the inbox.
+const SUPPORT_LIMITS = {
+  cooldownMs: 60 * 1000,
+  perHour: 3,
+  perDay: 6,
+  deletionPerDay: 1,
+  perIpPerDay: 10,
+  minFillMs: 3000,
+  dailyEmailCap: Number(process.env.SUPPORT_DAILY_EMAIL_CAP) || 30
+};
+const supportMemory = new Map(); // fallback only, if the database cannot be counted
+const supportFingerprint = (text) => crypto.createHash('sha256')
+  .update(String(text).toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu, ' ').trim())
+  .digest('hex');
+const supportIpHash = (req) => {
+  const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() || 'unknown';
+  return crypto.createHash('sha256').update(`${process.env.SUPABASE_SERVICE_ROLE_KEY || 'dev'}:support-ip:${ip}`).digest('hex').slice(0, 40);
+};
+const supportContentProblem = (message) => {
+  if (message.length < 15) return 'Please describe the problem in at least a short sentence (15 characters or more).';
+  if (message.split(/\s+/).filter((w) => /[\p{L}\p{N}]{2,}/u.test(w)).length < 3) return 'Please describe the problem in a few words.';
+  if ((message.match(/https?:\/\/|www\./gi) || []).length > 2) return 'Please remove the extra links and describe the problem in words.';
+  if (/(.)\1{14,}/u.test(message)) return 'Please describe the problem in words.';
+  const letters = message.replace(/[^\p{L}\p{N}]/gu, '');
+  if (letters.length >= 20 && new Set(letters.toLowerCase()).size < 5) return 'Please describe the problem in words.';
+  return null;
+};
+const sinceIso = (ms) => new Date(Date.now() - ms).toISOString();
+const countSupport = async (column, value, ms, extra = {}) => {
+  let query = supabaseAdmin.from('support_reports').select('id', { count: 'exact', head: true }).eq(column, value).gte('created_at', sinceIso(ms));
+  Object.entries(extra).forEach(([key, val]) => { query = query.eq(key, val); });
+  const { count, error } = await query;
+  if (error) throw error;
+  return count || 0;
+};
+
 app.post('/api/support/report', async (req, res) => {
   const actor = await getAuthenticatedActor(req);
   if (!actor) return res.status(401).json({ success: false, error: 'Sign in to send a report.' });
-  const kind = SUPPORT_KINDS[String(req.body?.kind || 'ISSUE').toUpperCase()];
+  if (!actor.user.email_confirmed_at && !actor.user.confirmed_at) {
+    return res.status(403).json({ success: false, error: 'Please confirm your email address before sending a report.' });
+  }
+  const kindKey = String(req.body?.kind || 'ISSUE').toUpperCase();
+  const kind = SUPPORT_KINDS[kindKey];
   if (!kind) return res.status(400).json({ success: false, error: 'Unknown report type.' });
-  const message = String(req.body?.message || '').trim().slice(0, 4000);
-  if (message.length < 5) return res.status(400).json({ success: false, error: 'Please describe the problem in a few words.' });
+  const message = String(req.body?.message || '').replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').trim().slice(0, 2000);
+  const page = String(req.body?.page || '').slice(0, 200);
+  const profileId = actor.profile.id;
+  const ipHash = supportIpHash(req);
+  const messageHash = supportFingerprint(message);
 
-  // at most 5 reports an hour per account
-  const now = Date.now();
-  const recent = (supportReportTimes.get(actor.profile.id) || []).filter((t) => now - t < 3600000);
-  if (recent.length >= 5) return res.status(429).json({ success: false, error: 'You have sent several reports already. Please try again later.' });
+  const store = async (emailed, heldReason) => {
+    const { error } = await supabaseAdmin.from('support_reports').insert({
+      profile_id: profileId, kind: kindKey, message: message || '(empty)', message_hash: messageHash, ip_hash: ipHash, page, emailed, held_reason: heldReason || null
+    });
+    if (error) console.warn('📨 [SUPPORT] report not stored:', error.message);
+  };
+
+  // 2. bot traps: answer as if it worked, keep a record, send nothing
+  const elapsed = Number(req.body?.elapsedMs);
+  if (String(req.body?.website || '').trim() || (kindKey === 'ISSUE' && Number.isFinite(elapsed) && elapsed < SUPPORT_LIMITS.minFillMs)) {
+    await store(false, 'bot_trap');
+    return res.json({ success: true });
+  }
+
+  // 3. content
+  if (kindKey === 'ISSUE') {
+    const problem = supportContentProblem(message);
+    if (problem) return res.status(400).json({ success: false, code: 'CONTENT', error: problem });
+  }
+
+  // 4–5. limits and duplicates, counted in the database (memory only as a fallback)
+  let duplicateFromAnyone = false;
+  try {
+    const DAY = 86400000;
+    if (kindKey === 'DELETION_REQUEST') {
+      if (await countSupport('profile_id', profileId, DAY, { kind: 'DELETION_REQUEST' }) >= SUPPORT_LIMITS.deletionPerDay) {
+        return res.json({ success: true, alreadyReceived: true, message: 'We already have your request. Our team will process it shortly.' });
+      }
+    } else {
+      if (await countSupport('profile_id', profileId, 7 * DAY, { message_hash: messageHash }) > 0) {
+        return res.json({ success: true, alreadyReceived: true, message: 'We already received this report. Our team will follow up by email.' });
+      }
+      const [lastMinute, lastHour, lastDay, ipDay] = await Promise.all([
+        countSupport('profile_id', profileId, SUPPORT_LIMITS.cooldownMs),
+        countSupport('profile_id', profileId, 3600000),
+        countSupport('profile_id', profileId, DAY),
+        countSupport('ip_hash', ipHash, DAY)
+      ]);
+      if (lastMinute > 0) return res.status(429).json({ success: false, code: 'COOLDOWN', retryAfterSec: 60, error: 'Please wait a minute before sending another report.' });
+      if (lastHour >= SUPPORT_LIMITS.perHour) return res.status(429).json({ success: false, code: 'HOURLY', retryAfterSec: 3600, error: 'You have sent several reports this hour. Please try again later.' });
+      if (lastDay >= SUPPORT_LIMITS.perDay || ipDay >= SUPPORT_LIMITS.perIpPerDay) {
+        return res.status(429).json({ success: false, code: 'DAILY', retryAfterSec: 86400, error: 'You have reached today’s limit for reports. Please try again tomorrow.' });
+      }
+      duplicateFromAnyone = await countSupport('message_hash', messageHash, DAY) > 0;
+    }
+  } catch (countError) {
+    console.warn('📨 [SUPPORT] limit check fell back to memory:', countError.message);
+    const now = Date.now();
+    const recent = (supportMemory.get(profileId) || []).filter((t) => now - t < 3600000);
+    if (recent.length && now - recent[recent.length - 1] < SUPPORT_LIMITS.cooldownMs) return res.status(429).json({ success: false, code: 'COOLDOWN', retryAfterSec: 60, error: 'Please wait a minute before sending another report.' });
+    if (recent.length >= SUPPORT_LIMITS.perHour) return res.status(429).json({ success: false, code: 'HOURLY', retryAfterSec: 3600, error: 'You have sent several reports this hour. Please try again later.' });
+    supportMemory.set(profileId, [...recent, now]);
+  }
 
   const who = actor.profile.full_name || actor.user.email || 'User';
   const email = actor.profile.email || actor.user.email || '';
   const role = String(actor.profile.role || 'CUSTOMER').toUpperCase();
-  const page = String(req.body?.page || '').slice(0, 200);
+  const audit = (note) => writeAuditLog({
+    actionType: kind.action,
+    details: `${kind.label}${note ? ` (${note})` : ''} from ${email || who}: ${message.slice(0, 500)}`,
+    actorId: profileId, actorName: who, actorRole: role
+  }).catch(() => {});
+
+  // 6. inbox budget and same-text-from-anyone: keep it, don't email it
+  let heldReason = duplicateFromAnyone ? 'duplicate' : null;
+  if (!heldReason) {
+    try {
+      const { count } = await supabaseAdmin.from('support_reports').select('id', { count: 'exact', head: true }).eq('emailed', true).gte('created_at', sinceIso(86400000));
+      if ((count || 0) >= SUPPORT_LIMITS.dailyEmailCap) heldReason = 'daily_cap';
+    } catch { /* if unknown, send */ }
+  }
+  if (heldReason) {
+    await store(false, heldReason);
+    await audit(heldReason === 'daily_cap' ? 'email held: daily limit reached' : 'email held: duplicate');
+    return res.json({ success: true });
+  }
 
   try {
     if (!resendClient) throw new Error('Email is not configured');
@@ -4411,26 +4531,18 @@ app.post('/api/support/report', async (req, res) => {
         <p style="margin:0 0 4px"><strong>From:</strong> ${escapeHtml(who)} (${escapeHtml(role)})</p>
         <p style="margin:0 0 4px"><strong>Email:</strong> ${escapeHtml(email || 'not on file')}</p>
         ${page ? `<p style="margin:0 0 4px"><strong>Page:</strong> ${escapeHtml(page)}</p>` : ''}
-        <p style="margin:0 0 12px"><strong>Account ID:</strong> ${escapeHtml(actor.profile.id)}</p>
+        <p style="margin:0 0 12px"><strong>Account ID:</strong> ${escapeHtml(profileId)}</p>
         <div style="white-space:pre-wrap;border:1px solid #eee;border-radius:6px;padding:12px">${escapeHtml(message)}</div>
       </div>`
     });
     if (sendError) throw new Error(sendError.message || 'The email provider did not accept the message.');
-    supportReportTimes.set(actor.profile.id, [...recent, now]);
-    await writeAuditLog({
-      actionType: kind.action,
-      details: `${kind.label} sent to support by ${email || who}: ${message.slice(0, 500)}`,
-      actorId: actor.profile.id,
-      actorName: who,
-      actorRole: role
-    });
+    await store(true, null);
+    await audit('');
     return res.json({ success: true });
   } catch (error) {
     console.error('📨 [SUPPORT] Report not sent:', error.message);
-    // keep the report in the audit log even when the email could not go out
-    try {
-      await writeAuditLog({ actionType: kind.action, details: `${kind.label} (email not sent) from ${email || who}: ${message.slice(0, 500)}`, actorId: actor.profile.id, actorName: who, actorRole: role });
-    } catch { /* ignore */ }
+    await store(false, 'email_failed');
+    await audit('email not sent');
     return res.status(502).json({ success: false, error: 'The report could not be emailed right now. It was saved for the team.' });
   }
 });
