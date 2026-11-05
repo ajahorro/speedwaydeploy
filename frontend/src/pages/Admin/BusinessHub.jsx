@@ -67,8 +67,8 @@ const TAB_DEFINITIONS = [
   { id: 'schedule', label: 'Schedule Rules' },
   // The Service Catalog editor lives at `currentTab === 'services'` below.
   // It was unreachable because it was missing from BOTH lists above.
-  { id: 'services', label: 'Service Catalog' },
-  { id: 'promos', label: 'Promo Management' },
+  // Services and the promo/package rules live together: promos are a collapsed section at the bottom.
+  { id: 'services', label: 'Services & Promos' },
   // Downpayment policy (business_config.downpayment_*), enforced by the database.
   { id: 'payments', label: 'Payment Policy' },
   // One versioned text per role, accepted on first open (master plan 1.11).
@@ -402,7 +402,8 @@ export default function BusinessHub() {
   // Derive the active tab directly from the URL on every render so browser
   // Back/Forward navigation stays in sync. Fall back to 'profile' for any
   // unrecognized/absent ?tab= value instead of rendering an empty panel.
-  const requestedTab = searchParams.get('tab');
+  // old links to ?tab=promos open Services & Promos with the promo section expanded
+  const requestedTab = searchParams.get('tab') === 'promos' ? 'services' : searchParams.get('tab');
   const currentTab = TAB_KEYS.includes(requestedTab) ? requestedTab : 'profile';
 
   const { refreshConfig, settings: configSettings } = useConfig();
@@ -424,7 +425,7 @@ export default function BusinessHub() {
   }, [message]);
 
   // Service catalog management state (Tab 3)
-  const [servicePanels, setServicePanels] = useState({ existing: false, add: false, vehicle: false });
+  const [servicePanels, setServicePanels] = useState(() => ({ existing: false, add: false, vehicle: false, promos: searchParams.get('tab') === 'promos' }));
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState('All');
   const [newServiceForm, setNewServiceForm] = useState({
     targetVehicleCategory: 'Sedan',
@@ -3203,13 +3204,29 @@ export default function BusinessHub() {
           </div>
         )}
 
-        {/* Tab 5: Promo & Package Rules */}
-        {currentTab === 'promos' && (
-          <div style={{ ...cardStyle, display: 'block' }}>
-            <PromoManager isMobile={false} />
+        {/* Promos & packages: a collapsed section at the bottom of Services & Promos */}
+        {currentTab === 'services' && (
+          <div style={{ ...cardStyle, gap: '1rem', marginTop: '1rem' }}>
+            <button
+              type="button"
+              onClick={() => toggleServicePanel('promos')}
+              aria-expanded={servicePanels.promos}
+              style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', cursor: 'pointer', color: 'var(--admin-text-primary)', textAlign: 'left' }}
+            >
+              <span style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0 }}>
+                <span style={{ fontSize: '0.92rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Tag size={16} aria-hidden="true" /> Promos &amp; Packages</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--admin-text-secondary)' }}>Discounts, bundled packages and promo codes for the services above.</span>
+              </span>
+              {servicePanels.promos ? <ChevronUp size={18} style={{ flexShrink: 0 }} /> : <ChevronDown size={18} style={{ flexShrink: 0 }} />}
+            </button>
+            {servicePanels.promos && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <PromoManager isMobile={false} />
+                <PromoCodesCard />
+              </div>
+            )}
           </div>
         )}
-        {currentTab === 'promos' && <PromoCodesCard />}
 
         {/* About photos, layout and map pin for the landing page */}
         {currentTab === 'about' && <AboutMapCard />}
