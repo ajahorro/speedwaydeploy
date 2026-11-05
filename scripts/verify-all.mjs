@@ -49,7 +49,7 @@ if (!skipBuild) {
   run('frontend build', 'npx', ['vite', 'build'], { cwd: 'frontend' });
   const assets = fs.existsSync('frontend/dist/assets') ? fs.readdirSync('frontend/dist/assets').filter((f) => f.endsWith('.css')) : [];
   const css = assets.map((f) => fs.readFileSync(`frontend/dist/assets/${f}`, 'utf8')).join('\n');
-  for (const needle of ['border-l-\\[3px\\]', 'min-w-5']) {
+  for (const needle of ['hover\\:bg-muted\\/60', 'min-w-5']) {
     rows.push({ name: `css has ${needle.replace(/\\/g, '')} (Tailwind-only pages)`, ok: css.includes(needle), seconds: '0.0', note: '' });
   }
 }
