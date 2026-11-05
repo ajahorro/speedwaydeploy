@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect } from 'react';
-import { Outlet, useNavigate, NavLink, useLocation } from 'react-router-dom';
-import {
-  ClipboardList,
-  Menu, Bell, History, Clock, Settings, LogOut, BarChart2
-} from 'lucide-react';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Menu, Bell } from 'lucide-react';
+import { NAV_ICONS, SidebarLink, SidebarButton } from '../../components/sidebar/SidebarNav';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { supabase } from '../../lib/supabase';
 import { subscribeTable } from '../../lib/realtimeHub';
@@ -89,12 +87,12 @@ const StaffLayout = () => {
   }, [userId, fetchUnreadCount]);
 
   const menuItems = [
-    { icon: ClipboardList, label: 'My Jobs', path: '/staff' },
-    { icon: History, label: 'Work History', path: '/staff/history' },
+    { icon: NAV_ICONS.bookings, label: 'My Jobs', path: '/staff' },
+    { icon: NAV_ICONS.history, label: 'Work History', path: '/staff/history' },
     // shown only when an administrator turned reports on for this account
-    ...(profile?.can_view_reports ? [{ icon: BarChart2, label: 'Reports', path: '/staff/reports' }] : []),
-    { icon: Clock, label: 'Duty & Shift', path: '/staff/duty' },
-    { icon: Bell, label: 'Notifications', path: '/staff/notifications' },
+    ...(profile?.can_view_reports ? [{ icon: NAV_ICONS.reports, label: 'Reports', path: '/staff/reports' }] : []),
+    { icon: NAV_ICONS.duty, label: 'Duty & Shift', path: '/staff/duty' },
+    { icon: NAV_ICONS.notifications, label: 'Notifications', path: '/staff/notifications' },
   ];
 
   const handleToggleShift = async () => {
@@ -215,94 +213,26 @@ const StaffLayout = () => {
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '0 0.5rem' }}>
           {menuItems.map((item) => (
-            <NavLink
+            <SidebarLink
               key={item.path}
               to={item.path}
               end={item.path === '/staff'}
-              className="admin-card-hover"
-              style={({ isActive }) => ({
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.85rem',
-                padding: '0.7rem 1.25rem',
-                borderRadius: 'var(--admin-radius-sm)',
-                textDecoration: 'none',
-                color: isActive ? 'var(--admin-sidebar-active-text)' : 'var(--admin-text-secondary)',
-                background: isActive ? 'var(--admin-sidebar-active-bg)' : 'transparent',
-                fontWeight: isActive ? '800' : '600',
-                fontSize: '0.8rem',
-                letterSpacing: 0,
-                transition: 'all 0.2s',
-                borderLeft: isActive ? '3px solid var(--admin-brand)' : '3px solid transparent',
-                marginLeft: '0',
-              })}
+              icon={item.icon}
               onClick={() => isMobile && setIsSidebarOpen(false)}
+              badge={item.path === '/staff/notifications' && unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : null}
+              badgeLabel={item.path === '/staff/notifications' ? `${unreadCount} unread notifications` : undefined}
             >
-              <item.icon size={16} strokeWidth={2.25} />
               {item.label}
-              {item.path === '/staff/notifications' && unreadCount > 0 && (
-                <span style={{ marginLeft: 'auto', minWidth: '18px', padding: '0.1rem 0.35rem', borderRadius: 'var(--admin-radius)', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', fontSize: '0.72rem', textAlign: 'center' }}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </NavLink>
+            </SidebarLink>
           ))}
         </nav>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', padding: '1rem 0.5rem', borderTop: '1px solid var(--admin-border)' }}>
           <div style={{ padding: '0 1rem 0.5rem', fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', opacity: 0.55 }}>System</div>
 
-          <NavLink
-            to="/staff/settings"
-            className="admin-card-hover"
-            style={({ isActive }) => ({
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              padding: '0.85rem 1.25rem',
-              borderRadius: 'var(--admin-radius-sm)',
-              textDecoration: 'none',
-              color: isActive ? 'var(--admin-sidebar-active-text)' : 'var(--admin-text-secondary)',
-              background: isActive ? 'var(--admin-sidebar-active-bg)' : 'transparent',
-              fontWeight: isActive ? '950' : '800',
-              fontSize: '0.7rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.8px',
-              borderLeft: isActive ? '2px solid var(--admin-brand)' : '2px solid transparent',
-              marginLeft: '0.25rem'
-            })}
-          >
-            <Settings size={14} strokeWidth={2.5} />
-            Settings
-          </NavLink>
+          <SidebarLink to="/staff/settings" icon={NAV_ICONS.settings}>Settings</SidebarLink>
 
-          <button
-            onClick={handleLogout}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              padding: '0.85rem 1.25rem',
-              borderRadius: 'var(--admin-radius-sm)',
-              color: 'var(--admin-text-secondary)',
-              fontWeight: '950',
-              fontSize: '0.7rem',
-              width: '100%',
-              textAlign: 'left',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              background: 'transparent',
-              border: 'none',
-              textTransform: 'uppercase',
-              letterSpacing: '0.8px',
-              marginLeft: '0.25rem'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--admin-brand)'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--admin-text-secondary)'}
-          >
-            <LogOut size={14} strokeWidth={2.5} />
-            Log out
-          </button>
+          <SidebarButton icon={NAV_ICONS.logout} onClick={handleLogout}>Log out</SidebarButton>
 
           <div style={{ padding: '1rem 1rem 0', borderTop: '1px solid var(--admin-border)', marginTop: '0.5rem' }}>
             <div style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--admin-text-secondary)', letterSpacing: '1px', textTransform: 'uppercase' }}>

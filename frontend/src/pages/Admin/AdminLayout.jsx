@@ -2,11 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate, NavLink, Outlet } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { subscribeTable } from '../../lib/realtimeHub';
-import {
-  LayoutDashboard, Building2, ClipboardList, CheckSquare, Calendar, UserPlus,
-  Bell, Undo, BarChart2, History, Users, User, MessageCircle,
-  Settings, LogOut, Menu, X
-} from 'lucide-react';
+import { Menu, X, Bell } from 'lucide-react';
+import { NAV_ICONS, SidebarLink, SidebarButton } from '../../components/sidebar/SidebarNav';
 import { useUI } from '../../context/UIContext';
 import { useGlobalChat } from '../../context/ChatContext';
 import { useAuth } from '../../hooks/useAuth';
@@ -151,29 +148,29 @@ const AdminLayout = () => {
     {
       name: 'Core Operations',
       links: [
-        { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, exact: true },
-        { name: 'Business Hub', path: '/admin/business', icon: Building2 },
-        { name: 'Booking Management', path: '/admin/bookings', icon: ClipboardList },
-        { name: 'Calendar', path: '/admin/schedule', icon: Calendar },
-        { name: 'New Walk-In', path: '/admin/walk-in', icon: UserPlus },
-        { name: 'Message Inquiries', path: '/admin/chat', icon: MessageCircle, badge: true }
+        { name: 'Dashboard', path: '/admin', icon: NAV_ICONS.dashboard, exact: true },
+        { name: 'Business Hub', path: '/admin/business', icon: NAV_ICONS.business },
+        { name: 'Booking Management', path: '/admin/bookings', icon: NAV_ICONS.bookings },
+        { name: 'Calendar', path: '/admin/schedule', icon: NAV_ICONS.calendar },
+        { name: 'New Walk-In', path: '/admin/walk-in', icon: NAV_ICONS.walkIn },
+        { name: 'Message Inquiries', path: '/admin/chat', icon: NAV_ICONS.messages, badge: true }
       ]
     },
     {
       name: 'Finance',
       links: [
-        { name: 'Payment Verification', path: '/admin/payments', icon: CheckSquare },
-        { name: 'Refund Hub', path: '/admin/refunds', icon: Undo },
-        { name: 'Reports', path: '/admin/reports', icon: BarChart2 }
+        { name: 'Payment Verification', path: '/admin/payments', icon: NAV_ICONS.paymentVerification },
+        { name: 'Refund Hub', path: '/admin/refunds', icon: NAV_ICONS.refunds },
+        { name: 'Reports', path: '/admin/reports', icon: NAV_ICONS.reports }
       ]
     },
     {
       name: 'System & Admin',
       links: [
-        { name: 'Audit Logs', path: '/admin/audit-logs', icon: History },
-        { name: 'Staff Roles', path: '/admin/accounts', icon: Users },
-        { name: 'Client Directory', path: '/admin/users', icon: User },
-        { name: 'Notifications', path: '/admin/notifications', icon: Bell }
+        { name: 'Audit Logs', path: '/admin/audit-logs', icon: NAV_ICONS.history },
+        { name: 'Staff Roles', path: '/admin/accounts', icon: NAV_ICONS.staff },
+        { name: 'Client Directory', path: '/admin/users', icon: NAV_ICONS.clients },
+        { name: 'Notifications', path: '/admin/notifications', icon: NAV_ICONS.notifications }
       ]
     }
   ];
@@ -255,94 +252,26 @@ const AdminLayout = () => {
               <div style={{ padding: '0.5rem 1rem', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '700', letterSpacing: '0.04em', opacity: 0.75 }}>
                 {group.name}
               </div>
-              {group.links.map((link) => {
-                const Icon = link.icon;
-                return (
-                  <NavLink
-                    key={link.name}
-                    to={link.path}
-                    end={link.exact}
-                    className="admin-card-hover"
-                    style={({ isActive }) => ({
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.85rem',
-                      padding: '0.7rem 1.25rem',
-                      borderRadius: 'var(--admin-radius-sm)',
-                      textDecoration: 'none',
-                      color: isActive ? 'var(--admin-sidebar-active-text)' : 'var(--admin-text-secondary)',
-                      background: isActive ? 'var(--admin-sidebar-active-bg)' : 'transparent',
-                      fontWeight: isActive ? '800' : '600',
-                      fontSize: '0.8rem',
-                      letterSpacing: 0,
-                      transition: 'all 0.2s',
-                      borderLeft: isActive ? '3px solid var(--admin-brand)' : '3px solid transparent',
-                      marginLeft: '0'
-                    })}
-                  >
-                    <Icon size={16} strokeWidth={2.25} />
-                    {link.name}
-                    {link.badge && globalUnreadCount > 0 && (
-                      <span aria-label={`${globalUnreadCount} unread messages`} style={{ marginLeft: 'auto', minWidth: '1.25rem', padding: '0.1rem 0.4rem', borderRadius: '999px', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', fontSize: '0.65rem', fontWeight: 900, textAlign: 'center' }}>
-                        {globalUnreadCount > 99 ? '99+' : globalUnreadCount}
-                      </span>
-                    )}
-                  </NavLink>
-                );
-              })}
+              {group.links.map((link) => (
+                <SidebarLink
+                  key={link.name}
+                  to={link.path}
+                  end={link.exact}
+                  icon={link.icon}
+                  badge={link.badge && globalUnreadCount > 0 ? (globalUnreadCount > 99 ? '99+' : globalUnreadCount) : null}
+                  badgeLabel={link.badge ? `${globalUnreadCount} unread messages` : undefined}
+                >
+                  {link.name}
+                </SidebarLink>
+              ))}
             </div>
           ))}
         </nav>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', padding: '1rem 0.5rem', borderTop: '1px solid var(--admin-border)' }}>
-          <NavLink
-            to="/admin/settings"
-            style={({ isActive }) => ({
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              padding: '0.85rem 1.25rem',
-              borderRadius: 'var(--admin-radius-sm)',
-              textDecoration: 'none',
-              color: isActive ? 'var(--admin-sidebar-active-text)' : 'var(--admin-text-secondary)',
-              background: isActive ? 'var(--admin-sidebar-active-bg)' : 'transparent',
-              fontWeight: isActive ? '800' : '600',
-              fontSize: '0.8rem',
-              letterSpacing: 0,
-              borderLeft: isActive ? '3px solid var(--admin-brand)' : '3px solid transparent',
-              marginLeft: '0'
-            })}
-          >
-            <Settings size={14} strokeWidth={2.5} />
-            Settings
-          </NavLink>
+          <SidebarLink to="/admin/settings" icon={NAV_ICONS.settings}>Settings</SidebarLink>
 
-          <button
-            onClick={handleLogout}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              padding: '0.85rem 1.25rem',
-              borderRadius: 'var(--admin-radius-sm)',
-              color: 'var(--admin-text-secondary)',
-              fontWeight: '600',
-              fontSize: '0.8rem',
-              width: '100%',
-              textAlign: 'left',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              background: 'transparent',
-              border: 'none',
-              letterSpacing: 0,
-              marginLeft: '0.25rem'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--admin-brand)'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--admin-text-secondary)'}
-          >
-            <LogOut size={14} strokeWidth={2.5} />
-            Log out
-          </button>
+          <SidebarButton icon={NAV_ICONS.logout} onClick={handleLogout}>Log out</SidebarButton>
         </div>
       </aside>
 

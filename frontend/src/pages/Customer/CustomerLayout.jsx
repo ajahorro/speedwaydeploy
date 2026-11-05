@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useLocation, useNavigate, NavLink, Outlet } from 'react-router-dom';
+import { useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { subscribeTable } from '../../lib/realtimeHub';
-import {
-  LayoutDashboard, PlusCircle, ClipboardList, CreditCard,
-  Car, Bell, Settings, LogOut, Menu, X
-} from 'lucide-react';
+import { Bell, Menu, X } from 'lucide-react';
+import { NAV_ICONS, SidebarLink, SidebarButton } from '../../components/sidebar/SidebarNav';
 import HeaderProfileDropdown from '../../components/common/HeaderProfileDropdown';
 import NotificationPopover from '../../components/NotificationPopover';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -103,9 +101,9 @@ const CustomerLayout = () => {
   };
 
   const navSections = [
-    { title: 'Main', links: [{ name: 'Dashboard', path: '/customer', icon: LayoutDashboard, exact: true }] },
-    { title: 'Bookings', links: [{ name: 'Book Appointment', path: '/customer/book', icon: PlusCircle }, { name: 'My Bookings', path: '/customer/bookings', icon: ClipboardList }] },
-    { title: 'Garage & Billing', links: [{ name: 'Transactions & Billing', path: '/customer/billing', icon: CreditCard }, { name: 'Vehicle Garage', path: '/customer/garage', icon: Car }, { name: 'Notifications', path: '/customer/notifications', icon: Bell }] }
+    { title: 'Main', links: [{ name: 'Dashboard', path: '/customer', icon: NAV_ICONS.dashboard, exact: true }] },
+    { title: 'Bookings', links: [{ name: 'Book Appointment', path: '/customer/book', icon: NAV_ICONS.newBooking }, { name: 'My Bookings', path: '/customer/bookings', icon: NAV_ICONS.bookings }] },
+    { title: 'Garage & Billing', links: [{ name: 'Transactions & Billing', path: '/customer/billing', icon: NAV_ICONS.billing }, { name: 'Vehicle Garage', path: '/customer/garage', icon: NAV_ICONS.garage }, { name: 'Notifications', path: '/customer/notifications', icon: NAV_ICONS.notifications }] }
   ];
 
   const sidebarStyle = {
@@ -164,83 +162,18 @@ const CustomerLayout = () => {
           {navSections.map(section => (
             <div key={section.title}>
               <div style={{ padding: '0.75rem 1rem 0.5rem', fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', opacity: 0.55 }}>{section.title}</div>
-              {section.links.map((link) => {
-                const Icon = link.icon;
-                return (
-                  <NavLink
-                    key={link.name}
-                    to={link.path}
-                    end={link.exact}
-                    className="admin-card-hover"
-                    style={({ isActive }) => ({
-                      display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.85rem 1.25rem', borderRadius: 'var(--admin-radius-sm)', textDecoration: 'none',
-                      color: isActive ? 'var(--admin-sidebar-active-text)' : 'var(--admin-text-secondary)', background: isActive ? 'var(--admin-sidebar-active-bg)' : 'transparent',
-                      fontWeight: isActive ? '950' : '800', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', transition: 'all 0.2s',
-                      borderLeft: isActive ? '2px solid var(--admin-brand)' : '2px solid transparent', marginLeft: '0.25rem'
-                    })}
-                  >
-                    <Icon size={14} strokeWidth={2.5} />
-                    {link.name}
-                  </NavLink>
-                );
-              })}
+              {section.links.map((link) => (
+                <SidebarLink key={link.name} to={link.path} end={link.exact} icon={link.icon}>{link.name}</SidebarLink>
+              ))}
             </div>
           ))}
         </nav>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', padding: '1rem 0.5rem', borderTop: '1px solid var(--admin-border)' }}>
           <div style={{ padding: '0 1rem 0.5rem', fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', opacity: 0.55 }}>System</div>
-          <NavLink
-            to="/customer/settings"
-            className="admin-card-hover"
-            style={({ isActive }) => ({
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              padding: '0.85rem 1.25rem',
-              borderRadius: 'var(--admin-radius-sm)',
-              textDecoration: 'none',
-              color: isActive ? 'var(--admin-sidebar-active-text)' : 'var(--admin-text-secondary)',
-              background: isActive ? 'var(--admin-sidebar-active-bg)' : 'transparent',
-              fontWeight: isActive ? '950' : '800',
-              fontSize: '0.7rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.8px',
-              borderLeft: isActive ? '2px solid var(--admin-brand)' : '2px solid transparent',
-              marginLeft: '0.25rem'
-            })}
-          >
-            <Settings size={14} strokeWidth={2.5} />
-            Settings
-          </NavLink>
+          <SidebarLink to="/customer/settings" icon={NAV_ICONS.settings}>Settings</SidebarLink>
 
-          <button
-            onClick={handleLogout}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              padding: '0.85rem 1.25rem',
-              borderRadius: 'var(--admin-radius-sm)',
-              color: 'var(--admin-text-secondary)',
-              fontWeight: '950',
-              fontSize: '0.7rem',
-              width: '100%',
-              textAlign: 'left',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              background: 'transparent',
-              border: 'none',
-              textTransform: 'uppercase',
-              letterSpacing: '0.8px',
-              marginLeft: '0.25rem'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--admin-brand)'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--admin-text-secondary)'}
-          >
-            <LogOut size={14} strokeWidth={2.5} />
-            Log out
-          </button>
+          <SidebarButton icon={NAV_ICONS.logout} onClick={handleLogout}>Log out</SidebarButton>
         </div>
       </aside>
 
