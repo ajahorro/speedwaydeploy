@@ -350,7 +350,7 @@ const AdminDashboard = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'fadeIn 0.5s ease' }}>
       <PageHeader
-        title="Command Center"
+        title="Dashboard"
         subtitle="Real-time performance metrics and fleet coordination."
         onRefresh={fetchDashboardData}
       />

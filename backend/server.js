@@ -4667,6 +4667,8 @@ app.put('/api/admin/site-content', async (req, res) => {
     photos.push({ id, url: sitePhotoUrl(id), caption: cleanSiteText(item?.caption, 140) });
   }
 
+  // the map pin is required; photos are optional
+  if (!body.location) return res.status(400).json({ success: false, error: 'Pin the shop on the map before saving.' });
   let location = null;
   if (body.location) {
     const lat = Number(body.location.lat);

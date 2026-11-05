@@ -62,13 +62,13 @@ const describeTechnicianCapacity = (settings, form) => {
 
 const TAB_DEFINITIONS = [
   { id: 'profile', label: 'Business Profile' },
+  // Landing page About photos (captions + layout) and the shop's map pin.
+  { id: 'about', label: 'About & Map' },
   { id: 'schedule', label: 'Schedule Rules' },
   // The Service Catalog editor lives at `currentTab === 'services'` below.
   // It was unreachable because it was missing from BOTH lists above.
   { id: 'services', label: 'Service Catalog' },
   { id: 'promos', label: 'Promo Management' },
-  // Landing page About photos (captions + layout) and the shop's map pin.
-  { id: 'about', label: 'About & Map' },
   // Downpayment policy (business_config.downpayment_*), enforced by the database.
   { id: 'payments', label: 'Payment Policy' },
   // One versioned text per role, accepted on first open (master plan 1.11).

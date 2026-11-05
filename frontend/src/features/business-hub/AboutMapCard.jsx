@@ -173,6 +173,7 @@ export function AboutMapCard() {
   };
 
   const save = async () => {
+    if (!draft.location) { toast.error('Pin the shop on the map before saving.'); return; }
     setSaving(true);
     try {
       const response = await fetch(`${BACKEND_URL}/api/admin/site-content`, {
@@ -196,6 +197,8 @@ export function AboutMapCard() {
   };
 
   const busy = saving || uploading > 0;
+  // Photos are optional; the map pin is not (the landing page always shows where the shop is).
+  const missingPin = !draft.location;
 
   return (
     <div className="ui-root grid gap-4">
@@ -284,7 +287,7 @@ export function AboutMapCard() {
       <Card>
         <CardHeader>
           <CardTitle>Map pin</CardTitle>
-          <CardDescription>Search the shop's address, or click the map, then drag the pin to the exact spot. The landing page shows this map under About us.</CardDescription>
+          <CardDescription>Required. Search the shop's address, or click the map, then drag the pin to the exact spot. The landing page shows this map under About us.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
           <form onSubmit={searchAddress} className="grid gap-1.5" role="search">
@@ -366,9 +369,12 @@ export function AboutMapCard() {
         <CardFooter className="flex flex-wrap justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)} className="flex-1 sm:flex-none"><Eye /> See preview</Button>
           <Button type="button" variant="ghost" disabled={!isDirty || busy} onClick={() => setDraft(saved)} className="flex-1 sm:flex-none"><Undo2 /> Discard</Button>
+          {missingPin && (
+            <p className="m-0 w-full text-sm text-destructive" role="alert">Pin the shop on the map before saving. Photos are optional.</p>
+          )}
           <Button
             type="button"
-            disabled={!isDirty || busy}
+            disabled={!isDirty || busy || missingPin}
             className="w-full sm:w-auto"
             onClick={() => confirmThen({ title: 'Save About photos and map?', message: 'The landing page will show these photos, captions, layout and map pin straight away.', confirmText: 'Save' }, save)}
           >
