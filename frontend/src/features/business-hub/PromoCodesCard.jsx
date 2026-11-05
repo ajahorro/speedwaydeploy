@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/supabase';
 import { useConfig } from '@/context/ConfigContext';
 import { writeAdminAuditLog } from '@/services/auditLogService';
+import { usePaged } from '@/components/common/ListPager';
+import { formatDateRange } from '@/utils/dateRange';
 import { formatPeso } from '@/features/finance/money';
 import { useConfirmAction } from '@/hooks/useConfirmAction';
 
@@ -102,14 +104,13 @@ export function PromoCodesCard() {
     await load();
   };
 
-  // Expired codes remain visible with their status; only archived and used-up
-  // codes are moved behind the secondary list.
-  const isPast = (row) => ['Archived', 'Used up'].includes(statusOf(row).label);
+  // A code that has expired, been archived or used up is no longer current: it moves to the archived list.
+  const isPast = (row) => ['Archived', 'Used up', 'Expired'].includes(statusOf(row).label);
   const [showPast, setShowPast] = useState(false);
-  const [pastVisible, setPastVisible] = useState(5);
   const currentRows = rows.filter((row) => !isPast(row));
   const pastRows = rows.filter(isPast);
-  const shownRows = showPast ? pastRows.slice(0, pastVisible) : currentRows;
+  // 4 codes a page in either list
+  const { rows: shownRows, pager } = usePaged(showPast ? pastRows : currentRows, { perPage: 4, resetKey: [showPast], label: 'codes' });
 
   const discountLabel = (row) => (row.discount_type === 'percentage' ? `${Number(row.discount_value)}% off` : `${formatPeso(Number(row.discount_value))} off`);
   const scopeLabel = (row) => (row.vehicle_types?.length ? row.vehicle_types.join(', ') : 'All vehicles');
@@ -193,7 +194,7 @@ export function PromoCodesCard() {
             </thead>
             <tbody>
               {loading && <tr><td colSpan={7} className="py-4 text-muted-foreground">Loading…</td></tr>}
-              {!loading && shownRows.length === 0 && <tr><td colSpan={7} className="py-4 text-muted-foreground">{showPast ? 'No archived or used-up codes.' : 'No current promo codes.'}</td></tr>}
+              {!loading && shownRows.length === 0 && <tr><td colSpan={7} className="py-4 text-muted-foreground">{showPast ? 'No archived codes.' : 'No current promo codes.'}</td></tr>}
               {shownRows.map((row) => {
                 const status = statusOf(row);
                 return (
@@ -201,11 +202,11 @@ export function PromoCodesCard() {
                     <td className="py-2 pr-3 font-mono font-semibold">{row.code}<div className="font-sans text-xs font-normal text-muted-foreground">{row.name}</div></td>
                     <td className="pr-3">{discountLabel(row)}</td>
                     <td className="pr-3">{scopeLabel(row)}</td>
-                    <td className="pr-3">{fmtDate(row.valid_from)} → {row.valid_until ? fmtDate(row.valid_until) : 'No end'}</td>
+                    <td className="whitespace-nowrap pr-3" title={`${fmtDate(row.valid_from)} to ${row.valid_until ? fmtDate(row.valid_until) : 'no end date'}`}>{formatDateRange(row.valid_from, row.valid_until)}</td>
                     <td className="pr-3 tabular-nums">{row.uses_count}{row.max_uses ? ` / ${row.max_uses}` : ''}</td>
                     <td className="pr-3"><Badge variant={status.variant}>{status.label}</Badge></td>
                     <td className="text-right">
-                      {!showPast && status.label !== 'Expired' && (
+                      {!showPast && (
                         <Button size="sm" variant="outline" aria-label={`Archive ${row.code}`}
                           onClick={() => confirmThen({ title: `Archive ${row.code}?`, message: 'The code stops working immediately and moves to the archived list. Past bookings keep the discount they received.', confirmText: 'Archive code', type: 'danger' }, () => archive(row))}>
                           <Archive /> Archive
@@ -218,13 +219,11 @@ export function PromoCodesCard() {
             </tbody>
           </table>
         </div>
+        {pager}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => { setShowPast((v) => !v); setPastVisible(5); }}>
-            {showPast ? 'Back to current codes' : `View archived and used-up codes (${pastRows.length})`}
+          <Button type="button" variant="outline" size="sm" onClick={() => setShowPast((v) => !v)}>
+            {showPast ? 'Back to current codes' : `View archived (${pastRows.length})`}
           </Button>
-          {showPast && pastRows.length > pastVisible && (
-            <Button type="button" variant="outline" size="sm" onClick={() => setPastVisible((n) => n + 5)}>See more</Button>
-          )}
         </div>
       </CardContent>
     </Card>

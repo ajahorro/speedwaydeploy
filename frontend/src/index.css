@@ -718,3 +718,16 @@ body.admin-account-active :where(input, select, textarea) {
   .cp-email { text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) { .cp-chevron { transition: none; } }
+
+/* Anything you can click shows the pointing hand; anything switched off shows "not allowed". Kept in the base layer
+   so a component's own cursor class (or an inline style) still wins where it means something else. */
+@layer base {
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]), a[href], summary, label[for], select:not(:disabled),
+  input[type="checkbox"]:not(:disabled), input[type="radio"]:not(:disabled), input[type="file"]:not(:disabled), input[type="color"]:not(:disabled),
+  [role="tab"], [role="switch"], [role="radio"], [role="checkbox"], [role="option"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"] {
+    cursor: pointer;
+  }
+  button:disabled, select:disabled, input:disabled, [aria-disabled="true"], [data-disabled] {
+    cursor: not-allowed;
+  }
+}

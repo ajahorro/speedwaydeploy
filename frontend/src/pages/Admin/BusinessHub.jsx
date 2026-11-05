@@ -69,10 +69,8 @@ const TAB_DEFINITIONS = [
   // It was unreachable because it was missing from BOTH lists above.
   // Services and the promo/package rules live together: promos are a collapsed section at the bottom.
   { id: 'services', label: 'Services & Promos' },
-  // Downpayment policy (business_config.downpayment_*), enforced by the database.
-  { id: 'payments', label: 'Payment Policy' },
-  // One versioned text per role, accepted on first open (master plan 1.11).
-  { id: 'terms', label: 'Terms' },
+  // Terms (one versioned text per role) and the downpayment policy, each a collapsed section.
+  { id: 'terms', label: 'Terms & Policies' },
 ];
 
 // Derived, never hand-maintained. `?tab=` values are validated against this.
@@ -403,7 +401,8 @@ export default function BusinessHub() {
   // Back/Forward navigation stays in sync. Fall back to 'profile' for any
   // unrecognized/absent ?tab= value instead of rendering an empty panel.
   // old links to ?tab=promos open Services & Promos with the promo section expanded
-  const requestedTab = searchParams.get('tab') === 'promos' ? 'services' : searchParams.get('tab');
+  const TAB_ALIASES = { promos: 'services', payments: 'terms' };
+  const requestedTab = TAB_ALIASES[searchParams.get('tab')] || searchParams.get('tab');
   const currentTab = TAB_KEYS.includes(requestedTab) ? requestedTab : 'profile';
 
   const { refreshConfig, settings: configSettings } = useConfig();
@@ -425,7 +424,7 @@ export default function BusinessHub() {
   }, [message]);
 
   // Service catalog management state (Tab 3)
-  const [servicePanels, setServicePanels] = useState(() => ({ existing: false, add: false, vehicle: false, promos: searchParams.get('tab') === 'promos' }));
+  const [servicePanels, setServicePanels] = useState(() => ({ existing: false, add: false, vehicle: false, promos: searchParams.get('tab') === 'promos', terms: false, payments: searchParams.get('tab') === 'payments' }));
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState('All');
   const [newServiceForm, setNewServiceForm] = useState({
     targetVehicleCategory: 'Sedan',
@@ -3231,11 +3230,31 @@ export default function BusinessHub() {
         {/* About photos, layout and map pin for the landing page */}
         {currentTab === 'about' && <AboutMapCard />}
 
-        {/* Tab 6: Payment Policy (downpayment) */}
-        {currentTab === 'payments' && <DownpaymentPolicyCard />}
-
-        {/* Tab 7: Terms and conditions (customer, staff, admin) */}
-        {currentTab === 'terms' && <TermsEditorCard />}
+        {/* Terms & Policies: the terms texts and the downpayment policy, each a collapsed section (same as Services & Promos) */}
+        {currentTab === 'terms' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {[
+              { key: 'terms', title: 'Terms and conditions', hint: 'The terms customers, staff and admins accept, one version per role.', icon: ScrollText, body: <TermsEditorCard /> },
+              { key: 'payments', title: 'Payment policy', hint: 'How much a customer pays up front before work starts.', icon: Wallet, body: <DownpaymentPolicyCard /> },
+            ].map(({ key, title, hint, icon: SectionIcon, body }) => (
+              <div key={key} style={{ ...cardStyle, gap: '1rem' }}>
+                <button
+                  type="button"
+                  onClick={() => toggleServicePanel(key)}
+                  aria-expanded={Boolean(servicePanels[key])}
+                  style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', cursor: 'pointer', color: 'var(--admin-text-primary)', textAlign: 'left' }}
+                >
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0 }}>
+                    <span style={{ fontSize: '0.92rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '0.5rem' }}><SectionIcon size={16} aria-hidden="true" /> {title}</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--admin-text-secondary)' }}>{hint}</span>
+                  </span>
+                  {servicePanels[key] ? <ChevronUp size={18} style={{ flexShrink: 0 }} /> : <ChevronDown size={18} style={{ flexShrink: 0 }} />}
+                </button>
+                {servicePanels[key] && body}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Task B: QR change is gated behind a 6-digit email OTP. */}

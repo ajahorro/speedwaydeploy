@@ -90,7 +90,6 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
   const [promoDraft, setPromoDraft] = useState(defaultPromoDraft);
   const [promoValidationError, setPromoValidationError] = useState('');
   const [showPastPromos, setShowPastPromos] = useState(false);
-  const [pastVisible, setPastVisible] = useState(5);
   const [promoPublishing, setPromoPublishing] = useState(false);
   const [activeVehiclePopover, setActiveVehiclePopover] = useState(null);
 
@@ -440,8 +439,8 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
   const isPastPromo = (rule) => Boolean(rule?.archived_at) || getPromoStatus(rule) === 'EXPIRED';
   const currentRules = promoRules.filter((rule) => !isPastPromo(rule));
   const pastRules = promoRules.filter(isPastPromo);
-  // archived and expired promos load 5 at a time
-  const shownRules = showPastPromos ? pastRules.slice(0, pastVisible) : currentRules;
+  // 4 promos a page in either list
+  const { rows: shownRules, pager: promoPager } = usePaged(showPastPromos ? pastRules : currentRules, { perPage: 4, resetKey: [showPastPromos], label: 'promos' });
 
   return (
     <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '1.25rem', marginTop: '0.5rem' }}>
@@ -844,10 +843,10 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
         </div>
         <button
           type="button"
-          onClick={() => { setShowPastPromos((value) => !value); setPastVisible(5); }}
+          onClick={() => setShowPastPromos((value) => !value)}
           style={{ marginLeft: 'auto', padding: '0.45rem 0.8rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.72rem', cursor: 'pointer' }}
         >
-          {showPastPromos ? 'Back to current promos' : `View archived and expired promos (${pastRules.length})`}
+          {showPastPromos ? 'Back to current promos' : `View archived (${pastRules.length})`}
         </button>
       </div>
       {shownRules.length === 0 && (
@@ -952,15 +951,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
           );
         })}
       </div>
-      {showPastPromos && pastRules.length > pastVisible && (
-        <button
-          type="button"
-          onClick={() => setPastVisible((n) => n + 5)}
-          style={{ display: 'block', margin: '1rem auto 0', padding: '0.6rem 1.5rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: 900, fontSize: '0.75rem', textTransform: 'uppercase', cursor: 'pointer' }}
-        >
-          See more
-        </button>
-      )}
+      {promoPager}
     </div>
   );
 };
