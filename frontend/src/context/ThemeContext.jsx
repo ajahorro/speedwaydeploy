@@ -3,9 +3,9 @@ import React, { createContext, useContext, useState, useEffect, useLayoutEffect,
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(() => localStorage.getItem('comar-theme') || localStorage.getItem('speedway-theme') || 'system');
+  const [theme, setTheme] = useState(() => localStorage.getItem('comar-theme') || localStorage.getItem('speedway-theme') || 'light');
   const [systemTheme, setSystemTheme] = useState(() => (
-    window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+    window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   ));
 
   useEffect(() => {
@@ -13,8 +13,8 @@ export const ThemeProvider = ({ children }) => {
   }, [theme]);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
-    const handleSystemThemeChange = (event) => setSystemTheme(event.matches ? 'light' : 'dark');
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemThemeChange = (event) => setSystemTheme(event.matches ? 'dark' : 'light');
     mediaQuery.addEventListener('change', handleSystemThemeChange);
     return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
   }, []);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutDashboard, LogIn, LogOut, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, LogIn, LogOut, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import { BACKEND_URL } from '@/config/api';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
@@ -62,11 +62,32 @@ export function MobileMenu({ open, onOpenChange, links, onNavigate, user, pendin
 }
 
 export function ServiceCard({ service, formatPrice }) {
+  const photoUrl = service.image_url || service.imageUrl || service.photo_url || service.image;
+
   return (
-    <Card className="landing-ui lp-card-hover h-full gap-0 py-0">
-      <CardContent className="flex flex-col p-6">
+    <Card className="landing-ui lp-card-hover h-full gap-0 py-0 overflow-hidden flex flex-col">
+      {/* Photo Space / Placeholder for future photos */}
+      <div className="relative w-full h-44 bg-muted/30 border-b flex items-center justify-center overflow-hidden shrink-0">
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt={service.name}
+            className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-1.5 text-muted-foreground/50 select-none p-4 text-center">
+            <div className="flex size-10 items-center justify-center rounded-full border border-dashed border-border/80 bg-background/50">
+              <ImageIcon className="size-5 opacity-60" />
+            </div>
+            <span className="text-[0.65rem] font-bold uppercase tracking-wider opacity-60">Photo Space</span>
+          </div>
+        )}
+      </div>
+
+      <CardContent className="flex flex-col flex-1 p-6">
         <h4 className="mb-2 text-base font-black uppercase">{service.name}</h4>
-        <p className="m-0 text-sm leading-relaxed text-muted-foreground">{service.desc}</p>
+        <p className="m-0 text-sm leading-relaxed text-muted-foreground flex-1">{service.desc}</p>
         <Accordion type="single" collapsible className="mt-4">
           <AccordionItem value="prices" className="border-b-0 border-t">
             <AccordionTrigger className="py-3 text-xs font-black uppercase tracking-wider text-primary hover:no-underline">
@@ -74,7 +95,7 @@ export function ServiceCard({ service, formatPrice }) {
             </AccordionTrigger>
             <AccordionContent>
               <ul className="m-0 grid list-none gap-0 p-0">
-                {Object.entries(service.prices).map(([type, price]) => (
+                {Object.entries(service.prices || {}).map(([type, price]) => (
                   <li key={type} className="flex items-center justify-between border-b py-2 last:border-b-0">
                     <span className="text-xs font-bold uppercase text-muted-foreground">{type}</span>
                     <span className="text-sm font-black">₱{formatPrice(price)}</span>

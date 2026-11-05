@@ -75,6 +75,7 @@ const StaffDuty = lazy(() => import('./pages/Staff/StaffDuty'));
 const StaffNotifications = lazy(() => import('./pages/Staff/StaffNotifications'));
 const StaffSettings = lazy(() => import('./pages/Staff/StaffSettings'));
 const Landing = lazy(() => import('./pages/Landing'));
+const ServicesPage = lazy(() => import('./pages/ServicesPage'));
 const Login = lazy(() => import('./pages/Login'));
 import ProtectedRoute from './components/ProtectedRoute';
 const CustomerLayout = lazy(() => import('./pages/Customer/CustomerLayout'));
@@ -160,6 +161,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<Landing />} />
+                <Route path="/services" element={<ServicesPage />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/accept-invite" element={<AdminAcceptInvite />} />
                 {/* Landing page for Supabase auth email links (signup

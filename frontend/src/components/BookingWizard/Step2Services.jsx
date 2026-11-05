@@ -339,6 +339,18 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
     }));
   };
 
+  const removeAllServices = (unit) => {
+    updateVehicles((current) => current.map((vehicle) => {
+      if (!unit.vehicles.some((member) => member.id === vehicle.id)) return vehicle;
+      return {
+        ...vehicle,
+        services: [],
+        package_applied: null,
+        package_price: null,
+      };
+    }));
+  };
+
   const toggleService = (unit, service) => {
     const selected = unit.vehicles.every((vehicle) => vehicle.services?.some((item) => item.id === service.id));
 
@@ -704,7 +716,34 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
               )}
             </div>
             <aside className="booking-unit-column" style={{ background: 'rgba(var(--admin-brand-rgb), .025)', display: 'flex', flexDirection: 'column' }}>
-              <p style={{ margin: '0 0 .75rem', fontSize: '.68rem', color: 'var(--admin-text-secondary)', fontWeight: '900', textTransform: 'uppercase' }}>C. Unit summary</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 .75rem' }}>
+                <p style={{ margin: 0, fontSize: '.68rem', color: 'var(--admin-text-secondary)', fontWeight: '900', textTransform: 'uppercase' }}>C. Unit summary</p>
+                {selectedServices.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => removeAllServices(unit)}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: 'var(--status-danger)',
+                      fontSize: '.65rem',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      padding: '.15rem .45rem',
+                      borderRadius: '4px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '.25rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '.3px'
+                    }}
+                    title="Remove all chosen services for this vehicle"
+                  >
+                    <Trash2 size={12} />
+                    <span>Remove all</span>
+                  </button>
+                )}
+              </div>
               <strong style={{ color: 'var(--admin-text-primary)', fontSize: '.85rem' }}>{unit.locked ? `${unit.vehicles.length} ${vehicle.type} vehicle${unit.vehicles.length === 1 ? '' : 's'}` : `${vehicle.brand} ${vehicle.model}`}</strong>
               <small style={{ color: 'var(--admin-text-secondary)', marginBottom: '1rem' }}>{unit.locked ? 'The selected services apply to every listed vehicle.' : `${vehicle.plateNumber} · ${vehicle.type}`}</small>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.55rem', flex: 1 }}>

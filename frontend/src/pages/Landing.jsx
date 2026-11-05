@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight,
@@ -177,11 +177,24 @@ const Landing = () => {
 
   const scrollToSection = useCallback((id) => {
     setMenuOpen(false);
+    if (id === 'services') {
+      navigate('/services');
+      return;
+    }
     setTimeout(() => {
       const element = document.getElementById(id);
       if (element) element.scrollIntoView({ behavior: 'smooth' });
     }, 100);
-  }, []);
+  }, [navigate]);
+
+  const featuredServices = useMemo(() => {
+    const list = [
+      catalog['Car Wash']?.[1] || catalog['Car Wash']?.[0],
+      catalog['Packages']?.[1] || catalog['Packages']?.[0],
+      catalog['Detailing']?.[2] || catalog['Detailing']?.[0],
+    ].filter(Boolean);
+    return list.length > 0 ? list : (catalog['Car Wash'] || []).slice(0, 3);
+  }, [catalog]);
 
   const NAV_LINKS = [
     { label: 'Home',     id: 'home' },
@@ -539,90 +552,109 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* ── 5. SERVICES SECTION ── */}
+      {/* ── 5. SERVICES SHOWCASE & DEDICATED CATALOG LINK ── */}
       <section id="services" className="section-padding" style={{ background: '#0F1012' }}>
         <div className="container-wide">
           <Reveal direction="up">
-            <div style={{ textAlign: 'center', marginBottom: '4.5rem' }}>
-              <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '1rem', fontWeight: 950 }}>OUR SERVICES</h2>
+            <div style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(196, 31, 43, 0.12)', border: '1px solid rgba(196, 31, 43, 0.3)', borderRadius: '999px', padding: '0.4rem 1rem', marginBottom: '1rem', color: '#ff4d5a', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                <Sparkles size={14} /> Full Catalog On Dedicated Page
+              </div>
+              <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '1rem', fontWeight: 950 }}>OUR SERVICES & PACKAGES</h2>
+              <p style={{ maxWidth: '640px', margin: '0 auto 1.5rem', color: 'rgba(255,255,255,0.7)', fontSize: '0.95rem', lineHeight: 1.6 }}>
+                From precision car washing and interior restoration to multi-stage paint correction and ceramic protection. Explore our dedicated catalog for full vehicle class pricing and package options.
+              </p>
               <div style={{ width: '80px', height: '4px', background: '#C41F2B', margin: '0 auto', borderRadius: '2px' }} />
             </div>
           </Reveal>
 
-          {Object.entries(catalog).map(([category, services], catIndex) => {
-            const isCatCollapsed = collapsedCategories[category] !== false; // default collapsed
+          {/* Featured highlights preview grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
+            {featuredServices.map((service, i) => (
+              <Reveal key={service.id || i} delay={i * 80} direction="up">
+                <ServiceCard service={service} formatPrice={formatPrice} />
+              </Reveal>
+            ))}
+          </div>
 
-            return (
-              <div key={category} style={{ marginBottom: '5rem' }}>
-                {/* Category header row — on mobile shows a tap-to-expand button */}
-                <Reveal direction="left">
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'clamp(0.75rem, 2vw, 2rem)',
-                      marginBottom: '2.5rem',
-                      minWidth: 0,
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => toggleCategory(category)}
-                  >
-                    <h3 style={{ fontSize: 'clamp(1.05rem, 3.5vw, 1.45rem)', fontWeight: '950', textTransform: 'uppercase', color: 'rgba(255,255,255,0.92)', minWidth: 0, margin: 0 }}>
-                      {category}
-                    </h3>
-                    <div style={{ flex: 1, minWidth: '1rem', height: '1px', background: 'rgba(255,255,255,0.1)' }} />
-                    {/* Mobile-only collapse toggle */}
-                    <button
-                      className="cat-toggle-btn"
-                      type="button"
-                      aria-label={isCatCollapsed ? 'Expand' : 'Collapse'}
-                      style={{
-                        display: 'none', // shown via CSS on mobile
-                        background: 'rgba(196, 31, 43,0.1)',
-                        border: '1px solid rgba(196, 31, 43,0.25)',
-                        borderRadius: '2px',
-                        color: '#C41F2B',
-                        padding: '0.35rem 0.65rem',
-                        cursor: 'pointer',
-                        fontSize: '0.7rem',
-                        fontWeight: '950',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                        alignItems: 'center',
-                        gap: '0.3rem',
-                        flexShrink: 0,
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      <ChevronDown
-                        size={14}
-                        style={{
-                          transform: isCatCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
-                          transition: 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)'
-                        }}
-                      />
-                      {isCatCollapsed ? `${services.length} services` : 'Collapse'}
-                    </button>
-                  </div>
-                </Reveal>
-
-                {/* Services grid — collapsed on mobile by default */}
-                <div
-                  className={`cat-services-grid ${isCatCollapsed ? 'collapsed' : 'expanded'}`}
-                  style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: '1.5rem' }}
-                >
-                  {services.map((service, i) => {
-                    const serviceKey = `${catIndex}-${i}`;
-                    return (
-                      <Reveal key={i} delay={Math.min(i * 60, 280)} direction="up">
-                        <ServiceCard service={service} formatPrice={formatPrice} />
-                      </Reveal>
-                    );
-                  })}
-                </div>
+          {/* CTA Banner linking to /services */}
+          <Reveal direction="up" delay={200}>
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(196, 31, 43, 0.08) 100%)',
+              border: '1.5px solid rgba(255,255,255,0.12)',
+              borderRadius: '16px',
+              padding: 'clamp(2rem, 4vw, 3rem)',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1.25rem'
+            }}>
+              <div>
+                <h3 style={{ fontSize: 'clamp(1.2rem, 2.5vw, 1.6rem)', fontWeight: 950, textTransform: 'uppercase', margin: '0 0 0.5rem', color: '#fff' }}>
+                  Explore All Detailing & Specialty Solutions
+                </h3>
+                <p style={{ margin: 0, color: 'rgba(255,255,255,0.75)', fontSize: '0.92rem', maxWidth: '580px' }}>
+                  Filter by category, search specific services, and view pricing breakdown across Hatchback, Sedan, SUV, Van, and Motorcycle classes.
+                </p>
               </div>
-            );
-          })}
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => navigate('/services')}
+                  style={{
+                    background: '#C41F2B',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0.9rem 1.75rem',
+                    fontSize: '0.88rem',
+                    fontWeight: 900,
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    boxShadow: '0 6px 20px rgba(196, 31, 43, 0.35)',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(196, 31, 43, 0.5)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(196, 31, 43, 0.35)'; }}
+                >
+                  <span>View Full Catalog & Pricing</span>
+                  <ChevronRight size={18} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAuthAction}
+                  style={{
+                    background: 'rgba(255,255,255,0.06)',
+                    color: '#fff',
+                    border: '1.5px solid rgba(255,255,255,0.2)',
+                    borderRadius: '8px',
+                    padding: '0.9rem 1.75rem',
+                    fontSize: '0.88rem',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                >
+                  <span>Book Appointment</span>
+                </button>
+              </div>
+            </div>
+          </Reveal>
         </div>
       </section>
 
