@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Building, Wrench, Tag, Save, AlertCircle, CheckCircle, Check,
-  Plus, X, Trash2, Archive, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown, Wallet, ScrollText
+  Plus, X, Trash2, Archive, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown, Wallet, ScrollText, Image as ImageIcon
 } from 'lucide-react';
 import { useConfig } from '../../context/ConfigContext';
 import { useUI } from '../../context/UIContext';
@@ -11,6 +11,7 @@ import toast from '@/lib/toast';
 import PromoManager from '../../components/AdminSchedule/PromoManager';
 import { DownpaymentPolicyCard } from '../../features/business-hub/DownpaymentPolicyCard';
 import { usePaged } from '../../components/common/ListPager';
+import { AboutMapCard } from '../../features/business-hub/AboutMapCard';
 import { TermsEditorCard } from '../../features/business-hub/TermsEditorCard';
 import { PromoCodesCard } from '../../features/business-hub/PromoCodesCard';
 import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
@@ -66,6 +67,8 @@ const TAB_DEFINITIONS = [
   // It was unreachable because it was missing from BOTH lists above.
   { id: 'services', label: 'Service Catalog' },
   { id: 'promos', label: 'Promo Management' },
+  // Landing page About photos (captions + layout) and the shop's map pin.
+  { id: 'about', label: 'About & Map' },
   // Downpayment policy (business_config.downpayment_*), enforced by the database.
   { id: 'payments', label: 'Payment Policy' },
   // One versioned text per role, accepted on first open (master plan 1.11).
@@ -1898,6 +1901,7 @@ export default function BusinessHub() {
     schedule: CalendarClock,
     services: Wrench,
     promos: Tag,
+    about: ImageIcon,
     payments: Wallet,
     terms: ScrollText,
   };
@@ -3206,6 +3210,9 @@ export default function BusinessHub() {
           </div>
         )}
         {currentTab === 'promos' && <PromoCodesCard />}
+
+        {/* About photos, layout and map pin for the landing page */}
+        {currentTab === 'about' && <AboutMapCard />}
 
         {/* Tab 6: Payment Policy (downpayment) */}
         {currentTab === 'payments' && <DownpaymentPolicyCard />}

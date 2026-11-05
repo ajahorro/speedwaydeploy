@@ -1481,7 +1481,7 @@ const AdminBookingDetails = () => {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
-            <span aria-hidden="true" style={{ fontSize: '1.1rem', lineHeight: 1 }}>⚠️</span>
+            <AlertCircle size={18} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--status-warning)' }} />
             <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '700', color: 'var(--admin-text-primary)', lineHeight: 1.5 }}>
               Booking Flagged as No-Show. Scheduled appointment time passed without confirmation.
             </p>
@@ -2056,7 +2056,7 @@ const AdminBookingDetails = () => {
                         borderRadius: '4px', textAlign: 'center', color: p.status === 'PAID' ? '#10b981' : '#C41F2B', 
                         fontSize: '0.65rem', fontWeight: '950', textTransform: 'uppercase'
                       }}>
-                        {p.status === 'PAID' ? '✓ Verified' : '✗ Rejected'}
+                        {p.status === 'PAID' ? 'Verified' : 'Rejected'}
                       </div>
                     )}
                     <div style={{ marginTop: '0.5rem', fontSize: '0.6rem', color: 'var(--admin-text-secondary)', fontWeight: '700', textAlign: 'center' }}>
@@ -2370,7 +2370,7 @@ const AdminBookingDetails = () => {
             </div>
 
             <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: 'var(--admin-radius-sm)', padding: '0.75rem 1rem', marginBottom: '1.5rem', fontSize: '0.72rem', color: 'var(--status-success)', fontWeight: '700', lineHeight: 1.4 }}>
-              ✓ Existing payment records and balances are preserved. Assigned technician and bay allocations will reset to allow re-assignment for the new slot.
+              Existing payment records and balances are preserved. Assigned technician and bay allocations will reset to allow re-assignment for the new slot.
             </div>
 
             <div style={{ display: 'flex', flexDirection: isMobile ? 'column-reverse' : 'row', gap: '0.75rem' }}>

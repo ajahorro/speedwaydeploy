@@ -218,12 +218,12 @@ const StaffProfile = () => {
             {/* Inline validation hints */}
             {newPassword.length > 0 && newPassword.length <= 4 && (
               <div style={{ fontSize: '0.72rem', color: 'var(--status-warning)', fontWeight: '700', marginTop: '-0.5rem' }}>
-                ⚠ Password must be more than 4 characters
+                Password must be more than 4 characters
               </div>
             )}
             {confirmPassword.length > 0 && newPassword !== confirmPassword && (
               <div style={{ fontSize: '0.72rem', color: 'var(--status-danger)', fontWeight: '700', marginTop: '-0.5rem' }}>
-                ✕ Passwords do not match
+                Passwords do not match
               </div>
             )}
             {/* Task 16: confirmation-email delivery status + resend option. */}

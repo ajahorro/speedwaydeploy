@@ -77,7 +77,7 @@ const AppPreferencesCard = ({ role = 'customer' }) => {
     toast.success(`${label} ${next[key] ? 'enabled' : 'disabled'}`);
     if (result.persisted === false) {
       // Saved locally but not synced to the account (schema/offline). Non-fatal.
-      toast('Saved on this device. Account sync unavailable.', { icon: 'ℹ️' });
+      toast.info('Saved on this device. Account sync unavailable.');
     }
   };
 

@@ -11,7 +11,7 @@ import { X, Mail } from 'lucide-react';
 import toast from '@/lib/toast';
 import { supabase } from '../lib/supabase';
 
-const Login = ({ isModal = false, onClose, next }) => {
+const Login = ({ isModal = false, onClose, next, initialMode }) => {
   const isMobile = useMediaQuery('(max-width: 640px)');
   const {
     mode,
@@ -27,6 +27,12 @@ const Login = ({ isModal = false, onClose, next }) => {
     loginError,
     clearLoginError
   } = useAuthFlow({ next });
+
+  // Opened straight on a form, e.g. the Services page's "Create an account" opens on REGISTER.
+  useEffect(() => {
+    if (initialMode) setMode(initialMode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // As a pop-up: Escape closes it, and the page behind does not scroll while it is open.
   useEffect(() => {

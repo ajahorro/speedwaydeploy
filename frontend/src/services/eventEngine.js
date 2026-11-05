@@ -109,17 +109,17 @@ const TEMPLATES = {
     type: 'VEHICLE_COMPLETED'
   },
   [EVENTS.REFUND_PROCESSED]: {
-    title: 'Refund Processed 💸',
+    title: 'Refund Processed',
     message: (meta) => `A refund of ₱${meta.amount?.toLocaleString()} has been processed for booking #${meta.bookingRef}.`,
     type: 'REFUND_PROCESSED'
   },
   [EVENTS.MESSAGE_RECEIVED]: {
-    title: 'New Message 💬',
+    title: 'New Message',
     message: (meta) => buildChatNotificationMessage(meta),
     type: 'MESSAGE_RECEIVED'
   },
   [EVENTS.STATUS_UPDATE]: {
-    title: 'Status Updated ℹ️',
+    title: 'Status Updated',
     message: (meta) => meta?.bookingRef ? `Your appointment #${meta.bookingRef} was updated to: ${meta.status?.toUpperCase() || 'a new status'}.` : null,
     type: 'STATUS_UPDATE'
   }

@@ -21,6 +21,8 @@ import Login from './Login';
 import { useAuth } from '../hooks/useAuth';
 import { useConfig } from '../context/ConfigContext';
 import { getServiceCatalog } from '../data/servicesCatalog';
+import AboutGallery from '../features/site-content/AboutGallery';
+import ShopMap from '../features/site-content/ShopMap';
 import { AuthButtons, MobileMenu, ServiceCard, FaqList, ContactCards, ContactForm, HeroActions, AboutFeatures, SiteFooter } from '../features/landing/LandingParts';
 
 // ─── Smooth Cinematic Scroll-Reveal Component ────────────────────────────────
@@ -85,6 +87,8 @@ const Landing = () => {
   const authActionPending = Boolean(user && (!isInitialized || authLoading));
 
   const businessName = settings?.BUSINESS_NAME || 'COMAR GARAGE';
+  const aboutPhotos = Array.isArray(settings?.ABOUT_PHOTOS) ? settings.ABOUT_PHOTOS : [];
+  const shopLocation = settings?.SHOP_LOCATION || null;
 
   const [catalog, setCatalog] = useState(() => getServiceCatalog());
   useEffect(() => {
@@ -578,6 +582,38 @@ const Landing = () => {
             ]} />
           </Reveal>
         </div>
+
+        {/* Photos and map, managed in Business Hub › About & Map */}
+        {(aboutPhotos.length > 0 || shopLocation) && (
+          <div className="container-wide" style={{ display: 'grid', gap: 'clamp(2rem, 4vw, 3rem)', marginTop: 'clamp(2.5rem, 5vw, 4rem)' }}>
+            {aboutPhotos.length > 0 && (
+              <Reveal direction="up">
+                <AboutGallery photos={aboutPhotos} layout={settings?.ABOUT_LAYOUT} />
+              </Reveal>
+            )}
+            {shopLocation && (
+              <Reveal direction="up">
+                <div style={{ display: 'grid', gap: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <MapPin size={18} color="#C41F2B" aria-hidden="true" /> Find us
+                    </h3>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${shopLocation.lat},${shopLocation.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: '#C41F2B', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', textDecoration: 'none' }}
+                    >
+                      Get directions
+                    </a>
+                  </div>
+                  <ShopMap location={shopLocation} height={320} label={`Map showing ${shopLocation.label || businessName}`} />
+                  {shopLocation.label && <p style={{ margin: 0, color: 'rgba(255,255,255,0.65)', fontSize: '0.9rem' }}>{shopLocation.label}</p>}
+                </div>
+              </Reveal>
+            )}
+          </div>
+        )}
       </section>
 
       {/* ── 5. SERVICES SHOWCASE & DEDICATED CATALOG LINK ── */}
@@ -618,10 +654,10 @@ const Landing = () => {
             }}>
               <div>
                 <h3 style={{ fontSize: 'clamp(1.2rem, 2.5vw, 1.6rem)', fontWeight: 950, textTransform: 'uppercase', margin: '0 0 0.5rem', color: '#fff' }}>
-                  Explore All Detailing & Specialty Solutions
+                  See Our Packages
                 </h3>
                 <p style={{ margin: 0, color: 'rgba(255,255,255,0.75)', fontSize: '0.92rem', maxWidth: '580px' }}>
-                  Filter by category, search specific services, and view pricing breakdown across Hatchback, Sedan, SUV, Van, and Motorcycle classes.
+                  Browse our bundled packages and their prices for every vehicle type. Create a free account to see every service we offer.
                 </p>
               </div>
 
@@ -649,7 +685,7 @@ const Landing = () => {
                   onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(196, 31, 43, 0.5)'; }}
                   onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(196, 31, 43, 0.35)'; }}
                 >
-                  <span>View Full Catalog & Pricing</span>
+                  <span>View Packages & Pricing</span>
                   <ChevronRight size={18} />
                 </button>
 

@@ -108,8 +108,8 @@ export const createToastQueue = (engine) => {
     switch (kind) {
       case 'error': return engine.error(message, options);
       case 'loading': return engine.loading(message, options);
-      case 'warning': return engine.warning ? engine.warning(message, options) : engine.default(message, { ...options, icon: '⚠️' });
-      case 'info': return engine.info ? engine.info(message, options) : engine.default(message, { ...options, icon: 'ℹ️' });
+      case 'warning': return engine.warning ? engine.warning(message, options) : engine.default(message, options);
+      case 'info': return engine.info ? engine.info(message, options) : engine.default(message, options);
       case 'success': return engine.success(message, options);
       default: return engine.default(message, options);
     }

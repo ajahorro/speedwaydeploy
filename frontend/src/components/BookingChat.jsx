@@ -221,7 +221,7 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
     if (isNearBottom || prevMsgCount.current === 0) {
       container.scrollTo({ top: container.scrollHeight, behavior: prevMsgCount.current === 0 ? 'auto' : 'smooth' });
     } else if (messages.length > prevMsgCount.current) {
-      toast('New message received below', { icon: '⬇️', position: 'top-center' });
+      toast('New message received below', { position: 'top-center' });
     }
     prevMsgCount.current = messages.length;
   }, [messages]);

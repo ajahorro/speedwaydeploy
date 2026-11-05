@@ -3,6 +3,7 @@ const compression = require('compression');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const crypto = require('crypto');
+const sharp = require('sharp');
 const { isValidEmail, isValidPhPhone, normalizePhPhone, normalizeEmail } = require('./config/contactValidation');
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
@@ -3172,7 +3173,7 @@ app.post('/api/admin/broadcast', async (req, res) => {
     // user somewhere to go.
     const notifications = profiles.map(p => ({
       user_id: p.id,
-      title: 'System Announcement 📣',
+      title: 'System Announcement',
       notification_type: 'ANNOUNCEMENT',
       message: message.trim(),
       action_url: '/notifications',
@@ -3205,7 +3206,7 @@ app.post('/api/admin/broadcast', async (req, res) => {
               await resendClient.emails.send({
                 from: RESEND_FROM,
                 to: [p.email],
-                subject: 'System Announcement 📣',
+                subject: 'System Announcement',
                 html: `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
                   <h2 style="color: #C41F2B;">Comar Garage System Announcement</h2>
                   <p style="font-size: 16px; color: #e5e7eb;">${message.trim()}</p>
@@ -4544,6 +4545,143 @@ app.post('/api/support/report', async (req, res) => {
     await store(false, 'email_failed');
     await audit('email not sent');
     return res.status(502).json({ success: false, error: 'The report could not be emailed right now. It was saved for the team.' });
+  }
+});
+
+// ── Business Hub › About & Map ──────────────────────────────────────────────────────────────────────────────
+// Photos for the landing page's About section (with captions and a layout) and the shop's map pin.
+// Security:
+//   * administrators only (verified sign-in + ADMIN role); the database also refuses these columns from any browser
+//     session, so this backend is the only way in;
+//   * uploads: one file, at most 8 MB, must decode as a real JPEG/PNG/WebP/HEIC image of sane size; it is re-encoded
+//     to WebP (which drops EXIF/GPS metadata and anything appended to the file) and stored under a name this server
+//     makes up, never the uploader's file name;
+//   * at most 12 photos live, 20 uploads per administrator per 10 minutes, and staged files that are never saved
+//     are cleaned up on the next save;
+//   * captions/labels are plain text, trimmed, length-capped and stripped of markup characters;
+//   * every change is written to the audit log.
+const SITE_PHOTO_BUCKET = 'site-photos';
+const SITE_PHOTO_MAX = 12;
+const SITE_LAYOUTS = ['mosaic', 'carousel', 'grid', 'split'];
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const siteUploadTimes = new Map();
+const sitePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 4 } });
+const sitePhotoUrl = (id) => `${String(process.env.SUPABASE_URL || '').replace(/\/+$/, '')}/storage/v1/object/public/${SITE_PHOTO_BUCKET}/${id}.webp`;
+const cleanSiteText = (value, max) => String(value ?? '')
+  .replace(/[\u0000-\u001F\u007F<>]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, max);
+
+app.post('/api/admin/site-photos', (req, res, next) => sitePhotoUpload.single('photo')(req, res, (error) => {
+  if (!error) return next();
+  const tooBig = error.code === 'LIMIT_FILE_SIZE';
+  return res.status(tooBig ? 413 : 400).json({ success: false, error: tooBig ? 'The photo is larger than 8 MB.' : 'The photo could not be received.' });
+}), async (req, res) => {
+  const admin = await requireAdmin(req);
+  if (!admin) return res.status(403).json({ success: false, error: 'Administrator access is required.' });
+  if (!supabaseAdmin) return res.status(500).json({ success: false, error: 'Storage is not available.' });
+  if (!req.file?.buffer?.length) return res.status(400).json({ success: false, error: 'Choose a photo to upload.' });
+
+  const adminId = admin.profile?.id || admin.user?.id;
+  const now = Date.now();
+  const recent = (siteUploadTimes.get(adminId) || []).filter((t) => now - t < 10 * 60 * 1000);
+  if (recent.length >= 20) return res.status(429).json({ success: false, error: 'Too many uploads. Please wait a few minutes.' });
+
+  let output;
+  try {
+    const image = sharp(req.file.buffer, { failOn: 'error', limitInputPixels: 50_000_000 });
+    const meta = await image.metadata();
+    if (!['jpeg', 'png', 'webp', 'heif'].includes(meta.format)) throw new Error('format');
+    if (!meta.width || !meta.height || meta.width < 300 || meta.height < 200) {
+      return res.status(400).json({ success: false, error: 'The photo is too small. Use one at least 300 × 200 pixels.' });
+    }
+    output = await image.rotate().resize({ width: 2000, height: 2000, fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+  } catch {
+    return res.status(400).json({ success: false, error: 'That file is not a JPEG, PNG, WebP or HEIC photo.' });
+  }
+
+  const id = crypto.randomUUID();
+  const { error: uploadError } = await supabaseAdmin.storage.from(SITE_PHOTO_BUCKET).upload(`${id}.webp`, output, { contentType: 'image/webp', upsert: false, cacheControl: '31536000' });
+  if (uploadError) {
+    console.error('[SITE PHOTOS] upload failed:', uploadError.message);
+    return res.status(502).json({ success: false, error: 'The photo could not be stored. Please try again.' });
+  }
+  siteUploadTimes.set(adminId, [...recent, now]);
+  // staged: it only appears on the site once the administrator saves
+  return res.json({ success: true, photo: { id, url: sitePhotoUrl(id), caption: '' } });
+});
+
+app.put('/api/admin/site-content', async (req, res) => {
+  const admin = await requireAdmin(req);
+  if (!admin) return res.status(403).json({ success: false, error: 'Administrator access is required.' });
+  if (!supabaseAdmin) return res.status(500).json({ success: false, error: 'The database is not available.' });
+
+  const body = req.body || {};
+  const layout = String(body.layout || '');
+  if (!SITE_LAYOUTS.includes(layout)) return res.status(400).json({ success: false, error: 'Choose one of the four layouts.' });
+  if (!Array.isArray(body.photos) || body.photos.length > SITE_PHOTO_MAX) {
+    return res.status(400).json({ success: false, error: `You can show up to ${SITE_PHOTO_MAX} photos.` });
+  }
+  // Rebuild every photo from its id: the URL is always made here, never taken from the request.
+  const seen = new Set();
+  const photos = [];
+  for (const item of body.photos) {
+    const id = String(item?.id || '').toLowerCase();
+    if (!UUID_RE.test(id) || seen.has(id)) return res.status(400).json({ success: false, error: 'A photo in the list is not valid.' });
+    seen.add(id);
+    photos.push({ id, url: sitePhotoUrl(id), caption: cleanSiteText(item?.caption, 140) });
+  }
+
+  let location = null;
+  if (body.location) {
+    const lat = Number(body.location.lat);
+    const lng = Number(body.location.lng);
+    const zoom = Math.round(Number(body.location.zoom ?? 16));
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || !(zoom >= 3 && zoom <= 19)) {
+      return res.status(400).json({ success: false, error: 'The map pin is not valid.' });
+    }
+    location = { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6, zoom, label: cleanSiteText(body.location.label, 120) };
+  }
+
+  try {
+    // every photo must really exist in our bucket (stops ids that point nowhere)
+    const { data: files, error: listError } = await supabaseAdmin.storage.from(SITE_PHOTO_BUCKET).list('', { limit: 1000 });
+    if (listError) throw listError;
+    const stored = new Map((files || []).map((f) => [String(f.name), f]));
+    const missing = photos.find((p) => !stored.has(`${p.id}.webp`));
+    if (missing) return res.status(400).json({ success: false, error: 'One of the photos is no longer stored. Remove it and upload it again.' });
+
+    const { data: row, error: rowError } = await supabaseAdmin.from('business_config').select('id, about_photos, about_layout, shop_location').order('id', { ascending: true }).limit(1).maybeSingle();
+    if (rowError) throw rowError;
+    if (!row) return res.status(404).json({ success: false, error: 'The business settings were not found.' });
+
+    const { error: saveError } = await supabaseAdmin.from('business_config').update({ about_photos: photos, about_layout: layout, shop_location: location }).eq('id', row.id);
+    if (saveError) throw saveError;
+
+    // clean up: files no longer shown, and staged uploads older than a day that were never saved
+    const keep = new Set(photos.map((p) => `${p.id}.webp`));
+    const dayAgo = Date.now() - 86400000;
+    const before = new Set((Array.isArray(row.about_photos) ? row.about_photos : []).map((p) => `${p.id}.webp`));
+    const remove = [...stored.values()]
+      .filter((f) => !keep.has(f.name) && (before.has(f.name) || new Date(f.created_at || 0).getTime() < dayAgo))
+      .map((f) => f.name);
+    if (remove.length) {
+      const { error: removeError } = await supabaseAdmin.storage.from(SITE_PHOTO_BUCKET).remove(remove);
+      if (removeError) console.warn('[SITE PHOTOS] cleanup failed:', removeError.message);
+    }
+
+    await writeAuditLog({
+      actionType: 'BUSINESS_CONFIG_UPDATED',
+      details: `Updated the About photos (${photos.length}, ${layout} layout)${location ? ' and the map pin' : ''} in the Business Hub.`,
+      actorId: admin.profile?.id || admin.user?.id,
+      actorName: admin.profile?.full_name || admin.user?.email || 'Administrator',
+      actorRole: 'ADMIN'
+    }).catch(() => {});
+    return res.json({ success: true, photos, layout, location });
+  } catch (error) {
+    console.error('[SITE CONTENT] save failed:', error.message);
+    return res.status(500).json({ success: false, error: 'The changes could not be saved. Please try again.' });
   }
 });
 

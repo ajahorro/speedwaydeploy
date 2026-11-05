@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tag, Layers, ChevronDown, ChevronUp } from 'lucide-react';
+import { Tag, Layers, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import toast from '@/lib/toast';
 import { getServicesForVehicle, getPackageStandaloneSum } from '../../data/servicesCatalog';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -797,7 +797,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
 
         {packagePriceWarning && (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginTop: '0.85rem', padding: '0.65rem 0.85rem', borderRadius: '6px', border: '1px solid var(--status-warning, #d97706)', background: 'rgba(217, 119, 6, 0.08)', color: 'var(--status-warning, #d97706)', fontSize: '12px', fontWeight: '700', lineHeight: 1.5 }}>
-            <span aria-hidden="true">⚠️</span>
+            <AlertTriangle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
             <span>{packagePriceWarning}</span>
           </div>
         )}

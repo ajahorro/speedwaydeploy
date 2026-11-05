@@ -68,6 +68,12 @@ const settingsFromRow = (data) => {
     BUSINESS_EMAIL: data?.email_address || '',
     BUSINESS_ADDRESS: data?.business_address || '',
     FAQS: Array.isArray(data?.faqs) ? data.faqs : [],
+    // Landing page About section (Business Hub › About & Map)
+    ABOUT_PHOTOS: Array.isArray(data?.about_photos) ? data.about_photos.filter((p) => p && p.id && p.url) : [],
+    ABOUT_LAYOUT: ['mosaic', 'carousel', 'grid', 'split'].includes(data?.about_layout) ? data.about_layout : 'mosaic',
+    SHOP_LOCATION: data?.shop_location && Number.isFinite(Number(data.shop_location.lat)) && Number.isFinite(Number(data.shop_location.lng))
+      ? { lat: Number(data.shop_location.lat), lng: Number(data.shop_location.lng), zoom: Number(data.shop_location.zoom) || 16, label: String(data.shop_location.label || '') }
+      : null,
     // One text for the whole site, edited in the Business Hub (Payment Policy).
     TERMS_AND_CONDITIONS: String(data?.terms_customer || data?.terms_and_conditions || ''),
     // One text and version per role (master plan 1.11); each account accepts its own.
