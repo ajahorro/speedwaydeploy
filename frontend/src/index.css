@@ -586,3 +586,135 @@ body.admin-account-active :where(input, select, textarea) {
   font-weight: 900;
   text-align: center;
 }
+
+/* ── Existing-customer picker (components/admin/CustomerPicker.jsx) ─────────────
+   Two columns (browse dropdown | name search), stacked on narrow screens. Built on
+   the admin theme tokens, so it follows light/dark mode automatically. */
+.cp-root {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 0.75rem;
+}
+.cp-root.is-disabled { opacity: 0.65; }
+.cp-field { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 0.4rem; container-type: inline-size; }
+.cp-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--admin-text-secondary);
+}
+.cp-trigger,
+.cp-search {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 3.25rem;
+  box-sizing: border-box;
+  padding: 0.55rem 0.9rem;
+  background: var(--admin-input-bg);
+  color: var(--admin-text-primary);
+  border: 1px solid var(--admin-input-border);
+  border-radius: 2px;
+  font: inherit;
+}
+.cp-trigger { cursor: pointer; text-align: left; }
+.cp-trigger:disabled, .cp-search-input:disabled { cursor: not-allowed; }
+.cp-trigger:focus-visible,
+.cp-trigger.is-open,
+.cp-search:focus-within {
+  outline: none;
+  border-color: var(--admin-brand);
+  box-shadow: 0 0 0 3px rgba(var(--admin-brand-rgb), 0.15);
+}
+.cp-trigger-value { display: flex; align-items: baseline; gap: 0.75rem; min-width: 0; flex: 1; }
+.cp-placeholder { flex: 1; color: var(--admin-text-secondary); font-weight: 700; font-size: 0.88rem; }
+.cp-chevron { flex-shrink: 0; color: var(--admin-text-secondary); transition: transform 0.15s ease; }
+.cp-trigger.is-open .cp-chevron { transform: rotate(180deg); }
+.cp-search-icon { flex-shrink: 0; color: var(--admin-text-secondary); }
+.cp-search-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--admin-text-primary);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.cp-search-input::placeholder { color: var(--admin-text-secondary); font-weight: 600; }
+.cp-search-input::-webkit-search-cancel-button { display: none; }
+.cp-clear {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.75rem; height: 1.75rem; padding: 0; border: 0; background: transparent;
+  color: var(--admin-text-secondary); cursor: pointer;
+}
+.cp-clear:hover { color: var(--admin-text-primary); }
+
+.cp-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: var(--admin-card);
+  border: 1px solid var(--admin-border);
+  border-radius: 2px;
+  box-shadow: var(--admin-card-shadow);
+  overflow: hidden;
+}
+.cp-list { list-style: none; margin: 0; padding: 0.3rem 0; }
+.cp-option {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  cursor: pointer;
+  min-width: 0;
+}
+.cp-option.is-active { background: rgba(var(--admin-brand-rgb), 0.06); }
+.cp-option.is-selected { background: var(--admin-sidebar-active-bg); }
+.cp-option.is-selected .cp-name { color: var(--admin-sidebar-active-text); }
+.cp-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--admin-text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cp-email {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--admin-text-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cp-empty { margin: 0; padding: 1rem 0.9rem; font-size: 0.82rem; font-weight: 600; color: var(--admin-text-secondary); }
+.cp-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border-top: 1px solid var(--admin-border);
+}
+.cp-page-label { font-size: 0.72rem; font-weight: 700; color: var(--admin-text-secondary); text-align: center; }
+.cp-page-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.25rem; height: 2.25rem; padding: 0;
+  background: transparent; color: var(--admin-text-primary);
+  border: 1px solid var(--admin-border); cursor: pointer;
+}
+.cp-page-btn:hover:not(:disabled) { border-color: var(--admin-brand); color: var(--admin-brand); }
+.cp-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* Name and email sit on one line; when the box is narrow (phones) the email drops under the name. */
+@container (max-width: 380px) {
+  .cp-option, .cp-trigger-value { flex-direction: column; align-items: stretch; gap: 0.1rem; }
+  .cp-email { text-align: left; }
+}
+@media (prefers-reduced-motion: reduce) { .cp-chevron { transition: none; } }

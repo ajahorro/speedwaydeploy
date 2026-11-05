@@ -179,7 +179,7 @@ const StaffNotifications = () => {
                 setSelectedNotification(notif);
                 if (!notif.is_read) handleMarkAsRead(notif.id, true);
               }}
-              className={`cursor-pointer gap-0 rounded-md p-5 transition-colors hover:border-primary ${notif.is_read ? 'opacity-60' : 'border-l-4 border-l-primary'}`}
+              className={`cursor-pointer gap-0 rounded-md p-5 transition-colors hover:border-primary ${notif.is_read ? 'opacity-60' : ''}`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 gap-4">

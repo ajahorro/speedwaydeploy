@@ -139,7 +139,7 @@ export default function AdminChat() {
                     type="button"
                     onClick={() => select(thread.customer_id)}
                     aria-current={active ? 'true' : undefined}
-                    className={`flex w-full items-start gap-4 border-b border-l-[3px] px-4 py-4 text-left transition-colors hover:bg-muted/60 ${active ? 'border-l-primary bg-muted' : 'border-l-transparent'}`}
+                    className={`flex w-full items-start gap-4 border-b px-4 py-4 text-left transition-colors hover:bg-muted/60 ${active ? 'bg-muted' : ''}`}
                   >
                     <Avatar name={thread.customer_name} />
                     <span className="flex min-w-0 flex-1 flex-col gap-2">

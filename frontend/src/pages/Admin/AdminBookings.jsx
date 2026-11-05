@@ -349,8 +349,8 @@ const AdminBookings = () => {
                 return (
                   <tr key={booking.id} style={{ borderBottom: '1px solid var(--admin-border)', transition: 'background 0.2s' }}>
                     <td style={{ padding: '1.25rem 1.5rem' }}>
-                      <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '950', fontSize: '0.7rem' }}>
-                        #{booking.id.substring(0, 6).toUpperCase()}
+                      <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '950', fontSize: '0.7rem', whiteSpace: 'nowrap' }} title={booking.id}>
+                        #{booking.id.substring(0, 8).toUpperCase()}
                       </span>
                     </td>
                     <td style={{ padding: '1.25rem 1.5rem' }}>

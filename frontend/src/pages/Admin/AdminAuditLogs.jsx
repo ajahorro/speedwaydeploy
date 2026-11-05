@@ -89,7 +89,7 @@ const getMeta = (actionType) => {
 };
 
 // Short booking reference (#ABCD) used across several sentence templates.
-const shortId = (id) => (id ? `#${String(id).slice(0, 4).toUpperCase()}` : 'N/A');
+const shortId = (id) => (id ? `#${String(id).slice(0, 8).toUpperCase()}` : 'N/A');
 
 const getActorIdentity = (log) => {
   const role = String(log.profiles?.role || log.actor_role || 'SYSTEM').trim().toUpperCase();

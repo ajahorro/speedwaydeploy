@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Check, CheckCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, CheckCircle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { createBooking, rescheduleBooking } from '../../services/bookingService';
@@ -541,8 +541,11 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
       </div>
 
       {draftRestored && (
-        <div role="status" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.75rem 1rem', marginBottom: '1rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderLeft: '3px solid var(--admin-brand)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: 700 }}>
-          <span>We restored the booking you were working on.</span>
+        <div role="status" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.75rem 1rem', marginBottom: '1rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.8rem', fontWeight: 700 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+            <AlertCircle size={18} color="var(--admin-brand)" aria-hidden="true" style={{ flexShrink: 0 }} />
+            We restored the booking you were working on.
+          </span>
           <Button type="button" variant="outline" size="xs" onClick={handleCancelBooking} className="border-destructive/60 text-destructive uppercase hover:text-destructive">Start over</Button>
         </div>
       )}

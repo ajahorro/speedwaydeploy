@@ -423,7 +423,7 @@ const AdminNotifications = () => {
                 setSelectedNotification(notif);
                 if (!notif.is_read) handleMarkAsRead(notif.id, true);
               }}
-              style={{ ...cardStyle, opacity: notif.is_read ? 0.6 : 1, borderLeft: notif.is_read ? '1px solid var(--admin-border)' : '4px solid var(--admin-brand)', cursor: 'pointer' }}
+              style={{ ...cardStyle, opacity: notif.is_read ? 0.6 : 1, cursor: 'pointer' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ display: 'flex', gap: '1rem' }}>

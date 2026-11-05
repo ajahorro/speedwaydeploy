@@ -9,6 +9,7 @@ import CustomerBookAppointment from '../Customer/CustomerBookAppointment';
 import toastManager from '../../utils/toastManager';
 import { PhoneInput, EmailInput } from '../../components/common/ContactInputs';
 import { isValidEmail, isValidPhPhone } from '../../utils/contactValidation';
+import CustomerPicker from '../../components/admin/CustomerPicker';
 
 const AdminWalkInWizard = () => {
   const { user } = useAuth();
@@ -71,6 +72,10 @@ const AdminWalkInWizard = () => {
     return [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim();
   };
 
+  // Vehicles picked from a customer's saved garage or fleet belong to that customer. When the customer changes they
+  // must not carry over to the next one; vehicles the admin typed in by hand can stay.
+  const keepTypedVehicles = (vehicles) => (vehicles || []).filter((vehicle) => !vehicle.garageVehicleId && !vehicle.fleetGroupId);
+
   const renderAdminPanel = ({ bookingData, setBookingData, isCustomerDetailsLocked }) => {
     const updateCustomerMode = mode => {
       if (isCustomerDetailsLocked) return;
@@ -80,7 +85,7 @@ const AdminWalkInWizard = () => {
       // Switching mode resets the explicit guest decision too.
       setEmailMatch(null);
       setGuestAsGuest(false);
-      setBookingData(current => ({ ...current, customerId: null, customerName: '', customerEmail: '', contactNumber: '', adminCustomerReady: false }));
+      setBookingData(current => ({ ...current, vehicles: keepTypedVehicles(current.vehicles), customerId: null, customerName: '', customerEmail: '', contactNumber: '', adminCustomerReady: false }));
     };
     const fieldStyle = { width: '100%', minWidth: 0, boxSizing: 'border-box', padding: '.85rem 1rem', background: 'var(--admin-input-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-input-border)', borderRadius: 0, fontWeight: '700' };
     return (
@@ -102,10 +107,12 @@ const AdminWalkInWizard = () => {
             </div>
           </div>
         ) : (
-          <select disabled={isCustomerDetailsLocked} style={fieldStyle} value={selectedCustomer} onChange={event => { const id = event.target.value; const profile = customers.find(customer => customer.id === id); const fullName = resolveProfileName(profile); const phone = resolveProfileContact(profile); const email = profile?.email || ''; setSelectedCustomer(id); setBookingData(current => ({ ...current, customerId: id || null, customerName: fullName, customerEmail: email, contactNumber: phone, adminCustomerReady: Boolean(id) })); }}>
-            <option value="">Choose customer account</option>
-            {customers.map(customer => <option key={customer.id} value={customer.id}>{customer.full_name || customer.email}</option>)}
-          </select>
+          <CustomerPicker
+            customers={customers}
+            value={selectedCustomer}
+            disabled={isCustomerDetailsLocked}
+            onChange={id => { const profile = customers.find(customer => customer.id === id); const fullName = resolveProfileName(profile); const phone = resolveProfileContact(profile); const email = profile?.email || ''; setSelectedCustomer(id); setBookingData(current => ({ ...current, vehicles: current.customerId && current.customerId !== id ? keepTypedVehicles(current.vehicles) : current.vehicles, customerId: id || null, customerName: fullName, customerEmail: email, contactNumber: phone, adminCustomerReady: Boolean(id) })); }}
+          />
         )}
 
         {/* Identity-collision guard: the typed guest email already belongs to a

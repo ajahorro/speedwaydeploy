@@ -19,7 +19,7 @@ const OccupancyShelf = ({ bookings, onBookingClick, config }) => {
           <div 
             key={booking.id} 
             onClick={() => onBookingClick(booking.id)}
-            style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderLeft: '4px solid var(--admin-brand)', borderRadius: '4px', padding: '1rem', cursor: 'pointer', minWidth: '280px', flex: '1' }}
+            style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', padding: '1rem', cursor: 'pointer', minWidth: '280px', flex: '1' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
               <span style={{ fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase' }}>PERSISTENT BLOCK</span>

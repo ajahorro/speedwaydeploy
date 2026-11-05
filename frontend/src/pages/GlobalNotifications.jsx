@@ -138,7 +138,7 @@ const GlobalNotifications = () => {
                 setSelectedNotification(notif);
                 if (!notif.is_read) handleMarkAsRead(notif.id, true);
               }}
-              style={{ ...cardStyle, opacity: notif.is_read ? 0.6 : 1, borderLeft: notif.is_read ? '1px solid var(--admin-border)' : '4px solid var(--admin-brand)' }}
+              style={{ ...cardStyle, opacity: notif.is_read ? 0.6 : 1 }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--admin-brand)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--admin-border)'}
             >
