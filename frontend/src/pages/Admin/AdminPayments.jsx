@@ -22,6 +22,7 @@ import { useUI } from '../../context/UIContext';
 import { useImagePreview } from '../../context/ImagePreviewContext';
 import { matchesSearchText } from '../../utils/searchMatch';
 import { usePaged } from '../../components/common/ListPager';
+import { ADMIN_TOURS } from '../../features/tours/adminTours';
 
 const AdminPayments = () => {
   const { openImage } = useImagePreview();
@@ -372,6 +373,8 @@ const AdminPayments = () => {
         title="PAYMENT TRANSACTIONS"
         subtitle="Verify and manage customer payment records for fleet sessions."
         onRefresh={fetchPayments}
+        tour={ADMIN_TOURS.payments}
+        tourLabel="How payment verification works"
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1fr', gap: isMobile ? '1rem' : '2rem' }}>
@@ -386,7 +389,7 @@ const AdminPayments = () => {
             alignItems: 'center',
             flexWrap: 'wrap'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: isMobile ? '100%' : '200px', position: 'relative' }}>
+            <div data-tour="pay-search" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: isMobile ? '100%' : '200px', position: 'relative' }}>
               <Search size={18} color="var(--admin-text-secondary)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', zIndex: 1 }} />
               <input
                 type="text"
@@ -396,7 +399,7 @@ const AdminPayments = () => {
                 style={{ flex: 1, background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', padding: '0.85rem 1rem 0.85rem 2.75rem', color: 'var(--admin-text-primary)', outline: 'none', fontWeight: '950', fontSize: '0.75rem', width: '100%' }}
               />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: isMobile ? '100%' : 'auto' }}>
+            <div data-tour="pay-filter" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: isMobile ? '100%' : 'auto' }}>
               <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--admin-bg)', padding: '0.25rem', borderRadius: 'var(--admin-radius-sm)', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'center' : 'flex-start', border: '1px solid var(--admin-border)' }}>
                 {['PENDING', 'PROCESSED', 'ALL'].map(f => (
                   <button
@@ -446,6 +449,7 @@ const AdminPayments = () => {
             </div>
           </div>
 
+          <div data-tour="pay-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {state.loading ? (
             <LoadingState message="Auditing financial trail..." />
           ) : filteredItems.length === 0 ? (
@@ -482,10 +486,11 @@ const AdminPayments = () => {
               </div>
             </div>
           ))}{paymentPager}</>}
+          </div>
         </div>
 
         {!isMobile && (
-          <div style={{ position: 'sticky', top: '1.5rem', height: 'fit-content' }}>
+          <div data-tour="pay-details" style={{ position: 'sticky', top: '1.5rem', height: 'fit-content' }}>
             {state.selectedItem ? (
               <div style={{ ...cardStyle, padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

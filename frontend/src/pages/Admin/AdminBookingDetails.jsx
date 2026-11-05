@@ -27,6 +27,8 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useUI } from '../../context/UIContext';
 import { useGlobalChat } from '../../context/ChatContext';
 import PageHeader from '../../components/PageHeader';
+import { TourLauncher } from '../../components/common/GuidedTour';
+import { ADMIN_TOURS } from '../../features/tours/adminTours';
 import LoadingState from '../../components/LoadingState';
 import OfficialReceipt from '../../components/OfficialReceipt';
 import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
@@ -1388,6 +1390,9 @@ const AdminBookingDetails = () => {
           <h1 style={{ margin: 0, fontSize: '2.8rem', fontWeight: '950', color: 'var(--admin-text-primary)', letterSpacing: '-2px', textTransform: 'uppercase', lineHeight: 1 }}>
             {booking.booking_id || `#${id.slice(0, 8).toUpperCase()}`}
           </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.6rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--admin-text-secondary)' }}>
+            <TourLauncher steps={ADMIN_TOURS.bookingDetails} label="How to manage this booking" /> How to manage this booking
+          </div>
           <p style={{ margin: '0.5rem 0 0 0', color: 'var(--admin-text-secondary)', fontWeight: '600', fontSize: '0.95rem', opacity: 0.8 }}>
             Booked on {new Date(booking.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
           </p>
@@ -1404,7 +1409,7 @@ const AdminBookingDetails = () => {
             missed the slot and needs a new one — so the status is no longer
             excluded. Only TERMINAL states hide it: a completed, released or
             cancelled booking has nothing left to reschedule. */}
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div data-tour="bd-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
         {['scheduled', 'confirmed'].includes(derivedStatus) && !anyUnitStarted && !booking.early_start_allowed_at
           && new Date(booking.start_datetime) > new Date()
           && new Date(booking.start_datetime).toDateString() === new Date().toDateString() && (
@@ -1550,7 +1555,7 @@ const AdminBookingDetails = () => {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: 0 }}>
 
-          <div style={cardStyle}>
+          <div style={cardStyle} data-tour="bd-ledger">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <Banknote size={20} color="var(--admin-brand)" />
@@ -1760,7 +1765,7 @@ const AdminBookingDetails = () => {
             )}
           </div>
 
-          <div style={cardStyle}>
+          <div style={cardStyle} data-tour="bd-units">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase', color: 'var(--admin-text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Car size={16} color="var(--admin-brand)" /> Fleet Units ({vehicles.length})
@@ -1933,7 +1938,7 @@ const AdminBookingDetails = () => {
 
           {/* PAYMENT: one container for the verification audit and the receipts behind it */}
           {(hasPaymentAudit || hasPaymentEvidence) && (
-            <div style={{
+            <div data-tour="bd-payment" style={{
               ...cardStyle,
               border: booking.payment_status === 'Flagged for Review' ? '2px solid #C41F2B' : (booking.ocr_metadata?.isMatch ? '1px solid var(--admin-success)' : '1px solid var(--admin-border)'),
               boxShadow: booking.payment_status === 'Flagged for Review' ? '0 0 25px rgba(196, 31, 43, 0.2)' : 'none',
@@ -2071,7 +2076,7 @@ const AdminBookingDetails = () => {
           )}
 
           {/* E. SUPPORT & LOGS */}
-          <div style={cardStyle}>
+          <div style={cardStyle} data-tour="bd-audit">
             <h3 style={{ margin: '0 0 1.25rem 0', fontSize: '0.8rem', fontWeight: '950', textTransform: 'uppercase', color: 'var(--admin-text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <History size={18} /> Audit Trail
             </h3>

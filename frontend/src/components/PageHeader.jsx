@@ -1,4 +1,5 @@
 import React from 'react';
+import { TourLauncher } from './common/GuidedTour';
 
 /**
  * Page title block. Pages no longer get a back arrow or a reload button here (removed on request): navigation is the
@@ -6,7 +7,7 @@ import React from 'react';
  * so existing pages keep working unchanged.
  */
 // eslint-disable-next-line no-unused-vars
-const PageHeader = ({ title, subtitle, onRefresh, showBack, onBack, actionLabel, onAction, actionIcon, children, titleStyle = {} }) => {
+const PageHeader = ({ title, subtitle, onRefresh, showBack, onBack, actionLabel, onAction, actionIcon, children, titleStyle = {}, tour = null, tourLabel = 'How this page works' }) => {
   return (
     <div
       className="page-header stack-on-mobile"
@@ -21,9 +22,13 @@ const PageHeader = ({ title, subtitle, onRefresh, showBack, onBack, actionLabel,
     >
       {/* Left Side: Titles */}
       <div style={{ flex: '1 1 min-content' }}>
-        <h1 className="text-fluid-h1" style={{ margin: 0, letterSpacing: '-1.5px', color: 'var(--admin-text-primary)', lineHeight: 1.1, fontWeight: '950', textTransform: 'uppercase', ...titleStyle }}>
-          {title}
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <h1 className="text-fluid-h1" style={{ margin: 0, letterSpacing: '-1.5px', color: 'var(--admin-text-primary)', lineHeight: 1.1, fontWeight: '950', textTransform: 'uppercase', ...titleStyle }}>
+            {title}
+          </h1>
+          {/* optional step-by-step guide for the page ("i" next to the title) */}
+          {tour && <TourLauncher steps={tour} label={tourLabel} />}
+        </div>
         <p style={{ margin: '0.5rem 0 0 0', color: 'var(--admin-text-secondary)', fontSize: '0.85rem', fontWeight: '500', maxWidth: '600px' }}>
           {subtitle}
         </p>

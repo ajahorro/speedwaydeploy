@@ -13,6 +13,8 @@ import { supabase } from '../../lib/supabase';
 // Shared backend-origin resolver (see config/api.js).
 import { BACKEND_URL } from '../../config/api';
 import { usePaged } from '../common/ListPager';
+import { TourLauncher } from '../common/GuidedTour';
+import { ADMIN_TOURS } from '../../features/tours/adminTours';
 import { writeAdminAuditLog } from '../../services/auditLogService';
 import { ensureShopConfig, getShopConfig } from '../../config/shopConfig';
 import { isPromoRuleLive, setCatalogSource } from '../../data/servicesCatalog';
@@ -448,7 +450,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
   return (
     <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '8px', padding: '1.25rem', marginTop: '0.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.75rem' }}>
-        <Tag size={16} color="var(--admin-brand)" />
+        <TourLauncher steps={ADMIN_TOURS.promos} label="How promos work" />
         <h4 style={{ margin: 0, fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1px' }}>Promo Management</h4>
       </div>
 
@@ -463,7 +465,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
           </div>
 
           {/* Top-Level Workflow Mode Switcher */}
-          <div style={{ display: 'inline-flex', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '6px', padding: '2px' }}>
+          <div data-tour="promo-mode" style={{ display: 'inline-flex', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '6px', padding: '2px' }}>
             <button
               type="button"
               onClick={() => {
@@ -524,7 +526,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
         {/* Responsive grid: single column on small screens, 3 columns up top. */}
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr 1.3fr', gap: '1rem', alignItems: 'start', minWidth: 0 }}>
           {/* Column 1: Basic Details */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+          <div data-tour="promo-basics" style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
             <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--admin-text-primary)' }}>Basic Details</div>
 
             <div>
@@ -578,7 +580,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
           </div>
 
           {/* Column 2: Duration & Schedule */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+          <div data-tour="promo-dates" style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
             <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--admin-text-primary)' }}>Duration & Schedule</div>
 
             <div>
@@ -626,7 +628,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
           </div>
 
           {/* Column 3: Dynamic Vehicle-Service Binding Scope */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+          <div data-tour="promo-binding" style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--admin-text-primary)' }}>Vehicle & Service Binding</div>
               <span style={{ fontSize: '11px', color: 'var(--admin-text-secondary)' }}>
@@ -786,7 +788,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
         {/* Plain-language explainer. The two promo modes look the same but behave
             differently; this note spells out the difference without jargon so an
             admin knows which one to pick. It swaps based on the selected mode. */}
-        <div style={{ marginTop: '1rem', padding: '0.85rem 1rem', borderRadius: '6px', border: '1px solid var(--admin-border)', background: 'var(--admin-bg)' }}>
+        <div data-tour="promo-explainer" style={{ marginTop: '1rem', padding: '0.85rem 1rem', borderRadius: '6px', border: '1px solid var(--admin-border)', background: 'var(--admin-bg)' }}>
           <div style={{ fontSize: '12px', fontWeight: '800', color: 'var(--admin-text-primary)', marginBottom: '0.35rem' }}>
             {promoDraft.mode === 'package' ? 'What a Package Promo does' : 'What a Standard Promo does'}
           </div>
@@ -811,7 +813,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
         )}
 
         {/* Actions & Confirmation Lock Engine */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid var(--admin-border)' }}>
+        <div data-tour="promo-create" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid var(--admin-border)' }}>
           <button
             type="button"
             disabled={!isConfirmUnlocked || promoPublishing}
@@ -840,7 +842,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.75rem' }}>
+      <div data-tour="promo-list" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.75rem' }}>
         <div style={{ fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--admin-text-secondary)' }}>
           {showPastPromos ? `Archived promos (${pastRules.length})` : `Campaign Promo Rules (${currentRules.length})`}
         </div>

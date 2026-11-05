@@ -12,6 +12,8 @@ import { BACKEND_URL, authHeaders } from '@/config/api';
 import { useConfirmAction } from '@/hooks/useConfirmAction';
 import AboutGallery, { ABOUT_LAYOUTS } from '@/features/site-content/AboutGallery';
 import ShopMap from '@/features/site-content/ShopMap';
+import { TourLauncher } from '@/components/common/GuidedTour';
+import { ADMIN_TOURS } from '@/features/tours/adminTours';
 
 /**
  * Business Hub › About & Map. Photos (with captions) and their layout for the landing page's About section, and the
@@ -204,14 +206,14 @@ export function AboutMapCard() {
     <div className="ui-root grid gap-4">
       <Card>
         <CardHeader>
-          <CardTitle>About photos</CardTitle>
+          <CardTitle className="flex items-center gap-2"><TourLauncher steps={ADMIN_TOURS.about} label="How About & Map works" /> About photos</CardTitle>
           <CardDescription>
             Shown in the About section of the landing page. Up to {MAX_PHOTOS} photos, each with an optional caption. Photos are
             resized and cleaned of hidden data (like GPS) when uploaded.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3" data-tour="about-add">
             <span className="text-sm text-muted-foreground">{draft.photos.length} of {MAX_PHOTOS} photos</span>
             <input ref={fileRef} type="file" accept={ACCEPT} multiple hidden onChange={(e) => { uploadFiles(e.target.files); e.target.value = ''; }} />
             <Button type="button" onClick={() => fileRef.current?.click()} disabled={busy || room <= 0} className="w-full sm:w-auto">
@@ -220,11 +222,11 @@ export function AboutMapCard() {
           </div>
 
           {draft.photos.length === 0 ? (
-            <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+            <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground" data-tour="about-photos">
               No photos yet. Add some to show your shop in the About section.
             </div>
           ) : (
-            <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 xl:grid-cols-3">
+            <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 xl:grid-cols-3" data-tour="about-photos">
               {draft.photos.map((photo, i) => (
                 <li key={photo.id} className="grid gap-2 rounded-md border p-2">
                   <div className="relative aspect-[4/3] overflow-hidden rounded-[2px] bg-muted">
@@ -262,7 +264,7 @@ export function AboutMapCard() {
           <CardDescription>How the photos and captions are arranged on the landing page.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div role="radiogroup" aria-label="Photo layout" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div role="radiogroup" aria-label="Photo layout" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-tour="about-layout">
             {ABOUT_LAYOUTS.map((layout) => {
               const active = draft.layout === layout.id;
               return (
@@ -290,7 +292,7 @@ export function AboutMapCard() {
           <CardDescription>Required. Search the shop's address, or click the map, then drag the pin to the exact spot. The landing page shows this map under About us.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
-          <form onSubmit={searchAddress} className="grid gap-1.5" role="search">
+          <form onSubmit={searchAddress} className="grid gap-1.5" role="search" data-tour="about-search">
             <Label htmlFor="pin-search">Find the shop by address</Label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
@@ -342,12 +344,14 @@ export function AboutMapCard() {
               </Button>
             )}
           </div>
+          <div data-tour="about-map">
           <ShopMap
             editable
             location={draft.location}
             height={360}
             onChange={(at) => setDraft((d) => ({ ...d, location: { ...at, label: d.location?.label || '' } }))}
           />
+          </div>
           <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
             <div className="grid gap-1.5">
               <Label htmlFor="pin-label">Name on the pin (optional)</Label>
@@ -366,7 +370,7 @@ export function AboutMapCard() {
             </p>
           </div>
         </CardContent>
-        <CardFooter className="flex flex-wrap justify-end gap-2">
+        <CardFooter className="flex flex-wrap justify-end gap-2" data-tour="about-save">
           <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)} className="flex-1 sm:flex-none"><Eye /> See preview</Button>
           <Button type="button" variant="ghost" disabled={!isDirty || busy} onClick={() => setDraft(saved)} className="flex-1 sm:flex-none"><Undo2 /> Discard</Button>
           {missingPin && (

@@ -20,6 +20,8 @@ import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { loadDraft, saveServerDraft, writeLocalDraft, deleteDraft, toDraftData, hasMeaningfulDraft } from '../../services/bookingDraftService';
 import { redeemPromoCode } from '../../services/promoCodeService';
 import { Button } from '@/components/ui/button';
+import { TourLauncher } from '../../components/common/GuidedTour';
+import { ADMIN_TOURS } from '../../features/tours/adminTours';
 
 // Utility for Data Integrity: Find service in catalog by name and get current price
 const getCatalogServiceByName = (name, type) => {
@@ -523,13 +525,16 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
           </button>
         )}
         <div>
-          <h1 className="text-fluid-h1" style={{ margin: 0, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '-1.5px', lineHeight: 1.1 }}>Book Appointment</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <h1 className="text-fluid-h1" style={{ margin: 0, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '-1.5px', lineHeight: 1.1 }}>Book Appointment</h1>
+            {adminMode && <TourLauncher steps={ADMIN_TOURS.newBooking} label="How to book for a customer" />}
+          </div>
           {isRebooking && <div className="pulse-animation" style={{ fontSize: '0.75rem', color: 'var(--admin-brand)', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '0.2rem' }}>Fast-Track Rebooking Active</div>}
         </div>
       </div>
 
       {/* Progress Steps (Interactive) */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', position: 'relative' }}>
+      <div data-tour="book-steps" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', position: 'relative' }}>
         <div style={{ position: 'absolute', top: '20px', left: '0', right: '0', height: '2px', background: 'var(--admin-border)', zIndex: 0 }} />
         <div style={{ position: 'absolute', top: '20px', left: '0', width: `${((currentStep - 1) / 3) * 100}%`, height: '2px', background: 'var(--admin-brand)', zIndex: 0, transition: 'all 0.5s ease' }} />
 
@@ -573,8 +578,8 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
       )}
 
       {/* Step Content */}
-      {adminMode && renderAdminPanel?.({ bookingData, setBookingData: updateBookingData, isCustomerDetailsLocked: customerDetailsLocked })}
-      <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 0, padding: '2rem', boxShadow: 'var(--admin-card-shadow)' }}>
+      {adminMode && <div data-tour="book-customer">{renderAdminPanel?.({ bookingData, setBookingData: updateBookingData, isCustomerDetailsLocked: customerDetailsLocked })}</div>}
+      <div data-tour="book-content" style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 0, padding: '2rem', boxShadow: 'var(--admin-card-shadow)' }}>
         {currentStep === 1 && <Step2Services bookingData={bookingData} setBookingData={updateBookingData} adminMode={adminMode} activeVehicleIndex={activeVehicleIndex} onNext={nextStep} onCancel={handleCancelBooking} />}
         {currentStep === 2 && <Step1Schedule bookingData={bookingData} setBookingData={updateBookingData} activeVehicleIndex={activeVehicleIndex} onNext={nextStep} onBack={prevStep} onCancel={handleCancelBooking} customerDetailsLocked={customerDetailsLocked} adminMode={adminMode} selectedCustomerId={adminSelectedCustomerId} />}
         {currentStep === 3 && (

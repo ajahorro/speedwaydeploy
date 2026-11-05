@@ -13,6 +13,7 @@ import { DownpaymentPolicyCard } from '../../features/business-hub/DownpaymentPo
 import { usePaged } from '../../components/common/ListPager';
 import { AboutMapCard } from '../../features/business-hub/AboutMapCard';
 import GuidedTour, { TourInfoButton } from '../../components/common/GuidedTour';
+import { ADMIN_TOURS } from '../../features/tours/adminTours';
 import { TermsEditorCard } from '../../features/business-hub/TermsEditorCard';
 import { PromoCodesCard } from '../../features/business-hub/PromoCodesCard';
 import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
@@ -3298,13 +3299,7 @@ export default function BusinessHub() {
       <GuidedTour
         open={serviceTourOpen}
         onClose={() => setServiceTourOpen(false)}
-        steps={[
-          { target: '[data-tour="svc-vehicle"]', title: '1. Choose a vehicle', body: 'Pick the vehicle type you want to work on. The list below then shows only that vehicle’s services and prices. “All Vehicles” shows everything.' },
-          { target: '[data-tour="svc-status"]', title: '2. Active or Archived', body: 'Active services are the ones customers can book. Switch to Archived to see services you have taken off the menu, so you can bring them back.' },
-          { target: '[data-tour="svc-search"]', title: '3. Search', body: 'Type part of a service name, like “basic wash”. It only searches the vehicle you picked, so a car wash will not show up under Bigbike.' },
-          { target: '[data-tour="svc-edit"]', title: '4. Make changes', body: 'Press Edit to unlock changes. You can then tick services to archive or restore several at once, or use Edit and Archive on a single row. Press Done when you are finished.' },
-          { target: '[data-tour="svc-table"]', title: '5. Your services', body: 'Each row shows the price, how long it takes and whether it is live. Use the page arrows under the list to see more (10 per page).' },
-        ]}
+        steps={ADMIN_TOURS.services}
       />
 
       {/* Task B: block navigation while there are unsaved edits. */}

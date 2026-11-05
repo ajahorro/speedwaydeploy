@@ -116,7 +116,7 @@ export default function GuidedTour({ open, steps = [], onClose, startAt = 0 }) {
       <div ref={cardRef} tabIndex={-1} className={`gt-card gt-${placement}`} style={{ top, left, width: cardW }}>
         {rect && <span className="gt-arrow" style={{ left: arrowLeft }} aria-hidden="true" />}
         <div className="gt-head">
-          <span className="gt-count">Step {index + 1} of {usable.length}</span>
+          <span className="gt-count">{`Step ${index + 1} of ${usable.length}`}</span>
           <button type="button" className="gt-x" onClick={onClose} aria-label="Close guide"><X size={16} /></button>
         </div>
         <h3 id="gt-title" className="gt-title">{step.title}</h3>
@@ -188,3 +188,14 @@ const TOUR_CSS = `
 .gt-primary { background:var(--admin-brand, #C41F2B); color:#fff; border:1px solid var(--admin-brand, #C41F2B); }
 @media (prefers-reduced-motion: reduce) { .gt-spot, .gt-card { transition:none; animation:none; } }
 `;
+
+/** The "i" button and its guide together: <TourLauncher steps={TOURS.promos} label="How promos work" />. */
+export function TourLauncher({ steps, label = 'How this works' }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <TourInfoButton onClick={() => setOpen(true)} label={label} />
+      <GuidedTour open={open} steps={steps} onClose={() => setOpen(false)} />
+    </>
+  );
+}

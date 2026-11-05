@@ -116,7 +116,7 @@ export function PromoCodesCard() {
   const scopeLabel = (row) => (row.vehicle_types?.length ? row.vehicle_types.join(', ') : 'All vehicles');
 
   return (
-    <Card className="ui-root mt-4">
+    <Card className="ui-root mt-4" data-tour="promo-codes">
       <CardHeader>
         <CardTitle>Promo codes</CardTitle>
         <CardDescription>Optional codes a customer can type on the last booking page. A code can be archived, never deleted; past bookings keep the discount they already received.</CardDescription>
