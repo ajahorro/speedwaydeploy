@@ -57,7 +57,9 @@ export const getBackendStatus = () => currentStatus;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const jitter = (base) => base + Math.random() * (base * 0.3);
+// Up to 30% random spread so many tabs don't retry in lockstep.
+const JITTER_FRACTION = 0.3;
+const jitter = (base) => base + Math.random() * base * JITTER_FRACTION;
 
 /**
  * Fire one probe attempt with an AbortController timeout.
