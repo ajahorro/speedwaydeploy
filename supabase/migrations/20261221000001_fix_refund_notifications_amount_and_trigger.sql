@@ -5,6 +5,13 @@
 -- 2. Ordering process_booking_refund_v2() so payments are updated/inserted before bookings.refund_status
 --    is updated to 'PROCESSED'.
 -- 3. Correcting historical notifications that were recorded with "PHP 0.00".
+--
+-- process_booking_refund_v2 keeps every guard from 20261022000002: the acting
+-- administrator is auth.uid() (v_actor_id) and p_actor_id may not name anyone
+-- else, a reason is required, amounts are rounded to centavos, and a refund
+-- reference already processed on this booking is rejected (double-refund guard).
+-- It adds a cross-booking reference check and moves the payment writes ahead of
+-- the bookings update so the refund triggers see the SYSTEM_REFUND row.
 
 -- ── 1. Recreate notify_admins_financial_event() with accurate amounts & guards ──
 create or replace function public.notify_admins_financial_event()
@@ -153,15 +160,24 @@ declare
   v_refunded_total numeric := 0;
   v_prior_deduction numeric := 0;
   v_remaining_refundable numeric := 0;
-  v_deduction numeric := coalesce(p_refund_deduction, 0);
-  v_refund_amount numeric := coalesce(p_refund_amount, 0);
+  v_deduction numeric := round(coalesce(p_refund_deduction, 0), 2);
+  v_refund_amount numeric := round(coalesce(p_refund_amount, 0), 2);
   v_refund_method text := upper(coalesce(nullif(btrim(p_refund_method), ''), 'CASH'));
   v_full_refund boolean := false;
   v_now timestamptz := now();
   v_booking public.bookings%rowtype;
+  v_actor_id uuid := auth.uid();
 begin
   if not public.is_admin() then
     raise exception 'Administrator access is required' using errcode = '42501';
+  end if;
+
+  if p_actor_id is not null and p_actor_id is distinct from v_actor_id then
+    raise exception 'Refund actor does not match the authenticated administrator';
+  end if;
+
+  if nullif(btrim(coalesce(p_refund_reason, '')), '') is null then
+    raise exception 'A refund reason is required';
   end if;
 
   if p_refund_reference is null or btrim(p_refund_reference) = '' then
@@ -175,6 +191,16 @@ begin
        and booking_id <> p_booking_id
   ) then
     raise exception 'Refund reference % has already been used on another booking', p_refund_reference;
+  end if;
+
+  if exists (
+    select 1
+      from public.payments
+     where booking_id = p_booking_id
+       and method = 'SYSTEM_REFUND'
+       and reference_number = p_refund_reference
+  ) then
+    raise exception 'Refund reference % has already been processed', p_refund_reference;
   end if;
 
   if v_refund_method not in ('CASH', 'BANK TRANSFER') then
@@ -301,10 +327,12 @@ grant execute on function public.process_booking_refund_v2(uuid, numeric, text, 
 update public.notifications n
 set message = 'Refund of PHP ' || to_char(p.refund_amount, 'FM999,999,990.00') || ' was processed for booking #' || left(n.booking_id::text, 8) || '.'
 from (
-  select booking_id, abs(amount) as refund_amount
+  select distinct on (booking_id) booking_id, abs(amount) as refund_amount
   from public.payments
-  where method = 'SYSTEM_REFUND'
+  where method = 'SYSTEM_REFUND' and amount < 0
+  order by booking_id, created_at desc
 ) p
 where n.booking_id = p.booking_id
+  and n.notification_type = 'REFUND_PROCESSED'
   and n.message ilike '%PHP 0.00%';
 
