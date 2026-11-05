@@ -1187,21 +1187,18 @@ export default function BusinessHub() {
   // only representation that survives flattenDefaultServices() regenerating the
   // built-in catalog on the next load.
   //
-  // Both id forms are recorded: the raw row id (`wash_1`) and the per-vehicle
-  // flatten ids (`wash_1-Sedan`). flattenDefaultServices accepts either, and
-  // recording both means the tombstone still matches if the id scheme changes.
+  // A whole service (`wash_1`) is recorded with every per-vehicle id (`wash_1-Sedan`, …) as well, so the tombstone
+  // still matches if the id scheme changes. A single vehicle price (`wash_1-Sedan`) is recorded on its own: adding
+  // the bare service id here used to hide the WHOLE service when only one vehicle price was archived.
+  const parentServiceId = (id) => VEHICLE_TYPE_KEYS
+    .map((type) => (id.endsWith(`-${type}`) ? id.slice(0, -(type.length + 1)) : null))
+    .find(Boolean) || null;
+
   const expandTombstoneIds = (id) => {
     const base = String(id || '').trim();
     if (!base) return [];
-    const expansions = [base];
-    const match = VEHICLE_TYPE_KEYS.map((type) => (base.endsWith(`-${type}`) ? base.slice(0, -(type.length + 1)) : null)).find(Boolean);
-    // `match` is the service part of an id that already names a vehicle category (e.g. `wash_basic-Sedan`).
-    if (match) {
-      expansions.push(match);
-    } else {
-      VEHICLE_TYPE_KEYS.forEach((type) => expansions.push(`${base}-${type}`));
-    }
-    return expansions;
+    if (parentServiceId(base)) return [base];
+    return [base, ...VEHICLE_TYPE_KEYS.map((type) => `${base}-${type}`)];
   };
 
   const tombstoneArchived = (ids) => {
@@ -1209,8 +1206,17 @@ export default function BusinessHub() {
     return [...new Set([...(archivedServiceIds || []), ...add])];
   };
 
+  // Restoring a vehicle price also lifts a whole-service tombstone, otherwise the restored price stays hidden.
+  // Prices that are still archived keep their own per-vehicle ids, so they stay hidden.
   const unTombstoneArchived = (ids) => {
-    const remove = new Set((ids || []).map((id) => String(id || '')).filter(Boolean));
+    const remove = new Set();
+    for (const raw of ids || []) {
+      const id = String(raw || '').trim();
+      if (!id) continue;
+      remove.add(id);
+      const parent = parentServiceId(id);
+      if (parent) remove.add(parent);
+    }
     return (archivedServiceIds || []).filter((id) => !remove.has(String(id)));
   };
 
