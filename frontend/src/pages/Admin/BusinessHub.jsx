@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Building, Wrench, Tag, Save, AlertCircle, CheckCircle, Check,
-  Plus, X, Trash2, Archive, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown, Wallet, ScrollText, Image as ImageIcon
+  Plus, X, Trash2, Archive, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown, Wallet, ScrollText, Image as ImageIcon, Search
 } from 'lucide-react';
 import { useConfig } from '../../context/ConfigContext';
 import { useUI } from '../../context/UIContext';
@@ -12,6 +12,7 @@ import PromoManager from '../../components/AdminSchedule/PromoManager';
 import { DownpaymentPolicyCard } from '../../features/business-hub/DownpaymentPolicyCard';
 import { usePaged } from '../../components/common/ListPager';
 import { AboutMapCard } from '../../features/business-hub/AboutMapCard';
+import GuidedTour, { TourInfoButton } from '../../components/common/GuidedTour';
 import { TermsEditorCard } from '../../features/business-hub/TermsEditorCard';
 import { PromoCodesCard } from '../../features/business-hub/PromoCodesCard';
 import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
@@ -464,6 +465,9 @@ export default function BusinessHub() {
   const [showArchived, setShowArchived] = useState(false);
   // "Action" filter beside Select Vehicle: Active services (default) or Archived ones
   const [serviceStatusFilter, setServiceStatusFilter] = useState('active');
+  // search within the selected vehicle's services
+  const [serviceSearch, setServiceSearch] = useState('');
+  const [serviceTourOpen, setServiceTourOpen] = useState(false);
   // Section 1: master Edit mode for the Service Catalog table.
   //
   // Tier 1 = master mode: checkboxes appear on every row plus master
@@ -1589,16 +1593,21 @@ export default function BusinessHub() {
     );
     const wantArchived = serviceStatusFilter === 'archived';
     const byStatus = services.filter((service) => (service?.is_active === false || service?.archived === true) === wantArchived);
-    if (selectedVehicleFilter === 'All') return byStatus;
-    const targetKey = canonicalVehicleKey(selectedVehicleFilter);
-    return byStatus.filter((service) => {
-      const serviceTypes = normalizeVehicleTypes(service).map((type) => canonicalVehicleKey(type));
-      return serviceTypes.includes(targetKey);
+    const targetKey = selectedVehicleFilter === 'All' ? null : canonicalVehicleKey(selectedVehicleFilter);
+    const byVehicle = targetKey
+      ? byStatus.filter((service) => normalizeVehicleTypes(service).map((type) => canonicalVehicleKey(type)).includes(targetKey))
+      : byStatus;
+    // the search only looks inside the chosen vehicle (and Active/Archived), never across other vehicles
+    const words = serviceSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return byVehicle;
+    return byVehicle.filter((service) => {
+      const text = `${service.name || ''} ${service.generalService || service.category || ''} ${service.description || ''}`.toLowerCase();
+      return words.every((w) => text.includes(w));
     });
-  }, [businessForm.custom_services, businessForm.archived_service_ids, businessForm.deleted_service_ids, selectedVehicleFilter, serviceStatusFilter]);
+  }, [businessForm.custom_services, businessForm.archived_service_ids, businessForm.deleted_service_ids, selectedVehicleFilter, serviceStatusFilter, serviceSearch]);
 
   // 10 services a page; "Select all" still means every service in the current filter, on every page
-  const { rows: pagedServices, pager: servicePager } = usePaged(filteredServices, { resetKey: [selectedVehicleFilter, serviceStatusFilter], label: 'services' });
+  const { rows: pagedServices, pager: servicePager } = usePaged(filteredServices, { resetKey: [selectedVehicleFilter, serviceStatusFilter, serviceSearch], label: 'services' });
 
   const allVisibleServicesSelected = filteredServices.length > 0
     && filteredServices.every((service) => selectedServiceIds.includes(String(service.id)));
@@ -2759,8 +2768,11 @@ export default function BusinessHub() {
                   {/* Section 1: toolbar. 'Select Vehicle' and the master 'Edit' button
                       share this row; entering edit mode reveals the batch actions. */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '1rem' }}>
-                    <div style={{ flex: '1 1 220px', minWidth: '200px' }}>
-                      <label htmlFor="service-vehicle-filter" style={labelStyle}>Select Vehicle</label>
+                    <div style={{ flex: '1 1 200px', minWidth: '180px' }} data-tour="svc-vehicle">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                        <TourInfoButton onClick={() => setServiceTourOpen(true)} label="How to use this section" />
+                        <label htmlFor="service-vehicle-filter" style={{ ...labelStyle, marginBottom: 0 }}>Select Vehicle</label>
+                      </div>
                       <select
                         id="service-vehicle-filter"
                         name="service_vehicle_filter"
@@ -2775,7 +2787,7 @@ export default function BusinessHub() {
                       </select>
                     </div>
 
-                    <div style={{ flex: '0 1 200px', minWidth: '150px' }}>
+                    <div style={{ flex: '0 1 170px', minWidth: '140px' }} data-tour="svc-status">
                       <label htmlFor="service-status-filter" style={labelStyle}>Action</label>
                       <select
                         id="service-status-filter"
@@ -2789,7 +2801,23 @@ export default function BusinessHub() {
                       </select>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '1 1 220px', minWidth: '180px' }} data-tour="svc-search">
+                      <label htmlFor="service-search" style={labelStyle}>Search</label>
+                      <div style={{ position: 'relative' }}>
+                        <Search size={15} aria-hidden="true" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)', pointerEvents: 'none' }} />
+                        <input
+                          id="service-search"
+                          type="search"
+                          value={serviceSearch}
+                          maxLength={80}
+                          onChange={(e) => setServiceSearch(e.target.value)}
+                          placeholder={selectedVehicleFilter === 'All' ? 'Search services' : `Search ${getVehicleTypeLabel(selectedVehicleFilter)} services`}
+                          style={{ ...inputStyle, paddingLeft: '2.2rem' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }} data-tour="svc-edit">
                       {!serviceEditMode ? (
                         <button
                           type="button"
@@ -2852,7 +2880,7 @@ export default function BusinessHub() {
                     </div>
                   )}
 
-                  <div style={{ overflowX: 'auto' }}>
+                  <div style={{ overflowX: 'auto' }} data-tour="svc-table">
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '880px' }}>
                       <thead>
                         <tr>
@@ -2918,7 +2946,9 @@ export default function BusinessHub() {
                         ) : (
                           <tr>
                             <td colSpan={serviceEditMode ? 7 : 6} style={{ padding: '1rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontWeight: 700, fontSize: '0.78rem' }}>
-                              {serviceStatusFilter === 'archived' ? 'No archived services for this vehicle category.' : 'No active services for this vehicle category.'}
+                              {serviceSearch.trim()
+                                ? `No ${serviceStatusFilter} ${selectedVehicleFilter === 'All' ? '' : `${getVehicleTypeLabel(selectedVehicleFilter)} `}service matches “${serviceSearch.trim()}”.`
+                                : serviceStatusFilter === 'archived' ? 'No archived services for this vehicle category.' : 'No active services for this vehicle category.'}
                             </td>
                           </tr>
                         )}
@@ -3263,6 +3293,18 @@ export default function BusinessHub() {
         currentConfig={businessForm}
         onClose={() => setShowQrModal(false)}
         onCommitted={() => { fetchBusinessConfig(); }}
+      />
+
+      <GuidedTour
+        open={serviceTourOpen}
+        onClose={() => setServiceTourOpen(false)}
+        steps={[
+          { target: '[data-tour="svc-vehicle"]', title: '1. Choose a vehicle', body: 'Pick the vehicle type you want to work on. The list below then shows only that vehicle’s services and prices. “All Vehicles” shows everything.' },
+          { target: '[data-tour="svc-status"]', title: '2. Active or Archived', body: 'Active services are the ones customers can book. Switch to Archived to see services you have taken off the menu, so you can bring them back.' },
+          { target: '[data-tour="svc-search"]', title: '3. Search', body: 'Type part of a service name, like “basic wash”. It only searches the vehicle you picked, so a car wash will not show up under Bigbike.' },
+          { target: '[data-tour="svc-edit"]', title: '4. Make changes', body: 'Press Edit to unlock changes. You can then tick services to archive or restore several at once, or use Edit and Archive on a single row. Press Done when you are finished.' },
+          { target: '[data-tour="svc-table"]', title: '5. Your services', body: 'Each row shows the price, how long it takes and whether it is live. Use the page arrows under the list to see more (10 per page).' },
+        ]}
       />
 
       {/* Task B: block navigation while there are unsaved edits. */}
