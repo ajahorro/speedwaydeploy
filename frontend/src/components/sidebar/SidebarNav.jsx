@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard, Building2, ClipboardList, CalendarDays, CalendarPlus, UserPlus, MessageCircle,
+  LayoutGrid, Building2, ClipboardList, CalendarDays, CalendarPlus, UserPlus, MessageCircle,
   BadgeCheck, Undo2, BarChart2, History, Users, BookUser, Bell, CreditCard, Car, Clock, Settings, LogOut,
 } from 'lucide-react';
 
@@ -13,7 +13,7 @@ import {
  * Styling lives in index.css (.sidebar-link): no side line, no lift or shadow on hover, one icon size and stroke.
  */
 export const NAV_ICONS = {
-  dashboard: LayoutDashboard,
+  dashboard: LayoutGrid,
   business: Building2,
   bookings: ClipboardList,
   calendar: CalendarDays,

@@ -1,18 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Calendar, Car, ClipboardList, FileText, LayoutDashboard, Search, Settings } from 'lucide-react';
+import { ArrowRight, Car, ClipboardList, Search, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { matchesSearchText } from '../utils/searchMatch';
+import { NAV_ICONS } from './sidebar/SidebarNav';
 
 const PAGES = [
-  { name: 'Dashboard', path: '/customer', icon: LayoutDashboard, category: 'Pages' },
-  { name: 'Book Appointment', path: '/customer/book', icon: Calendar, category: 'Pages' },
-  { name: 'My Bookings', path: '/customer/bookings', icon: ClipboardList, category: 'Pages' },
-  { name: 'Transactions & Billing', path: '/customer/billing', icon: FileText, category: 'Pages' },
-  { name: 'Vehicle Garage', path: '/customer/garage', icon: Car, category: 'Pages' },
-  { name: 'Notifications', path: '/customer/notifications', icon: FileText, category: 'Pages' },
-  { name: 'Settings', path: '/customer/settings', icon: Settings, category: 'Pages' }
+  { name: 'Dashboard', path: '/customer', icon: NAV_ICONS.dashboard, category: 'Pages' },
+  { name: 'Book Appointment', path: '/customer/book', icon: NAV_ICONS.newBooking, category: 'Pages' },
+  { name: 'My Bookings', path: '/customer/bookings', icon: NAV_ICONS.bookings, category: 'Pages' },
+  { name: 'Transactions & Billing', path: '/customer/billing', icon: NAV_ICONS.billing, category: 'Pages' },
+  { name: 'Vehicle Garage', path: '/customer/garage', icon: NAV_ICONS.garage, category: 'Pages' },
+  { name: 'Notifications', path: '/customer/notifications', icon: NAV_ICONS.notifications, category: 'Pages' },
+  { name: 'Settings', path: '/customer/settings', icon: NAV_ICONS.settings, category: 'Pages' }
 ];
 
 const CustomerSearch = () => {

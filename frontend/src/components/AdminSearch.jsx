@@ -1,27 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, FileText, User, CreditCard, Bell, Settings, LayoutDashboard, Calendar, History, ClipboardList, Shield, ArrowRight } from 'lucide-react';
+import { Search, FileText, User, Settings, Shield, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
 import { matchesSearchText, escapeForPostgrestFilter } from '../utils/searchMatch';
+import { NAV_ICONS } from './sidebar/SidebarNav';
 
 // Static route table. Hoisted to MODULE scope so its identity is stable across
 // renders — declared inside the component it was a NEW array on every render,
 // which is what put it in the search effect's dependency graph.
 const PAGES = [
-  { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, category: 'Pages' },
-  { name: 'Booking Management', path: '/admin/bookings', icon: ClipboardList, category: 'Pages' },
-  { name: 'Payment Verification', path: '/admin/payments', icon: CreditCard, category: 'Pages' },
-  { name: 'Schedule', path: '/admin/schedule', icon: Calendar, category: 'Pages' },
-  { name: 'Refund Hub', path: '/admin/refunds', icon: ClipboardList, category: 'Pages' },
-  { name: 'Reports', path: '/admin/reports', icon: LayoutDashboard, category: 'Pages' },
-  { name: 'Audit Logs', path: '/admin/audit-logs', icon: History, category: 'Pages' },
-  { name: 'Staff & Admin Accounts', path: '/admin/accounts', icon: User, category: 'Pages' },
-  { name: 'Business Hub', path: '/admin/business', icon: Settings, category: 'Pages' },
-  { name: 'Walk-in Booking', path: '/admin/walk-in', icon: ClipboardList, category: 'Pages' },
-  { name: 'Users', path: '/admin/users', icon: User, category: 'Pages' },
-  { name: 'Notifications', path: '/admin/notifications', icon: Bell, category: 'Pages' },
-  { name: 'Settings', path: '/admin/settings', icon: Settings, category: 'Pages' },
+  { name: 'Dashboard', path: '/admin', icon: NAV_ICONS.dashboard, category: 'Pages' },
+  { name: 'Booking Management', path: '/admin/bookings', icon: NAV_ICONS.bookings, category: 'Pages' },
+  { name: 'Payment Verification', path: '/admin/payments', icon: NAV_ICONS.paymentVerification, category: 'Pages' },
+  { name: 'Schedule', path: '/admin/schedule', icon: NAV_ICONS.calendar, category: 'Pages' },
+  { name: 'Refund Hub', path: '/admin/refunds', icon: NAV_ICONS.refunds, category: 'Pages' },
+  { name: 'Reports', path: '/admin/reports', icon: NAV_ICONS.reports, category: 'Pages' },
+  { name: 'Audit Logs', path: '/admin/audit-logs', icon: NAV_ICONS.history, category: 'Pages' },
+  { name: 'Staff & Admin Accounts', path: '/admin/accounts', icon: NAV_ICONS.staff, category: 'Pages' },
+  { name: 'Business Hub', path: '/admin/business', icon: NAV_ICONS.business, category: 'Pages' },
+  { name: 'Walk-in Booking', path: '/admin/walk-in', icon: NAV_ICONS.walkIn, category: 'Pages' },
+  { name: 'Users', path: '/admin/users', icon: NAV_ICONS.clients, category: 'Pages' },
+  { name: 'Notifications', path: '/admin/notifications', icon: NAV_ICONS.notifications, category: 'Pages' },
+  { name: 'Settings', path: '/admin/settings', icon: NAV_ICONS.settings, category: 'Pages' },
   { name: 'Profile', path: '/admin/profile', icon: Shield, category: 'Pages' },
 ];
 

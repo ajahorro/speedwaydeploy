@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutDashboard, LogIn, LogOut, ChevronRight, Image as ImageIcon } from 'lucide-react';
+import { LayoutGrid, LogIn, LogOut, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import { BACKEND_URL } from '@/config/api';
 import { photosForService } from '@/config/servicePhotos';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -26,7 +26,7 @@ export function AuthButtons({ user, pending, onAuth, onSignOut, className = '', 
         </Button>
       )}
       <Button onClick={onAuth} className={`font-black uppercase tracking-wider ${stacked ? 'h-11 w-full' : ''}`}>
-        {user ? <LayoutDashboard /> : <LogIn />}
+        {user ? <LayoutGrid /> : <LogIn />}
         {pending ? 'Syncing...' : (user ? 'Dashboard' : 'Login')}
       </Button>
     </div>

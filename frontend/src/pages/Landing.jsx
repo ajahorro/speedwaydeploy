@@ -15,7 +15,6 @@ import {
   Twitter,
   X as XIcon,
   LogIn,
-  LayoutDashboard,
   LogOut,
   ChevronDown
 } from 'lucide-react';
