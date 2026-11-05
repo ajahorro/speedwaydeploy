@@ -28,9 +28,9 @@ import { BACKEND_URL } from '../config/api';
 
 const PROBE_PATH = '/api/health';
 const PROBE_TIMEOUT_MS = 4000;
-const MAX_ATTEMPTS = 12;          // up to ~60 s of total wait time
-const BASE_DELAY_MS = 2000;
-const MAX_DELAY_MS = 8000;
+const MAX_ATTEMPTS = 20;          // ~70 s in total: a Render free-tier cold start can take up to a minute
+const BASE_DELAY_MS = 1500;
+const MAX_DELAY_MS = 4000;        // short gaps so a server that just woke up is noticed within a few seconds
 
 /** Simple pub-sub so multiple components share one probe without polling. */
 const listeners = new Set();
@@ -135,3 +135,17 @@ export const resetBackendStatus = () => {
   activeProbePromise = null;
 };
 
+/**
+ * Silent wake-up nudge. Sends one request to /api/health and ignores the answer: no status change, no banner.
+ * Called on page load so a sleeping server starts booting before anyone needs it. Visitors who only browse
+ * never see anything; someone who clicks an action a little later usually finds the server already up.
+ */
+let warmed = false;
+export const warmBackend = () => {
+  if (warmed) return;
+  warmed = true;
+  try {
+    // keepalive lets the request finish even if the visitor navigates away immediately.
+    fetch(`${BACKEND_URL}${PROBE_PATH}`, { method: 'GET', cache: 'no-store', keepalive: true }).catch(() => {});
+  } catch { /* nothing to do: this is only a head start */ }
+};

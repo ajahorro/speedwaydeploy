@@ -32,13 +32,11 @@ import { ConfigProvider } from './context/ConfigContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { ChatProvider } from './context/ChatContext';
 import ColdStartBanner from './components/ColdStartBanner';
-import { ensureBackendOnline } from './lib/backendHealth';
+import { warmBackend } from './lib/backendHealth';
 
-// Kick off a backend liveness probe immediately on page load.
-// If the server is warm it completes in < 200 ms and the banner never shows.
-// If it's cold-starting the banner appears and self-dismisses once the server
-// responds — no user action required.
-void ensureBackendOnline();
+// Give a sleeping backend (Render free tier) a head start, silently. No banner here: most pages never need the
+// backend, so visitors should not be told about it. ColdStartBanner only appears when an action is waiting on it.
+warmBackend();
 const AdminLayout = lazy(() => import('./pages/Admin/AdminLayout'));
 const AdminDashboard = lazy(() => import('./pages/Admin/AdminDashboard'));
 const AdminBookings = lazy(() => import('./pages/Admin/AdminBookings'));
@@ -149,9 +147,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 <ImagePreviewProvider>
                 {/* Ends a signed-in session after a period without activity (config/sessionPolicy.js). */}
                 <IdleSessionGuard />
-                {/* Non-blocking banner that appears only during a backend cold start
-                    (Render free tier spins down after ~15 min of inactivity). It
-                    self-dismisses 2 s after the server responds. */}
+                {/* Appears only when something the user did has been waiting on the backend for a few seconds. */}
                 <ColdStartBanner />
                 {/* Proactive "backend offline" signal. Booking submission is
                     fail-closed, so surfacing an unreachable scheduling server
