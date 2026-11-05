@@ -4612,6 +4612,40 @@ app.post('/api/admin/site-photos', (req, res, next) => sitePhotoUpload.single('p
   return res.json({ success: true, photo: { id, url: sitePhotoUrl(id), caption: '' } });
 });
 
+// Address search for the map pin (Business Hub › About & Map). Uses OpenStreetMap's free Nominatim service through
+// this server so its usage policy is respected: an identifying User-Agent, at most one request a second across the
+// whole server, results cached for a day, administrators only, and searches leaning towards the Philippines.
+const geocodeCache = new Map();
+let geocodeLastAt = 0;
+app.get('/api/admin/geocode', async (req, res) => {
+  const admin = await requireAdmin(req);
+  if (!admin) return res.status(403).json({ success: false, error: 'Administrator access is required.' });
+  const q = cleanSiteText(req.query.q, 200);
+  if (q.length < 3) return res.status(400).json({ success: false, error: 'Type at least 3 characters of the address.' });
+  const key = q.toLowerCase();
+  const cached = geocodeCache.get(key);
+  if (cached && Date.now() - cached.at < 86400000) return res.json({ success: true, results: cached.results });
+
+  const wait = geocodeLastAt + 1100 - Date.now();
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  geocodeLastAt = Date.now();
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&addressdetails=0&countrycodes=ph&q=${encodeURIComponent(q)}`;
+    const response = await fetch(url, { headers: { 'User-Agent': 'ComarGarageBooking/1.0 (https://comargarage.com)', 'Accept-Language': 'en' }, signal: AbortSignal.timeout(8000) });
+    if (!response.ok) throw new Error(`status ${response.status}`);
+    const rows = await response.json();
+    const results = (Array.isArray(rows) ? rows : []).slice(0, 5).map((r) => ({
+      lat: Number(r.lat), lng: Number(r.lon), label: cleanSiteText(r.display_name, 200)
+    })).filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+    geocodeCache.set(key, { at: Date.now(), results });
+    if (geocodeCache.size > 500) geocodeCache.delete(geocodeCache.keys().next().value);
+    return res.json({ success: true, results });
+  } catch (error) {
+    console.warn('[GEOCODE] search failed:', error.message);
+    return res.status(502).json({ success: false, error: 'The address search is not available right now. Click the map instead.' });
+  }
+});
+
 app.put('/api/admin/site-content', async (req, res) => {
   const admin = await requireAdmin(req);
   if (!admin) return res.status(403).json({ success: false, error: 'Administrator access is required.' });

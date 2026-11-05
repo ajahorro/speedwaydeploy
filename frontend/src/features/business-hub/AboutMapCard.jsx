@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from '@/lib/toast';
-import { ArrowDown, ArrowUp, Crosshair, Eye, ImagePlus, Loader2, MapPin, Save, Trash2, Undo2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Crosshair, Eye, ImagePlus, Loader2, MapPin, Save, Search, Trash2, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -81,6 +81,36 @@ export function AboutMapCard() {
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [locating, setLocating] = useState(false);
+  // address search -> pin
+  const [addressQuery, setAddressQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [matches, setMatches] = useState(null); // null = no search yet
+
+  const searchAddress = async (event) => {
+    event?.preventDefault();
+    const q = addressQuery.trim();
+    if (q.length < 3) { toast.error('Type at least 3 characters of the address.'); return; }
+    setSearching(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/admin/geocode?q=${encodeURIComponent(q)}`, { headers: await authHeaders() });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.success) throw new Error(body.error || 'The address search did not work.');
+      setMatches(body.results || []);
+      // one clear match: drop the pin straight away
+      if ((body.results || []).length === 1) pickMatch(body.results[0]);
+    } catch (error) {
+      toast.error(error.message || 'The address search did not work.');
+      setMatches(null);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const pickMatch = (match) => {
+    const shortLabel = String(match.label || '').split(',').slice(0, 3).join(',').trim();
+    setDraft((d) => ({ ...d, location: { lat: match.lat, lng: match.lng, zoom: 17, label: d.location?.label || shortLabel } }));
+    setMatches(null);
+  };
   const fileRef = useRef(null);
 
   const saved = useMemo(() => toDraft(settings), [settings]);
@@ -254,9 +284,51 @@ export function AboutMapCard() {
       <Card>
         <CardHeader>
           <CardTitle>Map pin</CardTitle>
-          <CardDescription>Click the map or drag the pin to where the shop is. The landing page shows this map under About us.</CardDescription>
+          <CardDescription>Search the shop's address, or click the map, then drag the pin to the exact spot. The landing page shows this map under About us.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
+          <form onSubmit={searchAddress} className="grid gap-1.5" role="search">
+            <Label htmlFor="pin-search">Find the shop by address</Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="pin-search"
+                type="search"
+                autoComplete="off"
+                maxLength={200}
+                placeholder="e.g. Ortigas Ave Extension, Cainta, Rizal"
+                value={addressQuery}
+                onChange={(e) => setAddressQuery(e.target.value)}
+              />
+              <Button type="submit" disabled={searching} className="sm:w-auto">
+                {searching ? <Loader2 className="animate-spin" /> : <Search />} Search
+              </Button>
+            </div>
+            <p className="m-0 text-xs text-muted-foreground">Pick the right match, then drag the pin if it needs to be more exact.</p>
+          </form>
+
+          {matches && (
+            matches.length === 0 ? (
+              <p className="m-0 rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                No place found for that address. Try fewer words (street and city), or click the map instead.
+              </p>
+            ) : matches.length > 1 && (
+              <ul className="m-0 grid list-none gap-1 p-0" aria-label="Address matches">
+                {matches.map((match) => (
+                  <li key={`${match.lat},${match.lng}`}>
+                    <button
+                      type="button"
+                      onClick={() => pickMatch(match)}
+                      className="flex w-full items-start gap-2 rounded-md border px-3 py-2 text-left text-sm hover:border-primary"
+                    >
+                      <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
+                      <span>{match.label}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )
+          )}
+
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" onClick={useMyLocation} disabled={locating} className="flex-1 sm:flex-none">
               {locating ? <Loader2 className="animate-spin" /> : <Crosshair />} Use my current location

@@ -67,8 +67,10 @@ export default function ShopMap({ location, editable = false, onChange, height =
       markerRef.current = marker;
       map.setView(at, location.zoom || map.getZoom());
     } else {
+      const jump = map.distance(markerRef.current.getLatLng(), at) > 300; // a search result or "my location", not a drag
       markerRef.current.setLatLng(at);
-      if (!map.getBounds().contains(at)) map.panTo(at);
+      if (jump) map.setView(at, location.zoom || 17);
+      else if (!map.getBounds().contains(at)) map.panTo(at);
     }
   }, [location, editable]);
 
