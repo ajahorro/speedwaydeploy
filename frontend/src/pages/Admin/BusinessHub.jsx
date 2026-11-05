@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabase';
 import toast from '@/lib/toast';
 import PromoManager from '../../components/AdminSchedule/PromoManager';
 import { DownpaymentPolicyCard } from '../../features/business-hub/DownpaymentPolicyCard';
+import { usePaged } from '../../components/common/ListPager';
 import { TermsEditorCard } from '../../features/business-hub/TermsEditorCard';
 import { PromoCodesCard } from '../../features/business-hub/PromoCodesCard';
 import QrChangeOtpModal from '../../components/Business/QrChangeOtpModal';
@@ -405,6 +406,19 @@ export default function BusinessHub() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  // Every status message on this page is a toast (no inline banner). Successes get an icon that says what happened
+  // (archived, restored, saved) instead of the generic checkmark.
+  useEffect(() => {
+    if (!message.text) return;
+    if (message.type === 'error') {
+      toast.error(message.text, { icon: <AlertCircle size={18} /> });
+      return;
+    }
+    const icon = message.icon === 'archive' ? <Archive size={18} />
+      : message.icon === 'restore' ? <ArchiveRestore size={18} />
+      : <Save size={18} />;
+    toast.success(message.text, { icon });
+  }, [message]);
 
   // Service catalog management state (Tab 3)
   const [servicePanels, setServicePanels] = useState({ existing: false, add: false, vehicle: false });
@@ -445,6 +459,8 @@ export default function BusinessHub() {
   // it is editing.
   const [editingServiceId, setEditingServiceId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
+  // "Action" filter beside Select Vehicle: Active services (default) or Archived ones
+  const [serviceStatusFilter, setServiceStatusFilter] = useState('active');
   // Section 1: master Edit mode for the Service Catalog table.
   //
   // Tier 1 = master mode: checkboxes appear on every row plus master
@@ -1322,7 +1338,7 @@ export default function BusinessHub() {
       list.length === 1
         ? `Service "${list[0].name}" archived. Historical bookings are preserved.`
         : `${list.length} services archived. Historical bookings are preserved.`,
-      { archivedServiceIds: tombstoneArchived([...ids]) }
+      { archivedServiceIds: tombstoneArchived([...ids]), icon: 'archive' }
     );
     setSelectedServiceIds([]);
   };
@@ -1343,7 +1359,7 @@ export default function BusinessHub() {
       list.length === 1
         ? `Service "${list[0].name}" restored and is live again.`
         : `${list.length} services restored and live again.`,
-      { archivedServiceIds: unTombstoneArchived([...ids]) }
+      { archivedServiceIds: unTombstoneArchived([...ids]), icon: 'restore' }
     );
     setSelectedServiceIds([]);
   };
@@ -1568,13 +1584,18 @@ export default function BusinessHub() {
       businessForm.archived_service_ids || [],
       businessForm.deleted_service_ids || []
     );
-    if (selectedVehicleFilter === 'All') return services;
+    const wantArchived = serviceStatusFilter === 'archived';
+    const byStatus = services.filter((service) => (service?.is_active === false || service?.archived === true) === wantArchived);
+    if (selectedVehicleFilter === 'All') return byStatus;
     const targetKey = canonicalVehicleKey(selectedVehicleFilter);
-    return services.filter((service) => {
+    return byStatus.filter((service) => {
       const serviceTypes = normalizeVehicleTypes(service).map((type) => canonicalVehicleKey(type));
       return serviceTypes.includes(targetKey);
     });
-  }, [businessForm.custom_services, businessForm.archived_service_ids, businessForm.deleted_service_ids, selectedVehicleFilter]);
+  }, [businessForm.custom_services, businessForm.archived_service_ids, businessForm.deleted_service_ids, selectedVehicleFilter, serviceStatusFilter]);
+
+  // 10 services a page; "Select all" still means every service in the current filter, on every page
+  const { rows: pagedServices, pager: servicePager } = usePaged(filteredServices, { resetKey: [selectedVehicleFilter, serviceStatusFilter], label: 'services' });
 
   const allVisibleServicesSelected = filteredServices.length > 0
     && filteredServices.every((service) => selectedServiceIds.includes(String(service.id)));
@@ -1682,7 +1703,7 @@ export default function BusinessHub() {
         deleted_service_ids: nextDeletedIds
       });
       await refreshConfig();
-      setMessage({ type: 'success', text: successText });
+      setMessage({ type: 'success', text: successText, icon: options.icon });
       await writeAdminAuditLog({
         actionType: 'SERVICE_CATALOG_UPDATED',
         details: successText,
@@ -1967,25 +1988,6 @@ export default function BusinessHub() {
           })}
         </nav>
       </div>
-
-      {/* Status Alert Banner */}
-      {message.text && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.65rem',
-          padding: '0.85rem 1rem',
-          borderRadius: 'var(--admin-radius)',
-          fontSize: '0.78rem',
-          fontWeight: 700,
-          background: message.type === 'error' ? 'rgba(196, 31, 43, 0.1)' : 'var(--status-success-soft)',
-          border: `1px solid ${message.type === 'error' ? 'rgba(196, 31, 43, 0.35)' : 'var(--status-success-border)'}`,
-          color: message.type === 'error' ? '#C41F2B' : 'var(--status-success)'
-        }}>
-          {message.type === 'error' ? <AlertCircle size={16} /> : <CheckCircle size={16} />}
-          <span>{message.text}</span>
-        </div>
-      )}
 
       {/* Tab Panels */}
       <div>
@@ -2769,6 +2771,20 @@ export default function BusinessHub() {
                       </select>
                     </div>
 
+                    <div style={{ flex: '0 1 200px', minWidth: '150px' }}>
+                      <label htmlFor="service-status-filter" style={labelStyle}>Action</label>
+                      <select
+                        id="service-status-filter"
+                        name="service_status_filter"
+                        value={serviceStatusFilter}
+                        onChange={(e) => { setServiceStatusFilter(e.target.value); setSelectedServiceIds([]); }}
+                        style={inputStyle}
+                      >
+                        <option value="active">Active</option>
+                        <option value="archived">Archived</option>
+                      </select>
+                    </div>
+
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       {!serviceEditMode ? (
                         <button
@@ -2848,7 +2864,7 @@ export default function BusinessHub() {
                       </thead>
                       <tbody>
                         {filteredServices.length > 0 ? (
-                          filteredServices.map((service) => (
+                          pagedServices.map((service) => (
                             <tr key={service.id}>
                               {serviceEditMode && (
                                 <td style={{ padding: '0.9rem 0.5rem', borderBottom: '1px solid var(--admin-border)' }}>
@@ -2898,13 +2914,14 @@ export default function BusinessHub() {
                         ) : (
                           <tr>
                             <td colSpan={serviceEditMode ? 7 : 6} style={{ padding: '1rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontWeight: 700, fontSize: '0.78rem' }}>
-                              No services for this vehicle category.
+                              {serviceStatusFilter === 'archived' ? 'No archived services for this vehicle category.' : 'No active services for this vehicle category.'}
                             </td>
                           </tr>
                         )}
                       </tbody>
                     </table>
                   </div>
+                  {servicePager}
                 </div>
               )}
             </div>

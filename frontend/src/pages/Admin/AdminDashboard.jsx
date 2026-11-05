@@ -81,7 +81,6 @@ const AdminDashboard = () => {
       totalRevenue: 0,
       pendingPayments: 0,
       unassignedBookings: 0,
-      offShiftBookings: 0,
       overdueServices: 0,
       refundRequests: 0,
       releaseBay: 0,
@@ -210,10 +209,6 @@ const AdminDashboard = () => {
       // 5. Needs Attention - Unassigned Bookings
       const unassigned = (await fetchBookingsWithUnassignedVehicles()).length;
 
-      // Bookings whose time has come while their assigned technician is not clocked in
-      const { data: offShiftRows } = await supabase.rpc('off_shift_assignments');
-      const offShift = new Set((offShiftRows || []).map((row) => row.booking_id)).size;
-
       // 7. Needs Attention - No-Show Flagged (REQ-ADM-02)
       const { count: overdue } = await supabase
         .from('bookings')
@@ -284,7 +279,6 @@ const AdminDashboard = () => {
           totalRevenue: revenue,
           pendingPayments: pendingPay || 0,
           unassignedBookings: unassigned || 0,
-          offShiftBookings: offShift || 0,
           overdueServices: overdue || 0,
           refundRequests: refundRequestsCount || 0,
           releaseBay: releaseBay || 0,
@@ -377,14 +371,6 @@ const AdminDashboard = () => {
             color="var(--status-warning)"
             bg="rgba(245, 158, 11, 0.1)"
             onClick={() => navigate('/admin/payments')}
-          />
-          <AttentionCard
-            count={state.stats.offShiftBookings}
-            label="Technician Off Shift"
-            icon={Clock}
-            color="#f59e0b"
-            bg="rgba(245, 158, 11, 0.1)"
-            onClick={() => navigate('/admin/bookings?filter=off_shift')}
           />
           <AttentionCard
             count={state.stats.unassignedBookings}

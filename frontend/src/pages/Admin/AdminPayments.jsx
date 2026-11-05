@@ -21,6 +21,7 @@ import OfficialReceipt from '../../components/OfficialReceipt';
 import { useUI } from '../../context/UIContext';
 import { useImagePreview } from '../../context/ImagePreviewContext';
 import { matchesSearchText } from '../../utils/searchMatch';
+import { usePaged } from '../../components/common/ListPager';
 
 const AdminPayments = () => {
   const { openImage } = useImagePreview();
@@ -65,7 +66,7 @@ const AdminPayments = () => {
             )
           )
         `)
-        .neq('method', 'Cash')
+        // cash is listed too: it is settled at the counter, so it always counts as processed (never pending)
         .neq('method', 'RECEIVABLE')
         .order('created_at', { ascending: false });
 
@@ -116,9 +117,11 @@ const AdminPayments = () => {
       const isCashMethod = normalizedMethod === 'cash';
       const isDigitalMethod = ['gcash', 'digital', 'bank transfer', 'paymaya', 'maya', 'card', 'online'].includes(normalizedMethod);
 
-      if (state.filter === 'PENDING') return matchesSearch && p.status === 'FOR_VERIFICATION';
+      if (state.filter === 'PENDING') return matchesSearch && !isCashMethod && p.status === 'FOR_VERIFICATION';
       if (state.filter === 'PROCESSED') {
-        const isProcessed = ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(p.status);
+        // cash is processed the moment it is recorded; digital payments once they are verified
+        const isProcessed = (isCashMethod && !['REJECTED', 'VOID', 'CANCELLED'].includes(String(p.status || '').toUpperCase()))
+          || ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(p.status);
         const matchesMethodFilter = state.methodFilter === 'ALL'
           ? true
           : state.methodFilter === 'Cash'
@@ -130,6 +133,9 @@ const AdminPayments = () => {
       return matchesSearch;
     });
   }, [state.payments, state.searchTerm, state.filter, state.methodFilter]);
+
+  // 10 transactions a page; back to page 1 on a new search or filter
+  const { rows: pagedItems, pager: paymentPager } = usePaged(filteredItems, { resetKey: [state.searchTerm, state.filter, state.methodFilter], label: 'transactions' });
 
   const handleVerifyPayment = async (payment) => {
     const toastId = toast.loading('Verifying transaction...');
@@ -444,7 +450,7 @@ const AdminPayments = () => {
             <LoadingState message="Auditing financial trail..." />
           ) : filteredItems.length === 0 ? (
             <div style={{ ...cardStyle, padding: '4rem', textAlign: 'center', opacity: 0.5, textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: '900' }}>No transactions found</div>
-          ) : filteredItems.map(p => (
+          ) : <>{pagedItems.map(p => (
             <div
               key={p.id}
               onClick={() => setState(prev => ({ ...prev, selectedItem: p }))}
@@ -475,7 +481,7 @@ const AdminPayments = () => {
                 </div>
               </div>
             </div>
-          ))}
+          ))}{paymentPager}</>}
         </div>
 
         {!isMobile && (

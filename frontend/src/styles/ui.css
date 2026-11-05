@@ -155,5 +155,8 @@
 
   .ui-root {
     color: var(--foreground);
+    /* the root itself too: a bordered element that is also the .ui-root (e.g. a table wrapper) otherwise fell
+       back to currentColor and drew a white outline in dark mode */
+    border-color: var(--border);
   }
 }

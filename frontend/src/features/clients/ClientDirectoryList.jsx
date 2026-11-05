@@ -33,7 +33,7 @@ function Pager({ page, pages, total, from, to, setPage }) {
 
 function Actions({ user, canDelete, onHistory, onDelete, full = false }) {
   return (
-    <div className={full ? 'grid grid-cols-2 gap-2' : 'flex justify-end gap-1.5'}>
+    <div className={full ? 'grid grid-cols-2 gap-2' : 'flex justify-center gap-1.5'}>
       <Button size="sm" variant="outline" onClick={() => onHistory(user)} className={full ? 'h-10' : undefined}>
         <History /> View history
       </Button>
@@ -57,7 +57,7 @@ export default function ClientDirectoryList({ users, loading, isMobile: phone = 
     return () => observer.disconnect();
   }, []);
   const isMobile = phone || narrow;
-  const perPage = isMobile ? 6 : 10;
+  const perPage = 10;
   const [page, setPage] = useState(0);
   const total = users.length;
   const pages = Math.max(1, Math.ceil(total / perPage));
@@ -114,7 +114,7 @@ export default function ClientDirectoryList({ users, loading, isMobile: phone = 
             <TableHead>Email</TableHead>
             <TableHead>Number</TableHead>
             <TableHead>Joined</TableHead>
-            <TableHead className="pr-4 text-right">Actions</TableHead>
+            <TableHead className="pr-4 text-center">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

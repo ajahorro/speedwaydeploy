@@ -222,15 +222,7 @@ const AdminSchedule = () => {
         title="STUDIO CALENDAR"
         subtitle="Track bay utilization and live service flow."
         onRefresh={fetchDailyContext}
-      >
-        <button
-          onClick={() => { fetchDailyContext(); fetchMonthData(); }}
-          title="Refresh schedule data"
-          style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', padding: '0.6rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <RotateCw size={16} className={loading ? 'animate-spin' : ''} />
-        </button>
-      </PageHeader>
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '350px 1fr', gap: '2rem', ...(isMobile ? { alignItems: 'start' } : { flex: 1, minHeight: 0, alignItems: 'stretch' }) }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', ...(isMobile ? {} : { minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }) }}>

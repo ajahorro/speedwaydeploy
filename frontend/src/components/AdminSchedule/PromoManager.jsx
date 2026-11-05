@@ -9,6 +9,7 @@ import { logger } from '../../utils/logger';
 import { supabase } from '../../lib/supabase';
 // Shared backend-origin resolver (see config/api.js).
 import { BACKEND_URL } from '../../config/api';
+import { usePaged } from '../common/ListPager';
 import { writeAdminAuditLog } from '../../services/auditLogService';
 import { ensureShopConfig, getShopConfig } from '../../config/shopConfig';
 import { isPromoRuleLive, setCatalogSource } from '../../data/servicesCatalog';
@@ -205,6 +206,29 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
     });
     setPromoValidationError('');
   };
+
+  // General "Select all": every vehicle type, on every page, with all of its services bound (a vehicle's own
+  // Select All inside its panel only covers that one vehicle). Unticking clears the whole binding.
+  const allVehicleKeys = Array.isArray(promoVehicleOptions) ? promoVehicleOptions : [];
+  const everyVehicleFullyBound = allVehicleKeys.length > 0 && allVehicleKeys.every((vehicle) => {
+    const bound = promoDraft.vehicleServiceMatrix?.[vehicle];
+    if (!bound) return false;
+    const avail = getServicesForVehicle(vehicle).map((svc) => svc.name);
+    return avail.every((name) => bound.includes(name));
+  });
+  const someVehicleBound = Object.keys(promoDraft.vehicleServiceMatrix || {}).length > 0;
+  const toggleSelectAllVehicles = () => {
+    setPromoDraft((prev) => {
+      if (everyVehicleFullyBound) return { ...prev, vehicleServiceMatrix: {} };
+      const matrix = {};
+      allVehicleKeys.forEach((vehicle) => { matrix[vehicle] = getServicesForVehicle(vehicle).map((svc) => svc.name); });
+      return { ...prev, vehicleServiceMatrix: matrix };
+    });
+    setActiveVehiclePopover(null);
+    setPromoValidationError('');
+  };
+  // 10 vehicle types a page
+  const { rows: pagedVehicleOptions, pager: vehiclePager } = usePaged(allVehicleKeys, { label: 'vehicle types' });
 
   // Confirmation Lock Engine: Evaluates pre-conditions
   const hasValidVehicleServiceMapping = Object.values(promoDraft.vehicleServiceMatrix || {}).some(
@@ -612,8 +636,21 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                 internally (see the popover below). The column itself must NOT
                 clip or force a fixed height, so an open popover can never spill
                 over the action buttons or the campaign cards underneath. */}
+            <label
+              style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '12px', fontWeight: '800', color: 'var(--admin-text-primary)', cursor: 'pointer', padding: '0.5rem 0.65rem', border: '1px solid var(--admin-border)', borderRadius: '4px', background: 'var(--admin-input-bg)' }}
+            >
+              <input
+                type="checkbox"
+                checked={everyVehicleFullyBound}
+                ref={(el) => { if (el) el.indeterminate = someVehicleBound && !everyVehicleFullyBound; }}
+                onChange={toggleSelectAllVehicles}
+              />
+              <span>Select all vehicles and services</span>
+              <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, color: 'var(--admin-text-secondary)' }}>{allVehicleKeys.length} vehicle types</span>
+            </label>
+
             <div style={{ paddingRight: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {promoVehicleOptions.map(vehicle => {
+              {pagedVehicleOptions.map(vehicle => {
                 const isVehicleSelected = Boolean(promoDraft.vehicleServiceMatrix?.[vehicle]);
                 const boundServices = promoDraft.vehicleServiceMatrix?.[vehicle] || [];
                 const availableServices = getServicesForVehicle(vehicle);
@@ -740,6 +777,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
                 );
               })}
             </div>
+            {vehiclePager}
           </div>
         </div>
 

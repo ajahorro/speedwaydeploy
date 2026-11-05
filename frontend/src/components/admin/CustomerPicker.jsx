@@ -5,12 +5,12 @@ import { ChevronDown, ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
  * Existing-customer picker for admin bookings (walk-in wizard).
  *
  * Two side-by-side ways to pick the same customer (stacked on narrow screens):
- *   - Browse: a dropdown listing customers 6 per page, with page controls inside the dropdown.
- *   - Search: type part of a name (or email) and pick from the matches, also 6 per page.
+ *   - Browse: a dropdown listing customers 5 per page, with page controls inside the dropdown.
+ *   - Search: type part of a name (or email) and pick from the matches, also 5 per page.
  * Every row shows the name AND the email, so two customers with the same name can be told apart.
  * Styling: .cp-* in index.css, built on the admin theme tokens, so it follows light/dark mode.
  */
-export const CUSTOMERS_PER_PAGE = 6;
+export const CUSTOMERS_PER_PAGE = 5;
 
 export const customerName = (profile) => {
   const full = String(profile?.full_name || '').trim();

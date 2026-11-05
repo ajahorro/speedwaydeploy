@@ -1,29 +1,12 @@
-import React, { useState } from 'react';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
-import toastManager from '../utils/toastManager';
+import React from 'react';
 
+/**
+ * Page title block. Pages no longer get a back arrow or a reload button here (removed on request): navigation is the
+ * sidebar, and data refreshes on its own. The onRefresh/showBack/onBack props are still accepted and simply ignored,
+ * so existing pages keep working unchanged.
+ */
+// eslint-disable-next-line no-unused-vars
 const PageHeader = ({ title, subtitle, onRefresh, showBack, onBack, actionLabel, onAction, actionIcon, children, titleStyle = {} }) => {
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleRefresh = async () => {
-    if (isRefreshing || !onRefresh) return;
-    setIsRefreshing(true);
-    const start = Date.now();
-    try {
-      await Promise.resolve(onRefresh());
-      const elapsed = Date.now() - start;
-      if (elapsed < 600) {
-        await new Promise((r) => setTimeout(r, 600 - elapsed));
-      }
-      toastManager.success('Data refreshed successfully');
-    } catch (err) {
-      console.error('[PageHeader] Refresh failed:', err);
-      toastManager.error(err?.message || 'Failed to refresh data');
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
   return (
     <div
       className="page-header stack-on-mobile"
@@ -36,15 +19,8 @@ const PageHeader = ({ title, subtitle, onRefresh, showBack, onBack, actionLabel,
         marginBottom: 0
       }}
     >
-      {/* Left Side: Titles and Back Button */}
+      {/* Left Side: Titles */}
       <div style={{ flex: '1 1 min-content' }}>
-        {showBack && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-            <button onClick={onBack} aria-label="Go back" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--admin-text-primary)', display: 'flex', alignItems: 'center' }}>
-              <ArrowLeft size={20} />
-            </button>
-          </div>
-        )}
         <h1 className="text-fluid-h1" style={{ margin: 0, letterSpacing: '-1.5px', color: 'var(--admin-text-primary)', lineHeight: 1.1, fontWeight: '950', textTransform: 'uppercase', ...titleStyle }}>
           {title}
         </h1>
@@ -53,7 +29,7 @@ const PageHeader = ({ title, subtitle, onRefresh, showBack, onBack, actionLabel,
         </p>
       </div>
 
-      {/* Right Side: Actions and Refresh Button */}
+      {/* Right Side: Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
         {children}
         {actionLabel && (
@@ -68,28 +44,6 @@ const PageHeader = ({ title, subtitle, onRefresh, showBack, onBack, actionLabel,
           >
             {actionIcon}
             {actionLabel}
-          </button>
-        )}
-        {onRefresh && (
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            title="Refresh data"
-            aria-label="Refresh data"
-            style={{
-              background: 'var(--admin-bg)',
-              border: '1px solid var(--admin-border)',
-              padding: '0.75rem',
-              borderRadius: 'var(--admin-radius-sm)',
-              cursor: isRefreshing ? 'wait' : 'pointer',
-              color: 'var(--admin-text-primary)',
-              transition: '0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              opacity: isRefreshing ? 0.6 : 1
-            }}
-          >
-            <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
           </button>
         )}
       </div>

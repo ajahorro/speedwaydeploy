@@ -179,7 +179,6 @@ const AdminSchedulingGrid = ({ onBack }) => {
               </div>
             ))}
           </div>
-          <button onClick={fetchGridData} aria-label="Refresh schedule" title="Refresh schedule" style={{ background: 'var(--admin-brand)', border: 'none', color: 'var(--admin-text-primary)', padding: '0.6rem 1rem', borderRadius: '4px', cursor: 'pointer' }}><RefreshCcw size={16} /></button>
         </div>
       </div>
 
