@@ -250,7 +250,6 @@ const AdminAccountsManagement = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <PageHeader
-        badge="ACCOUNTS"
         title="Accounts"
         subtitle="Your staff and admin accounts."
         onRefresh={fetchAccounts}

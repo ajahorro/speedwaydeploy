@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import toastManager from '../utils/toastManager';
 
-const PageHeader = ({ badge, title, subtitle, onRefresh, showBack, onBack, actionLabel, onAction, actionIcon, children, titleStyle = {} }) => {
+const PageHeader = ({ title, subtitle, onRefresh, showBack, onBack, actionLabel, onAction, actionIcon, children, titleStyle = {} }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -38,18 +38,13 @@ const PageHeader = ({ badge, title, subtitle, onRefresh, showBack, onBack, actio
     >
       {/* Left Side: Titles and Back Button */}
       <div style={{ flex: '1 1 min-content' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-          {showBack && (
+        {showBack && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
             <button onClick={onBack} aria-label="Go back" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--admin-text-primary)', display: 'flex', alignItems: 'center' }}>
               <ArrowLeft size={20} />
             </button>
-          )}
-          {badge && (
-            <span style={{ fontSize: '0.72rem', fontWeight: '950', letterSpacing: '2px', color: 'var(--admin-brand)', background: 'rgba(196, 31, 43, 0.1)', padding: '0.25rem 0.75rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid rgba(196, 31, 43, 0.2)', whiteSpace: 'nowrap' }}>
-              {badge}
-            </span>
-          )}
-        </div>
+          </div>
+        )}
         <h1 className="text-fluid-h1" style={{ margin: 0, letterSpacing: '-1.5px', color: 'var(--admin-text-primary)', lineHeight: 1.1, fontWeight: '950', textTransform: 'uppercase', ...titleStyle }}>
           {title}
         </h1>

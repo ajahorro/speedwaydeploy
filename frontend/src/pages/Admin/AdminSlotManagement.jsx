@@ -121,8 +121,7 @@ const AdminSlotManagement = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '4rem' }}>
-      <PageHeader 
-        badge="SLOT MANAGEMENT"
+      <PageHeader
         title="Availability Terminal"
         subtitle="Surgically override availability for maintenance or holidays."
         onRefresh={fetchBlockedSlots}

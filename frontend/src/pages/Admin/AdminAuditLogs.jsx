@@ -427,7 +427,6 @@ const AdminAuditLogs = () => {
       <PageHeader
         showBack
         onBack={() => navigate(-1)}
-        badge="SYSTEM SECURITY"
         title="System Audit Trail"
         subtitle="Track all administrative actions and system changes"
         onRefresh={fetchLogs}

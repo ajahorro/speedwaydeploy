@@ -213,8 +213,7 @@ const AdminBookings = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       
-      <PageHeader 
-        badge="RECORDS MANAGEMENT"
+      <PageHeader
         title="BOOKING DIRECTORY"
         subtitle="Manage and monitor all vehicle detailing appointments."
         onRefresh={refresh}

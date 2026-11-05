@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ChevronRight,
-  Sparkles,
   MapPin,
   Phone,
   Mail,
@@ -586,9 +585,6 @@ const Landing = () => {
         <div className="container-wide">
           <Reveal direction="up">
             <div style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(196, 31, 43, 0.12)', border: '1px solid rgba(196, 31, 43, 0.3)', borderRadius: '999px', padding: '0.4rem 1rem', marginBottom: '1rem', color: '#C41F2B', fontSize: '0.75rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                <Sparkles size={14} /> Full Catalog On Dedicated Page
-              </div>
               <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '1rem', fontWeight: 950 }}>OUR SERVICES & PACKAGES</h2>
               <p style={{ maxWidth: '640px', margin: '0 auto 1.5rem', color: 'rgba(255,255,255,0.7)', fontSize: '0.95rem', lineHeight: 1.6 }}>
                 From precision car washing and interior restoration to multi-stage paint correction and ceramic protection. Explore our dedicated catalog for full vehicle class pricing and package options.

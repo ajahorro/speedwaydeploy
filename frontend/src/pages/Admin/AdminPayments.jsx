@@ -363,7 +363,6 @@ const AdminPayments = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
       <PageHeader
-        badge="FINANCIAL AUDIT"
         title="PAYMENT TRANSACTIONS"
         subtitle="Verify and manage customer payment records for fleet sessions."
         onRefresh={fetchPayments}

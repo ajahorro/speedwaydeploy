@@ -9,7 +9,6 @@ const StaffWorkHistory = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
       <PageHeader
-        badge="Work History"
         title="Attendance and vehicles"
         subtitle="Pick a day to see when you clocked in and out and the services you did."
       />

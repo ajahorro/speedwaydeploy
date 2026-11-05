@@ -217,7 +217,6 @@ const AdminSchedule = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
       <PageHeader
-        badge="STUDIO"
         title="STUDIO CALENDAR"
         subtitle="Track bay utilization and live service flow."
         onRefresh={fetchDailyContext}

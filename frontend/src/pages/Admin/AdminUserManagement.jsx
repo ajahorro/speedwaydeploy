@@ -170,8 +170,7 @@ const AdminUserManagement = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'fadeIn 0.5s ease' }}>
-      <PageHeader 
-        badge="ACCESS CONTROL"
+      <PageHeader
         title={view === 'list' ? "Client Directory" : "Client History"}
         subtitle={view === 'list' ? "Manage client accounts and monitor customer history" : `Service timeline for ${selectedUser?.full_name}`}
         onRefresh={view === 'list' ? fetchUsers : () => handleSeeHistory(selectedUser)}

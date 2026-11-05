@@ -113,7 +113,7 @@ const GlobalNotifications = () => {
       {confirmDeleteId !== null && <DeleteConfirmModal onConfirm={handleConfirmDelete} onCancel={() => setConfirmDeleteId(null)} />}
       <NotificationDetailsModal notification={selectedNotification} onClose={() => setSelectedNotification(null)} onMarkRead={handleMarkAsRead} profile={profile} />
 
-      <PageHeader badge="SYSTEM ALERTS" title="NOTIFICATIONS" subtitle="Stay informed about operational updates, bookings, and account activity." onRefresh={refreshData}>
+      <PageHeader title="NOTIFICATIONS" subtitle="Stay informed about operational updates, bookings, and account activity." onRefresh={refreshData}>
         <button onClick={handleMarkAllAsRead} style={{ padding: '0.75rem 1.25rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontSize: '0.7rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}>mark all as read</button>
       </PageHeader>
 

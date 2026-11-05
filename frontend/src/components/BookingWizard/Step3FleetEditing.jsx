@@ -227,9 +227,6 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        <div style={{ padding: '0.5rem 1rem', background: 'rgba(var(--admin-brand-rgb), 0.1)', border: '1px solid var(--admin-brand)', borderRadius: '4px', width: 'fit-content', color: 'var(--admin-brand)', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase' }}>
-          Configuring New Fleet Asset
-        </div>
         <Step2Services 
           bookingData={virtualBookingData} 
           setBookingData={virtualSetBookingData} 

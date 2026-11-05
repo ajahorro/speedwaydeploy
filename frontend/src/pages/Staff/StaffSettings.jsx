@@ -15,7 +15,6 @@ const StaffSettings = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '4rem' }}>
       <PageHeader
-        badge="STAFF WORKSPACE"
         title="Settings"
         subtitle="Choose your interface appearance and access shop resources."
       />

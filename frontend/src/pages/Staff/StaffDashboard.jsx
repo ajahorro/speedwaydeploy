@@ -180,7 +180,6 @@ const StaffDashboard = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2rem' }}>
         <PageHeader
-          badge="Today"
           title="Active Assignments"
           subtitle={`Ready for duty, ${profile?.full_name?.split(' ')[0]}. Vehicles assigned to you for detailing today.`}
           onRefresh={fetchAssignedTasks}

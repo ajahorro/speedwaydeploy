@@ -158,8 +158,7 @@ const AdminProfile = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '4rem' }}>
-      <PageHeader 
-        badge="IDENTITY MANAGEMENT"
+      <PageHeader
         title="ADMIN ACCOUNT"
         subtitle="Manage your professional identity and security credentials."
         onRefresh={() => toast.success('Synchronizing profile...')}

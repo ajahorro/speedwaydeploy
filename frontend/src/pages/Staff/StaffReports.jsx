@@ -85,7 +85,7 @@ const StaffReports = () => {
   if (denied || !report) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        <PageHeader badge="MY REPORT" title="Reports" subtitle="Booking reports for the shop." />
+        <PageHeader title="Reports" subtitle="Booking reports for the shop." />
         <div style={{ ...cardStyle, color: 'var(--admin-text-secondary)', fontWeight: 700 }}>
           Reports are not turned on for your account. Ask an administrator if you need them.
         </div>
@@ -100,7 +100,7 @@ const StaffReports = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
-      <PageHeader badge="REPORTS" title="Reports" subtitle="Booking reports for the whole shop, and your own work. Payments, prices, and customer contact details are not shown." onRefresh={load} />
+      <PageHeader title="Reports" subtitle="Booking reports for the whole shop, and your own work. Payments, prices, and customer contact details are not shown." onRefresh={load} />
 
       <div className="ui-root">
       <Tabs defaultValue="bookings" className="gap-6">

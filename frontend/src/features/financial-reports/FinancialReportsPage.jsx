@@ -112,7 +112,6 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
         <PageHeader
           showBack
           onBack={() => navigate(-1)}
-          badge="REPORTS"
           title="Reports"
           subtitle="Revenue, bookings, refunds and balances from the shop's single payment ledger."
           onRefresh={() => setRefreshKey((value) => value + 1)}

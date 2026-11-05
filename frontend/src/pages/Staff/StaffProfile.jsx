@@ -107,7 +107,6 @@ const StaffProfile = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%', maxWidth: '1200px', paddingBottom: '4rem' }}>
       <PageHeader
-        badge="ACCOUNT SETTINGS"
         title="Technician Profile"
         subtitle="Manage your identity, credentials, and account security settings."
       />

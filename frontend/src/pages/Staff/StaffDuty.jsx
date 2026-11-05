@@ -110,7 +110,6 @@ const StaffDuty = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
       <PageHeader
-        badge="Duty & Shift"
         title="Duty & Shift"
         subtitle="Clock in to start receiving detailing assignments, and clock out when you are done."
       />

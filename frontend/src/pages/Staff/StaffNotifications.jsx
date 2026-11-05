@@ -150,7 +150,7 @@ const StaffNotifications = () => {
         profile={profile}
       />
 
-      <PageHeader badge="STAFF SIGNALS" title="NOTIFICATIONS" subtitle="Updates on your assigned tasks and system alerts." onRefresh={fetchNotifications}>
+      <PageHeader title="NOTIFICATIONS" subtitle="Updates on your assigned tasks and system alerts." onRefresh={fetchNotifications}>
         <Button type="button" variant="outline" onClick={handleMarkAllAsRead} className="text-xs uppercase">Mark all as read</Button>
       </PageHeader>
 
