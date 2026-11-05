@@ -38,9 +38,13 @@
 
 services:
   - type: web
-    name: speedway-backend
+    # Must match the live service name on Render. A different name makes a
+    # Blueprint sync create a SECOND service instead of updating this one.
+    name: comargarage-backend
     runtime: node
-    plan: starter
+    # Free tier only. The free plan sleeps after ~15 idle minutes, so the first
+    # request after a quiet period waits while the instance wakes up.
+    plan: free
     region: singapore
     # Build from the backend/ subdirectory — see "WHY rootDir: backend" above.
     rootDir: backend
