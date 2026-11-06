@@ -10,7 +10,7 @@ import DateTimePicker from './DateTimePicker';
 import { ensureShopConfig } from '../../config/shopConfig';
 import { PhoneInput } from '../common/ContactInputs';
 import { isValidPhPhone } from '../../utils/contactValidation';
-import { Button } from '@/components/ui/button';
+import BookingWizardActions from './BookingWizardActions';
 import { Textarea } from '@/components/ui/textarea';
 
 const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, onNext, onBack, onCancel, customerDetailsLocked = false, adminMode = false, selectedCustomerId = null }) => {
@@ -220,29 +220,13 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
       />
 
       {/* Action Footer */}
-      <div style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '1rem',
-        justifyContent: 'space-between',
-        borderTop: '1px solid var(--admin-border)',
-        paddingTop: '1.5rem',
-        marginTop: '0.25rem'
-      }}>
-        <Button onClick={onBack} variant="outline" className="uppercase">
-          Back: Adjust Services
-        </Button>
-
-        {onCancel && (
-          <Button type="button" onClick={onCancel} variant="outline" className="border-destructive/60 text-destructive hover:text-destructive uppercase">
-            Cancel
-          </Button>
-        )}
-
-        <Button onClick={onNext} disabled={!isValid} variant="default" className="uppercase">
-          Next: Fleet Editing
-        </Button>
-      </div>
+      <BookingWizardActions
+        onBack={onBack}
+        onCancel={onCancel}
+        onPrimary={onNext}
+        primaryLabel="Next: Fleet Editing"
+        primaryDisabled={!isValid}
+      />
 
     </div>
   );

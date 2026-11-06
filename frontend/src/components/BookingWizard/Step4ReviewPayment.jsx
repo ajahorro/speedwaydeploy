@@ -17,6 +17,7 @@ import LegalReaderDialog from '@/features/legal/LegalReaderDialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import BookingWizardActions from './BookingWizardActions';
 
 const DEFAULT_TERMS = [
   '1. Customer information provided during booking is collected solely for scheduling, service communication, and payment verification.',
@@ -693,16 +694,6 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           gap: 1.5rem;
           align-items: start;
         }
-        .review-action-footer {
-          display: flex;
-          justify-content: flex-end;
-          flex-wrap: wrap;
-          gap: 1rem;
-        }
-        .review-action-footer button {
-          flex: 1 1 180px;
-          min-width: 0;
-        }
         .receipt-amount-summary {
           display: grid;
           grid-template-columns: 1fr;
@@ -716,9 +707,6 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
           .review-payment-grid {
             grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
             gap: 2rem;
-          }
-          .review-action-footer button {
-            flex: 0 1 auto;
           }
         }
         @media (min-width: 700px) {
@@ -1413,30 +1401,20 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
       )}
 
       {/* Action Footer */}
-      <div className="review-action-footer" style={{ borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem', marginTop: '1rem' }}>
-        <Button onClick={onBack} disabled={isUploading} variant="outline" className="uppercase">
-          Back
-        </Button>
-
-        {onCancel && (
-          <Button type="button" onClick={onCancel} disabled={isUploading} variant="outline" className="border-destructive/60 text-destructive hover:text-destructive uppercase">
-            Cancel
-          </Button>
-        )}
-        <Button
-          onClick={() => {
-            if (isUnderpaidReceipt) return;
-            setShowConfirm(true);
-          }}
-          disabled={!isValid || isSubmitting}
-          title={isReceiptBlocked ? 'Receipt must be verified before submitting.' : (isUploading ? 'Verifying receipt details...' : undefined)}
-          className="uppercase"
-        >
-          {isSubmitting
-            ? 'Submitting...'
-            : (isUploading ? 'Verifying receipt details...' : (isReceiptBlocked ? 'Receipt Not Verified' : 'Submit Booking'))}
-        </Button>
-      </div>
+      <BookingWizardActions
+        onBack={onBack}
+        onCancel={onCancel}
+        backDisabled={isUploading}
+        onPrimary={() => {
+          if (isUnderpaidReceipt) return;
+          setShowConfirm(true);
+        }}
+        primaryDisabled={!isValid || isSubmitting}
+        primaryTitle={isReceiptBlocked ? 'Receipt must be verified before submitting.' : (isUploading ? 'Verifying receipt details...' : undefined)}
+        primaryLabel={isSubmitting
+          ? 'Submitting...'
+          : (isUploading ? 'Verifying receipt details...' : (isReceiptBlocked ? 'Receipt Not Verified' : 'Submit Booking'))}
+      />
 
       {/* Confirm booking. Cannot be dismissed while the booking is being sent. */}
       <AlertDialog open={showConfirm} onOpenChange={(open) => { if (!open && !isSubmitting) setShowConfirm(false); }}>
