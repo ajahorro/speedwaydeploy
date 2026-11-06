@@ -158,7 +158,7 @@ const CustomerLayout = () => {
           <span style={{ fontSize: '0.55rem', fontWeight: '950', color: 'var(--admin-text-secondary)', letterSpacing: '2px', textTransform: 'uppercase' }}>Customer Portal</span>
         </div>
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '0 0.5rem' }}>
+        <nav data-tour="cust-nav" style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '0 0.5rem' }}>
           {navSections.map(section => (
             <div key={section.title}>
               <div style={{ padding: '0.75rem 1rem 0.5rem', fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', opacity: 0.55 }}>{section.title}</div>

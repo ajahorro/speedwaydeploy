@@ -22,7 +22,13 @@ const CARD_W = 320;
 const findTarget = (step) => (typeof step?.target === 'string' ? document.querySelector(step.target) : step?.target?.current || null);
 
 export default function GuidedTour({ open, steps = [], onClose, startAt = 0 }) {
-  const usable = steps.filter((s) => s && s.target);
+  // skip steps whose element is not on screen (for example the side menu, which is hidden on phones)
+  const usable = steps.filter((s) => {
+    if (!s || !s.target) return false;
+    if (typeof s.target !== 'string' || typeof document === 'undefined') return true;
+    const el = document.querySelector(s.target);
+    return Boolean(el && el.getClientRects().length);
+  });
   const [index, setIndex] = useState(startAt);
   const [rect, setRect] = useState(null);
   const [vp, setVp] = useState({ w: typeof window !== 'undefined' ? window.innerWidth : 1024, h: typeof window !== 'undefined' ? window.innerHeight : 768 });

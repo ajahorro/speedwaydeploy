@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { TourLauncher } from '../../components/common/GuidedTour';
+import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
 
 const CustomerBilling = () => {
   const { openImage } = useImagePreview();
@@ -98,30 +100,30 @@ const CustomerBilling = () => {
       {/* Screen UI */}
       <div id="screen-billing-content" className="ui-root flex flex-col gap-8 pb-20">
         <div>
-          <h1 className="text-3xl font-black uppercase tracking-tight">Billing &amp; Invoices</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Operational ledger and digital archives of your DETAILING sessions.</p>
+          <h1 className="flex items-center gap-2 text-3xl font-black uppercase tracking-tight">Billing &amp; Receipts <TourLauncher steps={CUSTOMER_TOURS.billing} label="How Billing works" /></h1>
+          <p className="mt-1 text-sm text-muted-foreground">Your payments, refunds and receipts.</p>
         </div>
 
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-4" data-tour="cbill-totals">
           <Card className="flex-row items-center gap-4 rounded-md p-5">
             <span className="grid size-12 place-items-center rounded-md border border-primary/30 bg-primary/10"><CreditCard className="size-6 text-primary" aria-hidden="true" /></span>
             <div>
-              <p className="text-xs font-semibold uppercase text-muted-foreground">Total Invested</p>
+              <p className="text-xs font-semibold uppercase text-muted-foreground">Total paid</p>
               <p className="text-2xl font-black">{formatCurrency(totalSpent)}</p>
             </div>
           </Card>
           <Card className="flex-row items-center gap-4 rounded-md p-5">
             <span className="grid size-12 place-items-center rounded-md border border-amber-500/30 bg-amber-500/10"><Clock className="size-6 text-amber-500" aria-hidden="true" /></span>
             <div>
-              <p className="text-xs font-semibold uppercase text-muted-foreground">Pending Balance</p>
+              <p className="text-xs font-semibold uppercase text-muted-foreground">Balance to pay</p>
               <p className="text-2xl font-black">{formatCurrency(outstandingBalance)}</p>
             </div>
           </Card>
         </div>
 
-        <Card className="gap-0 overflow-hidden rounded-md p-0">
+        <Card className="gap-0 overflow-hidden rounded-md p-0" data-tour="cbill-ledger">
           <div className="border-b bg-muted/40 px-5 py-4">
-            <h2 className="text-sm font-bold uppercase tracking-wide">Transaction Ledger</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wide">Payment history</h2>
           </div>
 
           <Table>

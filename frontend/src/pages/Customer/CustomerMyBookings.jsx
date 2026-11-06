@@ -11,6 +11,8 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { TourLauncher } from '../../components/common/GuidedTour';
+import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
 
 const CustomerMyBookings = () => {
   const navigate = useNavigate();
@@ -92,15 +94,15 @@ const CustomerMyBookings = () => {
         {/* Header */}
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black uppercase tracking-tight">My Bookings</h1>
+            <h1 className="flex items-center gap-2 text-3xl font-black uppercase tracking-tight">My Bookings <TourLauncher steps={CUSTOMER_TOURS.bookings} label="How My Bookings works" /></h1>
             <p className="mt-1 text-sm text-muted-foreground">Track and manage all your past and upcoming service appointments.</p>
           </div>
-          <Button type="button" onClick={() => navigate('/customer/book')}>+ Book Appointment</Button>
+          <Button type="button" data-tour="cbk-new" onClick={() => navigate('/customer/book')}>+ Book Appointment</Button>
         </div>
 
         {/* Controls */}
-        <div className="flex flex-wrap gap-3">
-          <div className="relative min-w-[260px] flex-1">
+        <div className="flex flex-wrap gap-3" data-tour="cbk-filters">
+          <div className="relative min-w-[min(100%,260px)] flex-1">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
               type="text"
@@ -120,7 +122,7 @@ const CustomerMyBookings = () => {
         </div>
 
         {/* Bookings list */}
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3" data-tour="cbk-list">
           {loading ? (
             <div className="grid gap-3" aria-busy="true">
               <Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" />

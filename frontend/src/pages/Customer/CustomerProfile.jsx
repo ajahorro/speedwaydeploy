@@ -19,6 +19,8 @@ import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import PasswordInput from '../../components/PasswordInput';
+import { TourLauncher } from '../../components/common/GuidedTour';
+import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
 
 const CustomerProfile = () => {
   const { confirmThen } = useConfirmAction();
@@ -231,7 +233,7 @@ const CustomerProfile = () => {
             <AvatarFallback className="rounded-md bg-primary/10 font-bold text-primary">{initials}</AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-3xl font-black tracking-tight">My Profile</h1>
+            <h1 className="flex items-center gap-2 text-3xl font-black tracking-tight">My Profile <TourLauncher steps={CUSTOMER_TOURS.profile} label="How your profile works" /></h1>
             <p className="text-sm font-semibold">{displayName}</p>
             <p className="text-xs text-muted-foreground">{user?.email}</p>
             <p className="mt-1 text-sm text-muted-foreground">Manage your profile and password.</p>
@@ -246,7 +248,7 @@ const CustomerProfile = () => {
 
         {/* Left column: personal data */}
         <div className="flex flex-col gap-8">
-          <Card className="gap-0 rounded-md p-6">
+          <Card className="gap-0 rounded-md p-6" data-tour="cprof-info">
             <div className="mb-5 flex items-center gap-2">
               <User className="size-5 text-primary" aria-hidden="true" />
               <h2 className="text-base font-semibold">Personal Information</h2>
@@ -307,7 +309,7 @@ const CustomerProfile = () => {
         {/* Right column: security and account actions */}
         <div className="flex flex-col gap-8">
 
-          <Card className="gap-0 rounded-md p-6">
+          <Card className="gap-0 rounded-md p-6" data-tour="cprof-password">
             <div className="mb-5 flex items-center gap-2">
               <Lock className="size-5 text-primary" aria-hidden="true" />
               <h2 className="text-base font-semibold">Change Password</h2>
@@ -386,7 +388,7 @@ const CustomerProfile = () => {
             </form>
           </Card>
 
-          <Card className="gap-0 rounded-md border-destructive/30 p-6">
+          <Card className="gap-0 rounded-md border-destructive/30 p-6" data-tour="cprof-account">
             <div className="mb-3 flex items-center gap-2 text-destructive">
               <AlertTriangle className="size-5" aria-hidden="true" />
               <h2 className="text-base font-semibold">Account Actions</h2>

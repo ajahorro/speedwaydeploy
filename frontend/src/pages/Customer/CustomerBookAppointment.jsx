@@ -22,6 +22,7 @@ import { redeemPromoCode } from '../../services/promoCodeService';
 import { Button } from '@/components/ui/button';
 import { TourLauncher } from '../../components/common/GuidedTour';
 import { ADMIN_TOURS } from '../../features/tours/adminTours';
+import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
 
 // Utility for Data Integrity: Find service in catalog by name and get current price
 const getCatalogServiceByName = (name, type) => {
@@ -527,7 +528,9 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <h1 className="text-fluid-h1" style={{ margin: 0, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '-1.5px', lineHeight: 1.1 }}>Book Appointment</h1>
-            {adminMode && <TourLauncher steps={ADMIN_TOURS.newBooking} label="How to book for a customer" />}
+            {adminMode
+              ? <TourLauncher steps={ADMIN_TOURS.newBooking} label="How to book for a customer" />
+              : <TourLauncher steps={CUSTOMER_TOURS.book} label="How booking works" />}
           </div>
           {isRebooking && <div className="pulse-animation" style={{ fontSize: '0.75rem', color: 'var(--admin-brand)', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '0.2rem' }}>Fast-Track Rebooking Active</div>}
         </div>

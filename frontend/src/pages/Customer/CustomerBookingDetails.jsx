@@ -37,6 +37,8 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TourLauncher } from '../../components/common/GuidedTour';
+import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
 
 const CustomerBookingDetails = () => {
   const { openImage } = useImagePreview();
@@ -420,8 +422,9 @@ const CustomerBookingDetails = () => {
           <div style={{ fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Booking Reference</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '950', color: 'var(--admin-text-primary)', fontFamily: 'monospace' }}>#{id.substring(0, 8).toUpperCase()}</h1>
+            <TourLauncher steps={CUSTOMER_TOURS.bookingDetails} label="How this booking page works" />
             {['confirmed', 'completed'].includes(booking.status) && (
-              <Button onClick={() => navigate(`/customer/receipt/${id}`)} variant="outline" size="sm" className="uppercase">
+              <Button data-tour="cbd-receipt" onClick={() => navigate(`/customer/receipt/${id}`)} variant="outline" size="sm" className="uppercase">
                 <Printer size={12} /> Print receipt
               </Button>
             )}
@@ -429,12 +432,14 @@ const CustomerBookingDetails = () => {
         </div>
       </div>
 
+      <div data-tour="cbd-summary">
       <BookingSummaryHeader
         booking={summaryBooking}
         showCustomer={false}
         showTechnician
         paymentStatus={paymentSummary}
       />
+      </div>
 
       {/* ===== A. BOOKING STATUS ===== */}
       {booking.refund_status === 'PROCESSED' && (
@@ -455,7 +460,7 @@ const CustomerBookingDetails = () => {
         </div>
       )}
 
-      <div className="customer-booking-columns">
+      <div className="customer-booking-columns" data-tour="cbd-main">
 
         {/* LEFT COLUMN */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -669,7 +674,7 @@ const CustomerBookingDetails = () => {
                 onDismiss={() => setExcessPromptHidden(true)}
               />
             )}
-            <div className={balance > 0 ? 'billing-balance-grid' : undefined}>
+            <div className={balance > 0 ? 'billing-balance-grid' : undefined} data-tour="cbd-billing">
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <h3 style={{ margin: 0, fontSize: '0.8rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase' }}>Billing & Transactions</h3>
@@ -747,8 +752,8 @@ const CustomerBookingDetails = () => {
 
           {/* ===== ACTIONS ===== */}
           {canCancelBooking && (
-            <div style={{ ...cardStyle, border: '1px solid rgba(196, 31, 43, 0.2)', background: 'rgba(196, 31, 43, 0.02)' }}>
-              <div style={{ ...labelStyle, color: 'var(--status-danger)' }}>Danger Zone</div>
+            <div data-tour="cbd-actions" style={{ ...cardStyle, border: '1px solid rgba(196, 31, 43, 0.2)', background: 'rgba(196, 31, 43, 0.02)' }}>
+              <div style={{ ...labelStyle, color: 'var(--status-danger)' }}>Change or cancel</div>
               <p style={{ margin: '0.5rem 0 1rem 0', fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
                 You may cancel before service starts. Any eligible payment will be queued in the Refund Hub for review.
               </p>

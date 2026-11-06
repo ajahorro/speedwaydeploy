@@ -30,6 +30,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card } from '@/components/ui/card';
+import { TourLauncher } from '../../components/common/GuidedTour';
+import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
 
 // Radix Select cannot hold an empty value, so "no fleet" travels as this marker inside the dialog only.
 const NO_FLEET = '__none__';
@@ -275,12 +277,12 @@ const CustomerGarage = () => {
 
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-black uppercase tracking-tight">My Garage</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Manage your registered vehicles for high-fidelity booking tracking.</p>
+        <h1 className="flex items-center gap-2 text-3xl font-black uppercase tracking-tight">My Garage <TourLauncher steps={CUSTOMER_TOURS.garage} label="How My Garage works" /></h1>
+        <p className="mt-1 text-sm text-muted-foreground">Save your cars once so booking is faster next time.</p>
       </div>
 
       {/* Fleet groups */}
-      <section className="grid gap-3">
+      <section className="grid gap-3" data-tour="cgar-fleets">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-bold uppercase">Fleet Groups</h2>
@@ -316,7 +318,7 @@ const CustomerGarage = () => {
       </section>
 
       {/* Vehicles */}
-      <section className="grid gap-3">
+      <section className="grid gap-3" data-tour="cgar-vehicles">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-sm font-bold uppercase">Vehicles</h2>
           <Button type="button" size="sm" onClick={handleOpenAdd}><Plus /> Add New Vehicle</Button>
