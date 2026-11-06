@@ -108,7 +108,7 @@ function LayoutSketch({ id }) {
   );
 }
 
-export function AboutMapCard() {
+export function AboutMapCard({ focus = null } = {}) {
   const { settings } = useConfig();
   const { confirmThen } = useConfirmAction();
   const [draft, setDraft] = useState(() => toDraft(settings));
@@ -155,6 +155,10 @@ export function AboutMapCard() {
   const dirty = Object.fromEntries(Object.keys(SECTIONS).map((id) => [id, sectionKey(draft, id) !== sectionKey(saved, id)]));
   const [open, setOpen] = useState({});
   const [previewSection, setPreviewSection] = useState(null);
+  // opened from the Business Hub search
+  useEffect(() => {
+    if (focus?.section) setOpen((o) => ({ ...o, [focus.section]: true }));
+  }, [focus?.section, focus?.at]);
   const [savingSection, setSavingSection] = useState(null);
 
   // follow another administrator's save, one section at a time: sections nobody is editing here take the new values

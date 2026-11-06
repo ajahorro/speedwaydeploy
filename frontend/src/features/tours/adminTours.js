@@ -53,10 +53,11 @@ export const ADMIN_TOURS = {
   ],
 
   hub_profile: [
-    { target: '[data-tour="hub-tabs"]', title: '1. Business Hub tabs', body: 'Each tab covers one part of the shop: profile, About & Map, schedule, services and promos, terms and policies. The “i” guide always explains the tab that is open.' },
-    { target: '[data-tour="hub-profile-details"]', title: '2. Shop details', body: 'The shop’s name, contact number, email and address. Customers see these on the website, receipts and emails.' },
-    { target: '[data-tour="hub-faq"]', title: '3. Questions and answers', body: 'The FAQ shown on the landing page. Add, edit, reorder or remove questions here.' },
-    { target: '[data-tour="hub-save-profile"]', title: '4. Save', body: 'Changes only go live after you save. The button stays off until something has changed and every required field is filled in.' },
+    { target: '[data-tour="hub-search"]', title: '1. Search the settings', body: 'Type what you want to change, like “opening time”, “promo” or “map pin”, and pick a result. It opens the right tab and section and points to the setting.' },
+    { target: '[data-tour="hub-tabs"]', title: '2. Business Hub tabs', body: 'Each tab covers one part of the shop: profile, About & Map, schedule, services and promos, terms and policies. The “i” guide always explains the tab that is open.' },
+    { target: '[data-tour="hub-profile-details"]', title: '3. Shop details', body: 'The shop’s name, contact number, email and address. Customers see these on the website, receipts and emails.' },
+    { target: '[data-tour="hub-faq"]', title: '4. Questions and answers', body: 'The FAQ shown on the landing page. Add, edit, reorder or remove questions here.' },
+    { target: '[data-tour="hub-save-profile"]', title: '5. Save', body: 'Changes only go live after you save. The button stays off until something has changed and every required field is filled in.' },
   ],
 
   hub_about: [

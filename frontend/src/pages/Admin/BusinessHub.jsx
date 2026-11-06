@@ -12,6 +12,7 @@ import PromoManager from '../../components/AdminSchedule/PromoManager';
 import { DownpaymentPolicyCard } from '../../features/business-hub/DownpaymentPolicyCard';
 import { usePaged } from '../../components/common/ListPager';
 import { AboutMapCard } from '../../features/business-hub/AboutMapCard';
+import HubSearch from '../../features/business-hub/HubSearch';
 import GuidedTour, { TourInfoButton, TourLauncher } from '../../components/common/GuidedTour';
 import { ADMIN_TOURS } from '../../features/tours/adminTours';
 import { TermsEditorCard } from '../../features/business-hub/TermsEditorCard';
@@ -635,6 +636,43 @@ export default function BusinessHub() {
   // NOTE: computed further below, AFTER `isDirty` is defined. Referencing the
   // `isDirty` const here (above its declaration) would hit its temporal dead
   // zone and crash the whole page on first render.
+
+  // Search box: switch to the right tab, open the panel or section that holds the setting, then scroll to it.
+  const [pendingJump, setPendingJump] = useState(null);
+  const [aboutFocus, setAboutFocus] = useState(null);
+  const jumpTo = (entry) => {
+    const go = () => {
+      if (entry.tab !== currentTab) setSearchParams({ tab: entry.tab });
+      if (entry.panel) setServicePanels((prev) => ({ ...prev, [entry.panel]: true }));
+      if (entry.about) setAboutFocus({ section: entry.about, at: Date.now() });
+      setPendingJump({ ...entry, at: Date.now() });
+    };
+    if (entry.tab === currentTab || !anyDirty) go();
+    else leaveGuard.confirmNavigation(go);
+  };
+  useEffect(() => {
+    if (!pendingJump) return undefined;
+    let tries = 0;
+    let flashTimer;
+    const timer = setInterval(() => {
+      tries += 1;
+      const el = document.querySelector(pendingJump.target);
+      if (!el && tries < 30) return;
+      clearInterval(timer);
+      setPendingJump(null);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const focusable = el.matches('input, textarea, select, button') ? el : null;
+      if (focusable) setTimeout(() => focusable.focus({ preventScroll: true }), 400);
+      const before = { outline: el.style.outline, outlineOffset: el.style.outlineOffset };
+      el.style.outline = '2px solid #C41F2B';
+      el.style.outlineOffset = '4px';
+      flashTimer = setTimeout(() => { el.style.outline = before.outline; el.style.outlineOffset = before.outlineOffset; }, 2200);
+    }, 100);
+    return () => { clearInterval(timer); };
+    // flashTimer is left to finish on its own so the highlight always clears
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingJump?.at, currentTab]);
 
   const handleTabChange = (tabKey) => {
     const nextTab = () => setSearchParams({ tab: tabKey });
@@ -1943,6 +1981,9 @@ export default function BusinessHub() {
         <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: 600 }}>
           Manage store details, operating schedules, catalog offerings, and promotional campaigns.
         </p>
+        <div style={{ marginTop: '0.9rem' }} data-tour="hub-search">
+          <HubSearch onPick={jumpTo} />
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -2086,7 +2127,7 @@ export default function BusinessHub() {
                 />
               </Field>
               <Field label="QR Photo">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.7rem 0.9rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.78rem', fontWeight: 800, color: 'var(--admin-text-secondary)' }}>
+                <div id="business-qr-photo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.7rem 0.9rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', fontSize: '0.78rem', fontWeight: 800, color: 'var(--admin-text-secondary)' }}>
                   <span>{businessForm.payment_qr_url ? 'Image configured' : 'No image uploaded yet'}</span>
                   <button
                     type="button"
@@ -3268,7 +3309,7 @@ export default function BusinessHub() {
         )}
 
         {/* About photos, layout and map pin for the landing page */}
-        {currentTab === 'about' && <AboutMapCard />}
+        {currentTab === 'about' && <AboutMapCard focus={aboutFocus} />}
 
         {/* Terms & Policies: the terms texts and the downpayment policy, each a collapsed section (same as Services & Promos) */}
         {currentTab === 'terms' && (
