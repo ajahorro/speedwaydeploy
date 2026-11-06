@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CreditCard, Clock, Printer } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import OfficialReceipt from '../../components/OfficialReceipt';
+import PaymentReceipt from '../../components/PaymentReceipt';
 import { calculatePaymentSummary } from '../../utils/paymentUtils';
 import { fetchBookingLedgers } from '../../services/ledgerService';
 import { useImagePreview } from '../../context/ImagePreviewContext';
@@ -85,7 +85,7 @@ const CustomerBilling = () => {
   return (
     <>
       {(selectedReceipt || selectedPayment) && (
-        <OfficialReceipt
+        <PaymentReceipt
           booking={selectedReceipt}
           vehicles={selectedReceipt?.vehicles || []}
           user={user}
@@ -232,7 +232,7 @@ const CustomerBilling = () => {
           </Table>
         </Card>
 
-        {/* Second receipt view removed — handled by OfficialReceipt above */}
+        {/* Second receipt view removed — handled by PaymentReceipt above */}
       </div>
 
       {/*PRINT-ONLY CSS ENGINE */}

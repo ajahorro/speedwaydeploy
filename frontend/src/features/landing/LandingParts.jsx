@@ -241,7 +241,7 @@ export function SiteFooter({ businessName, links, onNavigate, socials }) {
         <div className="flex flex-wrap items-start justify-between gap-8">
           <div>
             <div className="text-xl font-black uppercase italic tracking-tight text-primary">{businessName}</div>
-            <p className="mt-2 max-w-xs text-xs text-muted-foreground">Book online, follow your job, and get an official receipt for every payment.</p>
+            <p className="mt-2 max-w-xs text-xs text-muted-foreground">Book online, follow your job, and get a receipt by email for every payment.</p>
           </div>
           <nav aria-label="Footer" className="flex flex-wrap gap-1">
             {links.map((link) => (

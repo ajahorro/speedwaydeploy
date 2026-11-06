@@ -3772,12 +3772,12 @@ app.get('/api/bookings/:id/receipt', async (req, res) => {
       console.warn(`🛑 [SECURITY] BLOCKED: Provisional receipt request for unpaid booking ${id}`);
       return res.status(403).json({
         success: false,
-        error: 'ACCESS DENIED: Official receipt is locked until payment is verified by Admin.',
+        error: 'The receipt is available once the shop verifies a payment.',
         provisional: true
       });
     }
 
-    console.log(`✅ [SECURITY] GRANTED: Official receipt data released for ${id}`);
+    console.log(`✅ [SECURITY] GRANTED: receipt data released for ${id}`);
     return res.json({ success: true, data: booking });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Internal security engine error' });

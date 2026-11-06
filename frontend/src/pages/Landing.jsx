@@ -120,7 +120,7 @@ const Landing = () => {
     { question: 'How long does ceramic coating last?', answer: 'Our premium ceramic coatings typically last between 2 to 5 years depending on package selection and vehicle maintenance habits.' },
     { question: 'What is the booking process?', answer: 'Simply select your vehicle type, choose desired services, pick your preferred date and time slot, and confirm your reservation.' },
     { question: 'Do you offer mobile services?', answer: 'We currently operate primarily at our fully equipped detailing bay in Cainta to ensure clean room standards and climate-controlled curing.' },
-    { question: 'What payment methods do you accept?', answer: 'We accept Cash, GCash, Bank Transfer, and major Credit Cards with instant verification and official receipts.' },
+    { question: 'What payment methods do you accept?', answer: 'We accept cash at the shop and online payments (GCash, bank transfer and cards). You get an acknowledgement receipt by email for every payment.' },
     { question: 'Do I need to leave my car overnight?', answer: 'For multi-stage paint correction and ceramic curing, overnight stays in our secured, monitored facility may be required.' }
   ];
 

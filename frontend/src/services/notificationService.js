@@ -128,7 +128,7 @@ export const sendStatusEmail = async (bookingId, event, opts = {}) => {
 };
 
 export const sendBookingConfirmationEmail = async (bookingId) => {
-  // The confirmation event is the one that carries the official receipt PDF.
+  // The confirmation event is the one that carries the acknowledgement receipt PDF.
   return sendStatusEmail(bookingId, 'booking_confirmed');
 };
 

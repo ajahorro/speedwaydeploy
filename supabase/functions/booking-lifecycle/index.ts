@@ -14,7 +14,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend'
-import { buildOfficialReceiptPdf } from '../_shared/officialReceiptPdf.ts'
+import { buildAcknowledgementReceiptPdf } from '../_shared/acknowledgementReceiptPdf.ts'
 import { buildStatementOfAccountPdf } from '../_shared/statementOfAccountPdf.ts'
 import {
   resolveAmounts,
@@ -85,7 +85,7 @@ interface BookingRow extends BookingLike {
  *   event: 'booking_created'   -> booking summary + payment-as-submitted,
  *                                 including what the OCR read off the receipt.
  *                                 No receipt PDF: the money is not verified yet.
- *   event: 'booking_confirmed' -> confirmation + the OFFICIAL RECEIPT (PDF).
+ *   event: 'booking_confirmed' -> confirmation + the ACKNOWLEDGEMENT RECEIPT (PDF).
  *                                 This is the only event that carries a receipt,
  *                                 because a receipt must only be issued against
  *                                 VERIFIED money.
@@ -407,15 +407,34 @@ serve(async (req: Request): Promise<Response> => {
         const receiptKey = `payment_verified:${verifiedTransaction.payment_id}`
         const receiptClaimed = receiptKey === lifecycleEvent || (await claim(receiptKey))?.claimed
         if (receiptClaimed) {
+          // what the booking is for (each service on each vehicle), and where this payment leaves the balance
+          const receiptItems = (row.vehicles || []).flatMap((vehicle) => (vehicle.services || []).map((service) => {
+            const car = [vehicle.brand, vehicle.model].filter(Boolean).join(' ')
+            return {
+              description: `${service.service_name || 'Service'}${car ? ` (${car}${vehicle.plate_number ? `, ${vehicle.plate_number}` : ''})` : ''}`,
+              amount: Number(service.price || 0),
+            }
+          }))
+          const discount = Math.max(0, Number(row.discount_amount_snapshot || 0))
+          const thisPayment = Number(verifiedTransaction.net_received ?? 0) + Number(verifiedTransaction.credit_applied ?? 0)
+          const countedSoFar = Math.max(0, amounts.totalDue - amounts.remainingBalance)
           attachments.push({
-            content: buildOfficialReceiptPdf({
+            content: buildAcknowledgementReceiptPdf({
+              shop,
               customerName,
               customerEmail,
               customerContact,
               bookingReference: bookingRef,
+              appointmentAt: row.start_datetime || null,
+              items: receiptItems,
+              bookingSubtotal: amounts.totalDue + discount,
+              discount,
+              amountDue: amounts.totalDue,
+              paidBefore: Math.max(0, countedSoFar - thisPayment),
+              balanceAfter: amounts.remainingBalance,
               payment: verifiedTransaction,
             }),
-            filename: `Receipt-RCP-${String(verifiedTransaction.payment_id).toUpperCase()}.pdf`,
+            filename: `Acknowledgement-Receipt-RCP-${String(verifiedTransaction.payment_id).toUpperCase()}.pdf`,
           })
           hasReceipt = true
         }
@@ -430,6 +449,7 @@ serve(async (req: Request): Promise<Response> => {
         if (statementClaimed) {
           attachments.push({
             content: buildStatementOfAccountPdf({
+              shop,
               customerName,
               customerEmail,
               customerContact,

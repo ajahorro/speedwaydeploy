@@ -30,7 +30,7 @@ import PageHeader from '../../components/PageHeader';
 import { TourLauncher } from '../../components/common/GuidedTour';
 import { ADMIN_TOURS } from '../../features/tours/adminTours';
 import LoadingState from '../../components/LoadingState';
-import OfficialReceipt from '../../components/OfficialReceipt';
+import PaymentReceipt from '../../components/PaymentReceipt';
 import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
 import { logger } from '../../utils/logger';
 import TimeSlotPicker from '../../components/TimeSlotPicker';
@@ -2403,7 +2403,7 @@ const AdminBookingDetails = () => {
       />
 
       {receiptModal && (
-        <OfficialReceipt
+        <PaymentReceipt
           booking={{ ...booking, payments: bookingPayments }}
           vehicles={vehicles}
           selectedPayment={selectedPayment}

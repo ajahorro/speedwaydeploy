@@ -21,9 +21,9 @@
  *      "Payment Submitted" + "Booking is now SCHEDULED" mails.
  *
  *   2. `booking_confirmed` — fired ONCE when an admin verifies the payment.
- *      THIS is where the official receipt (PDF) belongs. A receipt must only be
+ *      THIS is where the acknowledgement receipt (PDF) belongs. A receipt must only be
  *      issued against VERIFIED money; attaching it to the submission mail would
- *      issue an official document for a payment that might still be rejected.
+ *      issue a receipt for a payment that might still be rejected.
  *
  * Major status changes (completed, cancelled, and no-show) are plain status
  * emails — intermediate changes such as in-progress and release are kept out of
@@ -364,10 +364,10 @@ const paymentBlock = (
 
   if (amounts.paymentStatus === 'FOR_VERIFICATION') {
     blocks.push({ type: 'notice', tone: 'warn', text: ocrRows.length || !includeOcr
-      ? 'We are checking your payment. You will get an official receipt by email once it is approved.'
-      : 'We could not read your receipt automatically, so a person will check it. You will get an official receipt once it is approved.' });
+      ? 'We are checking your payment. You will get a receipt by email once it is approved.'
+      : 'We could not read your receipt automatically, so a person will check it. You will get a receipt once it is approved.' });
   } else if (amounts.paymentStatus === 'PAID') {
-    blocks.push({ type: 'notice', tone: 'success', text: receiptAttached ? 'Payment verified. Your official receipt is attached as a PDF.' : 'Payment verified. Your official receipt is in your account.' });
+    blocks.push({ type: 'notice', tone: 'success', text: receiptAttached ? 'Payment verified. Your acknowledgement receipt is attached as a PDF.' : 'Payment verified. Your acknowledgement receipt is in your account.' });
   }
   return blocks;
 };
@@ -407,7 +407,7 @@ export const buildBookingCreatedEmail = ({ booking, payment, ledger, customerNam
 };
 
 /**
- * The CONFIRMATION email. This is where the OFFICIAL RECEIPT (PDF) belongs: a receipt may only be issued against
+ * The CONFIRMATION email. This is where the ACKNOWLEDGEMENT RECEIPT (PDF) belongs: a receipt may only be issued against
  * VERIFIED money, so it must not ride on the submission mail where the payment could still be rejected.
  */
 export const buildBookingConfirmedEmail = ({ booking, payment, ledger, customerName, hasReceipt, shop }: {
@@ -427,7 +427,7 @@ export const buildBookingConfirmedEmail = ({ booking, payment, ledger, customerN
     booking,
     shop,
     blocks: [
-      `We verified your payment and confirmed your appointment. ${hasReceipt ? 'Your official receipt is attached.' : 'Your payment details are in your account.'}`,
+      `We verified your payment and confirmed your appointment. ${hasReceipt ? 'Your acknowledgement receipt is attached.' : 'Your payment details are in your account.'}`,
       bookingTable(booking, amounts),
       ...paymentBlock(amounts, null, { includeOcr: false, receiptAttached: hasReceipt }),
       renderLifecycle('CONFIRMED'),
@@ -451,7 +451,7 @@ export const buildPaymentVerifiedEmail = ({ booking, payment, ledger, customerNa
   shop?: ShopInfo | null
 }) => {
   const amounts = resolveAmounts(ledger, payment);
-  const attached = [hasReceipt ? 'the official receipt for this payment' : null, hasStatement ? 'your Statement of Account' : null].filter(Boolean).join(' and ');
+  const attached = [hasReceipt ? 'the acknowledgement receipt for this payment' : null, hasStatement ? 'your Statement of Account' : null].filter(Boolean).join(' and ');
   const { html, text } = shell({
     title: 'We received your payment',
     preheader: `${formatPeso(amounts.verifiedGrossPaid || amounts.grossPaid)} received for booking #${refOf(booking)}.`,

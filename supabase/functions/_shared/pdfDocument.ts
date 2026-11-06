@@ -29,6 +29,19 @@ export const dateLabel = (value?: string | null): string => {
     : date.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
+/** Approximate Helvetica advance widths (per 1pt of font size), close enough to right-align numbers and labels. */
+const charWidth = (ch: string, bold: boolean): number => {
+  if (ch === ' ') return 0.278
+  if (/[0-9]/.test(ch)) return 0.556
+  if (/[il.,:;'|!]/.test(ch)) return bold ? 0.3 : 0.25
+  if (/[fjtrI()\-\/]/.test(ch)) return bold ? 0.36 : 0.33
+  if (/[mwMW]/.test(ch)) return bold ? 0.9 : 0.85
+  if (/[A-Z]/.test(ch)) return bold ? 0.72 : 0.67
+  return bold ? 0.6 : 0.54
+}
+export const textWidth = (value: string, size: number, font = 'F1'): number =>
+  [...String(value).normalize('NFKD').replace(/[\u0300-\u036f]/g, '')].reduce((w, ch) => w + charWidth(ch, font === 'F2'), 0) * size
+
 export const text = (
   value: unknown,
   x: number,
@@ -39,8 +52,7 @@ export const text = (
   align: 'left' | 'right' = 'left'
 ): string => {
   const safe = escapePdfText(value)
-  const estimatedWidth = safe.length * size * 0.5
-  const left = align === 'right' ? x - estimatedWidth : x
+  const left = align === 'right' ? x - textWidth(String(value ?? ''), size, font) : x
   return `BT /${font} ${size} Tf ${color.join(' ')} rg 1 0 0 1 ${left.toFixed(2)} ${y.toFixed(2)} Tm (${safe}) Tj ET`
 }
 
@@ -89,4 +101,19 @@ export const assemblePdf = (pageContents: string[]): string => {
   let binary = ''
   bytes.forEach((byte) => { binary += String.fromCharCode(byte) })
   return btoa(binary)
+}
+
+export const strokeRect = (x: number, y: number, width: number, height: number, color: Rgb = DARK, lineWidth = 0.8): string =>
+  `${color.join(' ')} RG ${lineWidth} w ${x} ${y} ${width} ${height} re S`
+
+/** Wrap text to lines of at most `max` characters, breaking on spaces. */
+export const wrapText = (value: unknown, max: number): string[] => {
+  const words = String(value ?? '').split(/\s+/).filter(Boolean)
+  const lines: string[] = []
+  let current = ''
+  for (const word of words) {
+    if ((current + ' ' + word).trim().length > max && current) { lines.push(current); current = word } else { current = (current + ' ' + word).trim() }
+  }
+  if (current) lines.push(current)
+  return lines
 }

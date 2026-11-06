@@ -1,7 +1,7 @@
 import React from 'react';
 import { CheckCircle, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import OfficialReceipt from '../OfficialReceipt';
+import PaymentReceipt from '../PaymentReceipt';
 import { calculateBookingDiscountSummary } from '../../data/servicesCatalog';
 
 const BookingSuccess = ({ bookingData }) => {
@@ -14,7 +14,7 @@ const BookingSuccess = ({ bookingData }) => {
   const grandTotal = calculateBookingDiscountSummary(bookingData.vehicles || [], promoReferenceDate, bookingData.promoRule || null).discountedTotal
     || bookingData.totalAmount || 0;
 
-  // OfficialReceipt reads a `booking` object plus a `vehicles` array — NOT the
+  // PaymentReceipt reads a `booking` object plus a `vehicles` array — NOT the
   // flat `items` / `customerName` / `subtotal` prop set this screen used to pass.
   // That mismatch left `booking` undefined inside the receipt, so `subtotal`
   // resolved to `Number(undefined?.total_amount ?? 0)` = 0 and `rows` fell back
@@ -51,11 +51,10 @@ const BookingSuccess = ({ bookingData }) => {
           <CheckCircle size={40} color="var(--admin-success)" />
         </div>
         <h1 style={{ fontSize: '2rem', fontWeight: '950', color: 'var(--admin-text-on-brand)', margin: 0, textTransform: 'uppercase' }}>Booking Logged!</h1>
-        <p style={{ color: 'var(--admin-text-secondary)', fontWeight: '600', marginTop: '0.5rem' }}>Your appointment has been saved and a digital receipt is ready.</p>
+        <p style={{ color: 'var(--admin-text-secondary)', fontWeight: '600', marginTop: '0.5rem' }}>Your appointment has been saved. Here is your booking summary.</p>
       </div>
 
-      <OfficialReceipt
-        title="OFFICIAL RECEIPT"
+      <PaymentReceipt
         booking={receiptBooking}
         vehicles={receiptBooking.vehicles}
         onClose={() => navigate('/customer')}

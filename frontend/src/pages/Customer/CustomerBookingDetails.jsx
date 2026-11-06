@@ -13,7 +13,7 @@ import { getStatusColor } from '../../utils/bookingHelpers';
 import { useUnifiedData } from '../../context/UnifiedContext';
 import { useGlobalChat } from '../../context/ChatContext';
 import BookingSummaryHeader from '../../components/BookingSummaryHeader';
-import OfficialReceipt from '../../components/OfficialReceipt';
+import PaymentReceipt from '../../components/PaymentReceipt';
 import QRMagnifier from '../../components/QRMagnifier';
 import PhotoProofGallery from '../../components/Photos/PhotoProofGallery';
 import { useConfig } from '../../context/ConfigContext';
@@ -422,7 +422,7 @@ const CustomerBookingDetails = () => {
             <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '950', color: 'var(--admin-text-primary)', fontFamily: 'monospace' }}>#{id.substring(0, 8).toUpperCase()}</h1>
             {['confirmed', 'completed'].includes(booking.status) && (
               <Button onClick={() => navigate(`/customer/receipt/${id}`)} variant="outline" size="sm" className="uppercase">
-                <Printer size={12} /> Print Official Receipt
+                <Printer size={12} /> Print receipt
               </Button>
             )}
           </div>
@@ -842,7 +842,7 @@ const CustomerBookingDetails = () => {
         </div>
       </div>
       {receiptModal && (
-        <OfficialReceipt
+        <PaymentReceipt
           booking={booking}
           vehicles={vehicles}
           user={user}

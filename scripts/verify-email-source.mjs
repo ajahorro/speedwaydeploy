@@ -37,10 +37,10 @@ const staffNotifications = fs.readFileSync('frontend/src/pages/Staff/StaffNotifi
 const staffLayout = fs.readFileSync('frontend/src/pages/Staff/StaffLayout.jsx', 'utf8');
 const staffDashboard = fs.readFileSync('frontend/src/pages/Staff/StaffDashboard.jsx', 'utf8');
 const notificationSuppressionMigration = fs.readFileSync('supabase/migrations/20261023000003_suppress_unlinked_booking_notifications.sql', 'utf8');
-const officialReceipt = fs.readFileSync('frontend/src/components/OfficialReceipt.jsx', 'utf8');
+const officialReceipt = fs.readFileSync('frontend/src/components/PaymentReceipt.jsx', 'utf8');
 const receiptModel = fs.readFileSync('shared/receiptModel.ts', 'utf8');
 const { resolveAmounts } = await import('../supabase/functions/_shared/bookingEmail.ts');
-const { buildOfficialReceiptPdf } = await import('../supabase/functions/_shared/officialReceiptPdf.ts');
+const { buildAcknowledgementReceiptPdf } = await import('../supabase/functions/_shared/acknowledgementReceiptPdf.ts');
 const { resolveInvoiceAmounts, resolveTransactionReceiptAmounts } = await import('../shared/receiptModel.ts');
 const samplePayment = {
   id: 'payment-123',
@@ -53,7 +53,10 @@ const samplePayment = {
   reference_number: 'TXN-12345',
   created_at: '2026-10-02T08:00:00.000Z',
 };
-const receiptPdf = Buffer.from(buildOfficialReceiptPdf({
+const receiptPdf = Buffer.from(buildAcknowledgementReceiptPdf({
+  shop: { name: 'COMAR GARAGE', address: 'Sample Street, Cainta', phone: '0917', email: 'shop@example.com' },
+  items: [{ description: 'Premium Wash (Toyota Vios, ABC 1234)', amount: 900 }],
+  amountDue: 900,
   customerName: 'Sample Customer',
   customerEmail: 'customer@example.com',
   customerContact: '09123456789',
@@ -81,7 +84,7 @@ const checks = [
   ['function: Deno ambient reference present', /<reference path="\.\.\/_shared\/deno-types\.d\.ts" \/>/.test(fn)],
   ['function: serve handler is typed', /serve\(async \(req: Request\): Promise<Response>/.test(fn)],
   ['function: BookingRow interface declared', /interface BookingRow extends BookingLike/.test(fn)],
-  ['function: receipt PDF item interface declared', /interface OfficialReceiptPdfItem/.test(fs.readFileSync('supabase/functions/_shared/officialReceiptPdf.ts', 'utf8'))],
+  ['function: receipt PDF item interface declared', /interface ReceiptItem/.test(fs.readFileSync('supabase/functions/_shared/acknowledgementReceiptPdf.ts', 'utf8'))],
   ['function: EmailAttachment interface declared', /interface EmailAttachment/.test(fn)],
   ['function: no `(booking as any)` casts remain', !/booking as any/.test(fn)],
   ['function: no `any[]` attachments remain', !/: any\[\]/.test(fn)],
@@ -121,22 +124,23 @@ checks.push(
     const amounts = resolveAmounts({ expected_amount: 1000, verified_paid: 500, service_balance_due: 500, fully_settled: false, has_pending_verification: true, submitted_gross_paid: 1000 }, { status: 'FOR_VERIFICATION' });
     return amounts.verifiedRemainingBalance === 500 && amounts.fullySettled === false && amounts.paymentStatus === 'FOR_VERIFICATION';
   })()],
-  ['receipt: PDF uses the transaction receipt structure and transaction-level details', [
+  ['receipt: PDF is an acknowledgement receipt with the shop, cash/online, payer, items and totals', [
     '/BaseFont /Helvetica-Bold',
-    'COMAR GARAGE',
-    'OFFICIAL RECEIPT',
-    'Receipt No. RCP-PAYMENT-123',
-    'Transaction/Reference ID: TXN-12345',
-    'BILLED TO',
-    'WORK ORDER',
-    'DESCRIPTION',
-    'Payment for Booking',
-    'Amount Received',
+    'Comar Garage',
+    'ACKNOWLEDGEMENT RECEIPT',
+    'Receipt no.  RCP-PAYMENT-123',
+    'ONLINE',
+    'RECEIVED FROM',
+    'DESCRIPTION / NATURE OF SERVICE',
+    'PAYMENT DETAILS',
+    'TXN-12345',
+    'Received the amount of',
     'PHP 900.00',
-    'PAYMENT RECEIPT',
+    'THIS DOCUMENT IS NOT VALID FOR CLAIM OF INPUT TAX.',
   ].every((content) => receiptPdf.includes(content))],
+  ['receipt: never claims to be official or shows government numbers (TIN, VAT, ATP, acknowledgement certificate, series)', !/OFFICIAL|Official|TIN\b|VAT|Authority to Print|Acknowledgement Certificate|Series No/.test(receiptPdf + officialReceipt.replace(/\/\*[\s\S]*?\*\//g, ''))],
   ['receipt: no booking lifecycle or refund status is printed', !/NO-SHOW|REFUND STATUS|REFUNDED|FLAGGED/.test(receiptPdf)],
-  ['receipt: customer contact is separated from the table header', /48 580 516 25 re f/.test(receiptPdf) && /09123456789/.test(receiptPdf)],
+  ['receipt: customer contact is printed', /09123456789/.test(receiptPdf)],
   ['receipt: PDF cross-reference points to its actual byte offset', Number(receiptPdf.match(/startxref\n(\d+)/)?.[1]) === receiptPdf.indexOf('xref\n')],
   ['notification mailer: operational notifications stay in-app only', /EMAILABLE_NOTIFICATION_TYPES = new Set<string>\(\)/.test(notificationEmail)],
   ['event engine: all operational notifications are in-app only', !/sendNotificationEmail/.test(eventEngine)],
@@ -168,9 +172,9 @@ checks.push(
   ['photo retention: the backend runs the purge sweep and writes an audit entry', /purgeExpiredServicePhotos\(supabaseAdmin\)/.test(backend) && /SERVICE_PHOTOS_PURGED/.test(backend) && /setInterval\(purgeExpiredPhotos/.test(backend)],
   ['photo retention: the nightly database job archives only and no routine deletes records without their files', /return coalesce\(public\.archive_stale_service_photos\(\), 0\);/.test(photoRetentionMigration) && /drop function if exists public\.purge_stale_service_photos\(\)/.test(photoRetentionMigration) && !/delete from public\.service_photos/.test(photoRetentionMigration)],
   ['customer ledger: only verified positive payments can open receipts', /canIssueReceipt = isRefund \|\| \(Number\(p\.amount\) > 0[\s\S]*?\['PAID', 'REFUND_PENDING', 'REFUNDED'\]/.test(fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8'))],
-  ['payment receipts: portal labels receipt number and gateway reference separately', /getReceiptNumber\(selectedPayment\)/.test(officialReceipt) && /Transaction\/Reference ID/.test(officialReceipt)],
+  ['payment receipts: portal labels receipt number and gateway reference separately', /getReceiptNumber\(selectedPayment\)/.test(officialReceipt) && /Reference no\./.test(officialReceipt)],
   ['payment receipts: do not fetch or display booking/refund status', !/refund_status|payment_refund_allocations|isNoShow|FLAGGED_NOSHOW|NO-SHOW/.test(officialReceipt)],
-  ['email receipt: uses transaction data only, not booking refund allocations', !/payment_refund_allocations|refundAllocations/.test(fn) && !/refund|bookingStatus|booking_status|no.show/i.test(fs.readFileSync('supabase/functions/_shared/officialReceiptPdf.ts', 'utf8'))],
+  ['email receipt: uses transaction data only, not booking refund allocations', !/payment_refund_allocations|refundAllocations/.test(fn) && !/refund|bookingStatus|booking_status|no.show/i.test(fs.readFileSync('supabase/functions/_shared/acknowledgementReceiptPdf.ts', 'utf8'))],
   ['admin payment verification: no standalone receipt dispatch', !/sendPaymentReceiptEmail/.test(adminPayments) && !/sendPaymentReceiptEmail/.test(adminBookingDetails)],
   ['notification service: standalone receipt helper removed', !/sendPaymentReceiptEmail|\/api\/emails\/payment-receipt/.test(notificationService)],
   ['no-show worker: retries flagged bookings without requiring a profile email', /from\('bookings'\)[\s\S]*?\.select\('id, refund_status, customer_email'\)[\s\S]*?\.eq\('status', 'FLAGGED_NOSHOW'\)/.test(backend)],

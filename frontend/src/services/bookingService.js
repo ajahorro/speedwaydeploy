@@ -130,7 +130,7 @@ export const createBooking = async (customerId, bookingData) => {
     savings: entry.savings,
   }));
 
-  // Promo/discount snapshot for the ledger + official receipt. Previously these
+  // Promo/discount snapshot for the ledger + acknowledgement receipt. Previously these
   // columns were never written, so a receipt could not show the promo line and
   // analytics could not attribute savings. We freeze the figures the customer
   // actually reviewed so they can never drift after the promo window closes.

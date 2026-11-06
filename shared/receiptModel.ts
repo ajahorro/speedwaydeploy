@@ -145,3 +145,58 @@ export const statementTotalsFromLedger = (ledger: Record<string, unknown> | null
   deferredAmount: roundReceiptAmount(numberValue(ledger?.deferred_amount)),
   creditHeld: roundReceiptAmount(numberValue(ledger?.excess_amount)),
 })
+
+// ── Acknowledgement receipt wording (shared by the on-screen receipt and the emailed PDF) ──────────────────────
+//
+// This system is NOT a BIR-registered invoicing system (no Authority to Print, no CAS/e-invoicing
+// Acknowledgement Certificate, no BIR serial range), so what it produces is a SUPPLEMENTARY document: proof
+// that a payment was received. Under RR No. 7-2024 (Ease of Paying Taxes Act) the invoice is the only primary
+// document, and supplementary documents must not pass for one. So these receipts:
+//   - are titled "Acknowledgement Receipt" (never "official receipt" or "invoice");
+//   - carry no TIN, VAT breakdown, ATP / acknowledgement certificate number or series range;
+//   - say plainly that they are not valid for claim of input tax and point to the shop for a sales invoice.
+export const RECEIPT_TITLE = 'ACKNOWLEDGEMENT RECEIPT'
+export const REFUND_RECEIPT_TITLE = 'REFUND ACKNOWLEDGEMENT'
+export const RECEIPT_TAX_NOTICE = 'THIS DOCUMENT IS NOT VALID FOR CLAIM OF INPUT TAX.'
+export const RECEIPT_SYSTEM_NOTICE =
+  'System-generated acknowledgement of payment. This is not a sales invoice. For a BIR-registered sales invoice, please ask the shop.'
+
+/** Cash at the shop vs. online (GCash, Maya, bank transfer, card). */
+export const isCashMethod = (method: unknown): boolean => /^(CASH|WALK_?IN|COUNTER)/i.test(String(method || ''))
+
+const METHOD_LABELS: Record<string, string> = {
+  CASH: 'Cash', GCASH: 'GCash', MAYA: 'Maya', PAYMAYA: 'Maya', BANK_TRANSFER: 'Bank transfer', BANK: 'Bank transfer',
+  CARD: 'Card', CREDIT_CARD: 'Card', QR: 'QR payment', QRPH: 'QR Ph', SYSTEM_REFUND: 'Refund', CREDIT: 'Account credit',
+}
+export const methodLabel = (method: unknown): string => {
+  const key = String(method || '').toUpperCase().replace(/[\s-]+/g, '_')
+  return METHOD_LABELS[key] || (key ? key.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase()) : 'Not recorded')
+}
+
+const ONES = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+  'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen']
+const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']
+const belowThousand = (n: number): string => {
+  const parts: string[] = []
+  if (n >= 100) { parts.push(`${ONES[Math.floor(n / 100)]} hundred`); n %= 100 }
+  if (n >= 20) { parts.push(TENS[Math.floor(n / 10)] + (n % 10 ? `-${ONES[n % 10]}` : '')) } else if (n > 0) { parts.push(ONES[n]) }
+  return parts.join(' ')
+}
+/** 1050.5 -> "One thousand fifty pesos and 50/100" (the way amounts are written on Philippine receipts). */
+export const amountInWords = (value: unknown): string => {
+  const amount = roundReceiptAmount(Math.abs(numberValue(value)))
+  let whole = Math.floor(amount)
+  const cents = Math.round((amount - whole) * 100)
+  if (whole === 0) return `Zero pesos and ${String(cents).padStart(2, '0')}/100`
+  const scales = ['', 'thousand', 'million', 'billion']
+  const chunks: string[] = []
+  let scale = 0
+  while (whole > 0 && scale < scales.length) {
+    const chunk = whole % 1000
+    if (chunk) chunks.unshift(`${belowThousand(chunk)}${scales[scale] ? ` ${scales[scale]}` : ''}`)
+    whole = Math.floor(whole / 1000)
+    scale += 1
+  }
+  const words = chunks.join(' ')
+  return `${words.charAt(0).toUpperCase()}${words.slice(1)} ${Math.floor(amount) === 1 ? 'peso' : 'pesos'} and ${String(cents).padStart(2, '0')}/100`
+}

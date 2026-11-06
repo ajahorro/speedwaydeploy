@@ -17,7 +17,7 @@ import { getAuditCompliantTransactions } from '../../utils/bookingHelpers';
 import { verifyPayment, rejectPayment } from '../../services/paymentVerificationService';
 import { fetchRequiredDownpayment } from '../../services/ledgerService';
 import { resolveFrozenServicePrice } from '../../data/servicesCatalog';
-import OfficialReceipt from '../../components/OfficialReceipt';
+import PaymentReceipt from '../../components/PaymentReceipt';
 import { useUI } from '../../context/UIContext';
 import { useImagePreview } from '../../context/ImagePreviewContext';
 import { matchesSearchText } from '../../utils/searchMatch';
@@ -687,7 +687,7 @@ const AdminPayments = () => {
       )}
 
       {receiptBooking && (
-        <OfficialReceipt
+        <PaymentReceipt
           booking={receiptBooking}
           vehicles={receiptBooking.vehicles || []}
           selectedPayment={receiptPayment}
