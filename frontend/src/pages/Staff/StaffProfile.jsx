@@ -24,7 +24,7 @@ const StaffProfile = () => {
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
     if (!isFormValid) return;
-    if (!currentPassword) return toast.error('Please enter your current password');
+    if (!currentPassword) return toast.error('Please enter your current password.');
     if (newPassword.length <= 4) return toast.error('New password must be more than 4 characters');
     if (newPassword !== confirmPassword) return toast.error('New passwords do not match');
 
@@ -33,7 +33,7 @@ const StaffProfile = () => {
       // 🛡️ Verify Current Password first
       const verification = await verifyPassword(currentPassword);
       if (!verification.success) {
-        throw new Error('Identity verification failed. Incorrect current password.');
+        throw new Error('Your current password is incorrect.');
       }
 
       const changeResult = await requestPasswordChange(currentPassword, newPassword);
@@ -159,7 +159,7 @@ const StaffProfile = () => {
         <section style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <Key size={20} color="var(--admin-brand)" />
-            <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1px' }}>Change password</h3>
+            <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1px' }}>Change Password</h3>
           </div>
 
           <form onSubmit={handleUpdatePassword} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -181,7 +181,7 @@ const StaffProfile = () => {
                 value={currentPassword}
                 onFocus={() => setCurrentPassword('')}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Verify identity"
+                placeholder="Current password"
                 style={inputStyle}
                 autoComplete="off"
                 required
@@ -195,7 +195,7 @@ const StaffProfile = () => {
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Min. 5 characters"
+                  placeholder="At least 5 characters"
                   style={inputStyle}
                   autoComplete="new-password"
                   required

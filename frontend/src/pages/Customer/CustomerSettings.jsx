@@ -1,10 +1,8 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { UserCog } from 'lucide-react';
+import AccountShortcutCard from '../../components/Settings/AccountShortcutCard';
 import AppPreferencesCard from '../../components/Settings/AppPreferencesCard';
 import LegalPoliciesCard from '../../components/Settings/LegalPoliciesCard';
 import AppMetadataFooter from '../../components/Settings/AppMetadataFooter';
-import { SettingsSection, SettingRow, SettingButton } from '../../components/Settings/SettingsPrimitives';
 
 /**
  * CUSTOMER SETTINGS
@@ -14,8 +12,6 @@ import { SettingsSection, SettingRow, SettingButton } from '../../components/Set
  * Admin and Staff settings screens.
  */
 const CustomerSettings = () => {
-  const navigate = useNavigate();
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: '4rem' }}>
       {/* Header */}
@@ -33,13 +29,7 @@ const CustomerSettings = () => {
         <AppPreferencesCard role="customer" />
 
         {/* Account shortcut — profile & security live on the profile page */}
-        <SettingsSection title="Account">
-          <SettingRow title="Profile & Security" subtitle="Update your personal details, email, and password.">
-            <SettingButton onClick={() => navigate('/customer/profile')}>
-              <UserCog size={14} /> Open Profile
-            </SettingButton>
-          </SettingRow>
-        </SettingsSection>
+        <AccountShortcutCard role="customer" />
 
         <LegalPoliciesCard />
         <AppMetadataFooter role="customer" />

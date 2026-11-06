@@ -5,6 +5,7 @@ import PageHeader from '../../components/PageHeader';
 import { APP_METADATA, SHOP_SOP } from '../../config/legalContent';
 import { SettingsSection, SettingRow, SettingButton, SettingTag } from '../../components/Settings/SettingsPrimitives';
 import AppPreferencesCard from '../../components/Settings/AppPreferencesCard';
+import AccountShortcutCard from '../../components/Settings/AccountShortcutCard';
 import LegalPoliciesCard from '../../components/Settings/LegalPoliciesCard';
 import AppMetadataFooter from '../../components/Settings/AppMetadataFooter';
 
@@ -20,6 +21,8 @@ const StaffSettings = () => {
       />
 
       <AppPreferencesCard role="staff" />
+
+      <AccountShortcutCard role="staff" />
 
       <SettingsSection title="Work Resources" description="Current operating guidance and application information.">
         <SettingRow

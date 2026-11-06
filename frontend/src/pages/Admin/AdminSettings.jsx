@@ -1,5 +1,6 @@
 import React from 'react';
 import AppPreferencesCard from '../../components/Settings/AppPreferencesCard';
+import AccountShortcutCard from '../../components/Settings/AccountShortcutCard';
 import LegalPoliciesCard from '../../components/Settings/LegalPoliciesCard';
 import AppMetadataFooter from '../../components/Settings/AppMetadataFooter';
 
@@ -30,6 +31,7 @@ const AdminSettings = () => {
       {/* Single container for all settings elements — one unified surface. */}
       <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 0, padding: '0.5rem 2rem 2rem' }}>
         <AppPreferencesCard role="admin" />
+        <AccountShortcutCard role="admin" />
         <LegalPoliciesCard />
         <AppMetadataFooter role="admin" />
       </div>

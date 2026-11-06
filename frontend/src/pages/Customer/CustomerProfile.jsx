@@ -94,7 +94,7 @@ const CustomerProfile = () => {
 
   const handleUpdatePasswordClick = async (e) => {
     e.preventDefault();
-    if (!passwordData.currentPassword) return toast.error('Current password required');
+    if (!passwordData.currentPassword) return toast.error('Please enter your current password.');
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       return toast.error('New passwords do not match');
     }
@@ -106,7 +106,7 @@ const CustomerProfile = () => {
     try {
       const isVerified = await verifyPassword(passwordData.currentPassword);
       if (!isVerified.success) {
-        toast.error('Verification failed: Incorrect current password', { id: toastId });
+        toast.error('Your current password is incorrect.', { id: toastId });
         return;
       }
 
@@ -120,7 +120,7 @@ const CustomerProfile = () => {
         toast.success('Check your email to confirm the password change', { id: toastId });
       }
     } catch (error) {
-      toast.error(error.message || 'Operation failed', { id: toastId });
+      toast.error(error.message || 'Something went wrong. Please try again.', { id: toastId });
     }
   };
 
@@ -156,7 +156,7 @@ const CustomerProfile = () => {
         }
       }
     } catch (error) {
-      toast.error(error.message || 'Operation failed', { id: toastId });
+      toast.error(error.message || 'Something went wrong. Please try again.', { id: toastId });
     } finally {
       setPendingAction(null);
     }
@@ -234,7 +234,7 @@ const CustomerProfile = () => {
             <h1 className="text-3xl font-black tracking-tight">My Profile</h1>
             <p className="text-sm font-semibold">{displayName}</p>
             <p className="text-xs text-muted-foreground">{user?.email}</p>
-            <p className="mt-1 text-sm text-muted-foreground">Manage your personal details, contact info, and account security.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Manage your profile and password.</p>
           </div>
         </div>
         {!isEditing && (
@@ -310,7 +310,7 @@ const CustomerProfile = () => {
           <Card className="gap-0 rounded-md p-6">
             <div className="mb-5 flex items-center gap-2">
               <Lock className="size-5 text-primary" aria-hidden="true" />
-              <h2 className="text-base font-semibold">Password &amp; Security</h2>
+              <h2 className="text-base font-semibold">Change Password</h2>
             </div>
 
             <form onSubmit={(e) => { e.preventDefault(); confirmThen({ title: 'Change your password?', message: 'Your password will be updated and other sessions may be signed out.', confirmText: 'Change password' }, () => handleUpdatePasswordClick(e)); }} className="grid gap-4">
@@ -347,7 +347,7 @@ const CustomerProfile = () => {
                   id="profile-new-password"
                   type="password"
                   autoComplete="new-password"
-                  placeholder="Min. 6 characters"
+                  placeholder="At least 5 characters"
                   value={passwordData.newPassword}
                   onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                 />
@@ -356,7 +356,7 @@ const CustomerProfile = () => {
                 )}
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="profile-confirm-password">Confirm Password</Label>
+                <Label htmlFor="profile-confirm-password">Confirm New Password</Label>
                 <PasswordInput as={Input}
                   id="profile-confirm-password"
                   type="password"
@@ -382,7 +382,7 @@ const CustomerProfile = () => {
                   </AlertDescription>
                 </Alert>
               )}
-              <Button type="submit" disabled={!isPasswordFormValid} className="w-full">Update Password</Button>
+              <Button type="submit" disabled={!isPasswordFormValid} className="w-full">Confirm change password</Button>
             </form>
           </Card>
 
@@ -405,8 +405,8 @@ const CustomerProfile = () => {
       <Dialog open={showPassModal} onOpenChange={(open) => { if (!open) { setShowPassModal(false); setPasswordData({ ...passwordData, currentPassword: '' }); } }}>
         <DialogContent className="ui-root sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Shield className="size-5 text-primary" aria-hidden="true" />Confirm Your Identity</DialogTitle>
-            <DialogDescription>Enter your current password to confirm this change.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><Shield className="size-5 text-primary" aria-hidden="true" />Confirm it’s you</DialogTitle>
+            <DialogDescription>Enter your current password to continue.</DialogDescription>
           </DialogHeader>
           <PasswordInput as={Input}
             type="password"
@@ -417,13 +417,13 @@ const CustomerProfile = () => {
               setPasswordInputReady(true);
               setPasswordData(prev => ({ ...prev, currentPassword: '' }));
             }}
-            placeholder="Current Password"
+            placeholder="Current password"
             value={passwordData.currentPassword}
             onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowPassModal(false); setPasswordData({ ...passwordData, currentPassword: '' }); }}>Cancel</Button>
-            <Button onClick={executeVerifiedAction}>Verify &amp; Save</Button>
+            <Button onClick={executeVerifiedAction}>Continue</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -435,8 +435,8 @@ const CustomerProfile = () => {
             <DialogTitle>Update Email</DialogTitle>
             <DialogDescription>
               {emailData.step === 1
-                ? <>A verification code will be sent to <strong>{user.email}</strong> to authorize this change.</>
-                : 'Code sent! Check your inbox for the authorization code.'}
+                ? <>A verification code will be sent to <strong>{user.email}</strong> to confirm this change.</>
+                : 'Code sent. Check your inbox for the 6-digit code.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -452,13 +452,13 @@ const CustomerProfile = () => {
               </div>
               <Button type="submit" disabled={isUpdating}>
                 {isUpdating ? <Loader2 className="animate-spin" /> : <Send />}
-                Send Authorization Code
+                Send verification code
               </Button>
             </form>
           ) : (
             <form onSubmit={handleEmailConfirm} className="grid gap-4">
               <div className="grid gap-1.5">
-                <Label htmlFor="email-otp">Authorization Code</Label>
+                <Label htmlFor="email-otp">Verification code</Label>
                 <Input
                   id="email-otp"
                   type="text"
@@ -470,7 +470,7 @@ const CustomerProfile = () => {
                 />
               </div>
               <Button type="submit" disabled={isUpdating}>
-                {isUpdating ? <Loader2 className="animate-spin" /> : 'Confirm Change'}
+                {isUpdating ? <Loader2 className="animate-spin" /> : 'Confirm email change'}
               </Button>
               <Button type="button" variant="ghost" size="sm" onClick={() => setEmailData({ ...emailData, step: 1 })}>Didn't receive code? Try again</Button>
             </form>

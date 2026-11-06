@@ -56,7 +56,7 @@ const AdminProfile = () => {
   const handleUpdateClick = (action) => {
     if (action === 'password') {
       if (!formData.newPassword || formData.newPassword !== formData.confirmPassword) {
-        return toast.error('Passwords do not match');
+        return toast.error('New passwords do not match');
       }
       if (formData.newPassword.length <= 4) {
         return toast.error('New password must be more than 4 characters');
@@ -74,7 +74,7 @@ const AdminProfile = () => {
 
     setShowVerifyModal(false);
     setLoading(true);
-    const toastId = toast.loading('Synchronizing identity records...');
+    const toastId = toast.loading('Saving your changes...');
 
     try {
       if (pendingAction === 'profile') {
@@ -182,7 +182,7 @@ const AdminProfile = () => {
               <User size={24} />
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>PERSONAL INFO</h2>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>Personal Information</h2>
               <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Your name and contact details</p>
             </div>
           </div>
@@ -245,7 +245,7 @@ const AdminProfile = () => {
               <Key size={24} />
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>SECURITY</h2>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>Change Password</h2>
               <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Change your password</p>
             </div>
           </div>
@@ -271,7 +271,7 @@ const AdminProfile = () => {
                   autoComplete="off"
                   name="profile-current-password"
                   style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text', paddingLeft: '3.25rem' }} 
-                  placeholder="Verify identity"
+                  placeholder="Current password"
                   value={formData.currentPassword}
                   onFocus={() => setFormData(prev => ({ ...prev, currentPassword: '' }))}
                   onChange={e => setFormData({...formData, currentPassword: e.target.value})}
@@ -288,7 +288,7 @@ const AdminProfile = () => {
                   type="password"
                   autoComplete="new-password"
                   style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text', paddingLeft: '3.25rem' }} 
-                  placeholder="Enter new password"
+                  placeholder="At least 5 characters"
                   value={formData.newPassword}
                   onChange={e => setFormData({...formData, newPassword: e.target.value})}
                 />
@@ -303,7 +303,7 @@ const AdminProfile = () => {
                   type="password"
                   autoComplete="new-password"
                   style={{ ...inputStyle, background: 'var(--admin-bg)', cursor: 'text', paddingLeft: '3.25rem' }} 
-                  placeholder="Confirm new password"
+                  placeholder="Repeat new password"
                   value={formData.confirmPassword}
                   onChange={e => setFormData({...formData, confirmPassword: e.target.value})}
                 />
@@ -376,14 +376,14 @@ const AdminProfile = () => {
             <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(var(--admin-brand-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto', color: 'var(--admin-brand)' }}>
               <Shield size={32} />
             </div>
-            <h2 style={{ fontWeight: '950', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Authorize Action</h2>
-            <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '700', marginBottom: '2rem' }}>Please enter your current password to verify your identity.</p>
+            <h2 style={{ fontWeight: '950', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Confirm it’s you</h2>
+            <p style={{ color: 'var(--admin-text-secondary)', fontSize: '0.8rem', fontWeight: '700', marginBottom: '2rem' }}>Enter your current password to continue.</p>
             
             <PasswordInput 
               type="password"
               autoComplete="off"
               name="profile-verify-current-password"
-              placeholder="Current Password"
+              placeholder="Current password"
               value={formData.currentPassword}
               onFocus={() => setFormData(prev => ({ ...prev, currentPassword: '' }))}
               onChange={e => setFormData({...formData, currentPassword: e.target.value})}
@@ -392,7 +392,7 @@ const AdminProfile = () => {
 
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button type="button" onClick={() => setShowVerifyModal(false)} style={{ flex: 1, padding: '0.85rem', background: 'transparent', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>Cancel</button>
-              <button type="submit" style={{ flex: 2, padding: '0.85rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>Verify & Proceed</button>
+              <button type="submit" style={{ flex: 2, padding: '0.85rem', background: 'var(--admin-brand)', border: 'none', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '950', cursor: 'pointer' }}>Continue</button>
             </div>
           </form>
         </div>
