@@ -25,15 +25,12 @@ export const ADMIN_TOURS = {
   ],
 
   about: [
-    { target: '[data-tour="about-hero"]', title: '1. Top banner photo', body: 'Upload a wide photo of the shop for the top of the landing page. It is darkened so the headline stays readable. Without one, the banner is plain dark.' },
-    { target: '[data-tour="about-text"]', title: '2. About text', body: 'Write the About heading and paragraph. “Use the standard text” brings back the original wording.' },
-    { target: '[data-tour="about-cards"]', title: '3. Highlights', body: 'Up to 4 small cards next to the text. Pick an icon, write a short title and an optional line, and use the arrows to change the order.' },
-    { target: '[data-tour="about-add"]', title: '4. Add photos', body: 'Upload up to 12 photos of the shop. They are resized and cleaned of hidden data (like GPS) automatically.' },
-    { target: '[data-tour="about-photos"]', title: '5. Captions and order', body: 'Write a short caption under each photo, use the arrows to change the order, or remove a photo. Photos are optional.' },
-    { target: '[data-tour="about-layout"]', title: '6. Choose a layout', body: 'Pick how the photos and captions are arranged on the landing page: Mosaic, Slideshow, Grid or Story.' },
-    { target: '[data-tour="about-search"]', title: '7. Find the shop', body: 'Type the shop’s address and press Search, then pick the right match. The pin drops there.' },
-    { target: '[data-tour="about-map"]', title: '8. Fine-tune the pin', body: 'Drag the pin or click the map to put it on the exact spot. A pin is required before you can save.' },
-    { target: '[data-tour="about-save"]', title: '9. Preview and save', body: '“See preview” shows the landing page with your changes before anything is saved. Save puts them live; Discard undoes them.' },
+    { target: '[data-tour="about-sec-hero"]', title: '1. Top banner photo', body: 'Click a section to open it. This one holds the wide photo at the top of the landing page. It is darkened so the headline stays readable; without one, the banner is plain dark.' },
+    { target: '[data-tour="about-sec-text"]', title: '2. About text', body: 'The About heading and paragraph. “Use the standard text” brings back the original wording.' },
+    { target: '[data-tour="about-sec-cards"]', title: '3. Highlights', body: 'Up to 4 small cards next to the text. Pick an icon, write a short title and an optional line.' },
+    { target: '[data-tour="about-sec-photos"]', title: '4. Photos and layout', body: 'Upload up to 12 photos with captions, change their order, and pick how they are arranged. Photos are optional.' },
+    { target: '[data-tour="about-sec-map"]', title: '5. Map pin', body: 'Search the shop’s address or click the map, then drag the pin to the exact spot. A pin is required.' },
+    { target: '[data-tour="about-sections"]', title: '6. Preview and save each part', body: 'Every open section has its own See preview, Discard and Save changes. Saving one section does not touch the others, and “Unsaved changes” shows which ones you still need to save.' },
   ],
 
   payments: [
@@ -64,13 +61,12 @@ export const ADMIN_TOURS = {
 
   hub_about: [
     { target: '[data-tour="hub-tabs"]', title: '1. Business Hub tabs', body: 'Each tab covers one part of the shop. This one controls the banner photo, About text, highlights, photos and map on the landing page.' },
-    { target: '[data-tour="about-hero"]', title: '2. Top banner photo', body: 'Upload a wide photo of the shop for the top of the landing page. It is darkened so the headline stays readable. Without one, the banner is plain dark.' },
-    { target: '[data-tour="about-text"]', title: '3. About text', body: 'Write the About heading and paragraph. “Use the standard text” brings back the original wording.' },
-    { target: '[data-tour="about-cards"]', title: '4. Highlights', body: 'Up to 4 small cards next to the text. Pick an icon, write a short title and an optional line, and use the arrows to change the order.' },
-    { target: '[data-tour="about-add"]', title: '5. Add photos', body: 'Upload up to 12 photos of the shop. They are resized and cleaned of hidden data (like GPS) automatically.' },
-    { target: '[data-tour="about-layout"]', title: '6. Choose a layout', body: 'Pick how the photos and captions are arranged on the landing page: Mosaic, Slideshow, Grid or Story.' },
-    { target: '[data-tour="about-map"]', title: '7. Pin the shop', body: 'Search the address or click the map, then drag the pin to the exact spot. A pin is required before you can save.' },
-    { target: '[data-tour="about-save"]', title: '8. Preview and save', body: '“See preview” shows the landing page with your changes before anything is saved. Save puts them live; Discard undoes them.' },
+    { target: '[data-tour="about-sec-hero"]', title: '2. Top banner photo', body: 'Click a section to open it. This one holds the wide photo at the top of the landing page. It is darkened so the headline stays readable; without one, the banner is plain dark.' },
+    { target: '[data-tour="about-sec-text"]', title: '3. About text', body: 'The About heading and paragraph. “Use the standard text” brings back the original wording.' },
+    { target: '[data-tour="about-sec-cards"]', title: '4. Highlights', body: 'Up to 4 small cards next to the text. Pick an icon, write a short title and an optional line.' },
+    { target: '[data-tour="about-sec-photos"]', title: '5. Photos and layout', body: 'Upload up to 12 photos with captions, change their order, and pick how they are arranged. Photos are optional.' },
+    { target: '[data-tour="about-sec-map"]', title: '6. Map pin', body: 'Search the shop’s address or click the map, then drag the pin to the exact spot. A pin is required.' },
+    { target: '[data-tour="about-sections"]', title: '7. Preview and save each part', body: 'Every open section has its own See preview, Discard and Save changes. Saving one section does not touch the others, and “Unsaved changes” shows which ones you still need to save.' },
   ],
 
   hub_schedule: [
