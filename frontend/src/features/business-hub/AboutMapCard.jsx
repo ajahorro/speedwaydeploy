@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from '@/lib/toast';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Crosshair, Eye, Image as ImageIcon, ImagePlus, Camera, LayoutGrid, Loader2, MapPin, PencilLine, Plus, RotateCcw, Save, Search, Trash2, Type, Undo2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Crosshair, Eye, Image as ImageIcon, ImagePlus, Camera, LayoutGrid, Loader2, MapPin, PencilLine, Plus, RotateCcw, Save, Search, Trash2, Type, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -225,13 +225,6 @@ export function AboutMapCard() {
     }
   };
 
-  const move = (index, step) => setPhotos((list) => {
-    const next = [...list];
-    const to = index + step;
-    if (to < 0 || to >= next.length) return list;
-    [next[index], next[to]] = [next[to], next[index]];
-    return next;
-  });
 
   const useMyLocation = () => {
     if (!navigator.geolocation) { toast.error('This browser cannot share its location.'); return; }
@@ -466,10 +459,8 @@ export function AboutMapCard() {
                     />
                     <span className="text-right text-[11px] text-muted-foreground">{photo.caption.length}/{MAX_CAPTION}</span>
                   </div>
-                  <div className="flex gap-1.5">
-                    <Button type="button" size="icon" variant="outline" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move earlier"><ArrowUp /></Button>
-                    <Button type="button" size="icon" variant="outline" disabled={i === draft.photos.length - 1} onClick={() => move(i, 1)} aria-label="Move later"><ArrowDown /></Button>
-                    <Button type="button" variant="outline" className="ml-auto text-destructive" onClick={() => setPhotos((list) => list.filter((p) => p.id !== photo.id))}>
+                  <div className="flex justify-end">
+                    <Button type="button" variant="outline" className="text-destructive" onClick={() => setPhotos((list) => list.filter((p) => p.id !== photo.id))}>
                       <Trash2 /> Remove photo
                     </Button>
                   </div>

@@ -5,12 +5,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 /**
  * Client Directory list, paginated.
- *  - Enough room (the list itself is 860px or wider): a table (Role, Name, Email, Number, Joined, Actions).
+ *  - Enough room (the list itself is 860px or wider): a table (Name, Email, Number, Joined, Actions).
  *  - Phones, and tablets where the sidebar leaves too little room: the same rows as cards, also paginated.
  * The choice follows the list's own width, not the window, so it is right with or without the sidebar.
  * Built on the shadcn table + theme tokens (ui-root), so it follows light/dark mode.
  */
-const ROLE_LABEL = { CUSTOMER: 'Customer', STAFF: 'Staff', ADMIN: 'Admin' };
 const phoneOf = (u) => u.phone_number || u.phone || u.contact_number || '';
 
 function Pager({ page, pages, total, from, to, setPage }) {
@@ -90,7 +89,6 @@ export default function ClientDirectoryList({ users, loading, isMobile: phone = 
                   <div className="font-medium [overflow-wrap:anywhere]">{user.full_name || 'Unnamed client'}</div>
                   <div className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{user.email || '—'}</div>
                 </div>
-                <span className="shrink-0 rounded-[2px] border px-1.5 py-0.5 text-xs text-muted-foreground">{ROLE_LABEL[user.role] || user.role}</span>
               </div>
               <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
                 <dt className="text-muted-foreground">Number</dt><dd className="m-0">{phoneOf(user) || '—'}</dd>
@@ -109,8 +107,7 @@ export default function ClientDirectoryList({ users, loading, isMobile: phone = 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="pl-4">Role</TableHead>
-            <TableHead>Name</TableHead>
+            <TableHead className="pl-4">Name</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Number</TableHead>
             <TableHead>Joined</TableHead>
@@ -120,8 +117,7 @@ export default function ClientDirectoryList({ users, loading, isMobile: phone = 
         <TableBody>
           {rows.map((user) => (
             <TableRow key={user.id}>
-              <TableCell className="pl-4 text-muted-foreground">{ROLE_LABEL[user.role] || user.role}</TableCell>
-              <TableCell className="max-w-[14rem] font-medium whitespace-normal [overflow-wrap:anywhere]">{user.full_name || 'Unnamed client'}</TableCell>
+              <TableCell className="max-w-[14rem] pl-4 font-medium whitespace-normal [overflow-wrap:anywhere]">{user.full_name || 'Unnamed client'}</TableCell>
               <TableCell className="max-w-[16rem] whitespace-normal [overflow-wrap:anywhere]">{user.email || '—'}</TableCell>
               <TableCell className="whitespace-nowrap">{phoneOf(user) || '—'}</TableCell>
               <TableCell className="whitespace-nowrap">{formatDate(user.created_at)}</TableCell>
