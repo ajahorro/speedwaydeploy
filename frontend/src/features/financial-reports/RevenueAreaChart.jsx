@@ -40,28 +40,41 @@ const formatDay = (value) => {
  *  - data is the sales_report_daily() series, so it always matches the KPIs
  *  - the range picker drives the page-wide range instead of local state
  */
-export function RevenueAreaChart({ data, loading, preset, onPresetChange, rangeLabel }) {
+export function RevenueAreaChart({ data, loading, preset, onPresetChange, rangeLabel, showRangeSelector = true, onClick }) {
   const presets = RANGE_PRESETS.filter((option) => option.value !== 'custom' || preset === 'custom');
 
   return (
-    <Card className="gap-0 pt-0">
+    <Card
+      className={`gap-0 pt-0 ${onClick ? 'cursor-pointer transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''}`}
+      role={onClick ? 'link' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick();
+        }
+      } : undefined}
+    >
       <CardHeader className="flex flex-col items-stretch gap-2 border-b py-5 sm:flex-row sm:items-center">
         <div className="grid flex-1 gap-1">
           <CardTitle>Revenue trend</CardTitle>
           <CardDescription>Net money received and refunds per day · {rangeLabel}</CardDescription>
         </div>
-        <Select value={preset} onValueChange={onPresetChange}>
-          <SelectTrigger className="w-full sm:ml-auto sm:w-[170px]" aria-label="Select a date range">
-            <SelectValue placeholder="Last 30 days" />
-          </SelectTrigger>
-          <SelectContent>
-            {presets.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {showRangeSelector && (
+          <Select value={preset} onValueChange={onPresetChange}>
+            <SelectTrigger className="w-full sm:ml-auto sm:w-[170px]" aria-label="Select a date range">
+              <SelectValue placeholder="Last 30 days" />
+            </SelectTrigger>
+            <SelectContent>
+              {presets.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         {loading ? (

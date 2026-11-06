@@ -2061,7 +2061,7 @@ const AdminBookingDetails = () => {
                         borderRadius: '4px', textAlign: 'center', color: p.status === 'PAID' ? '#10b981' : '#C41F2B', 
                         fontSize: '0.65rem', fontWeight: '950', textTransform: 'uppercase'
                       }}>
-                        {p.status === 'PAID' ? 'Verified' : 'Rejected'}
+                        {p.status === 'PAID' ? 'Verified' : p.status === 'REFUNDED' ? 'Refunded' : 'Rejected'}
                       </div>
                     )}
                     <div style={{ marginTop: '0.5rem', fontSize: '0.6rem', color: 'var(--admin-text-secondary)', fontWeight: '700', textAlign: 'center' }}>

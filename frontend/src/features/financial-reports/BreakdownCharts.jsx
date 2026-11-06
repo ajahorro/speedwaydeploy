@@ -73,12 +73,23 @@ export function MethodBreakdownChart({ rows = [], total = 0, loading }) {
 }
 
 /** Most-booked services among paying bookings (from sales_report().top_services). */
-export function TopServicesChart({ rows = [], loading }) {
+export function TopServicesChart({ rows = [], loading, onClick }) {
   const data = rows.map((row) => ({ name: row.name, count: Number(row.count || 0) }));
   const config = { count: { label: 'Bookings', color: '#10b981' } };
 
   return (
-    <Card className="gap-2">
+    <Card
+      className={`gap-2 ${onClick ? 'cursor-pointer transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''}`}
+      role={onClick ? 'link' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick();
+        }
+      } : undefined}
+    >
       <CardHeader>
         <CardTitle>Top services</CardTitle>
         <CardDescription>Most booked among paying bookings</CardDescription>

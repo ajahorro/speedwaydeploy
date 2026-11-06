@@ -74,10 +74,10 @@ export default function AssistantPanel({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="ui-root flex w-full flex-col gap-0 sm:max-w-md">
         <SheetHeader className="pb-3 border-b border-border">
-          <div className="flex items-center justify-between">
-            <SheetTitle className="flex items-center gap-2"><Sparkles className="size-4 text-primary" /> {title}</SheetTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
+            <SheetTitle className="flex min-w-0 flex-1 items-center gap-2"><Sparkles className="size-4 shrink-0 text-primary" /> {title}</SheetTitle>
             {messages.length > 0 && (
-              <Button type="button" variant="ghost" size="sm" onClick={resetChat} className="text-xs h-7 px-2 gap-1 text-muted-foreground hover:text-foreground">
+              <Button type="button" variant="ghost" size="sm" onClick={resetChat} className="shrink-0 text-xs h-7 px-2 gap-1 text-muted-foreground hover:text-foreground">
                 <RotateCcw className="size-3" /> New chat
               </Button>
             )}
