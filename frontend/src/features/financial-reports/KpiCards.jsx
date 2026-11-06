@@ -23,10 +23,10 @@ const KPIS = [
   { key: 'customer_credit_liability', label: 'Customer credit', hint: 'Credit held for customers (today)' }
 ];
 
-export function KpiCards({ report, loading, compact = false, onClick }) {
+export function KpiCards({ report, loading, compact = false, onClick, gridClassName = 'sm:grid-cols-2 xl:grid-cols-3' }) {
   const items = compact ? KPIS.filter((kpi) => ['gross_sales', 'net_sales', 'refunds', 'pending_verification'].includes(kpi.key)) : KPIS;
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className={cn('grid grid-cols-1 gap-3', gridClassName)}>
       {items.map((kpi) => (
         <Card
           key={kpi.key}

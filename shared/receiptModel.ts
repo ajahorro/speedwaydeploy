@@ -29,6 +29,8 @@ export interface ReceiptPayment {
   reference?: string | null
   created_at?: string | null
   verified_at?: string | null
+  /** Sequential receipt number from public.payments.receipt_no (given when the payment is verified). */
+  receipt_no?: number | string | null
 }
 
 export interface TransactionReceiptAmounts {
@@ -46,8 +48,15 @@ const numberValue = (value: unknown): number => {
 export const roundReceiptAmount = (value: number): number =>
   Math.round((numberValue(value) + Number.EPSILON) * 100) / 100
 
+/** Receipt numbers are digits only, in order, padded to 7 digits: 1 → "0000001". */
+export const formatReceiptNo = (value: unknown): string => {
+  const digits = String(value ?? '').replace(/\D/g, '')
+  return digits ? digits.padStart(7, '0') : ''
+}
+
+/** The receipt's number, or "Pending" before the payment has been given one. */
 export const getReceiptNumber = (payment: ReceiptPayment): string =>
-  `RCP-${String(payment.id || payment.payment_id || 'UNKNOWN').toUpperCase()}`
+  formatReceiptNo(payment.receipt_no) || 'Pending'
 
 /** Mirrors public.payment_net_received(amount, detected_amount, verified_amount). */
 export const paymentNetReceived = (payment: ReceiptPayment): number => {

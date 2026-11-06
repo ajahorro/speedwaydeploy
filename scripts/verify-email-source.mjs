@@ -41,9 +41,10 @@ const officialReceipt = fs.readFileSync('frontend/src/components/PaymentReceipt.
 const receiptModel = fs.readFileSync('shared/receiptModel.ts', 'utf8');
 const { resolveAmounts } = await import('../supabase/functions/_shared/bookingEmail.ts');
 const { buildAcknowledgementReceiptPdf } = await import('../supabase/functions/_shared/acknowledgementReceiptPdf.ts');
-const { resolveInvoiceAmounts, resolveTransactionReceiptAmounts } = await import('../shared/receiptModel.ts');
+const { resolveInvoiceAmounts, resolveTransactionReceiptAmounts, getReceiptNumber } = await import('../shared/receiptModel.ts');
 const samplePayment = {
   id: 'payment-123',
+  receipt_no: 42,
   amount: 900,
   detected_amount: 900,
   net_credit: 900,
@@ -128,7 +129,7 @@ checks.push(
     '/BaseFont /Helvetica-Bold',
     'Comar Garage',
     'ACKNOWLEDGEMENT RECEIPT',
-    'Receipt no.  RCP-PAYMENT-123',
+    'Receipt no.  0000042',
     'ONLINE',
     'RECEIVED FROM',
     'DESCRIPTION / NATURE OF SERVICE',
@@ -172,6 +173,10 @@ checks.push(
   ['photo retention: the backend runs the purge sweep and writes an audit entry', /purgeExpiredServicePhotos\(supabaseAdmin\)/.test(backend) && /SERVICE_PHOTOS_PURGED/.test(backend) && /setInterval\(purgeExpiredPhotos/.test(backend)],
   ['photo retention: the nightly database job archives only and no routine deletes records without their files', /return coalesce\(public\.archive_stale_service_photos\(\), 0\);/.test(photoRetentionMigration) && /drop function if exists public\.purge_stale_service_photos\(\)/.test(photoRetentionMigration) && !/delete from public\.service_photos/.test(photoRetentionMigration)],
   ['customer ledger: only verified positive payments can open receipts', /canIssueReceipt = isRefund \|\| \(Number\(p\.amount\) > 0[\s\S]*?\['PAID', 'REFUND_PENDING', 'REFUNDED'\]/.test(fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8'))],
+  ['receipt numbers are digits only, from payments.receipt_no (no random or id-based parts)',
+    getReceiptNumber({ id: 'abc-123', receipt_no: 7 }) === '0000007'
+    && getReceiptNumber({ id: 'abc-123' }) === 'Pending'
+    && !/RCP-/.test(fs.readFileSync('frontend/src/pages/Customer/CustomerBilling.jsx', 'utf8') + fs.readFileSync('frontend/src/features/financial-reports/exportReport.js', 'utf8') + fs.readFileSync('frontend/src/features/financial-reports/TransactionsTable.jsx', 'utf8'))],
   ['payment receipts: portal labels receipt number and gateway reference separately', /getReceiptNumber\(selectedPayment\)/.test(officialReceipt) && /Reference no\./.test(officialReceipt)],
   ['payment receipts: do not fetch or display booking/refund status', !/refund_status|payment_refund_allocations|isNoShow|FLAGGED_NOSHOW|NO-SHOW/.test(officialReceipt)],
   ['email receipt: uses transaction data only, not booking refund allocations', !/payment_refund_allocations|refundAllocations/.test(fn) && !/refund|bookingStatus|booking_status|no.show/i.test(fs.readFileSync('supabase/functions/_shared/acknowledgementReceiptPdf.ts', 'utf8'))],

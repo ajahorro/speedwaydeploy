@@ -490,12 +490,20 @@ const AdminDashboard = () => {
           </Button>
         </div>
 
-        <div aria-label="Financial report metrics">
-          <KpiCards
-            report={dashboardReport.report}
+        {/* Sales cards (2 per row) beside the top services, then the revenue trend full width */}
+        <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
+          <div aria-label="Financial report metrics">
+            <KpiCards
+              report={dashboardReport.report}
+              loading={dashboardReport.loading}
+              compact
+              gridClassName="sm:grid-cols-2"
+              onClick={() => navigate(reportsUrl)}
+            />
+          </div>
+          <TopServicesChart
+            rows={dashboardReport.report?.top_services || []}
             loading={dashboardReport.loading}
-            compact
-            onClick={() => navigate(reportsUrl)}
           />
         </div>
 
@@ -505,11 +513,6 @@ const AdminDashboard = () => {
           preset="30d"
           rangeLabel={formatRangeLabel(reportRange)}
           showRangeSelector={false}
-        />
-
-        <TopServicesChart
-          rows={dashboardReport.report?.top_services || []}
-          loading={dashboardReport.loading}
         />
       </section>
 

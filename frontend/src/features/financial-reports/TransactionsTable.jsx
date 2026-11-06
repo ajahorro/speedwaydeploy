@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { formatReceiptNo } from '../../../../shared/receiptModel.ts';
 import { ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -143,7 +144,7 @@ export function TransactionsTable({ range, kind = 'settled', title, description,
             <>
               <SheetHeader>
                 <SheetTitle>Transaction details</SheetTitle>
-                <SheetDescription>Receipt no. RCP-{selected.payment_id}</SheetDescription>
+                <SheetDescription>Receipt no. {formatReceiptNo(selected.receipt_no) || 'none yet'}</SheetDescription>
               </SheetHeader>
               <div className="grid gap-1 px-4">
                 <DetailRow label="Booking">#{String(selected.booking_id || '').slice(0, 8).toUpperCase()}</DetailRow>

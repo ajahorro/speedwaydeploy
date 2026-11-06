@@ -70,9 +70,8 @@ const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose
   const bookingNo = String(booking?.id || '').slice(0, 8).toUpperCase();
 
   const title = isRefund ? REFUND_RECEIPT_TITLE : (isReceipt ? RECEIPT_TITLE : 'BOOKING SUMMARY');
-  const number = isRefund
-    ? (selectedPayment.reference_number || `RFD-${String(selectedPayment.id || '').slice(0, 8).toUpperCase()}`)
-    : isReceipt ? getReceiptNumber(selectedPayment) : `BK-${bookingNo}`;
+  // Receipt numbers are digits only and in order (payments.receipt_no). A booking summary is not a receipt, so it has none.
+  const number = isReceipt ? getReceiptNumber(selectedPayment) : null;
   const docDate = isReceipt ? (selectedPayment.verified_at || selectedPayment.created_at) : booking?.created_at;
   const method = isReceipt ? selectedPayment.method : booking?.payment_method;
   const cash = isCashMethod(method);
@@ -94,7 +93,7 @@ const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose
     if (!receiptRef.current) return;
     try {
       const html2pdf = (await import('html2pdf.js')).default;
-      html2pdf().set({ margin: 0.4, filename: `${shop.name.replace(/\s+/g, '-')}-${number}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).from(receiptRef.current).save();
+      html2pdf().set({ margin: 0.4, filename: `${shop.name.replace(/\s+/g, '-')}-${number || `booking-${bookingNo}`}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).from(receiptRef.current).save();
     } catch {
       window.print();
     }
@@ -145,7 +144,7 @@ const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose
         </div>
         <div className="ar-meta">
           <p className="ar-doctitle">{title}</p>
-          <div><span className="ar-muted">{isRefund ? 'Refund no.' : isReceipt ? 'Receipt no.' : 'Booking no.'}</span> <strong style={{ color: '#C41F2B' }}>{number}</strong></div>
+          {number && <div><span className="ar-muted">Receipt no.</span> <strong style={{ color: '#C41F2B' }}>{number}</strong></div>}
           <div className="ar-box ar-kv" style={{ minWidth: 200 }}>
             <div className="k">Date</div><div className="ar-num">{dateOnly(docDate) || '—'}</div>
           </div>

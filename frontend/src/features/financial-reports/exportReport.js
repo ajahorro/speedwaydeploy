@@ -1,6 +1,7 @@
 import { fetchBookingsReport, fetchLedgerTransactions, fetchOutstandingBookings } from '@/services/ledgerService';
 import { formatMethod } from '@/features/finance/money';
 import { toDateParam } from './useReportRange';
+import { formatReceiptNo } from '../../../../shared/receiptModel.ts';
 
 const MAX_ROWS = 5000;
 const BATCH = 1000;
@@ -60,7 +61,7 @@ const transactionLines = (rows) => [
   ['Recognized At', 'Receipt No.', 'Booking Ref', 'Customer', 'Method', 'Status', 'Amount (PHP)', 'Reference'],
   ...rows.map((row) => [
     formatDate(row.recognized_at || row.created_at),
-    `RCP-${row.payment_id}`,
+    formatReceiptNo(row.receipt_no) || '—',
     row.booking_id ? `#${String(row.booking_id).substring(0, 8).toUpperCase()}` : '—',
     row.customer_name || 'Customer',
     formatMethod(row.method),

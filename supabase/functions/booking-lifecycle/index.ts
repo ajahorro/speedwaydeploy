@@ -16,6 +16,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend'
 import { buildAcknowledgementReceiptPdf } from '../_shared/acknowledgementReceiptPdf.ts'
 import { buildStatementOfAccountPdf } from '../_shared/statementOfAccountPdf.ts'
+import { getReceiptNumber } from '../../../shared/receiptModel.ts'
 import {
   resolveAmounts,
   buildBookingCreatedEmail,
@@ -434,7 +435,7 @@ serve(async (req: Request): Promise<Response> => {
               balanceAfter: amounts.remainingBalance,
               payment: verifiedTransaction,
             }),
-            filename: `Acknowledgement-Receipt-RCP-${String(verifiedTransaction.payment_id).toUpperCase()}.pdf`,
+            filename: `Acknowledgement-Receipt-${getReceiptNumber(verifiedTransaction)}.pdf`,
           })
           hasReceipt = true
         }

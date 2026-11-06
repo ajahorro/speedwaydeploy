@@ -4,6 +4,7 @@ import { CreditCard, Clock, Printer } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import PaymentReceipt from '../../components/PaymentReceipt';
+import { getReceiptNumber } from '../../../../shared/receiptModel.ts';
 import { calculatePaymentSummary } from '../../utils/paymentUtils';
 import { fetchBookingLedgers } from '../../services/ledgerService';
 import { useImagePreview } from '../../context/ImagePreviewContext';
@@ -155,7 +156,7 @@ const CustomerBilling = () => {
                     const isRefund = String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(p.amount) < 0;
                     const canIssueReceipt = isRefund || (Number(p.amount) > 0
                       && ['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(paymentStatus));
-                    const receiptNumber = `RCP-${p.id.toUpperCase()}`;
+                    const receiptNumber = getReceiptNumber(p);
                     const paymentRecordNumber = `PAY-${p.id.toUpperCase()}`;
                     const statusLabel = isRefund
                       ? 'REFUND'
@@ -175,8 +176,8 @@ const CustomerBilling = () => {
                     return (
                       <TableRow key={p.id}>
                         <TableCell className="px-5 py-4 align-top font-mono">
-                          <p className="text-sm font-bold">{isRefund ? 'Refund Reference ID' : canIssueReceipt ? 'Receipt No.' : 'Payment Record ID'}: {isRefund ? (p.reference_number || `RFD-${p.id.toUpperCase()}`) : canIssueReceipt ? receiptNumber : paymentRecordNumber}</p>
-                          {!isRefund && <p className="mt-1 break-all text-xs">Transaction/Reference ID: {p.reference_number || p.detected_ref || 'Not provided'}</p>}
+                          <p className="text-sm font-bold">{canIssueReceipt ? 'Receipt No.' : 'Payment Record ID'}: {canIssueReceipt ? receiptNumber : paymentRecordNumber}</p>
+                          <p className="mt-1 break-all text-xs">{isRefund ? 'Refund reference' : 'Transaction/Reference ID'}: {p.reference_number || p.detected_ref || 'Not provided'}</p>
                           <Button
                             type="button"
                             variant="link"
