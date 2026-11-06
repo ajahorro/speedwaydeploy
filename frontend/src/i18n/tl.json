@@ -1,6 +1,7 @@
 {
  "— reason:": "— dahilan:",
  ", but you chose ₱": ", ngunit pinili mo ang ₱",
+ ". They will get an email with a link to set their own password.": ". Makakatanggap sila ng email na may link para magtakda ng sariling password.",
  "· Booking #": "· Booking #",
  "· bookings that start in this range, with their money": "· mga booking na magsisimula sa saklaw na ito, kasama ang pera",
  "· bookings that start in this range. Money and contact details are not shown.": "· mga booking na magsisimula sa saklaw na ito. Hindi ipinapakita ang pera at contact details.",
@@ -932,6 +933,7 @@
  "Create New Password": "Gumawa ng Bagong Password",
  "Create Password": "Gumawa ng Password",
  "Create Promo Rule": "Gumawa ng Patakaran ng Promo",
+ "Create the account and email the user a one-time link to set their own password. The link works for 48 hours.": "Gagawin ang account at padadalhan ng email ang user ng isang beses na link para magtakda ng sariling password. Gumagana ang link nang 48 oras.",
  "Create the account and email the user a temporary password. They will be prompted to set their own password on first sign-in.": "Gagawin ang account at padadalhan ng email ang user ng pansamantalang password. Hihilingin sa kanilang magtakda ng sariling password sa unang pag-sign in.",
  "Create this account?": "Gawin ang account na ito?",
  "Create this fleet?": "Gawin ang fleet na ito?",
@@ -3076,6 +3078,7 @@
  "These details were opened for booking.": "Binuksan ang mga detalyeng ito para sa booking.",
  "These settings apply to the whole system straight away, including new bookings.": "Agad na nalalapat ang mga setting na ito sa buong sistema, kasama ang mga bagong booking.",
  "These terms may be updated from time to time. Continued use of the platform after an update constitutes acceptance of the revised terms.": "Maaaring i-update paminsan-minsan ang mga tuntuning ito. Ang patuloy na paggamit ng platform pagkatapos ng update ay nangangahulugan ng pagtanggap sa binagong tuntunin.",
+ "They will get an email with a link to set their own password.": "Makakatanggap sila ng email na may link para magtakda ng sariling password.",
  "This account": "Ang account na ito",
  "This account has already used that promo code.": "Nagamit na ng account na ito ang promo code na iyon.",
  "This account is already active.": "Aktibo na ang account na ito.",

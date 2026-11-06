@@ -1,67 +1,65 @@
 const { Resend } = require('resend');
-// ONE resolver for the public frontend URL. Falling back to localhost:5173 here
-// meant a deployed site emailed customers a link to their own machine whenever
-// FRONTEND_URL was unset — indistinguishable from a broken link.
+const { renderEmail, formatDateTime, DEFAULT_SHOP } = require('./emailLayout');
 const { appUrl } = require('./appUrl');
 
+/**
+ * Every email the backend sends goes through here, in the one shared layout (./emailLayout.js).
+ *
+ * Sender: always the no-reply address on our verified domain (EMAIL_FROM to change it). Replies go to the shop's
+ * own inbox (Business Hub › Business Profile email) through Reply-To, so a customer who answers still reaches
+ * a person. Every message carries a plain-text version.
+ */
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const rawSender = process.env.RESEND_SENDER_EMAIL || process.env.RESEND_FROM || 'bookings@comargarage.com';
-const SENDER_EMAIL = rawSender.includes('<') ? rawSender : `Comar Garage <${rawSender}>`;
+const SENDER = process.env.EMAIL_FROM || 'Comar Garage <noreply@comargarage.com>';
 
-const escapeHtml = (value) => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#039;');
+// ── shop details for the footer (name, address, phone, email), read from the Business Hub ──────────────────────
+let shopProvider = null;
+let shopCache = { at: 0, value: null };
+/** server.js hands us a function that reads business_config; cached for five minutes. */
+const configureShop = (fn) => { shopProvider = fn; shopCache = { at: 0, value: null }; };
+const getShop = async () => {
+  if (shopCache.value && Date.now() - shopCache.at < 5 * 60 * 1000) return shopCache.value;
+  let value = { ...DEFAULT_SHOP, site: appUrl('/').replace(/\/$/, '') };
+  try {
+    const row = shopProvider ? await shopProvider() : null;
+    if (row) {
+      value = {
+        ...value,
+        name: row.business_name ? titleCase(row.business_name) : value.name,
+        address: row.business_address || value.address,
+        phone: row.contact_number || '',
+        email: row.email_address || '',
+      };
+    }
+  } catch { /* footer falls back to the defaults */ }
+  shopCache = { at: Date.now(), value };
+  return value;
+};
+const titleCase = (s) => String(s).toLowerCase().replace(/\b([a-z])/g, (m) => m.toUpperCase());
 
-const buildEmailShell = ({ title, eyebrow = 'COMAR GARAGE', bodyHtml, ctaLink, ctaLabel, footerNote = 'Comar Garage | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal' }) => `
-  <div style="margin: 0; padding: 0; background: #f5f5f3; font-family: Arial, Helvetica, sans-serif; color: #171717;">
-    <div style="max-width: 640px; margin: 0 auto; padding: 24px 16px;">
-      <div style="background: linear-gradient(135deg, #111827 0%, #1f2937 100%); border: 1px solid #d4d4d4; border-radius: 18px; overflow: hidden;">
-        <div style="padding: 22px 24px 14px; background: linear-gradient(135deg, rgba(196, 31, 43,0.12), rgba(17,24,39,0.05)); border-bottom: 1px solid rgba(255,255,255,0.12);">
-          <div style="font-size: 11px; letter-spacing: 2px; font-weight: 800; color: #C41F2B; text-transform: uppercase; margin-bottom: 8px;">${escapeHtml(eyebrow)}</div>
-          <div style="font-size: 28px; line-height: 1.2; font-weight: 900; color: #f5f5f4; margin: 0;">${escapeHtml(title)}</div>
-        </div>
-        <div style="padding: 24px; background: #ffffff; color: #171717;">
-          ${bodyHtml}
-          ${ctaLink ? `<div style="text-align: center; margin: 28px 0 8px;"><a href="${escapeHtml(ctaLink)}" style="display: inline-block; background: #C41F2B; color: #ffffff; text-decoration: none; padding: 14px 22px; border-radius: 2px; font-weight: 900; font-size: 12px; letter-spacing: 1px; text-transform: uppercase;">${escapeHtml(ctaLabel)}</a></div>` : ''}
-        </div>
-        <div style="padding: 18px 24px 26px; background: #f9fafb; color: #52525b; border-top: 1px solid #e5e7eb; font-size: 11px; line-height: 1.6; text-align: center;">
-          ${escapeHtml(footerNote)}
-        </div>
-      </div>
-    </div>
-    <style>
-      @media (max-width: 600px) {
-        .email-shell { padding: 12px !important; }
-      }
-      @media (prefers-color-scheme: dark) {
-        body { background: #111827 !important; }
-      }
-    </style>
-  </div>
-`;
-
-const send = async ({ to, subject, html, attachments }) => {
+const send = async ({ to, subject, html, text, replyTo, headers, attachments }) => {
   if (!resend) return { success: false, error: 'RESEND_API_KEY is not configured' };
   try {
-    console.log(`[Email] Sending "${subject}" to ${to}`);
+    const shop = await getShop();
+    const reply = replyTo === null ? undefined : (replyTo || shop.email || undefined);
+    console.log(`[Email] Sending "${subject}"`);
     const { data, error } = await resend.emails.send({
-      from: SENDER_EMAIL,
+      from: SENDER,
       to: Array.isArray(to) ? to : [to],
       subject,
       html,
+      ...(text ? { text } : {}),
+      ...(reply ? { reply_to: reply } : {}),
+      ...(headers ? { headers } : {}),
       ...(attachments?.length ? { attachments } : {})
     });
     if (error) {
       const detail = error.statusCode === 401 || /invalid.*api.?key/i.test(error.message || '')
-        ? 'RESEND_API_KEY is invalid or expired — copies of invitation/receipt emails cannot be delivered until it is rotated.'
+        ? 'RESEND_API_KEY is invalid or expired.'
         : (error.message || JSON.stringify(error));
       console.error(`[Email] Resend rejected message: ${detail}`);
       return { success: false, error: detail };
     }
-    console.log(`[Email] Sent successfully: ${data?.id || subject}`);
     return { success: true, data };
   } catch (error) {
     console.error('[EmailService] Delivery failed:', error.message);
@@ -69,274 +67,216 @@ const send = async ({ to, subject, html, attachments }) => {
   }
 };
 
-const sendBookingConfirmationEmail = async ({ customerEmail, customerName, bookingId, serviceName, scheduledAt, totalAmount }) => send({
-  to: customerEmail,
-  subject: `Booking Confirmed #${bookingId} - Comar Garage`,
-  html: buildEmailShell({
-    title: 'Booking Confirmed',
-    eyebrow: 'COMAR GARAGE',
-    bodyHtml: `
-      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi <strong>${escapeHtml(customerName)}</strong>,</p>
-      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">Your appointment has been successfully scheduled. Here are your booking details:</p>
-      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin: 12px 0 18px;">
-        <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 10px;">
-          <span style="color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Booking ID</span>
-          <strong style="color: #111827;">#${escapeHtml(bookingId)}</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 10px;">
-          <span style="color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Service</span>
-          <strong style="color: #111827; text-align: right;">${escapeHtml(serviceName)}</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 10px;">
-          <span style="color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Date &amp; Time</span>
-          <strong style="color: #111827; text-align: right;">${escapeHtml(new Date(scheduledAt).toLocaleString())}</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-          <span style="color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Total Amount</span>
-          <strong style="color: #C41F2B; text-align: right; font-size: 20px;">PHP ${escapeHtml(totalAmount)}</strong>
-        </div>
-      </div>
-      <p style="margin: 0; font-size: 15px; color: #374151; line-height: 1.7;">You can check your booking status anytime through your customer dashboard.</p>
-    `,
-    ctaLink: `${appUrl('/customer/bookings')}`,
-    ctaLabel: 'View Booking',
-    footerNote: 'Comar Garage | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal'
-  })
-});
-
-const sendPasswordResetEmail = async ({ customerEmail, resetLink }) => send({
-  to: customerEmail,
-  subject: 'Password Reset Request - Comar Garage',
-  html: buildEmailShell({
-    title: 'Reset Your Password',
-    eyebrow: 'ACCOUNT SECURITY',
-    bodyHtml: `
-      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi there,</p>
-      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">We received a request to reset your Comar Garage password. Click the button below to continue and create a new one securely.</p>
-      <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280; line-height: 1.6;">If you did not request this change, you can safely ignore this email and your password will remain unchanged.</p>
-    `,
-    ctaLink: resetLink,
-    ctaLabel: 'Reset Password',
-    footerNote: 'Secure access link expires in 1 hour. If you need help, contact the studio support team.'
-  })
-});
-
-const sendAccountInviteEmail = async ({ customerEmail, customerName, inviteLink }) => send({
-  to: customerEmail,
-  subject: 'Create your Comar Garage customer account',
-  html: buildEmailShell({
-    title: 'Activate Your Account',
-    eyebrow: 'WELCOME TO COMAR GARAGE',
-    bodyHtml: `
-      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi <strong>${escapeHtml(customerName || 'Guest')}</strong>,</p>
-      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">Your account is almost ready. Use the secure link below to confirm your email and complete your profile.</p>
-      <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.6;">This invitation expires in 48 hours. Once confirmed, you can view bookings, payments, and service updates in one place.</p>
-    `,
-    ctaLink: inviteLink,
-    ctaLabel: 'Create Account',
-    footerNote: 'This invitation is valid for 48 hours. If you believe this was sent in error, please contact support.'
-  })
-});
-
-const sendAdminInviteEmail = async ({ recipientEmail, firstName, lastName, role, defaultPassword, loginLink }) => send({
-  to: recipientEmail,
-  subject: `[ACTION REQUIRED] Your Comar Garage ${role} account is ready`,
-  html: buildEmailShell({
-    title: 'Your Account Is Ready',
-    eyebrow: 'COMAR GARAGE TEAM ACCESS',
-    bodyHtml: `
-      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi <strong>${escapeHtml(`${firstName || ''} ${lastName || ''}`.trim() || 'there')}</strong>,</p>
-      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">An account has been created for you on the Comar Garage platform with the role <strong>${escapeHtml(role)}</strong>.</p>
-      <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Email Address</p>
-      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-family: 'Courier New', Courier, monospace; font-size: 15px; color: #111827; font-weight: 700;">${escapeHtml(recipientEmail)}</div>
-      <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Temporary Password</p>
-      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; font-family: 'Courier New', Courier, monospace; font-size: 20px; letter-spacing: 2px; color: #C41F2B; font-weight: 900;">${escapeHtml(defaultPassword)}</div>
-      <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.6;">For your security you will be required to set a new password the first time you sign in. Your temporary password cannot be used to access the platform beyond that first login.</p>
-    `,
-    ctaLink: loginLink,
-    ctaLabel: 'Sign In & Set Password',
-    footerNote: 'If you were not expecting this invitation, please contact the studio administrator immediately.'
-  })
-});
-
-const sendInviteAccountEmail = async ({ recipientEmail, firstName, lastName, role, temporaryPassword, loginLink }) => send({
-  to: recipientEmail,
-  subject: `[ACTION REQUIRED] Your Comar Garage ${role} invitation`,
-  html: buildEmailShell({
-    title: 'You Have Been Invited',
-    eyebrow: 'COMAR GARAGE TEAM ACCESS',
-    bodyHtml: `
-      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi <strong>${escapeHtml(`${firstName || ''} ${lastName || ''}`.trim() || 'there')}</strong>,</p>
-      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">An administrator has created a <strong>${escapeHtml(role)}</strong> account for you on the Comar Garage platform. Use the temporary credentials below to sign in for the first time.</p>
-      <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Email Address</p>
-      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-family: 'Courier New', Courier, monospace; font-size: 15px; color: #111827; font-weight: 700;">${escapeHtml(recipientEmail)}</div>
-      <p style="margin: 0 0 8px; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Temporary Password</p>
-      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; font-family: 'Courier New', Courier, monospace; font-size: 20px; letter-spacing: 2px; color: #C41F2B; font-weight: 900;">${escapeHtml(temporaryPassword)}</div>
-      <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.6;">For your security, you will be required to set a new password on your first sign-in. Your temporary password cannot be used to access the platform beyond that first login.</p>
-    `,
-    ctaLink: loginLink,
-    ctaLabel: 'Sign In & Set Password',
-    footerNote: 'If you were not expecting this invitation, please contact the studio administrator immediately.'
-  })
-});
-
-const sendEmergencyRecoveryEmail = async ({ recipientEmail, otp }) => send({
-  to: recipientEmail,
-  subject: 'Comar Garage Account Recovery Code',
-  html: buildEmailShell({
-    title: 'Account Recovery',
-    eyebrow: 'ACCOUNT SECURITY',
-    bodyHtml: `
-      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">We received a request to unlock your Comar Garage account.</p>
-      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">Enter the recovery code below to unlock your account and reset your password:</p>
-      <div style="font-size: 32px; font-weight: 900; letter-spacing: 8px; padding: 16px 20px; background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; color: #111827; display: inline-block; margin-bottom: 16px;">${escapeHtml(otp)}</div>
-      <p style="margin: 0; font-size: 13px; color: #6b7280; line-height: 1.6;">This code expires in 15 minutes and can only be used once. If you did not request this, you can safely ignore this email — your account remains locked and secure.</p>
-    `,
-    footerNote: 'Comar Garage Detail Studio | Account Security'
-  })
-});
-
-// ── Task 3.3: QR Change security-verification email ────────────────────────
-// Branded HTML shell wrapping a dark (#111827) banner, an explicit metadata
-// block (timestamp / admin email / request IP), a prominent 28px monospace OTP
-// container, and an explicit 5-minute expiry + security-warning footer.
-const sendQrChangeOtpEmail = async ({ recipientEmail, otp, requestedAt, requestIp }) => {
-  const timestamp = requestedAt ? new Date(requestedAt).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'long' }) : new Date().toLocaleString();
-  const metaRow = (label, value) => `
-    <tr>
-      <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; white-space: nowrap; vertical-align: top;">${escapeHtml(label)}</td>
-      <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 700; color: #111827; word-break: break-word;">${escapeHtml(value)}</td>
-    </tr>`;
-  return send({
-    to: recipientEmail,
-    subject: 'Comar Garage: QR Change Verification Code',
-    html: buildEmailShell({
-      title: 'Verify Your Request',
-      eyebrow: 'COMAR GARAGE SECURITY',
-      bodyHtml: `
-        <div style="background: #111827; border-radius: 12px; padding: 16px 20px; margin-bottom: 18px; text-align: center;">
-          <div style="font-size: 18px; font-weight: 900; letter-spacing: 4px; color: #f9fafb; text-transform: uppercase;">COMAR GARAGE</div>
-          <div style="font-size: 10px; letter-spacing: 2px; color: #9ca3af; margin-top: 6px; text-transform: uppercase;">Comar Garage Detail Studio</div>
-        </div>
-        <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">A request was made to change the <strong>Business Hub QR payment recipients</strong>.</p>
-        <p style="margin: 0 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280;">Request Details</p>
-        <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; margin-bottom: 18px;">
-          <tbody>
-            ${metaRow('Timestamp', timestamp)}
-            ${metaRow('Admin Email', recipientEmail)}
-            ${metaRow('Request IP Address', requestIp || 'Unavailable')}
-          </tbody>
-        </table>
-        <p style="margin: 0 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; text-align: center;">Your Verification Code</p>
-        <div style="text-align: center; margin-bottom: 16px;">
-          <div style="display: inline-block; font-family: 'Courier New', Courier, monospace; font-size: 28px; font-weight: 900; letter-spacing: 10px; padding: 16px 24px; background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; color: #111827;">${escapeHtml(otp)}</div>
-        </div>
-        <p style="margin: 0 0 16px; font-size: 14px; color: #374151; line-height: 1.7; text-align: center;">Enter this 6-digit code to authorize the change. <strong style="color: #C41F2B;">This code expires in 5 minutes</strong> and can only be used once.</p>
-        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 14px 16px;">
-          <p style="margin: 0; font-size: 13px; color: #C41F2B; line-height: 1.6; font-weight: 600;">Security warning: If you did not request this change, do not share this code with anyone. Review your account immediately and contact the studio administrator.</p>
-        </div>
-      `,
-      footerNote: 'Comar Garage Detail Studio | Security Verification'
-    })
-  });
+/** render with the shop's footer details, then send */
+const deliver = async ({ to, subject, replyTo, headers, attachments, ...layout }) => {
+  const shop = await getShop();
+  const { html, text } = renderEmail({ ...layout, shop });
+  return send({ to, subject, html, text, replyTo, headers, attachments });
 };
 
-const sendStatusUpdateEmail = async ({ customerEmail, customerName, bookingId, status, scheduledAt }) => send({
-  to: customerEmail,
-  subject: `Booking Update #${bookingId} - Comar Garage`,
-  html: buildEmailShell({
-    title: 'Booking Update',
-    eyebrow: 'SERVICE STATUS',
-    bodyHtml: `
-      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi <strong>${escapeHtml(customerName)}</strong>,</p>
-      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">Your booking <strong>#${escapeHtml(bookingId)}</strong> is now <strong>${escapeHtml(status)}</strong>.</p>
-      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin: 12px 0 18px;">
-        <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-          <span style="color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Scheduled Time</span>
-          <strong style="color: #111827; text-align: right;">${escapeHtml(new Date(scheduledAt).toLocaleString())}</strong>
-        </div>
-      </div>
-      <p style="margin: 0; font-size: 15px; color: #374151; line-height: 1.7;">You can continue monitoring updates in your customer portal.</p>
-    `,
-    ctaLink: `${appUrl('/customer/bookings')}`,
-    ctaLabel: 'Open Portal',
-    footerNote: 'Comar Garage Detail Studio | 39 Hunters ROTC, Barangay San Juan, Cainta, 1900 Rizal'
-  })
+const firstName = (name) => String(name || '').trim().split(/\s+/)[0] || '';
+const hi = (name) => (firstName(name) ? `Hi ${firstName(name)},` : 'Hi,');
+
+// ── Account and security ──────────────────────────────────────────────────────────────────────────────────────
+
+/** "Forgot password" and "Change password" links (single use, short-lived). */
+const sendPasswordConfirmationEmail = ({ email, url, purpose, minutes = 15 }) => deliver({
+  to: email,
+  subject: purpose === 'RESET' ? 'Reset your Comar Garage password' : 'Confirm your new Comar Garage password',
+  preheader: `This link works once and expires in ${minutes} minutes.`,
+  title: purpose === 'RESET' ? 'Reset your password' : 'Confirm your password change',
+  greeting: 'Hi,',
+  blocks: [
+    purpose === 'RESET'
+      ? `Someone asked to reset the password for the Comar Garage account **${email}**. If that was you, set a new password with the button below.`
+      : `You asked to change the password for the Comar Garage account **${email}**. Confirm it with the button below and the new password takes effect.`,
+    { type: 'small', text: `The link works once and expires in ${minutes} minutes.` },
+    { type: 'notice', tone: 'info', text: 'If you did not ask for this, you can ignore this email. Your password stays the same.' },
+  ],
+  cta: { label: purpose === 'RESET' ? 'Set a new password' : 'Confirm password change', url },
+  reason: 'You get this email because someone asked to change the password on this account.',
 });
 
-/**
- * 🛡️ THE WRONG-PASSWORD SECURITY NOTICE.
- *
- * Sent when the staged login throttle is exhausted (`register_failed_login_staged`
- * escalates and queues a row in `login_security_notices`): the account has had
- * too many consecutive wrong passwords, so we stop accepting attempts and we tell
- * the OWNER what is happening.
- *
- * The copy answers the two questions the owner will actually have:
- *   1. "Was this me?" — if yes, the button below resets it and lifts the lock
- *      immediately. If no, someone is trying to guess their password and they
- *      should change it. The email covers BOTH, because we cannot tell which
- *      case it is and guessing would be worse than saying so.
- *   2. "Do I have to do anything?" — no. If it was not them the email can be
- *      ignored; the account is already locked. That is what makes this a WARNING
- *      rather than an obligation, which is exactly how the shop owner described
- *      it.
- *
- * It states the attempt count and the lock expiry so the owner has something
- * concrete to act on, rather than a vague "suspicious activity" message.
- *
- * `resetLink` is built by the caller from a REAL password-confirmation token, so
- * the button reuses the single "Forgot password" LINK flow (hashed, single-use,
- * 15-minute TTL — see EMAIL_AUTH_POLICY.md) rather than inventing a second reset
- * mechanism that only this email understands.
- */
-const sendWrongPasswordSecurityNotice = async ({ email, attempts, lockedUntil, resetLink }) => send({
+const sendPasswordChangedEmail = ({ email, purpose }) => deliver({
   to: email,
-  subject: 'Security alert: repeated failed sign-in attempts on your Comar Garage account',
-  html: buildEmailShell({
-    title: 'Security Alert',
-    eyebrow: 'COMAR GARAGE ACCOUNT SECURITY',
-    bodyHtml: `
-      <p style="margin: 0 0 16px; font-size: 15px; color: #1f2937;">Hi there,</p>
-      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;">
-        Someone entered the <strong>wrong password</strong> for your Comar Garage account too many times in a row, so we have <strong>temporarily locked sign-in</strong> to keep your account safe.
-      </p>
-      <div style="background: #f5f5f4; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin: 12px 0 18px;">
-        <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 10px;">
-          <span style="color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Account</span>
-          <strong style="color: #111827; text-align: right; word-break: break-all;">${escapeHtml(email)}</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 10px;">
-          <span style="color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Failed attempts</span>
-          <strong style="color: #111827; text-align: right;">${escapeHtml(attempts)}</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-          <span style="color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">Sign-in locked until</span>
-          <strong style="color: #111827; text-align: right;">${escapeHtml(lockedUntil ? new Date(lockedUntil).toLocaleString() : 'about 1 hour after the last attempt')}</strong>
-        </div>
-      </div>
-      <p style="margin: 0 0 12px; font-size: 15px; color: #374151; line-height: 1.7;"><strong>If this was you</strong>, just reset your password with the button below and you can sign in again right away.</p>
-      <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.7;"><strong>If this was not you</strong>, someone may be trying to get into your account. You can safely ignore this email and your account will stay locked — but for your security we strongly recommend changing your password now.</p>
-      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 14px 16px;">
-        <p style="margin: 0; font-size: 13px; color: #C41F2B; line-height: 1.6; font-weight: 600;">For your protection, sign-in stays locked until the time shown above. Resetting your password lifts the lock immediately.</p>
-      </div>
-    `,
-    ctaLink: resetLink,
-    ctaLabel: 'Reset My Password',
-    footerNote: 'Comar Garage Detail Studio | Account Security. This is an automated security message about your account.'
-  })
+  subject: 'Your Comar Garage password was changed',
+  preheader: 'If this was not you, reset your password now.',
+  title: 'Your password was changed',
+  greeting: 'Hi,',
+  blocks: [
+    `The password for **${email}** was ${purpose === 'RESET' ? 'reset' : 'changed'} on ${formatDateTime(new Date())}.`,
+    { type: 'notice', tone: 'warn', title: 'Not you?', text: 'Open the sign-in page, choose **Forgot password** and set a new one straight away. Then tell us by replying to this email.' },
+  ],
+  cta: { label: 'Go to sign in', url: appUrl('/login') },
+  reason: 'You get this email whenever the password on your account changes.',
+});
+
+const sendWrongPasswordSecurityNotice = ({ email, attempts, lockedUntil, resetLink }) => deliver({
+  to: email,
+  subject: 'Sign-in to your Comar Garage account is paused',
+  preheader: 'Too many wrong passwords. Reset your password to sign in now.',
+  title: 'We paused sign-in to keep your account safe',
+  greeting: 'Hi,',
+  blocks: [
+    `The wrong password was entered for **${email}** too many times in a row, so we paused sign-in for a while.`,
+    { type: 'rows', rows: [['Wrong attempts', String(attempts ?? '')], ['Paused until', lockedUntil ? formatDateTime(lockedUntil) : 'about an hour after the last try']] },
+    '**If it was you:** reset your password with the button below and you can sign in right away.',
+    '**If it was not you:** someone may be guessing your password. Your account stays paused, but we recommend setting a new password now.',
+  ],
+  cta: resetLink ? { label: 'Reset my password', url: resetLink } : null,
+  reason: 'You get this email when sign-in to your account is paused for safety.',
+});
+
+const sendEmergencyRecoveryEmail = ({ recipientEmail, otp }) => deliver({
+  to: recipientEmail,
+  subject: 'Your Comar Garage unlock code',
+  preheader: 'Use it within 15 minutes. Never share it with anyone.',
+  title: 'Your unlock code',
+  greeting: 'Hi,',
+  blocks: [
+    `Someone asked to unlock the Comar Garage account **${recipientEmail}**. Enter this code on the sign-in page to unlock it and set a new password.`,
+    { type: 'code', label: 'Unlock code', code: otp, note: 'It works once and expires in **15 minutes**.' },
+    { type: 'notice', tone: 'warn', text: 'Never share this code. Comar Garage staff will never ask you for it. If you did not ask for it, ignore this email and your account stays locked.' },
+  ],
+  reason: 'You get this email because someone asked to unlock this account.',
+});
+
+const sendEmailChangeCode = ({ oldEmail, newEmail, otp }) => deliver({
+  to: oldEmail,
+  subject: 'Your code to change your Comar Garage email',
+  preheader: 'Use it within 15 minutes. Never share it with anyone.',
+  title: 'Confirm your new email address',
+  greeting: 'Hi,',
+  blocks: [
+    `You asked to change your account email from **${oldEmail}** to **${newEmail}**. Enter this code in the app to confirm.`,
+    { type: 'code', label: 'Confirmation code', code: otp, note: 'It works once and expires in **15 minutes**.' },
+    { type: 'notice', tone: 'warn', title: 'Not you?', text: 'Do not share the code. Change your password now so no one else can change your email.' },
+  ],
+  reason: 'You get this email because someone asked to change the email on this account.',
+});
+
+const ROLE_WORD = { STAFF: 'staff', ADMIN: 'administrator', SUPER_ADMIN: 'administrator', CUSTOMER: 'customer' };
+
+/** New staff or administrator: a link to set their own password. No password is ever sent by email. */
+const sendInviteAccountEmail = ({ recipientEmail, firstName: first, role, setPasswordUrl, expiresAt }) => deliver({
+  to: recipientEmail,
+  subject: `You're invited to the Comar Garage ${ROLE_WORD[String(role).toUpperCase()] || 'team'} portal`,
+  preheader: 'Set your password to finish setting up your account.',
+  title: 'Set up your Comar Garage account',
+  greeting: first ? `Hi ${first},` : 'Hi,',
+  blocks: [
+    `An administrator created a **${ROLE_WORD[String(role).toUpperCase()] || 'team'}** account for you. Choose your own password to finish setting it up.`,
+    { type: 'rows', rows: [['Your sign-in email', recipientEmail], ['Link expires', expiresAt ? formatDateTime(expiresAt) : 'in 48 hours']] },
+    { type: 'small', text: 'The link works once. If it expires, ask an administrator to send a new invitation.' },
+  ],
+  cta: { label: 'Set my password', url: setPasswordUrl },
+  reason: 'You get this email because an administrator at Comar Garage invited you. If you do not work with Comar Garage, ignore it.',
+});
+
+const sendQrChangeOtpEmail = ({ recipientEmail, otp, requestedAt, requestIp }) => deliver({
+  to: recipientEmail,
+  subject: 'Your code to approve the payment QR change',
+  preheader: 'Use it within 5 minutes. Never share it with anyone.',
+  title: 'Confirm the payment QR change',
+  greeting: 'Hi,',
+  blocks: [
+    'Someone asked to change the **QR payment details** customers pay to in the Business Hub. Enter this code to approve it.',
+    { type: 'code', label: 'Approval code', code: otp, note: 'It works once and expires in **5 minutes**.' },
+    { type: 'rows', title: 'Request details', rows: [['Requested', formatDateTime(requestedAt || new Date())], ['Account', recipientEmail], ['Network address', requestIp || 'Not available']] },
+    { type: 'notice', tone: 'danger', title: 'Not you?', text: 'Do not share the code. Someone may be trying to redirect customer payments. Change your password now.' },
+  ],
+  reason: 'You get this email because payment details can only change with an administrator\'s approval.',
+});
+
+// ── Messages ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Admin announcement to every account. The message is plain text. */
+const sendAnnouncementEmail = ({ to, name, message }) => deliver({
+  to,
+  subject: `News from Comar Garage: ${String(message).trim().split(/\s+/).slice(0, 8).join(' ')}${String(message).trim().split(/\s+/).length > 8 ? '…' : ''}`,
+  preheader: String(message).trim().slice(0, 120),
+  title: 'A message from Comar Garage',
+  greeting: hi(name),
+  blocks: [{ type: 'quote', text: String(message).trim() }],
+  cta: { label: 'Open Comar Garage', url: appUrl('/login') },
+  reason: 'You get this email because you have a Comar Garage account.',
+});
+
+const sendPromoEmail = ({ to, name, promoName, discount, services, vehicles, validity, unsubscribeUrl }) => deliver({
+  to,
+  subject: `${promoName}: ${discount} at Comar Garage`,
+  preheader: `${discount}${services.length ? ` on ${services.slice(0, 2).join(', ')}` : ''}${validity ? `. Valid ${validity}.` : ''}`,
+  title: promoName,
+  greeting: hi(name),
+  blocks: [
+    `There's a new promo for your **${vehicles.join(', ')}**.`,
+    { type: 'rows', rows: [['Discount', discount, { strong: true, brand: true }], ['Services', services.join(', ')], ['Valid', validity]] },
+    'Choose one of these services when you book and the discount is applied automatically. No code needed.',
+  ],
+  cta: { label: 'Book now', url: appUrl('/customer/book') },
+  reason: 'You get this email because “Be the first to know about new promos” is on in your settings.',
+  unsubscribeUrl,
+  headers: unsubscribeUrl ? { 'List-Unsubscribe': `<${unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : undefined,
+});
+
+const sendInquiryReplyEmail = ({ to, name, body, replyTo }) => deliver({
+  to,
+  replyTo,
+  subject: 'Re: your message to Comar Garage',
+  preheader: String(body).trim().slice(0, 120),
+  title: 'We answered your message',
+  greeting: hi(name),
+  blocks: [{ type: 'quote', text: body }],
+  replyNote: 'Reply to this email to keep the conversation going. It reaches the shop directly.',
+  cta: { label: 'Create a free account', url: appUrl('/login') },
+  reason: 'You get this email because you sent us a message from comargarage.com. With an account you can book online and chat with us in the app.',
+});
+
+const sendInquiryToShopEmail = ({ to, name, email, message, conversationUrl }) => deliver({
+  to,
+  replyTo: email,
+  subject: `Website message from ${name}`,
+  preheader: String(message).trim().slice(0, 120),
+  title: 'New message from the website',
+  blocks: [
+    { type: 'rows', rows: [['From', name], ['Email', email]] },
+    { type: 'quote', text: message },
+    'Answer it in Message Inquiries. Your reply is emailed to them.',
+  ],
+  cta: conversationUrl ? { label: 'Open the conversation', url: conversationUrl } : null,
+  replyNote: 'Replying to this email writes straight to the sender, outside the app.',
+  reason: 'Sent to the shop inbox when someone writes from the website.',
+});
+
+const sendSupportReportEmail = ({ to, kindLabel, who, role, email, page, profileId, message }) => deliver({
+  to,
+  replyTo: email || undefined,
+  subject: `${kindLabel} from ${who}`,
+  preheader: String(message).trim().slice(0, 120),
+  title: kindLabel,
+  blocks: [
+    { type: 'rows', rows: [['From', `${who} (${String(role || '').toLowerCase()})`], ['Email', email || 'Not on file'], ['Page', page || ''], ['Account ID', profileId]] },
+    { type: 'quote', text: message },
+  ],
+  replyNote: email ? 'Replying to this email writes straight to the person who sent the report.' : 'This person has no email on file.',
+  reason: 'Sent to the support inbox from Report an Issue.',
 });
 
 module.exports = {
-  buildEmailShell,
+  configureShop,
+  getShop,
   send,
-  sendBookingConfirmationEmail,
-  sendPasswordResetEmail,
+  deliver,
+  sendPasswordConfirmationEmail,
+  sendPasswordChangedEmail,
   sendWrongPasswordSecurityNotice,
-  sendAccountInviteEmail,
-  sendAdminInviteEmail,
-  sendInviteAccountEmail,
   sendEmergencyRecoveryEmail,
+  sendEmailChangeCode,
+  sendInviteAccountEmail,
   sendQrChangeOtpEmail,
-  sendStatusUpdateEmail
+  sendAnnouncementEmail,
+  sendPromoEmail,
+  sendInquiryReplyEmail,
+  sendInquiryToShopEmail,
+  sendSupportReportEmail,
 };

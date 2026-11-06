@@ -12,9 +12,9 @@ const registerForm = read('frontend/src/components/auth/RegisterForm.jsx');
 const protectedRoute = read('frontend/src/components/ProtectedRoute.jsx');
 
 const checks = [
-  ['links: every email button reads VIEW BOOKING DETAILS',
+  ['links: every booking email button reads "View my booking"',
     !/VIEW IN PORTAL|VIEW RECEIPT IN PORTAL|CREATE ACCOUNT TO VIEW BOOKING/.test(bookingEmail + notificationEmail)
-    && /VIEW BOOKING DETAILS/.test(bookingEmail) && /VIEW BOOKING DETAILS/.test(notificationEmail)],
+    && /'View my booking'/.test(bookingEmail)],
   ['links: the site address comes from one setting, not scattered literals',
     /export const siteUrl/.test(bookingEmail) && (bookingEmail.match(/https:\/\/comargarage\.com/g) || []).length === 1],
   ['links: account holders go to login with a return path, walk-ins to registration with an invite',

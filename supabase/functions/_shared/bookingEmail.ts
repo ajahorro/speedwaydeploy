@@ -50,6 +50,8 @@
  * ============================================================================
  */
 
+import { renderEmail, formatDateTime as layoutDateTime } from './emailLayout.ts';
+
 // ── Data shapes ───────────────────────────────────────────────────────────
 //
 // These mirror the columns the lifecycle function actually selects. They are
@@ -241,116 +243,6 @@ export const extractOcrDetails = (booking?: BookingLike | null, payment?: Paymen
   };
 };
 
-// ── Shared chrome ───────────────────────────────────────────────────────────
-
-const shell = (title: string, inner: string): string => `
-  <div style="font-family:'Segoe UI',Tahoma,sans-serif;max-width:640px;margin:0 auto;background:#ffffff;color:#111827;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-    <div style="background:#C41F2B;padding:22px;text-align:center;color:#ffffff;">
-      <h1 style="margin:0;font-size:23px;letter-spacing:2px;">COMAR GARAGE</h1>
-    </div>
-    <div style="padding:30px;">
-      <h2 style="color:#C41F2B;margin:0 0 18px;">${escapeHtml(title)}</h2>
-      ${inner}
-    </div>
-    <div style="background:#f8fafc;padding:16px;text-align:center;font-size:12px;color:#6b7280;">
-      &copy; ${new Date().getFullYear()} Comar Garage. All Rights Reserved.
-    </div>
-  </div>`;
-
-const lifecycleSteps = ['SCHEDULED', 'CONFIRMED', 'IN PROGRESS', 'COMPLETED', 'RELEASED'];
-
-const renderLifecycle = (statusKey: string): string => {
-  const rawStatus = String(statusKey || '').toUpperCase().replaceAll('_', ' ');
-  const normalized = rawStatus === 'ONGOING' ? 'IN PROGRESS'
-    : rawStatus === 'SUBMITTED' ? 'SCHEDULED'
-      : rawStatus;
-  const activeIndex = lifecycleSteps.indexOf(normalized);
-  const isException = ['CANCELLED', 'FLAGGED NOSHOW'].includes(normalized);
-
-  return `<div style="margin:28px 0;padding:18px 10px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;">
-    <div style="font-size:11px;color:#6b7280;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;">Booking lifecycle</div>
-    <table role="presentation" style="width:100%;border-collapse:collapse;"><tr>
-      ${lifecycleSteps.map((step, index) => {
-        const isActive = index === activeIndex;
-        const isPast = activeIndex >= 0 && index < activeIndex;
-        const color = isException && index === 0 ? '#C41F2B' : (isActive || isPast ? '#C41F2B' : '#cbd5e1');
-        return `<td style="width:${100 / lifecycleSteps.length}%;text-align:center;vertical-align:top;">
-          <div style="margin:0 auto 8px;width:18px;height:18px;line-height:18px;border-radius:50%;background:${color};color:#fff;font-size:11px;font-weight:700;">${isPast || isActive ? '&#10003;' : ''}</div>
-          <div style="font-size:10px;line-height:13px;color:${isActive ? '#111827' : '#6b7280'};font-weight:${isActive ? '700' : '400'};">${step}</div>
-        </td>`;
-      }).join('')}
-    </tr></table>
-    ${isException ? `<div style="margin-top:12px;text-align:center;color:#C41F2B;font-size:12px;font-weight:700;">${escapeHtml(normalized)}</div>` : ''}
-  </div>`;
-};
-
-const bookingTable = (booking: BookingLike, appointmentDate: string, amounts: ReturnType<typeof resolveAmounts>): string => `
-  <table role="presentation" style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;">
-    <tr><td style="padding:12px 14px;color:#6b7280;font-size:13px;">Booking ID</td><td style="padding:12px 14px;text-align:right;font-weight:700;font-size:13px;">${escapeHtml(String(booking.id || '').slice(0, 8).toUpperCase())}</td></tr>
-    <tr><td style="padding:12px 14px;color:#6b7280;font-size:13px;">Booking Total</td><td style="padding:12px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.totalDue)}</td></tr>
-    <tr><td style="padding:12px 14px;color:#6b7280;font-size:13px;">Scheduled Time</td><td style="padding:12px 14px;text-align:right;font-weight:700;font-size:13px;">${escapeHtml(appointmentDate)}</td></tr>
-    ${booking.technician_name ? `<tr><td style="padding:12px 14px;color:#6b7280;font-size:13px;">Assigned Technician</td><td style="padding:12px 14px;text-align:right;font-weight:700;font-size:13px;">${escapeHtml(booking.technician_name)}</td></tr>` : ''}
-  </table>`;
-
-/**
- * The PAYMENT block. `includeOcr` is true for the submission mail (where the
- * point is "here is what we read off your receipt") and false for the
- * confirmation mail (where the money is already verified and the receipt PDF
- * carries the detail instead).
- */
-const paymentBlock = (
-  amounts: ReturnType<typeof resolveAmounts>,
-  ocr: OcrDetails | null,
-  { includeOcr = true, receiptAttached = false }: { includeOcr?: boolean; receiptAttached?: boolean } = {}
-): string => {
-  if (!amounts.hasPayment) return '';
-
-  const rows: string[] = [];
-  rows.push(`<tr><td style="padding:10px 14px;color:#6b7280;font-size:13px;">Amount Paid</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.grossPaid)}</td></tr>`);
-
-  if (amounts.transferFee > 0) {
-    rows.push(`<tr><td style="padding:10px 14px;color:#6b7280;font-size:13px;">Amount Received</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.netReceived)}</td></tr>`);
-  }
-
-  if (amounts.creditApplied > 0) {
-    rows.push(`<tr><td style="padding:10px 14px;color:#6b7280;font-size:13px;">Credit Applied</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.creditApplied)}</td></tr>`);
-  }
-
-  if (amounts.excessCredit > 0) {
-    rows.push(`<tr><td style="padding:10px 14px;color:#6b7280;font-size:13px;">Recorded as Excess Credit</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.excessCredit)}</td></tr>`);
-  }
-
-  rows.push(`<tr><td style="padding:10px 14px;color:#6b7280;font-size:13px;">${amounts.remainingBalance > 0 ? 'Balance Still Due' : 'Booking Total'}</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-size:13px;">${formatPeso(amounts.remainingBalance > 0 ? amounts.remainingBalance : amounts.totalDue)}</td></tr>`);
-
-  // ── What the OCR actually read off the receipt ──────────────────────────
-  const ocrRows: string[] = [];
-  if (includeOcr && ocr) {
-    if (ocr.reference) ocrRows.push(`<tr><td style="padding:8px 14px;color:#6b7280;font-size:12px;">Reference No.</td><td style="padding:8px 14px;text-align:right;font-weight:600;font-size:12px;">${escapeHtml(ocr.reference)}</td></tr>`);
-    if (ocr.recipientAccount) ocrRows.push(`<tr><td style="padding:8px 14px;color:#6b7280;font-size:12px;">Recipient Account</td><td style="padding:8px 14px;text-align:right;font-weight:600;font-size:12px;">${escapeHtml(ocr.recipientAccount)}</td></tr>`);
-    if (ocr.transactionAt) ocrRows.push(`<tr><td style="padding:8px 14px;color:#6b7280;font-size:12px;">Transaction Date</td><td style="padding:8px 14px;text-align:right;font-weight:600;font-size:12px;">${escapeHtml(ocr.transactionAt)}</td></tr>`);
-    if (ocr.detectedNet > 0) ocrRows.push(`<tr><td style="padding:8px 14px;color:#6b7280;font-size:12px;">Amount Read From Receipt</td><td style="padding:8px 14px;text-align:right;font-weight:600;font-size:12px;">${formatPeso(ocr.detectedNet)}</td></tr>`);
-  }
-
-  const ocrSection = ocrRows.length
-    ? `<div style="font-size:11px;color:#6b7280;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:18px 0 8px;">Receipt Details (auto-read)</div>
-       <table role="presentation" style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;">${ocrRows.join('')}</table>`
-    : (includeOcr && amounts.hasPayment && amounts.paymentStatus === 'FOR_VERIFICATION'
-      ? `<div style="margin-top:12px;padding:10px 12px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;color:#6b7280;">We could not automatically read the receipt details. Our team will verify your payment manually.</div>`
-      : '');
-
-  const statusNote = amounts.paymentStatus === 'FOR_VERIFICATION'
-    ? `<div style="margin-top:14px;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;border-radius:6px;font-size:12px;color:#92400e;">Your payment is queued for verification. We will send your official receipt once it is approved.</div>`
-    : amounts.paymentStatus === 'PAID'
-      ? `<div style="margin-top:14px;padding:10px 12px;background:#ecfdf5;border:1px solid #a7f3d0;border-left:4px solid #10b981;border-radius:6px;font-size:12px;color:#065f46;">${receiptAttached ? 'Payment verified. A detailed itemised receipt is attached to this email.' : 'Payment verified. Your itemised receipt will be available after the booking balance is paid.'}</div>`
-      : '';
-
-  return `
-    <div style="font-size:11px;color:#6b7280;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:24px 0 10px;">Payment</div>
-    <table role="presentation" style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;">${rows.join('')}</table>
-    ${ocrSection}
-    ${statusNote}`;
-};
-
 /** The public address of the website (set SITE_URL on the function to change it). */
 export const siteUrl = (): string => {
   const configured = (globalThis as { Deno?: { env: { get(key: string): string | undefined } } })
@@ -361,7 +253,7 @@ export const siteUrl = (): string => {
 /** Where a signed-out visitor lands after signing in: this booking's details. */
 export const bookingDetailsPath = (bookingId: string): string => `/customer/bookings/${bookingId}`
 
-const BOOKING_DETAILS_LABEL = 'VIEW BOOKING DETAILS'
+const BOOKING_DETAILS_LABEL = 'View my booking'
 
 const portalUrlFor = (booking: BookingLike): { url: string; label: string } => {
   const next = booking.id ? bookingDetailsPath(booking.id) : '/customer'
@@ -377,193 +269,303 @@ const portalUrlFor = (booking: BookingLike): { url: string; label: string } => {
   }
 }
 
-const ctaButton = (booking: BookingLike, _label?: string): string => {
-  const portal = portalUrlFor(booking)
-  return `<div style="margin-top:28px;text-align:center;"><a href="${escapeHtml(portal.url)}" style="background:#C41F2B;color:#ffffff;padding:13px 26px;text-decoration:none;border-radius:2px;font-weight:700;display:inline-block;">${escapeHtml(portal.label)}</a></div>`
+// ── Shared chrome: the one layout every Comar Garage email uses ─────────────
+
+type LayoutBlock = string | Record<string, unknown>;
+
+/** Shop details for the footer (Business Hub › Business Profile). */
+export interface ShopInfo {
+  name?: string | null
+  address?: string | null
+  site?: string | null
+  phone?: string | null
+  email?: string | null
 }
+
+const MANILA = 'Asia/Manila';
+const shortDate = (value: unknown): string => {
+  if (!value) return '';
+  const d = new Date(value as string);
+  return Number.isNaN(d.getTime()) ? '' : new Intl.DateTimeFormat('en-PH', { timeZone: MANILA, weekday: 'short', month: 'short', day: 'numeric' }).format(d);
+};
+const shortTime = (value: unknown): string => {
+  if (!value) return '';
+  const d = new Date(value as string);
+  return Number.isNaN(d.getTime()) ? '' : new Intl.DateTimeFormat('en-PH', { timeZone: MANILA, hour: 'numeric', minute: '2-digit' }).format(d);
+};
+const refOf = (booking: BookingLike | null | undefined): string => String(booking?.id || '').slice(0, 8).toUpperCase();
+const firstNameOf = (name: unknown): string => (/^valued customer$/i.test(String(name || '').trim()) ? '' : String(name || '').trim().split(/\s+/)[0] || '');
+const greetingFor = (name: unknown): string => (firstNameOf(name) ? `Hi ${firstNameOf(name)},` : 'Hi,');
+
+const shell = (o: {
+  title: string
+  preheader: string
+  customerName?: string | null
+  blocks: LayoutBlock[]
+  booking: BookingLike
+  shop?: ShopInfo | null
+}): { html: string; text: string } => {
+  const portal = portalUrlFor(o.booking);
+  return renderEmail({
+    title: o.title,
+    preheader: o.preheader,
+    greeting: greetingFor(o.customerName),
+    blocks: o.blocks,
+    cta: { label: 'View my booking', url: portal.url },
+    reason: 'You get this email because you have a booking with Comar Garage.',
+    shop: { ...(o.shop || {}), site: o.shop?.site || siteUrl() },
+  });
+};
+
+/** Where the booking is: Booked, Confirmed, In progress, Ready, Released (none for cancelled or no-show). */
+const STEP_INDEX: Record<string, number> = { SCHEDULED: 0, SUBMITTED: 0, PENDING: 0, CONFIRMED: 1, IN_PROGRESS: 2, ONGOING: 2, COMPLETED: 3, RELEASED: 4 };
+const renderLifecycle = (statusKey: string): LayoutBlock | null => {
+  const index = STEP_INDEX[String(statusKey || '').toUpperCase()];
+  return index === undefined ? null : { type: 'steps', active: index };
+};
+
+const bookingTable = (booking: BookingLike, amounts: ReturnType<typeof resolveAmounts>): LayoutBlock => ({
+  type: 'rows',
+  title: 'Your booking',
+  rows: [
+    ['Booking no.', refOf(booking)],
+    ['Date and time', layoutDateTime(booking?.start_datetime)],
+    ['Technician', booking.technician_name || ''],
+    ['Booking total', formatPeso(amounts.totalDue)],
+  ],
+});
+
+/**
+ * The PAYMENT blocks. `includeOcr` is true for the submission mail (where the point is "here is what we read off
+ * your receipt") and false once the money is verified (the receipt PDF carries the detail instead).
+ */
+const paymentBlock = (
+  amounts: ReturnType<typeof resolveAmounts>,
+  ocr: OcrDetails | null,
+  { includeOcr = true, receiptAttached = false }: { includeOcr?: boolean; receiptAttached?: boolean } = {}
+): LayoutBlock[] => {
+  if (!amounts.hasPayment) return [];
+  const rows: string[][] = [];
+  rows.push(['Amount paid', formatPeso(amounts.grossPaid)]);
+  if (amounts.transferFee > 0) rows.push(['Amount received (after transfer fee)', formatPeso(amounts.netReceived)]);
+  if (amounts.creditApplied > 0) rows.push(['Credit used', formatPeso(amounts.creditApplied)]);
+  if (amounts.excessCredit > 0) rows.push(['Saved as credit for next time', formatPeso(amounts.excessCredit)]);
+  rows.push(amounts.remainingBalance > 0 ? ['Balance to pay', formatPeso(amounts.remainingBalance)] : ['Balance to pay', formatPeso(0)]);
+
+  const blocks: LayoutBlock[] = [{ type: 'rows', title: 'Payment', rows }];
+
+  const ocrRows: string[][] = [];
+  if (includeOcr && ocr) {
+    if (ocr.reference) ocrRows.push(['Reference no.', ocr.reference]);
+    if (ocr.transactionAt) ocrRows.push(['Paid on', ocr.transactionAt]);
+    if (ocr.detectedNet > 0) ocrRows.push(['Amount on the receipt', formatPeso(ocr.detectedNet)]);
+  }
+  if (ocrRows.length) blocks.push({ type: 'rows', title: 'What we read from your receipt', rows: ocrRows });
+
+  if (amounts.paymentStatus === 'FOR_VERIFICATION') {
+    blocks.push({ type: 'notice', tone: 'warn', text: ocrRows.length || !includeOcr
+      ? 'We are checking your payment. You will get an official receipt by email once it is approved.'
+      : 'We could not read your receipt automatically, so a person will check it. You will get an official receipt once it is approved.' });
+  } else if (amounts.paymentStatus === 'PAID') {
+    blocks.push({ type: 'notice', tone: 'success', text: receiptAttached ? 'Payment verified. Your official receipt is attached as a PDF.' : 'Payment verified. Your official receipt is in your account.' });
+  }
+  return blocks;
+};
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * The SUBMISSION email: booking + payment as submitted (OCR detail included),
- * explicitly NOT yet verified.
+ * The SUBMISSION email: booking + payment as submitted (OCR detail included), explicitly NOT yet verified.
  */
-export const buildBookingCreatedEmail = ({ booking, payment, ledger, customerName }: {
+export const buildBookingCreatedEmail = ({ booking, payment, ledger, customerName, shop }: {
   booking: BookingLike
   payment?: PaymentLike | null
   ledger?: LedgerLike | null
   customerName?: string | null
+  shop?: ShopInfo | null
 }) => {
   const amounts = resolveAmounts(ledger, payment);
   const ocr = extractOcrDetails(booking, payment);
-  const appointmentDate = formatDateTime(booking?.start_datetime);
-
-  const body = `
-    <p style="font-size:16px;">Hi ${escapeHtml(customerName)},</p>
-    <p style="font-size:15px;line-height:1.6;">${escapeHtml(
-      `${SITE_INTRO} Your appointment has been scheduled and your time slot is reserved.`
-    )}</p>
-    ${bookingTable(booking, appointmentDate, amounts)}
-    ${paymentBlock(amounts, ocr)}
-    ${renderLifecycle(booking?.status || 'SCHEDULED')}
-    ${ctaButton(booking, 'VIEW BOOKING DETAILS')}`;
-
-  const paymentState = amounts.paymentStatus === 'PAID' ? 'payment verified' : 'payment awaiting verification';
+  const day = shortDate(booking?.start_datetime);
+  const { html, text } = shell({
+    title: amounts.hasPayment ? 'We got your booking and payment' : 'We got your booking',
+    preheader: `${day ? `${day} at ${shortTime(booking?.start_datetime)}. ` : ''}${amounts.hasPayment ? 'We are checking your payment now.' : 'Your time slot is reserved.'}`,
+    customerName,
+    booking,
+    shop,
+    blocks: [
+      `Thank you for booking with Comar Garage. Your time slot is reserved${amounts.hasPayment ? ' and we are checking your payment' : ''}.`,
+      bookingTable(booking, amounts),
+      ...paymentBlock(amounts, ocr),
+      renderLifecycle(booking?.status || 'SCHEDULED'),
+    ].filter(Boolean) as LayoutBlock[],
+  });
   const subject = amounts.hasPayment
-    ? `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} scheduled — ${formatPeso(amounts.grossPaid)} ${paymentState}`
-    : `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} scheduled`;
-
-  return { subject, html: shell('Booking Scheduled', body), amounts, ocr };
+    ? `We got your booking and payment for ${day || 'your appointment'} (#${refOf(booking)})`
+    : `We got your booking for ${day || 'your appointment'} (#${refOf(booking)})`;
+  return { subject, html, text, amounts, ocr };
 };
 
 /**
- * The CONFIRMATION email. This is where the OFFICIAL RECEIPT (PDF) belongs: a
- * receipt may only be issued against VERIFIED money, so it must not ride on the
- * submission mail where the payment could still be rejected.
+ * The CONFIRMATION email. This is where the OFFICIAL RECEIPT (PDF) belongs: a receipt may only be issued against
+ * VERIFIED money, so it must not ride on the submission mail where the payment could still be rejected.
  */
-export const buildBookingConfirmedEmail = ({ booking, payment, ledger, customerName, hasReceipt }: {
+export const buildBookingConfirmedEmail = ({ booking, payment, ledger, customerName, hasReceipt, shop }: {
   booking: BookingLike
   payment?: PaymentLike | null
   ledger?: LedgerLike | null
   customerName?: string | null
   hasReceipt?: boolean
+  shop?: ShopInfo | null
 }) => {
   const amounts = resolveAmounts(ledger, payment);
-  const appointmentDate = formatDateTime(booking?.start_datetime);
-
-  const body = `
-    <p style="font-size:16px;">Hi ${escapeHtml(customerName)},</p>
-    <p style="font-size:15px;line-height:1.6;">Your payment has been verified and your appointment is now confirmed. ${hasReceipt ? 'Your itemised receipt is attached to this email.' : 'Your payment details are available in your portal; an official receipt will be issued when the booking balance is paid.'}</p>
-    ${bookingTable(booking, appointmentDate, amounts)}
-    ${paymentBlock(amounts, null, { includeOcr: false, receiptAttached: hasReceipt })}
-    ${renderLifecycle('CONFIRMED')}
-    ${ctaButton(booking, 'VIEW BOOKING DETAILS')}`;
-
-  return {
-    subject: `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} confirmed${amounts.hasPayment ? ` — ${formatPeso(amounts.creditedToBooking)} received` : ''}`,
-    html: shell('Booking Confirmed', body),
-    amounts,
-  };
+  const day = shortDate(booking?.start_datetime);
+  const { html, text } = shell({
+    title: 'Your booking is confirmed',
+    preheader: `See you on ${day || 'your appointment day'} at ${shortTime(booking?.start_datetime)}.`,
+    customerName,
+    booking,
+    shop,
+    blocks: [
+      `We verified your payment and confirmed your appointment. ${hasReceipt ? 'Your official receipt is attached.' : 'Your payment details are in your account.'}`,
+      bookingTable(booking, amounts),
+      ...paymentBlock(amounts, null, { includeOcr: false, receiptAttached: hasReceipt }),
+      renderLifecycle('CONFIRMED'),
+      { type: 'small', text: 'Please arrive on time. If we cannot start within an hour of your booked time, the booking may be marked as a no-show.' },
+    ].filter(Boolean) as LayoutBlock[],
+  });
+  return { subject: `Your booking on ${day || 'your appointment day'} is confirmed (#${refOf(booking)})`, html, text, amounts };
 };
 
-const SITE_INTRO = 'Thank you for choosing Comar Garage.';
-
 /**
- * PAYMENT RECEIVED: sent once per verified payment (claim key
- * payment_verified:<payment id>) with that payment's transaction receipt.
+ * PAYMENT RECEIVED: sent once per verified payment (claim key payment_verified:<payment id>) with that payment's
+ * transaction receipt.
  */
-export const buildPaymentVerifiedEmail = ({ booking, payment, ledger, customerName, hasReceipt, hasStatement }: {
+export const buildPaymentVerifiedEmail = ({ booking, payment, ledger, customerName, hasReceipt, hasStatement, shop }: {
   booking: BookingLike
   payment?: PaymentLike | null
   ledger?: LedgerLike | null
   customerName?: string | null
   hasReceipt?: boolean
   hasStatement?: boolean
+  shop?: ShopInfo | null
 }) => {
   const amounts = resolveAmounts(ledger, payment);
-  const appointmentDate = formatDateTime(booking?.start_datetime);
-  const attachmentsNote = [
-    hasReceipt ? 'the official receipt for this payment' : null,
-    hasStatement ? 'your Statement of Account (the booking is now fully paid)' : null,
-  ].filter(Boolean).join(' and ');
-
-  const body = `
-    <p style="font-size:16px;">Hi ${escapeHtml(customerName)},</p>
-    <p style="font-size:15px;line-height:1.6;">We have verified your payment.${attachmentsNote ? ` Attached is ${escapeHtml(attachmentsNote)}.` : ''}</p>
-    ${bookingTable(booking, appointmentDate, amounts)}
-    ${paymentBlock(amounts, null, { includeOcr: false, receiptAttached: Boolean(hasReceipt) })}
-    ${ctaButton(booking, 'VIEW BOOKING DETAILS')}`;
-
-  return {
-    subject: `Comar Garage: Payment received for booking #${String(booking?.id || '').slice(0, 8).toUpperCase()}${amounts.fullySettled ? ' — fully paid' : ''}`,
-    html: shell('Payment Received', body),
-    amounts,
-  };
+  const attached = [hasReceipt ? 'the official receipt for this payment' : null, hasStatement ? 'your Statement of Account' : null].filter(Boolean).join(' and ');
+  const { html, text } = shell({
+    title: 'We received your payment',
+    preheader: `${formatPeso(amounts.verifiedGrossPaid || amounts.grossPaid)} received for booking #${refOf(booking)}.`,
+    customerName,
+    booking,
+    shop,
+    blocks: [
+      `We verified your payment for booking **#${refOf(booking)}**.${attached ? ` Attached is ${attached}.` : ''}`,
+      bookingTable(booking, amounts),
+      ...paymentBlock(amounts, null, { includeOcr: false, receiptAttached: Boolean(hasReceipt) }),
+    ],
+  });
+  return { subject: `Payment received for booking #${refOf(booking)}${amounts.fullySettled ? ': fully paid' : ''}`, html, text, amounts };
 };
 
 /**
- * FULLY PAID: sent once per booking (claim key booking_settled) when the ledger
- * first reports fully_settled, carrying the cumulative Statement of Account.
+ * FULLY PAID: sent once per booking (claim key booking_settled) when the ledger first reports fully_settled,
+ * carrying the cumulative Statement of Account.
  */
-export const buildBookingSettledEmail = ({ booking, ledger, customerName }: {
+export const buildBookingSettledEmail = ({ booking, ledger, customerName, shop }: {
   booking: BookingLike
   ledger?: LedgerLike | null
   customerName?: string | null
+  shop?: ShopInfo | null
 }) => {
   const amounts = resolveAmounts(ledger, null);
-  const appointmentDate = formatDateTime(booking?.start_datetime);
-  const body = `
-    <p style="font-size:16px;">Hi ${escapeHtml(customerName)},</p>
-    <p style="font-size:15px;line-height:1.6;">Your booking is now fully paid. Your Statement of Account, listing every payment and refund, is attached.</p>
-    ${bookingTable(booking, appointmentDate, amounts)}
-    ${ctaButton(booking, 'VIEW BOOKING DETAILS')}`;
-  return {
-    subject: `Comar Garage: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} fully paid — Statement of Account`,
-    html: shell('Booking Fully Paid', body),
-    amounts,
-  };
+  const { html, text } = shell({
+    title: 'Your booking is fully paid',
+    preheader: 'Your Statement of Account is attached.',
+    customerName,
+    booking,
+    shop,
+    blocks: [
+      'Thank you. Your booking is fully paid. The attached Statement of Account lists every payment and refund for it.',
+      bookingTable(booking, amounts),
+    ],
+  });
+  return { subject: `Booking #${refOf(booking)} is fully paid`, html, text, amounts };
 };
 
 const STATUS_COPY: Record<string, string> = {
-  IN_PROGRESS: "Great news! We've started detailing your vehicle.",
-  ONGOING: "Great news! We've started detailing your vehicle.",
-  COMPLETED: 'Your ride is ready for pickup! Check your portal for the final receipt.',
-  RELEASED: 'Your vehicle has been released. Thank you for choosing Comar Garage. Please come again for your future detailing needs!',
-  CANCELLED: 'Your booking has been cancelled. Please check your portal for details regarding your refund or rescheduling.',
-  FLAGGED_NOSHOW: 'We missed you! Your slot has expired. Visit the Refund Hub for details.',
+  IN_PROGRESS: 'Our team has started working on your vehicle. We will email you when it is ready.',
+  ONGOING: 'Our team has started working on your vehicle. We will email you when it is ready.',
+  COMPLETED: 'Your vehicle is ready for pickup. Please settle any balance at the shop when you collect it.',
+  RELEASED: 'Your vehicle has been released. Thank you for choosing Comar Garage. We hope to see you again.',
+  CANCELLED: 'Your booking has been cancelled. If you paid, your account shows whether a refund applies and how it is going.',
+  FLAGGED_NOSHOW: 'We waited, but you did not arrive within an hour of your booked time, so the slot was released. Your account shows what happens to any payment.',
+};
+const STATUS_TITLE: Record<string, string> = {
+  IN_PROGRESS: 'We started on your vehicle', ONGOING: 'We started on your vehicle', COMPLETED: 'Your vehicle is ready for pickup',
+  RELEASED: 'Thank you for visiting', CANCELLED: 'Your booking was cancelled', FLAGGED_NOSHOW: 'We missed you',
+};
+const STATUS_SUBJECT: Record<string, (ref: string) => string> = {
+  IN_PROGRESS: (ref) => `We started on your vehicle (#${ref})`,
+  ONGOING: (ref) => `We started on your vehicle (#${ref})`,
+  COMPLETED: (ref) => `Your vehicle is ready for pickup (#${ref})`,
+  RELEASED: (ref) => `Thanks for visiting Comar Garage (#${ref})`,
+  CANCELLED: (ref) => `Your booking #${ref} was cancelled`,
+  FLAGGED_NOSHOW: (ref) => `We missed you at your appointment (#${ref})`,
 };
 
 /** A plain major status-change email; the lifecycle dispatcher may attach a settled receipt. */
-export const buildStatusEmail = ({ booking, payment, ledger, customerName, newStatus, remarks }: {
+export const buildStatusEmail = ({ booking, payment, ledger, customerName, newStatus, remarks, shop }: {
   booking: BookingLike
   payment?: PaymentLike | null
   ledger?: LedgerLike | null
   customerName?: string | null
   newStatus?: string | null
   remarks?: string | null
-}): { subject: string; html: string; amounts: ReturnType<typeof resolveAmounts> } => {
+  shop?: ShopInfo | null
+}): { subject: string; html: string; text: string; amounts: ReturnType<typeof resolveAmounts> } => {
   const statusKey = String(newStatus || '').toUpperCase();
   const amounts = resolveAmounts(ledger, payment);
-  const appointmentDate = formatDateTime(booking?.start_datetime);
-
-  const body: string = `
-    <p style="font-size:16px;">Hi ${escapeHtml(customerName)},</p>
-    <p style="font-size:15px;line-height:1.6;">${escapeHtml(STATUS_COPY[statusKey] || `Your booking status has been updated to ${newStatus}.`)}</p>
-    ${bookingTable(booking, appointmentDate, amounts)}
-    ${paymentBlock(amounts, extractOcrDetails(booking, payment))}
-    ${renderLifecycle(statusKey)}
-    ${remarks ? `<p style="margin-top:15px;padding:10px;background:#f8fafc;border-left:4px solid #C41F2B;"><strong>Note:</strong> ${escapeHtml(remarks)}</p>` : ''}
-    ${ctaButton(booking, 'VIEW BOOKING DETAILS')}`;
-
-  return {
-    subject: `Comar Garage Update: Booking #${String(booking?.id || '').slice(0, 8).toUpperCase()} is now ${statusKey}`,
-    html: shell('Booking Status Update', body),
-    amounts,
-  };
+  const readable = statusKey.toLowerCase().replaceAll('_', ' ');
+  const { html, text } = shell({
+    title: STATUS_TITLE[statusKey] || 'Booking update',
+    preheader: STATUS_COPY[statusKey] || `Your booking is now ${readable}.`,
+    customerName,
+    booking,
+    shop,
+    blocks: [
+      STATUS_COPY[statusKey] || `Your booking is now **${readable}**.`,
+      remarks ? { type: 'notice', tone: 'info', title: 'Note from the shop', text: String(remarks) } : null,
+      bookingTable(booking, amounts),
+      ...paymentBlock(amounts, extractOcrDetails(booking, payment)),
+      renderLifecycle(statusKey),
+    ].filter(Boolean) as LayoutBlock[],
+  });
+  return { subject: (STATUS_SUBJECT[statusKey] || ((ref: string) => `Update on booking #${ref}`))(refOf(booking)), html, text, amounts };
 };
 
-/** The reminder mail (scheduled) — unchanged content, shared chrome. */
-export const buildReminderEmail = ({ booking, payment, ledger, customerName }: {
+/** The reminder mail (scheduled), one hour before a confirmed booking. */
+export const buildReminderEmail = ({ booking, payment, ledger, customerName, shop }: {
   booking: BookingLike
   payment?: PaymentLike | null
   ledger?: LedgerLike | null
   customerName?: string | null
+  shop?: ShopInfo | null
 }) => {
   const amounts = resolveAmounts(ledger, payment);
-  const appointmentDate = formatDateTime(booking?.start_datetime);
-
-  const body = `
-    <p style="font-size:16px;">Hi ${escapeHtml(customerName)},</p>
-    <p style="font-size:15px;line-height:1.6;">This is a reminder that your confirmed appointment is scheduled for ${escapeHtml(appointmentDate)}. Please arrive on time. If service has not started within one hour after your scheduled time, the booking will be flagged as a No-Show.</p>
-    ${bookingTable(booking, appointmentDate, amounts)}
-    ${renderLifecycle(booking?.status || 'CONFIRMED')}
-    ${ctaButton(booking, 'VIEW BOOKING DETAILS')}`;
-
-  return {
-    subject: 'Reminder: Your confirmed Comar Garage appointment is in 1 hour',
-    html: shell('Appointment Reminder', body),
-    amounts,
-  };
+  const time = shortTime(booking?.start_datetime);
+  const { html, text } = shell({
+    title: `See you at ${time || 'your booked time'}`,
+    preheader: 'Your Comar Garage appointment is in about an hour.',
+    customerName,
+    booking,
+    shop,
+    blocks: [
+      `A reminder that your appointment is at **${time || 'your booked time'}** today.`,
+      bookingTable(booking, amounts),
+      { type: 'small', text: 'If we cannot start within an hour of your booked time, the booking may be marked as a no-show. Running late? Message us in the app.' },
+    ],
+  });
+  return { subject: `Reminder: your Comar Garage appointment is at ${time || 'your booked time'} today`, html, text, amounts };
 };
 
 /**

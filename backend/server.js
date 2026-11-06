@@ -18,7 +18,11 @@ const { checkEnvironment } = require('./config/startupGuard');
 const startupConfig = checkEnvironment();
 const { validateBookingRequest } = require('./services/scheduleValidation');
 const { Resend } = require('resend');
-const { buildEmailShell, send, sendBookingConfirmationEmail, sendPasswordResetEmail, sendWrongPasswordSecurityNotice, sendAccountInviteEmail, sendAdminInviteEmail, sendInviteAccountEmail, sendEmergencyRecoveryEmail, sendQrChangeOtpEmail } = require('./services/emailService');
+const {
+  configureShop: configureEmailShop, sendPasswordConfirmationEmail: sendPasswordLinkEmail, sendPasswordChangedEmail,
+  sendWrongPasswordSecurityNotice, sendInviteAccountEmail, sendEmergencyRecoveryEmail, sendQrChangeOtpEmail,
+  sendEmailChangeCode, sendAnnouncementEmail, sendPromoEmail, sendInquiryReplyEmail, sendInquiryToShopEmail, sendSupportReportEmail
+} = require('./services/emailService');
 // EMAIL AUTH POLICY: single source of truth for LINK vs OTP per flow.
 // See docs/EMAIL_AUTH_POLICY.md. Guards below keep UI copy and delivery in sync.
 const { DELIVERY, assertDelivery } = require('./config/emailPolicy');
@@ -35,7 +39,6 @@ const { appUrl } = require('./services/appUrl');
 // ONE money model shared by the receipt email, the receipt PDF and the portal,
 // plus the OCR-vs-recorded reconciliation that surfaces amount drift.
 const resendClient = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const RESEND_FROM = process.env.RESEND_FROM || 'Comar Garage <bookings@yourdomain.com>';
 
 // ── GLOBAL PROCESS CRASH GUARDS (B1) ────────────────────────────────────────
 // The per-route try/catch blocks already return a 500 JSON for anything thrown
@@ -227,6 +230,11 @@ if (supabaseUrl && supabaseKey) {
     }
   });
   console.log('📦 Supabase Admin initialized.');
+  // email footers show the shop's name, address, phone and email from the Business Hub
+  configureEmailShop(async () => {
+    const { data } = await supabaseAdmin.from('business_config').select('business_name, business_address, contact_number, email_address').order('id').limit(1).maybeSingle();
+    return data || null;
+  });
 } else {
   console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY missing. Database-dependent features (Emails/Invites) will be disabled, but AI services will remain active.');
 }
@@ -519,8 +527,44 @@ const describePromo = (rule) => {
   return { discount, window };
 };
 
+// ── Promo unsubscribe links (signed, so nobody can switch off someone else's emails) ─────────────────────────────
+const emailLinkSecret = () => process.env.EMAIL_LINK_SECRET
+  || crypto.createHash('sha256').update(`email-links:${process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || 'dev'}`).digest('hex');
+const signEmailLink = (userId) => crypto.createHmac('sha256', emailLinkSecret()).update(`unsubscribe:promos:${userId}`).digest('base64url').slice(0, 32);
+/** comargarage.com/api/email/unsubscribe is passed to the backend by a Vercel rewrite, so the link shows our domain. */
+const emailUnsubscribeUrl = (userId) => appUrl(`/api/email/unsubscribe?u=${encodeURIComponent(userId)}&t=${signEmailLink(userId)}`);
+
+// One click from the promo email (or the inbox's own Unsubscribe button) turns off promo emails for that account.
+const unsubscribePage = (title, body) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title>
+<style>:root{color-scheme:light dark}body{margin:0;font-family:'Segoe UI',Roboto,Arial,sans-serif;background:#efeeec;color:#18181b;display:grid;place-items:center;min-height:100vh;padding:16px;box-sizing:border-box}
+@media (prefers-color-scheme:dark){body{background:#141315;color:#f2f0ee}main{background:#1d1c1f!important;border-color:#2f2d31!important}}
+main{max-width:440px;background:#fff;border:1px solid #e7e4e0;border-radius:4px;padding:28px}h1{font-size:20px;margin:0 0 10px}p{line-height:1.6;margin:0 0 12px}a{color:#C41F2B}</style></head>
+<body><main><h1>${escapeHtml(title)}</h1>${body}</main></body></html>`;
+const handleUnsubscribe = async (req, res) => {
+  const userId = String(req.query.u || '').trim();
+  const token = String(req.query.t || '').trim();
+  const valid = /^[0-9a-f-]{36}$/i.test(userId) && token.length === 32
+    && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(signEmailLink(userId)));
+  if (!valid || !supabaseAdmin) {
+    return res.status(400).type('html').send(unsubscribePage('This link does not work', '<p>The unsubscribe link is incomplete or was changed. Turn promo emails off in Settings in your Comar Garage account instead.</p>'));
+  }
+  try {
+    const { data: profile } = await supabaseAdmin.from('profiles').select('notification_preferences').eq('id', userId).maybeSingle();
+    const prefs = { ...(profile?.notification_preferences && typeof profile.notification_preferences === 'object' ? profile.notification_preferences : {}), emailNewPromos: false };
+    const { error } = await supabaseAdmin.from('profiles').update({ notification_preferences: prefs }).eq('id', userId);
+    if (error) throw error;
+    if (req.method === 'POST') return res.status(200).send('Unsubscribed');
+    return res.type('html').send(unsubscribePage('You are unsubscribed', `<p>You will not get promo emails from Comar Garage any more. Booking and account emails still arrive.</p><p>Changed your mind? Turn “Be the first to know about new promos” back on in Settings.</p><p><a href="${escapeHtml(appUrl('/login'))}">Go to Comar Garage</a></p>`));
+  } catch (error) {
+    console.error('📧 [UNSUBSCRIBE] failed:', error.message);
+    return res.status(500).type('html').send(unsubscribePage('Something went wrong', '<p>We could not update your settings. Please try again, or turn promo emails off in Settings.</p>'));
+  }
+};
+app.get('/api/email/unsubscribe', handleUnsubscribe);
+app.post('/api/email/unsubscribe', express.urlencoded({ extended: false }), handleUnsubscribe);
+
 const sendNewPromoEmails = (rule) => {
-  if (!supabaseAdmin || !resendClient) {
+  if (!supabaseAdmin || !process.env.RESEND_API_KEY) {
     console.warn(`📧 [PROMO EMAIL] Skipped "${rule?.name}" — supabase/resend unavailable.`);
     return;
   }
@@ -553,20 +597,20 @@ const sendNewPromoEmails = (rule) => {
           const key = Object.keys(matrix).find((k) => k.toLowerCase() === String(type).toLowerCase());
           return key && Array.isArray(matrix[key]) ? matrix[key] : [];
         }))];
-        const html = `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
-          <h2 style="color: #C41F2B;">New promo at ${escapeHtml(process.env.BUSINESS_NAME || 'Comar Garage')}</h2>
-          <p style="font-size: 16px; color: #e5e7eb;">Hi ${escapeHtml(p.full_name || 'there')},</p>
-          <p style="font-size: 16px; color: #e5e7eb;"><strong>${escapeHtml(rule.name)}</strong>: ${escapeHtml(discount)}${services.length ? ' on ' + escapeHtml(services.join(', ')) : ''}.</p>
-          <p style="font-size: 14px; color: #9ca3af;">For your ${escapeHtml(mine.map((v) => [v.brand, v.model].filter(Boolean).join(' ') || v.type).join(', '))}.${window ? ' Valid ' + escapeHtml(window) + '.' : ''}</p>
-          <p style="font-size: 14px; color: #9ca3af;">Pick the service when you book. The promo shows on it.</p>
-          <hr style="border: none; border-top: 1px solid #374151; margin: 20px 0;" />
-          <p style="font-size: 12px; color: #9ca3af;">You get this because "Be the first to know about new promos" is on. Turn it off in Settings.</p>
-        </div>`;
         try {
-          const { error: sendError } = await resendClient.emails.send({ from: RESEND_FROM, to: [p.email], subject: `New promo: ${rule.name}`, html });
-          if (sendError) throw new Error(sendError.message || 'send failed');
+          const result = await sendPromoEmail({
+            to: p.email,
+            name: p.full_name,
+            promoName: rule.name,
+            discount,
+            services,
+            vehicles: mine.map((v) => [v.brand, v.model].filter(Boolean).join(' ') || v.type),
+            validity: window,
+            unsubscribeUrl: emailUnsubscribeUrl(p.id),
+          });
+          if (!result.success) throw new Error(result.error || 'send failed');
           sent += 1;
-          await new Promise((r) => setTimeout(r, 100)); // rate-limit buffer
+          await new Promise((r) => setTimeout(r, 600)); // stay under the provider's per-second limit
         } catch (emailErr) {
           console.error(`[PROMO EMAIL ERROR] ${p.email}:`, emailErr.message);
         }
@@ -776,18 +820,10 @@ app.post('/admin/generate-invite', async (req, res) => {
     }
     if (profileError) throw profileError;
 
-    // 4. Deliver temporary credentials through the branded Resend relay.
-    const loginLink = appUrl('/login');
+    // 4. Email a one-time link to set their own password (the temporary password is never emailed).
     let emailDelivered = false;
     try {
-      const emailResult = await sendInviteAccountEmail({
-        recipientEmail: normalizedEmail,
-        firstName: safeFirst,
-        lastName: safeLast,
-        role: normalizedRole,
-        temporaryPassword,
-        loginLink,
-      });
+      const emailResult = await sendAccountSetupInvite({ userId, email: normalizedEmail, firstName: safeFirst, role: normalizedRole });
       emailDelivered = Boolean(emailResult?.success);
       if (!emailDelivered) console.warn(`⚠️ [INVITE SYSTEM] Invite email not delivered for ${normalizedEmail}`);
     } catch (mailErr) {
@@ -929,112 +965,7 @@ app.post('/invite/accept', async (req, res) => {
 
 
 
-// 🚀 CUSTOMER REGISTRATION SYSTEM (RESEND INTEGRATED)
-app.post('/customer/register', async (req, res) => {
-  const { email: rawEmail, password, firstName, lastName, phone: rawPhone } = req.body;
-  console.log(`\n🏎️ [CUSTOMER REGISTRATION] STARTING FLOW FOR: ${rawEmail}`);
-
-  // One rule set for email and phone (see config/contactValidation.js).
-  if (!isValidEmail(rawEmail)) {
-    return res.status(400).json({ success: false, error: 'Enter a valid email address.' });
-  }
-  if (!isValidPhPhone(rawPhone)) {
-    return res.status(400).json({ success: false, error: 'Enter an 11-digit mobile number starting with 09.' });
-  }
-  const email = normalizeEmail(rawEmail);
-  const phone = normalizePhPhone(rawPhone);
-
-  try {
-    // 1. Use generateLink so Supabase DOES NOT send its default SMTP email
-    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'signup',
-      email,
-      password,
-      data: {
-        first_name: firstName,
-        last_name: lastName,
-        phone_number: phone,
-        role: 'CUSTOMER'
-      }
-    });
-    // For development, we can automatically confirm if needed,
-    // but the directive asks to toggle it OFF.
-    // generating a link is one way, but createUser is better if we want NO email.
-
-    if (error) {
-      console.error('❌ Supabase Generate Link Error:', error.message);
-      return res.status(400).json({ success: false, error: error.message });
-    }
-
-    const confirmLink = data.properties?.action_link;
-    if (!confirmLink) {
-      throw new Error('Failed to generate action link from Supabase');
-    }
-
-    // 1b. Upsert the profile row so phone_number is stored immediately.
-    // generateLink creates the auth user and returns data.user — we write the
-    // profile the same way the staff-invite flow does so the admin User Directory
-    // always shows the phone number.
-    const registrationUserId = data.user?.id;
-    if (registrationUserId) {
-      const safeFirst = String(firstName || '').trim();
-      const safeLast  = String(lastName  || '').trim();
-      const fullName  = [safeFirst, safeLast].filter(Boolean).join(' ') || email;
-      const { error: profileUpsertError } = await supabaseAdmin
-        .from('profiles')
-        .upsert({
-          id: registrationUserId,
-          email,
-          first_name: safeFirst || null,
-          last_name:  safeLast  || null,
-          full_name:  fullName,
-          phone_number: phone,
-          role: 'CUSTOMER',
-          is_active: true,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'id' });
-      if (profileUpsertError) {
-        console.warn('[CUSTOMER REGISTRATION] Profile upsert failed (non-fatal):', profileUpsertError.message);
-      }
-    }
-
-    // 2. Dispatch via Resend
-    if (!resendClient) {
-      throw new Error('RESEND_API_KEY is not configured or Resend is not initialized');
-    }
-
-    const emailResponse = await resendClient.emails.send({
-      from: RESEND_FROM,
-      to: email,
-      subject: 'WELCOME TO THE FLEET',
-      html: `
-        <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; border: 1px solid #eee;">
-          <h2 style="color: #C41F2B;">COMAR GARAGE</h2>
-          <h3 style="margin-top: 0; text-transform: uppercase;">WELCOME TO THE FLEET</h3>
-          <p>Hi ${firstName},</p>
-          <p>Thank you for creating an account with Comar Garage. Please confirm your email address to activate your customer portal.</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${confirmLink}" style="background-color: #C41F2B; color: white; padding: 12px 24px; text-decoration: none; border-radius: 2px; font-weight: bold; display: inline-block;">CONFIRM EMAIL ADDRESS</a>
-          </div>
-          <p style="font-size: 11px; color: #888;">If you did not request this, please ignore this email.</p>
-        </div>
-      `
-    });
-
-    console.log('📧 [Resend] Response:', JSON.stringify(emailResponse, null, 2));
-
-    if (emailResponse.error) {
-      console.error(`❌ Resend Error: ${emailResponse.error.message}`);
-    } else {
-      console.log(`✅ Customer welcome email delivered to ${email}`);
-    }
-    return res.json({ success: true, message: 'Registration email sent' });
-
-  } catch (err) {
-    console.error(`❌ Registration Error: ${err.message}`);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
+// (The old /customer/register route was removed: sign-up goes through Supabase Auth from the app.)
 
 /**
  * Directive 2: PRE-NORMALIZE TEXT BEFORE MATCHING.
@@ -1745,36 +1676,14 @@ app.post('/api/auth/verify-password', async (req, res) => {
   }
 });
 
-const sendPasswordConfirmationEmail = async ({ email, token, purpose }) => {
-  // appUrl() fails loudly in production when FRONTEND_URL is unset, instead of
-  // silently emailing the customer a link to their own localhost.
-  const confirmationUrl = appUrl(`/password-confirmation?token=${encodeURIComponent(token)}`);
-  const subject = purpose === 'RESET' ? 'Confirm your Comar Garage password reset' : 'Confirm your Comar Garage password change';
-  const action = purpose === 'RESET' ? 'Reset Password' : 'Confirm Password Change';
-  return send({
-    to: email,
-    subject,
-    html: buildEmailShell({
-      title: action,
-      eyebrow: 'COMAR GARAGE ACCOUNT SECURITY',
-      bodyHtml: `<p style="margin:0 0 16px;color:#374151;line-height:1.7;">We received a request to ${purpose === 'RESET' ? 'reset' : 'change'} your Comar Garage password.</p><p style="margin:0 0 16px;color:#374151;line-height:1.7;">This confirmation link expires in <strong>15 minutes</strong> and can only be used once.</p><p style="margin:0;color:#6b7280;font-size:13px;">If you did not request this, ignore this email. Your current password remains unchanged.</p>`,
-      ctaLink: confirmationUrl,
-      ctaLabel: action,
-      footerNote: 'Comar Garage | Account Security'
-    })
-  });
-};
-
-const sendPasswordSecurityAlert = async ({ email, purpose }) => send({
-  to: email,
-  subject: purpose === 'RESET' ? 'Your Comar Garage password was reset' : 'Your Comar Garage password was updated',
-  html: buildEmailShell({
-    title: purpose === 'RESET' ? 'Password Reset Complete' : 'Password Update Complete',
-    eyebrow: 'COMAR GARAGE ACCOUNT SECURITY',
-    bodyHtml: '<p style="margin:0;color:#374151;line-height:1.7;">Your Comar Garage account password was successfully updated. If you did not make this change, contact support immediately.</p>',
-    footerNote: 'Comar Garage Detail Studio | Account Security'
-  })
+const sendPasswordConfirmationEmail = ({ email, token, purpose }) => sendPasswordLinkEmail({
+  email,
+  purpose,
+  minutes: Math.round(PASSWORD_CONFIRMATION_TTL_MS / 60000),
+  // appUrl() fails loudly in production when FRONTEND_URL is unset, instead of emailing a link to localhost.
+  url: appUrl(`/password-confirmation?token=${encodeURIComponent(token)}`),
 });
+const sendPasswordSecurityAlert = ({ email, purpose }) => sendPasswordChangedEmail({ email, purpose });
 
 /**
  * 🛡️ THE WRONG-PASSWORD SECURITY NOTICE — the delivery half.
@@ -1842,7 +1751,8 @@ const processLoginSecurityNotices = async () => {
           const { token } = await createPasswordConfirmationRequest({
             userId: profile?.id || notice.user_id,
             email,
-            purpose: 'RESET'
+            purpose: 'RESET',
+            send: false
           });
           resetLink = appUrl(`/password-confirmation?token=${encodeURIComponent(token)}`);
         } catch (tokenError) {
@@ -1881,7 +1791,7 @@ const processLoginSecurityNotices = async () => {
 setInterval(processLoginSecurityNotices, 5 * 60000);
 setTimeout(processLoginSecurityNotices, 0);
 
-const createPasswordConfirmationRequest = async ({ userId, email, purpose, newPassword = null }) => {
+const createPasswordConfirmationRequest = async ({ userId, email, purpose, newPassword = null, send = true, ttlMs = PASSWORD_CONFIRMATION_TTL_MS }) => {
   const token = crypto.randomBytes(32).toString('base64url');
   const encrypted = newPassword ? encryptPendingPassword(newPassword) : {};
   await supabaseAdmin.from('password_confirmation_requests').delete().eq('user_id', userId).is('consumed_at', null);
@@ -1893,9 +1803,11 @@ const createPasswordConfirmationRequest = async ({ userId, email, purpose, newPa
     password_ciphertext: encrypted.ciphertext || null,
     password_iv: encrypted.iv || null,
     password_tag: encrypted.tag || null,
-    expires_at: new Date(Date.now() + PASSWORD_CONFIRMATION_TTL_MS).toISOString()
+    expires_at: new Date(Date.now() + ttlMs).toISOString()
   });
   if (error) throw error;
+  // Callers that write their own email (the lockout notice, invitations) only need the token.
+  if (!send) return { token, expiresAt: new Date(Date.now() + ttlMs).toISOString() };
   const emailResult = await sendPasswordConfirmationEmail({ email, token, purpose });
   if (!emailResult.success) throw new Error(emailResult.error?.message || emailResult.error || 'Confirmation email failed');
   // Task 16: surface delivery metadata so the caller can tell the user the
@@ -2004,6 +1916,10 @@ app.post('/api/auth/confirm-password-change', async (req, res) => {
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(request.user_id, { password });
     if (updateError) throw updateError;
     await supabaseAdmin.from('password_confirmation_requests').update({ password_ciphertext: null, password_iv: null, password_tag: null }).eq('id', request.id);
+    // they chose this password themselves (an invitation link or Forgot password), so no first-sign-in change is needed
+    if (request.purpose === 'RESET') {
+      await supabaseAdmin.from('profiles').update({ must_change_password: false, updated_at: new Date().toISOString() }).eq('id', request.user_id).then(() => {}, () => {});
+    }
     const { error: alertError } = await sendPasswordSecurityAlert({ email: request.email, purpose: request.purpose });
     if (alertError) console.warn('Password security alert failed:', alertError.message || alertError);
     return res.json({ success: true, purpose: request.purpose });
@@ -2090,26 +2006,9 @@ app.post('/api/auth/request-email-change', async (req, res) => {
 
     if (dbError) throw dbError;
 
-    // Dispatch OTP to OLD email
-    if (resendClient) {
-      await resendClient.emails.send({
-        from: RESEND_FROM,
-        to: oldEmail,
-        subject: 'Comar Garage: Authorize Email Change',
-        html: `
-          <div style="font-family: sans-serif; padding: 20px; color: #333;">
-            <h2 style="color: #C41F2B;">COMAR GARAGE SECURITY</h2>
-            <p>You requested to change your account email to <strong>${newEmail}</strong>.</p>
-            <p>Enter the following authorization code to confirm this change:</p>
-            <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; padding: 10px; background: #f4f4f4; border-radius: 5px; display: inline-block;">
-              ${otp}
-            </div>
-            <p>If you did not request this, please change your password immediately.</p>
-          </div>`
-      });
-    }
-
-    console.log(`🔑 Verification code for ${oldEmail}: ${otp}`);
+    // Send the code to the CURRENT (old) address. The code is never logged.
+    const codeResult = await sendEmailChangeCode({ oldEmail, newEmail, otp });
+    if (!codeResult.success) throw new Error('The code could not be emailed. Try again in a moment.');
     return res.json({ success: true, message: 'Verification code sent to current email' });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
@@ -2384,6 +2283,26 @@ app.get('/api/admin/profiles', async (req, res) => {
 // (guarded by the create_invited_account RPC which blocks duplicates across BOTH
 // auth.users and profiles), and delivers the credentials via the branded Resend
 // relay so the email matches the dark-mode Comar Garage shell.
+/**
+ * Invitations: the email carries a one-time link (48 hours) to set their own password. The account still gets a
+ * random temporary password, but it is never emailed; the admin only sees it if the email could not be sent.
+ */
+const INVITE_LINK_TTL_MS = 48 * 60 * 60 * 1000;
+const sendAccountSetupInvite = async ({ userId, email, firstName, role }) => {
+  try {
+    const { token, expiresAt } = await createPasswordConfirmationRequest({ userId, email, purpose: 'RESET', send: false, ttlMs: INVITE_LINK_TTL_MS });
+    return await sendInviteAccountEmail({
+      recipientEmail: email,
+      firstName,
+      role,
+      setPasswordUrl: appUrl(`/password-confirmation?token=${encodeURIComponent(token)}`),
+      expiresAt,
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 const generateTemporaryPassword = () => {
   // URL-safe, human-transcribable temporary password. Satisfies Supabase's
   // default minimum length and avoids ambiguous characters (0/O, 1/l).
@@ -2578,16 +2497,8 @@ app.post('/api/admin/invite-account', async (req, res) => {
     }
     if (profileError) throw profileError;
 
-    // 4. Deliver the temporary credentials through the branded Resend relay.
-    const loginLink = appUrl('/login');
-    const emailResult = await sendInviteAccountEmail({
-      recipientEmail: normalizedEmail,
-      firstName: safeFirst,
-      lastName: safeLast,
-      role: normalizedRole,
-      temporaryPassword,
-      loginLink
-    });
+    // 4. Email a one-time link to set their own password (the temporary password is never emailed).
+    const emailResult = await sendAccountSetupInvite({ userId, email: normalizedEmail, firstName: safeFirst, role: normalizedRole });
 
     // 5. Audit trail. A failed email is surfaced but does not roll back the
     //    account — the admin can re-share the temporary password from the UI.
@@ -3198,23 +3109,15 @@ app.post('/api/admin/broadcast', async (req, res) => {
 
     // Step 4: NON-BLOCKING ASYNC EMAIL BATCH DISPATCH (Resend API)
     // Runs in setImmediate queue so HTTP response returns under 500ms without blocking UI execution
-    if (resendClient) {
+    if (process.env.RESEND_API_KEY) {
       setImmediate(async () => {
         for (const p of profiles) {
           if (p.email) {
             try {
-              await resendClient.emails.send({
-                from: RESEND_FROM,
-                to: [p.email],
-                subject: 'System Announcement',
-                html: `<div style="font-family: sans-serif; padding: 20px; background: #0A0B0D; color: #ffffff;">
-                  <h2 style="color: #C41F2B;">Comar Garage System Announcement</h2>
-                  <p style="font-size: 16px; color: #e5e7eb;">${message.trim()}</p>
-                  <hr style="border: none; border-top: 1px solid #374151; margin: 20px 0;" />
-                  <p style="font-size: 12px; color: #9ca3af;">This is an automated operational signal from Comar Garage Admin Command Center.</p>
-                </div>`
-              });
-              await new Promise(r => setTimeout(r, 100)); // rate limiting buffer
+              // plain text only: the layout escapes the message, so pasted HTML or scripts show as text
+              const result = await sendAnnouncementEmail({ to: p.email, name: p.full_name, message });
+              if (!result.success) throw new Error(result.error || 'send failed');
+              await new Promise(r => setTimeout(r, 600)); // stay under the provider's per-second limit
             } catch (emailErr) {
               console.error(`[BROADCAST ASYNC EMAIL ERROR] ${p.email}:`, emailErr.message);
             }
@@ -4299,15 +4202,8 @@ app.post('/api/public/inquiry', async (req, res) => {
     // and the shop's own inbox
     try {
       const inbox = await shopInboxEmail();
-      if (inbox && resendClient) {
-        await resendClient.emails.send({
-          from: RESEND_FROM, to: [inbox], reply_to: email,
-          subject: `[Comar Garage] Website inquiry from ${name}`,
-          html: `<div style="font-family:sans-serif;max-width:640px;color:#222"><h2 style="color:#C41F2B;margin:0 0 12px">New website inquiry</h2>
-            <p style="margin:0 0 4px"><strong>From:</strong> ${escapeHtml(name)} (${escapeHtml(email)})</p>
-            <div style="white-space:pre-wrap;border:1px solid #eee;border-radius:6px;padding:12px;margin:12px 0">${escapeHtml(message)}</div>
-            <p style="font-size:12px;color:#666">Answer it in Message Inquiries (admin portal); your reply is emailed to the sender.</p></div>`
-        });
+      if (inbox) {
+        await sendInquiryToShopEmail({ to: inbox, name, email, message, conversationUrl: appUrl(`/admin/chat?guest=${inquiryId}`) });
       }
     } catch (mailError) { console.warn('[GUEST INQUIRY] shop email failed:', mailError.message); }
 
@@ -4341,22 +4237,8 @@ app.post('/api/admin/inquiries/reply', async (req, res) => {
     try {
       if (!resendClient) throw new Error('Email is not configured');
       const inbox = await shopInboxEmail();
-      const signUpLink = appUrl('/login');
-      const { error: sendError } = await resendClient.emails.send({
-        from: RESEND_FROM, to: [inquiry.email], reply_to: inbox || undefined,
-        subject: 'Re: your message to Comar Garage',
-        html: `<div style="font-family:sans-serif;max-width:600px;color:#222;border:1px solid #eee;border-radius:8px;overflow:hidden">
-          <div style="background:#C41F2B;color:#fff;padding:16px 20px;font-weight:800;letter-spacing:1px">COMAR GARAGE</div>
-          <div style="padding:20px">
-            <p style="margin:0 0 12px">Hi ${escapeHtml(inquiry.name)},</p>
-            <div style="white-space:pre-wrap;line-height:1.55">${escapeHtml(body)}</div>
-            <p style="margin:20px 0 0;color:#666;font-size:13px">You can reply to this email to keep the conversation going.</p>
-          </div>
-          <div style="background:#f7f7f7;padding:16px 20px;text-align:center;border-top:1px solid #eee">
-            <p style="margin:0 0 10px;font-size:13px;color:#444">Book detailing online, follow your booking and chat with us directly: create your free Comar Garage account.</p>
-            <a href="${signUpLink}" style="background:#C41F2B;color:#fff;padding:10px 20px;text-decoration:none;border-radius:2px;font-weight:bold;display:inline-block;font-size:13px">CREATE YOUR ACCOUNT</a>
-          </div></div>`
-      });
+      const sent = await sendInquiryReplyEmail({ to: inquiry.email, name: inquiry.name, body, replyTo: inbox || undefined });
+      const sendError = sent.success ? null : { message: sent.error };
       if (sendError) throw new Error(sendError.message || 'The email provider did not accept the message.');
       emailed = true;
     } catch (error) {
@@ -4522,20 +4404,8 @@ app.post('/api/support/report', async (req, res) => {
 
   try {
     if (!resendClient) throw new Error('Email is not configured');
-    const { error: sendError } = await resendClient.emails.send({
-      from: RESEND_FROM,
-      to: [SUPPORT_INBOX],
-      reply_to: email || undefined,
-      subject: `[Comar Garage] ${kind.label} from ${who} (${role})`,
-      html: `<div style="font-family:sans-serif;max-width:640px;color:#222">
-        <h2 style="color:#C41F2B;margin:0 0 12px">${escapeHtml(kind.label)}</h2>
-        <p style="margin:0 0 4px"><strong>From:</strong> ${escapeHtml(who)} (${escapeHtml(role)})</p>
-        <p style="margin:0 0 4px"><strong>Email:</strong> ${escapeHtml(email || 'not on file')}</p>
-        ${page ? `<p style="margin:0 0 4px"><strong>Page:</strong> ${escapeHtml(page)}</p>` : ''}
-        <p style="margin:0 0 12px"><strong>Account ID:</strong> ${escapeHtml(profileId)}</p>
-        <div style="white-space:pre-wrap;border:1px solid #eee;border-radius:6px;padding:12px">${escapeHtml(message)}</div>
-      </div>`
-    });
+    const sent = await sendSupportReportEmail({ to: SUPPORT_INBOX, kindLabel: kind.label, who, role, email, page, profileId, message });
+    const sendError = sent.success ? null : { message: sent.error };
     if (sendError) throw new Error(sendError.message || 'The email provider did not accept the message.');
     await store(true, null);
     await audit('');

@@ -115,7 +115,22 @@ const corsHeaders = {
 }
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
-const resendFrom = Deno.env.get('RESEND_FROM') || 'Comar Garage <notifications@comargarage.com>'
+// Every email comes from the one no-reply address; replies go to the shop inbox (Business Hub email).
+const resendFrom = Deno.env.get('EMAIL_FROM') || 'Comar Garage <noreply@comargarage.com>'
+
+/** Shop details for the email footer and the Reply-To address (Business Hub › Business Profile). */
+const loadShop = async () => {
+  const { data } = await supabase.from('business_config')
+    .select('business_name, business_address, contact_number, email_address')
+    .order('id', { ascending: true }).limit(1).maybeSingle()
+  const titleCase = (v: string) => v.toLowerCase().replace(/\b([a-z])/g, (m) => m.toUpperCase())
+  return {
+    name: data?.business_name ? titleCase(String(data.business_name)) : 'Comar Garage',
+    address: data?.business_address || null,
+    phone: data?.contact_number || null,
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(data?.email_address || '')) ? String(data?.email_address) : null,
+  }
+}
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -383,6 +398,8 @@ serve(async (req: Request): Promise<Response> => {
     let attachments: EmailAttachment[] = []
     let subject = ''
     let html = ''
+    let text = ''
+    const shop = await loadShop().catch(() => null)
     try {
       // Transaction receipt: the verified payment this event is about.
       let hasReceipt = false
@@ -457,17 +474,17 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       // ── Render the right email for this event ─────────────────────────────
-      let built: { subject: string; html: string }
+      let built: { subject: string; html: string; text: string }
       if (canonical === 'booking_confirmed') {
-        built = buildBookingConfirmedEmail({ booking: bookingForEmail, payment, ledger, customerName, hasReceipt: hasReceipt || hasStatement })
+        built = buildBookingConfirmedEmail({ booking: bookingForEmail, payment, ledger, customerName, hasReceipt: hasReceipt || hasStatement , shop })
       } else if (canonical === 'payment_verified') {
-        built = buildPaymentVerifiedEmail({ booking: bookingForEmail, payment, ledger, customerName, hasReceipt, hasStatement })
+        built = buildPaymentVerifiedEmail({ booking: bookingForEmail, payment, ledger, customerName, hasReceipt, hasStatement , shop })
       } else if (canonical === 'booking_settled') {
-        built = buildBookingSettledEmail({ booking: bookingForEmail, ledger, customerName })
+        built = buildBookingSettledEmail({ booking: bookingForEmail, ledger, customerName , shop })
       } else if (canonical === 'booking_created') {
-        built = buildBookingCreatedEmail({ booking: bookingForEmail, payment, ledger, customerName })
+        built = buildBookingCreatedEmail({ booking: bookingForEmail, payment, ledger, customerName , shop })
       } else if (canonical === 'booking_reminder') {
-        built = buildReminderEmail({ booking: bookingForEmail, payment, ledger, customerName })
+        built = buildReminderEmail({ booking: bookingForEmail, payment, ledger, customerName , shop })
       } else {
         const statusKey = {
           booking_in_progress: 'IN_PROGRESS',
@@ -476,10 +493,11 @@ serve(async (req: Request): Promise<Response> => {
           booking_cancelled: 'CANCELLED',
           booking_flagged_noshow: 'FLAGGED_NOSHOW',
         }[canonical] || requested
-        built = buildStatusEmail({ booking: bookingForEmail, payment, ledger, customerName, newStatus: statusKey, remarks: isCustomer ? undefined : remarks })
+        built = buildStatusEmail({ booking: bookingForEmail, payment, ledger, customerName, newStatus: statusKey, remarks: isCustomer ? undefined : remarks , shop })
       }
       subject = built.subject
       html = built.html
+      text = built.text
     } catch (buildError) {
       for (const key of claimedKeys) {
         await supabase.rpc('release_booking_email_claim', { p_booking_id: bookingId, p_event: key })
@@ -521,6 +539,8 @@ serve(async (req: Request): Promise<Response> => {
       to: [email],
       subject,
       html,
+      text,
+      ...(shop?.email ? { reply_to: shop.email } : {}),
       ...(attachments.length ? { attachments } : {}),
     })
 

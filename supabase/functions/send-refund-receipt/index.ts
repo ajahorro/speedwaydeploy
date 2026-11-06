@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { renderEmail, formatPeso, formatDateTime } from "../_shared/emailLayout.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -61,69 +62,57 @@ serve(async (req) => {
       .single();
     if (paymentError || !refundPayment) throw new Error(`Valid refund ledger entry not found: ${paymentError?.message || 'Unauthorized or missing'}`);
 
-    const escapeHtml = (value: unknown) => String(value ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
     const customerEmail = booking.customer?.email || booking.customer_email;
-    const customerName = booking.customer_name || booking.customer?.full_name || 'Customer';
+    const customerName = booking.customer_name || booking.customer?.full_name || '';
     const refundAmount = Math.abs(Number(refundPayment.amount || 0));
-    const refundReason = refundPayment.refund_reason || 'Administrative refund processed';
-    const bookingDate = booking.start_datetime ? new Date(booking.start_datetime).toLocaleDateString() : '';
-    const scheduledTime = booking.start_datetime ? new Date(booking.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    const refundReason = refundPayment.refund_reason || '';
     const serviceNames = (booking.vehicles || [])
       .flatMap((vehicle: any) => (vehicle.services || []).map((service: any) => service.service_name))
       .filter(Boolean);
     const vehicleNames = (booking.vehicles || [])
       .map((vehicle: any) => [vehicle.brand, vehicle.model, vehicle.plate_number].filter(Boolean).join(' '))
       .filter(Boolean);
+    const bookingRef = bookingId.substring(0, 8).toUpperCase();
 
     if (!customerEmail) throw new Error('No customer email found for this booking.');
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
     if (!resendApiKey) throw new Error('Missing RESEND_API_KEY environment variable.');
-    // Honour the configured sender. Falls back to the shop's verified sending
-    // address — Resend rejects any `from` whose domain is not verified, so this
-    // must match a domain in the Resend account (see RESEND_FROM secret).
-    const resendFrom = Deno.env.get('RESEND_FROM')
-      || Deno.env.get('RESEND_SENDER_EMAIL')
-      || 'Comar Garage <notifications@comargarage.com>';
+    // The one no-reply sender for every email (the domain is verified in Resend); replies go to the shop inbox.
+    const resendFrom = Deno.env.get('EMAIL_FROM') || 'Comar Garage <noreply@comargarage.com>';
+    const { data: shopRow } = await supabaseAdmin.from('business_config')
+      .select('business_name, business_address, contact_number, email_address')
+      .order('id', { ascending: true }).limit(1).maybeSingle();
+    const shopEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(shopRow?.email_address || '')) ? String(shopRow?.email_address) : '';
+    const siteUrl = String(Deno.env.get('SITE_URL') || 'https://comargarage.com').replace(/\/+$/, '');
+    const first = String(customerName).trim().split(/\s+/)[0] || '';
 
-    const serviceHtml = serviceNames.length
-      ? `<p><strong>Services:</strong> ${serviceNames.map(escapeHtml).join(', ')}</p>`
-      : '';
-    const vehicleHtml = vehicleNames.length
-      ? `<p><strong>Vehicles:</strong> ${vehicleNames.map(escapeHtml).join(', ')}</p>`
-      : '';
-
-    const emailHtml = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-        <div style="background-color: #C41F2B; padding: 20px; text-align: center; color: white;">
-          <h1 style="margin: 0; font-size: 24px;">OFFICIAL REFUND SLIP</h1>
-          <p style="margin: 5px 0 0 0; opacity: 0.9;">Comar Garage</p>
-        </div>
-        <div style="padding: 20px;">
-          <p>Hi ${escapeHtml(customerName)},</p>
-          <p>We have successfully processed a refund for your recent cancellation. Please find the details of your refund below:</p>
-
-          <div style="background-color: #f9fafb; padding: 15px; border-radius: 6px; margin: 20px 0;">
-            <p style="margin: 5px 0;"><strong>Original Invoice ID:</strong> INV-${bookingId.substring(0, 8).toUpperCase()}</p>
-            <p style="margin: 5px 0;"><strong>Refund Reference:</strong> ${escapeHtml(refundReference)}</p>
-            <p style="margin: 5px 0;"><strong>Total Amount Reverted:</strong> ₱${refundAmount.toLocaleString()}</p>
-            <p style="margin: 5px 0;"><strong>Reason for Refund:</strong> ${escapeHtml(refundReason)}</p>
-            ${bookingDate ? `<p style="margin: 5px 0;"><strong>Booking Date:</strong> ${escapeHtml(bookingDate)}</p>` : ''}
-            ${scheduledTime ? `<p style="margin: 5px 0;"><strong>Scheduled Time:</strong> ${escapeHtml(scheduledTime)}</p>` : ''}
-            ${serviceHtml}
-            ${vehicleHtml}
-          </div>
-
-          <p>This amount has been reverted to your original payment method. Depending on your bank or payment provider, it may take 3-5 business days to reflect in your account.</p>
-
-          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">This is an automated message. Please do not reply to this email.</p>
-        </div>
-      </div>
-    `;
+    const { html, text } = renderEmail({
+      title: 'Your refund was sent',
+      preheader: `${formatPeso(refundAmount)} refunded for booking #${bookingRef}.`,
+      greeting: first ? `Hi ${first},` : 'Hi,',
+      blocks: [
+        `We sent you a refund of **${formatPeso(refundAmount)}** for booking **#${bookingRef}**.`,
+        { type: 'rows', title: 'Refund details', rows: [
+          ['Refund amount', formatPeso(refundAmount), { strong: true }],
+          ['Refund reference', String(refundReference)],
+          ['Reason', refundReason],
+          ['Booking no.', bookingRef],
+          ['Appointment', booking.start_datetime ? formatDateTime(booking.start_datetime) : ''],
+          ['Services', serviceNames.join(', ')],
+          ['Vehicle', vehicleNames.join(', ')],
+        ] },
+        { type: 'notice', tone: 'info', text: 'Bank and e-wallet refunds can take 3 to 5 business days to show in your account. Cash refunds are handed over at the shop.' },
+      ],
+      cta: { label: 'View my booking', url: `${siteUrl}/login?next=${encodeURIComponent(`/customer/bookings/${bookingId}`)}` },
+      reason: 'You get this email because a refund was made on your Comar Garage booking.',
+      shop: {
+        name: shopRow?.business_name ? String(shopRow.business_name).toLowerCase().replace(/\b([a-z])/g, (m: string) => m.toUpperCase()) : 'Comar Garage',
+        address: shopRow?.business_address || undefined,
+        phone: shopRow?.contact_number || undefined,
+        email: shopEmail || undefined,
+        site: siteUrl,
+      },
+    });
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -134,8 +123,10 @@ serve(async (req) => {
       body: JSON.stringify({
         from: resendFrom,
         to: [customerEmail],
-        subject: `Refund Processed: INV-${bookingId.substring(0, 8).toUpperCase()}`,
-        html: emailHtml
+        ...(shopEmail ? { reply_to: shopEmail } : {}),
+        subject: `Your refund of ${formatPeso(refundAmount)} was sent (#${bookingRef})`,
+        html,
+        text,
       })
     });
 

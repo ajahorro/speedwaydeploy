@@ -389,7 +389,7 @@ const AdminAccountsManagement = () => {
             </div>
 
             <p style={{ fontSize: '0.8rem', color: 'var(--admin-text-secondary)', marginBottom: '1.5rem', fontWeight: '700', flex: '0 0 auto' }}>
-              Create the account and email the user a temporary password. They will be prompted to set their own password on first sign-in.
+              Create the account and email the user a one-time link to set their own password. The link works for 48 hours.
             </p>
 
             {/* The form is the scroll region: the header above stays put and the
@@ -441,7 +441,7 @@ const AdminAccountsManagement = () => {
 
               <div style={{ padding: '1rem', background: 'rgba(196, 31, 43, 0.1)', borderRadius: 'var(--admin-radius-sm)', border: '1px solid rgba(196, 31, 43, 0.2)' }}>
                 <p style={{ fontSize: '0.7rem', color: 'var(--admin-text-secondary)', margin: 0, fontWeight: '700' }}>
-                  The user will be invited as <strong style={{ color: 'var(--admin-brand)' }}>{activeTab}</strong>. A temporary password will be emailed to them.
+                  The user will be invited as <strong style={{ color: 'var(--admin-brand)' }}>{activeTab}</strong>. They will get an email with a link to set their own password.
                 </p>
               </div>
 

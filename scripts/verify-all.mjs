@@ -24,8 +24,8 @@ const run = (name, command, commandArgs, options = {}) => {
 };
 
 // ── guard scripts ──────────────────────────────────────────────────────────
-for (const script of ['verify-single-source', 'verify-email-source', 'verify-email-links', 'verify-contact-rules', 'verify-shop-time', 'verify-statement-pdf', 'verify-ocr-parser', 'verify-idle-session', 'verify-staff-assistant']) {
-  run(script, 'node', [`scripts/${script}.mjs`], { note: (out) => out.trim().split('\n').pop().slice(0, 70) });
+for (const script of ['verify-single-source', 'verify-email-source', 'verify-email-links', 'sync-email-layout', 'verify-contact-rules', 'verify-shop-time', 'verify-statement-pdf', 'verify-ocr-parser', 'verify-idle-session', 'verify-staff-assistant']) {
+  run(script, 'node', [`scripts/${script}.mjs`, ...(script === 'sync-email-layout' ? ['--check'] : [])], { note: (out) => out.trim().split('\n').pop().slice(0, 70) });
 }
 
 // React hook order: a memoized value used by an effect declared above it crashed production once.
@@ -40,7 +40,7 @@ run(
 );
 
 // ── syntax of every backend file that changed shape recently ───────────────
-for (const file of ['backend/server.js', 'backend/services/analyticsAssistant.js', 'backend/services/analyticsBuiltIn.js', 'backend/services/scheduleValidation.js', 'backend/services/photoRetention.js', 'backend/services/refundProofs.js']) {
+for (const file of ['backend/server.js', 'backend/services/analyticsAssistant.js', 'backend/services/analyticsBuiltIn.js', 'backend/services/scheduleValidation.js', 'backend/services/photoRetention.js', 'backend/services/refundProofs.js', 'backend/services/emailService.js', 'backend/services/emailLayout.js']) {
   run(`syntax ${file.replace('backend/', '')}`, 'node', ['--check', file]);
 }
 

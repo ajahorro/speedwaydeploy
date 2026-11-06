@@ -54,6 +54,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/email/:path*",
+      "destination": "https://comargarage-backend.onrender.com/api/email/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
