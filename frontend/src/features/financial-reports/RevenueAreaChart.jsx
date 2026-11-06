@@ -25,7 +25,7 @@ import { formatPeso, formatPesoCompact } from '@/features/finance/money';
 import { RANGE_PRESETS } from './useReportRange';
 
 const chartConfig = {
-  net_received: { label: 'Net received', color: 'var(--chart-1)' },
+  net_received: { label: 'Money collected', color: 'var(--chart-1)' },
   refunds: { label: 'Refunds', color: 'var(--chart-2)' },
   pending_verification: { label: 'Pending verification', color: 'var(--chart-4)' }
 };

@@ -157,12 +157,15 @@ export async function downloadReportCsv({ tab = 'overview', range, method = 'ALL
     count = daily.length;
     body = [
       ['FINANCIAL OVERVIEW SUMMARY'],
-      ['Net Revenue (PHP)', formatMoney(report?.net_revenue)],
-      ['Net Received (PHP)', formatMoney(report?.net_received)],
+      ['Gross Sales (PHP)', formatMoney(report?.gross_sales)],
+      ['Discounts & Promos (PHP)', formatMoney(report?.discounts)],
+      ['Net Sales (PHP)', formatMoney(report?.net_sales)],
+      ['Average Sale (PHP)', formatMoney(report?.average_sale)],
       ['Refunds (PHP)', formatMoney(report?.refunds)],
       ['Pending Verification (PHP)', formatMoney(report?.pending_verification)],
       ['Outstanding Balance (PHP)', formatMoney(report?.outstanding_balance)],
-      ['Customer Credit Liability (PHP)', formatMoney(report?.customer_credit_liability)],
+      ['Deferred Receivables (PHP)', formatMoney(report?.deferred_receivables)],
+      ['Customer Credit (PHP)', formatMoney(report?.customer_credit_liability)],
       [],
       ['DAILY BREAKDOWN'],
       ['Day', 'Amount Received (PHP)', 'Refunds (PHP)', 'Pending Verification (PHP)', 'Transactions Count'],

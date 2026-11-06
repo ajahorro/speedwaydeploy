@@ -20,6 +20,7 @@ import { BookingsTable } from './BookingsTable';
 import { downloadReportCsv } from './exportReport';
 import { useReportRange } from './useReportRange';
 import { RangeFilter, formatRangeLabel } from './RangeFilter';
+import { ADMIN_TOURS } from '@/features/tours/adminTours';
 
 // The assistant is fetched only when an admin opens it, so the report's first paint is unchanged.
 const AssistantPanel = lazy(() => import('./AssistantPanel'));
@@ -113,10 +114,11 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
           showBack
           onBack={() => navigate(-1)}
           title="Reports"
-          subtitle="Revenue, bookings, refunds and balances from the shop's single payment ledger."
+          subtitle="Sales, bookings, refunds and balances from the shop's single payment ledger."
           onRefresh={() => setRefreshKey((value) => value + 1)}
-        >
-        </PageHeader>
+          tour={ADMIN_TOURS.reports}
+          tourLabel="How reports work"
+        />
       </div>
 
       <div className="hidden print:block">
@@ -124,7 +126,7 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
         <p className="text-sm">{TAB_LABELS[tab]} · {rangeLabel} · generated {new Date().toLocaleString('en-PH')}</p>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden" data-tour="rep-range">
         <RangeFilter
           key={`${range.from.getTime()}-${range.to.getTime()}`}
           preset={preset}
@@ -136,7 +138,7 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
 
       <Tabs value={tab} onValueChange={setTab} className="gap-4">
         {/* Scrolls sideways only when the tabs don't fit; never up and down. */}
-        <TabsList className="w-full max-w-full justify-start overflow-x-auto overflow-y-hidden sm:w-fit print:hidden">
+        <TabsList data-tour="rep-tabs" className="w-full max-w-full justify-start overflow-x-auto overflow-y-hidden sm:w-fit print:hidden">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="bookings">Bookings</TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
@@ -145,7 +147,7 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
         </TabsList>
 
         {/* What these export or print depends on the tab chosen above, so they sit right under the tabs. */}
-        <div className="flex flex-col gap-2 print:hidden">
+        <div className="flex flex-col gap-2 print:hidden" data-tour="rep-actions">
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={handleExport} disabled={exporting || loading} title={`Download the ${TAB_LABELS[tab]} tab for ${rangeLabel} as a spreadsheet`}>
               <Download /> {exporting ? 'Exporting…' : 'Download CSV'}
@@ -164,15 +166,15 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
         </div>
 
         <TabsContent value="overview" className="flex flex-col gap-4">
-          <KpiCards report={report} loading={loading} />
-          <RevenueAreaChart
+          <div data-tour="rep-kpis"><KpiCards report={report} loading={loading} /></div>
+          <div data-tour="rep-chart"><RevenueAreaChart
             data={daily}
             loading={loading}
             preset={preset}
             onPresetChange={setPreset}
             rangeLabel={rangeLabel}
-          />
-          <div className="grid gap-4 lg:grid-cols-2">
+          /></div>
+          <div className="grid gap-4 lg:grid-cols-2" data-tour="rep-breakdown">
             <MethodBreakdownChart rows={report?.by_method || []} total={report?.net_received || 0} loading={loading} />
             <TopServicesChart rows={report?.top_services || []} loading={loading} />
           </div>

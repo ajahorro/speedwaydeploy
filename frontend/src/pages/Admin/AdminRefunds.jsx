@@ -8,6 +8,7 @@ import {
   Car, Calendar, User, Eye, Download, Box, ExternalLink, ShieldCheck, Info, Upload, FileCheck2
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
+import { ADMIN_TOURS } from '../../features/tours/adminTours';
 import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from '@/lib/toast';
@@ -366,7 +367,7 @@ const AdminRefunds = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
-      <PageHeader showBack onBack={() => navigate(-1)} title="REFUND HUB" subtitle="Manage money-back requests for cancelled fleet bookings." onRefresh={fetchRefundData} />
+      <PageHeader showBack onBack={() => navigate(-1)} title="REFUND HUB" subtitle="Manage money-back requests for cancelled fleet bookings." onRefresh={fetchRefundData} tour={ADMIN_TOURS.refunds} tourLabel="How refunds work" />
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1fr', gap: isMobile ? '1rem' : '2rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -380,7 +381,7 @@ const AdminRefunds = () => {
             alignItems: 'center',
             flexWrap: 'wrap'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: isMobile ? '100%' : '200px', position: 'relative' }}>
+            <div data-tour="ref-search" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: isMobile ? '100%' : '200px', position: 'relative' }}>
               <Search size={18} color="var(--admin-text-secondary)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 type="text"
@@ -390,7 +391,7 @@ const AdminRefunds = () => {
                 style={{ flex: 1, background: 'var(--admin-bg)', border: '1px solid var(--admin-input-border)', borderRadius: 'var(--admin-radius-sm)', padding: '0.75rem 1rem 0.75rem 2.75rem', color: 'var(--admin-text-primary)', outline: 'none', fontWeight: '800' }}
               />
             </div>
-            <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--admin-card)', padding: '0.25rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
+            <div data-tour="ref-filter" style={{ display: 'flex', gap: '0.25rem', background: 'var(--admin-card)', padding: '0.25rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
               {['PENDING', 'PROCESSED', 'ALL'].map(f => (
                 <button
                   key={f}
@@ -442,6 +443,7 @@ const AdminRefunds = () => {
             </div>
           )}
 
+          <div data-tour="ref-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {filteredItems.length === 0 ? (
             <div style={{ ...cardStyle, padding: '4rem', textAlign: 'center', color: 'var(--admin-text-secondary)' }}>
                <Box size={40} strokeWidth={1} style={{ marginBottom: '1rem', opacity: 0.3 }} />
@@ -498,9 +500,10 @@ const AdminRefunds = () => {
               </div>
             </div>
           ))}
+          </div>
         </div>
 
-        <div style={{ position: 'sticky', top: '1.5rem', height: 'fit-content' }}>
+        <div data-tour="ref-details" style={{ position: 'sticky', top: '1.5rem', height: 'fit-content' }}>
           {state.selectedItem ? (
             <div style={{ ...cardStyle, padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -46,6 +46,63 @@ export const ADMIN_TOURS = {
     { target: '[data-tour="book-content"]', title: '3. Fill in the step', body: 'Add each vehicle and its services here, then press Next. Your progress is saved on this device, so you can come back to it.' },
   ],
 
+  dashboard: [
+    { target: '[data-tour="dash-attention"]', title: '1. What needs you now', body: 'Each card counts something waiting for an admin: payments to check, bookings with no technician, no-shows, refund requests and finished cars to hand back. Click a card to open that list.' },
+    { target: '[data-tour="dash-queue"]', title: '2. Live booking queue', body: 'Today’s and upcoming bookings, updated on their own. Click a row to open the booking, or “View all queue” for the full list.' },
+    { target: '[data-tour="admin-nav"]', title: '3. Everything else', body: 'The menu on the left opens every part of the system. On a phone, open it with the menu button at the top.' },
+  ],
+
+  hub_profile: [
+    { target: '[data-tour="hub-tabs"]', title: '1. Business Hub tabs', body: 'Each tab covers one part of the shop: profile, About & Map, schedule, services and promos, terms and policies. The “i” guide always explains the tab that is open.' },
+    { target: '[data-tour="hub-profile-details"]', title: '2. Shop details', body: 'The shop’s name, contact number, email and address. Customers see these on the website, receipts and emails.' },
+    { target: '[data-tour="hub-faq"]', title: '3. Questions and answers', body: 'The FAQ shown on the landing page. Add, edit, reorder or remove questions here.' },
+    { target: '[data-tour="hub-save-profile"]', title: '4. Save', body: 'Changes only go live after you save. The button stays off until something has changed and every required field is filled in.' },
+  ],
+
+  hub_about: [
+    { target: '[data-tour="hub-tabs"]', title: '1. Business Hub tabs', body: 'Each tab covers one part of the shop. This one controls the photos and map on the landing page.' },
+    { target: '[data-tour="about-add"]', title: '2. Add photos', body: 'Upload up to 12 photos of the shop. They are resized and cleaned of hidden data (like GPS) automatically.' },
+    { target: '[data-tour="about-layout"]', title: '3. Choose a layout', body: 'Pick how the photos and captions are arranged on the landing page: Mosaic, Slideshow, Grid or Story.' },
+    { target: '[data-tour="about-map"]', title: '4. Pin the shop', body: 'Search the address or click the map, then drag the pin to the exact spot. A pin is required before you can save.' },
+    { target: '[data-tour="about-save"]', title: '5. Preview and save', body: '“See preview” shows the landing page with your changes before anything is saved. Save puts them live; Discard undoes them.' },
+  ],
+
+  hub_schedule: [
+    { target: '[data-tour="hub-tabs"]', title: '1. Business Hub tabs', body: 'Each tab covers one part of the shop. This one controls when customers can book.' },
+    { target: '[data-tour="hub-schedule-rules"]', title: '2. Opening hours and booking rules', body: 'Set how far ahead a booking must be made, how many cars the shop takes at a time, opening hours and regular closing days. Save before leaving the tab.' },
+    { target: '[data-tour="hub-closures"]', title: '3. Holidays and closures', body: 'Close the shop for a whole day, a few hours, or several days in a row (holidays, training, maintenance). Customers cannot book those times.' },
+  ],
+
+  hub_services: [
+    { target: '[data-tour="hub-tabs"]', title: '1. Business Hub tabs', body: 'Each tab covers one part of the shop. This one holds every service, its prices, and the promos.' },
+    { target: '[data-tour="hub-svc-existing"]', title: '2. Your services', body: 'Open this to see, search, edit, archive or restore services for each vehicle type. It has its own “i” guide inside.' },
+    { target: '[data-tour="hub-svc-add"]', title: '3. Add a service', body: 'Add a new service to vehicle types the shop already serves, with a price and how long it takes for each.' },
+    { target: '[data-tour="hub-svc-vehicle"]', title: '4. Add a vehicle type', body: 'Start serving a new kind of vehicle. Give it at least one service so customers can book it.' },
+    { target: '[data-tour="hub-promos"]', title: '5. Promos and packages', body: 'Open this to create discounts, packages and promo codes for the services above. It has its own “i” guide inside.' },
+  ],
+
+  hub_terms: [
+    { target: '[data-tour="hub-tabs"]', title: '1. Business Hub tabs', body: 'Each tab covers one part of the shop. This one holds the terms people accept and the payment policy.' },
+    { target: '[data-tour="hub-terms-terms"]', title: '2. Terms and conditions', body: 'The terms customers, staff and admins accept, one version per role. Publishing a new version asks everyone to accept it again.' },
+    { target: '[data-tour="hub-terms-payments"]', title: '3. Payment policy', body: 'How much a customer pays up front before work starts. The preview shows what customers will pay for a few example totals.' },
+  ],
+
+  refunds: [
+    { target: '[data-tour="ref-search"]', title: '1. Find a refund', body: 'Search by customer name or booking number.' },
+    { target: '[data-tour="ref-filter"]', title: '2. Pending or processed', body: 'Pending refunds are waiting for you to send the money back. Processed ones are done; under Processed you can show only Digital or Cash.' },
+    { target: '[data-tour="ref-list"]', title: '3. Pick a request', body: 'Each card is a cancelled or no-show booking with money to return. Click one to open it.' },
+    { target: '[data-tour="ref-details"]', title: '4. Send the refund', body: 'Choose the reason and how the money was sent. For a bank or e-wallet transfer, upload a screenshot of it; the system reads the amount to help you check. Then press Process Refund. The customer is emailed automatically.' },
+  ],
+
+  reports: [
+    { target: '[data-tour="rep-range"]', title: '1. Choose the dates', body: 'Pick a ready range (like this month) or your own dates. Everything on the page follows these dates.' },
+    { target: '[data-tour="rep-tabs"]', title: '2. Pick a view', body: 'Overview shows the totals; the other tabs list bookings, payments, refunds and credits, and balances still owed.' },
+    { target: '[data-tour="rep-actions"]', title: '3. Export, print or ask', body: 'Download a spreadsheet or print the tab you are on, get a full PDF report, or ask the AI a question about the numbers.' },
+    { target: '[data-tour="rep-kpis"]', title: '4. Sales and balances', body: 'Gross sales is the price of the services sold; discounts and promos are taken off to give net sales; average sale is net sales per booking. Refunds and pending cover the dates chosen; outstanding, deferred and customer credit are as of today.' },
+    { target: '[data-tour="rep-chart"]', title: '5. Money over time', body: 'Money collected, refunds and payments waiting for checking, day by day. Point at the chart to see a day’s numbers.' },
+    { target: '[data-tour="rep-breakdown"]', title: '6. How customers pay, and what they buy', body: 'Money collected by payment method, and the services booked most.' },
+  ],
+
   bookingDetails: [
     { target: '[data-tour="bd-actions"]', title: '1. Booking actions', body: 'Reschedule, allow an early start, cancel or flag a no-show from here. Buttons only appear when that action is allowed for the booking’s current status.' },
     { target: '[data-tour="bd-ledger"]', title: '2. Money', body: 'Every payment, top-up and refund for this booking, with what is still owed. Record a cash or digital payment here.' },

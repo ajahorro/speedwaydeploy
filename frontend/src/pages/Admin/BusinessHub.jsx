@@ -12,7 +12,7 @@ import PromoManager from '../../components/AdminSchedule/PromoManager';
 import { DownpaymentPolicyCard } from '../../features/business-hub/DownpaymentPolicyCard';
 import { usePaged } from '../../components/common/ListPager';
 import { AboutMapCard } from '../../features/business-hub/AboutMapCard';
-import GuidedTour, { TourInfoButton } from '../../components/common/GuidedTour';
+import GuidedTour, { TourInfoButton, TourLauncher } from '../../components/common/GuidedTour';
 import { ADMIN_TOURS } from '../../features/tours/adminTours';
 import { TermsEditorCard } from '../../features/business-hub/TermsEditorCard';
 import { PromoCodesCard } from '../../features/business-hub/PromoCodesCard';
@@ -1933,16 +1933,20 @@ export default function BusinessHub() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
       {/* Header */}
       <div>
-        <h1 className="text-fluid-h1" style={{ margin: 0, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '-1.5px', lineHeight: 1.1 }}>
-          Business Hub
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <h1 className="text-fluid-h1" style={{ margin: 0, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '-1.5px', lineHeight: 1.1 }}>
+            Business Hub
+          </h1>
+          {/* the guide follows the open tab */}
+          <TourLauncher key={currentTab} steps={ADMIN_TOURS[`hub_${currentTab}`] || ADMIN_TOURS.hub_profile} label="How this tab works" />
+        </div>
         <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: 600 }}>
           Manage store details, operating schedules, catalog offerings, and promotional campaigns.
         </p>
       </div>
 
       {/* Tab Navigation */}
-      <div style={{ borderBottom: '1px solid var(--admin-border)' }}>
+      <div style={{ borderBottom: '1px solid var(--admin-border)' }} data-tour="hub-tabs">
         <nav
           aria-label="Tabs"
           style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', overflowX: 'auto', whiteSpace: 'nowrap', paddingBottom: '1px' }}
@@ -2009,7 +2013,7 @@ export default function BusinessHub() {
         {currentTab === 'profile' && (
           <form onSubmit={(e) => { e.preventDefault(); confirmThen({ title: 'Save changes?', message: 'These settings apply to the whole system straight away, including new bookings.', confirmText: 'Save changes' }, () => handleSaveSection(e)); }} style={cardStyle}>
             <SectionHeading>Store Identification &amp; Contact</SectionHeading>
-            <div style={gridStyle}>
+            <div style={gridStyle} data-tour="hub-profile-details">
               <Field label="Business Name" required htmlFor="business-name">
                 <input
                   id="business-name"
@@ -2110,7 +2114,7 @@ export default function BusinessHub() {
               );
             })()}
 
-            <div style={{ ...insetPanelStyle, display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '0.5rem' }}>
+            <div data-tour="hub-faq" style={{ ...insetPanelStyle, display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '0.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 900, color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
@@ -2228,12 +2232,12 @@ export default function BusinessHub() {
               </div>
             </div>
 
-            <SaveBar
+            <div data-tour="hub-save-profile"><SaveBar
               canSave={canSave('profile')}
               saving={saving}
               dirty={isDirty('profile')}
               label="Save Profile Changes"
-            />
+            /></div>
           </form>
         )}
 
@@ -2242,6 +2246,7 @@ export default function BusinessHub() {
           <form onSubmit={(e) => { e.preventDefault(); confirmThen({ title: 'Save changes?', message: 'These settings apply to the whole system straight away, including new bookings.', confirmText: 'Save changes' }, () => handleSaveSection(e)); }} style={cardStyle}>
             <div style={{ display: 'grid', gap: '1.25rem' }}>
               <div
+                data-tour="hub-schedule-rules"
                 style={{
                   border: '1px solid var(--admin-border)',
                   borderRadius: 'var(--admin-radius)',
@@ -2486,6 +2491,7 @@ export default function BusinessHub() {
               </div>
 
               <div
+                data-tour="hub-closures"
                 style={{
                   border: '1px solid var(--admin-border)',
                   borderRadius: 'var(--admin-radius)',
@@ -2752,6 +2758,7 @@ export default function BusinessHub() {
             <div style={{ ...cardStyle, gap: '1rem' }}>
               <button
                 type="button"
+                data-tour="hub-svc-existing"
                 onClick={() => toggleServicePanel('existing')}
                 style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', color: 'var(--admin-text-primary)', textAlign: 'left' }}
               >
@@ -2964,6 +2971,7 @@ export default function BusinessHub() {
             <div style={{ ...cardStyle, gap: '1rem' }}>
               <button
                 type="button"
+                data-tour="hub-svc-add"
                 onClick={() => toggleServicePanel('add')}
                 style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', color: 'var(--admin-text-primary)', textAlign: 'left' }}
               >
@@ -3090,6 +3098,7 @@ export default function BusinessHub() {
             <div style={{ ...cardStyle, gap: '1rem' }}>
               <button
                 type="button"
+                data-tour="hub-svc-vehicle"
                 onClick={() => toggleServicePanel('vehicle')}
                 style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', color: 'var(--admin-text-primary)', textAlign: 'left' }}
               >
@@ -3239,7 +3248,7 @@ export default function BusinessHub() {
           <div style={{ ...cardStyle, gap: '1rem', marginTop: '1rem' }}>
             <button
               type="button"
-              onClick={() => toggleServicePanel('promos')}
+              data-tour="hub-promos" onClick={() => toggleServicePanel('promos')}
               aria-expanded={servicePanels.promos}
               style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', cursor: 'pointer', color: 'var(--admin-text-primary)', textAlign: 'left' }}
             >
@@ -3268,7 +3277,7 @@ export default function BusinessHub() {
               { key: 'terms', title: 'Terms and conditions', hint: 'The terms customers, staff and admins accept, one version per role.', icon: ScrollText, body: <TermsEditorCard /> },
               { key: 'payments', title: 'Payment policy', hint: 'How much a customer pays up front before work starts.', icon: Wallet, body: <DownpaymentPolicyCard /> },
             ].map(({ key, title, hint, icon: SectionIcon, body }) => (
-              <div key={key} style={{ ...cardStyle, gap: '1rem' }}>
+              <div key={key} data-tour={`hub-terms-${key}`} style={{ ...cardStyle, gap: '1rem' }}>
                 <button
                   type="button"
                   onClick={() => toggleServicePanel(key)}

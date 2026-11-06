@@ -246,7 +246,7 @@ const AdminLayout = () => {
           </p>
         </div>
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '0 0.5rem' }}>
+        <nav data-tour="admin-nav" style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '0 0.5rem' }}>
           {navGroups.map((group, groupIndex) => (
             <div key={group.name} style={{ marginTop: groupIndex === 0 ? 0 : '1rem' }}>
               <div style={{ padding: '0.5rem 1rem', color: 'var(--admin-text-secondary)', fontSize: '0.65rem', fontWeight: '700', letterSpacing: '0.04em', opacity: 0.75 }}>

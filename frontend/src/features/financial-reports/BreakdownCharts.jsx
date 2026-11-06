@@ -11,7 +11,7 @@ function EmptyState({ children }) {
   return <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">{children}</div>;
 }
 
-/** Net received by payment method (from sales_report().by_method). */
+/** Money collected by payment method (from sales_report().by_method). */
 export function MethodBreakdownChart({ rows = [], total = 0, loading }) {
   // GCash, Maya and bank transfers are all "Digital Bank": rows with the same label are added together.
   const merged = new Map();
@@ -29,7 +29,7 @@ export function MethodBreakdownChart({ rows = [], total = 0, loading }) {
     <Card className="gap-2">
       <CardHeader>
         <CardTitle>Payment methods</CardTitle>
-        <CardDescription>Net received by method</CardDescription>
+        <CardDescription>Money collected by method</CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? <Skeleton className="h-[220px] w-full" /> : !data.length ? <EmptyState>No payments in this range.</EmptyState> : (

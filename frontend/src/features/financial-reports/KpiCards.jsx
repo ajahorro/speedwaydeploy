@@ -4,22 +4,27 @@ import { cn } from '@/lib/utils';
 import { formatPeso } from '@/features/finance/money';
 
 /**
- * Every figure here is read straight from sales_report(); nothing is computed
- * in the browser, so these cards always match booking balances and receipts.
+ * Every figure here is read straight from sales_report(); nothing is computed in the browser.
+ *
+ * Sales (bookings scheduled in the period that were not cancelled or no-shows):
+ *   gross sales - discounts & promos = net sales;  average sale = net sales / those bookings.
+ * Money and balances: refunds and pending verification for the period; outstanding, deferred and customer
+ * credit as of today.
  */
 const KPIS = [
-  { key: 'net_revenue', label: 'Net revenue', hint: 'Net received minus refunds', emphasis: true, tone: 'text-emerald-500' },
-  { key: 'net_received', label: 'Net received', hint: 'Money that reached the shop' },
-  { key: 'refunds', label: 'Refunds', hint: 'Posted refund transactions', tone: 'text-chart-2' },
-  { key: 'pending_verification', label: 'Pending verification', hint: 'Receipts awaiting an admin', tone: 'text-warning' },
-  { key: 'outstanding_balance', label: 'Outstanding balance', hint: 'Owed on active bookings (today)', tone: 'text-destructive' },
-  { key: 'deferred_receivables', label: 'Deferred receivables', hint: 'Marked "to be received" by an admin; not money received (today)' },
-  { key: 'customer_credit_liability', label: 'Customer credit', hint: 'Credit held for customers (today)' },
-  { key: 'average_ticket', label: 'Average per booking', hint: 'Net received ÷ paying bookings' }
+  { key: 'gross_sales', label: 'Gross sales', hint: 'Price of the services before any discount', group: 'sales' },
+  { key: 'discounts', label: 'Discounts & promos', hint: 'Taken off by promos and promo codes', tone: 'text-chart-2', group: 'sales' },
+  { key: 'net_sales', label: 'Net sales', hint: 'Gross sales minus discounts and promos', emphasis: true, tone: 'text-emerald-500', group: 'sales' },
+  { key: 'average_sale', label: 'Average sale', hint: 'Net sales per booking', group: 'sales' },
+  { key: 'refunds', label: 'Refunds', hint: 'Money returned to customers', tone: 'text-chart-2' },
+  { key: 'pending_verification', label: 'Pending verification', hint: 'Receipts waiting for an admin to check', tone: 'text-warning' },
+  { key: 'outstanding_balance', label: 'Outstanding balance', hint: 'Still owed on active bookings (today)', tone: 'text-destructive' },
+  { key: 'deferred_receivables', label: 'Deferred receivables', hint: 'Marked "to be received" by an admin; not paid yet (today)' },
+  { key: 'customer_credit_liability', label: 'Customer credit', hint: 'Credit held for customers (today)' }
 ];
 
 export function KpiCards({ report, loading, compact = false }) {
-  const items = compact ? KPIS.filter((kpi) => ['net_revenue', 'net_received', 'refunds', 'pending_verification'].includes(kpi.key)) : KPIS;
+  const items = compact ? KPIS.filter((kpi) => ['gross_sales', 'net_sales', 'refunds', 'pending_verification'].includes(kpi.key)) : KPIS;
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {items.map((kpi) => (
@@ -30,14 +35,15 @@ export function KpiCards({ report, loading, compact = false }) {
               <Skeleton className="h-8 w-32" />
             ) : (
               <CardTitle className={cn('text-2xl font-bold tabular-nums', kpi.tone)}>
-                {formatPeso(report[kpi.key])}
+                {report[kpi.key] === undefined || report[kpi.key] === null ? '—' : formatPeso(report[kpi.key])}
               </CardTitle>
             )}
           </CardHeader>
           <CardContent className="px-4 text-xs text-muted-foreground">
-            {kpi.key === 'net_received' && report
-              ? `${report.transaction_count} transaction${report.transaction_count === 1 ? '' : 's'} · ${report.booking_count} booking${report.booking_count === 1 ? '' : 's'}`
-              : kpi.hint}
+            <span className="block">{kpi.hint}</span>
+            {kpi.key === 'net_sales' && report && Number.isFinite(Number(report.sales_count)) && (
+              <span className="block">{Number(report.sales_count) === 1 ? '1 booking' : `${report.sales_count} bookings`}</span>
+            )}
           </CardContent>
         </Card>
       ))}

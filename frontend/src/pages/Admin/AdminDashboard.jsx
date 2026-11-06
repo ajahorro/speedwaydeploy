@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { ADMIN_TOURS } from '../../features/tours/adminTours';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { subscribeTables } from '../../lib/realtimeHub';
@@ -352,6 +353,8 @@ const AdminDashboard = () => {
         title="Dashboard"
         subtitle="Real-time performance metrics and fleet coordination."
         onRefresh={fetchDashboardData}
+        tour={ADMIN_TOURS.dashboard}
+        tourLabel="How the dashboard works"
       />
 
       {/* Two-column operational overview */}
@@ -361,7 +364,7 @@ const AdminDashboard = () => {
           <h2 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>Needs Immediate Attention</h2>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '0.9rem' }}>
+        <div data-tour="dash-attention" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '0.9rem' }}>
           <AttentionCard
             count={state.stats.pendingPayments}
             label="Pending Verifications"
@@ -406,7 +409,7 @@ const AdminDashboard = () => {
 
         </section>
 
-        <Card className="live-queue-panel" style={{ background: 'var(--admin-card)' }}>
+        <Card className="live-queue-panel" data-tour="dash-queue" style={{ background: 'var(--admin-card)' }}>
           <CardHeader className="flex-row items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-xs font-black uppercase tracking-widest">
               <span className="size-1.5 rounded-full" style={{ background: 'var(--admin-brand)', animation: 'pulse 1.5s infinite' }} />
