@@ -69,7 +69,7 @@ const AdminProfile = () => {
   const executeVerifiedAction = async () => {
     const res = await verifyPassword(formData.currentPassword);
     if (!res.success) {
-      return toast.error('Identity verification failed. Incorrect password.');
+      return toast.error('Your current password is incorrect.');
     }
 
     setShowVerifyModal(false);
@@ -84,7 +84,7 @@ const AdminProfile = () => {
           full_name: `${formData.firstName} ${formData.lastName}`.trim()
         });
         setIsEditing(false);
-        toast.success('Professional identity updated', { id: toastId });
+        toast.success('Profile updated', { id: toastId });
       } else if (pendingAction === 'password') {
         const result = await requestPasswordChange(formData.currentPassword, formData.newPassword);
         // Task 16: report whether the email actually left the mail server.
@@ -97,7 +97,7 @@ const AdminProfile = () => {
         setFormData(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
       }
     } catch (err) {
-      toast.error(err.message || 'Operation failed', { id: toastId });
+      toast.error(err.message || 'Something went wrong. Please try again.', { id: toastId });
     } finally {
       setLoading(false);
       setPendingAction(null);
@@ -160,7 +160,7 @@ const AdminProfile = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '4rem' }}>
       <PageHeader
         title="ADMIN ACCOUNT"
-        subtitle="Manage your professional identity and security credentials."
+        subtitle="Manage your profile and password."
         onRefresh={() => toast.success('Synchronizing profile...')}
       />
 
@@ -173,7 +173,7 @@ const AdminProfile = () => {
               onClick={() => setIsEditing(true)}
               style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'transparent', border: '1px solid var(--admin-brand)', color: 'var(--admin-brand)', padding: '0.5rem 1rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '950', cursor: 'pointer', textTransform: 'uppercase' }}
             >
-              Edit Identity
+              Edit profile
             </button>
           )}
           
@@ -183,7 +183,7 @@ const AdminProfile = () => {
             </div>
             <div>
               <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>PERSONAL INFO</h2>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Identity verification and display names</p>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Your name and contact details</p>
             </div>
           </div>
 
@@ -246,7 +246,7 @@ const AdminProfile = () => {
             </div>
             <div>
               <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>SECURITY</h2>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Authentication and password management</p>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '700' }}>Change your password</p>
             </div>
           </div>
 
@@ -362,7 +362,7 @@ const AdminProfile = () => {
                 opacity: loading || !isPasswordFormValid ? 0.5 : 1
               }}
             >
-              <Shield size={18} /> {loading ? 'Processing...' : 'Rotate Security Key'}
+              <Shield size={18} /> {loading ? 'Saving…' : 'Confirm change password'}
             </button>
           </form>
         </div>

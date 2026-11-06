@@ -48,7 +48,7 @@ const StaffProfile = () => {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      toast.error(err.message || 'Failed to update credentials');
+      toast.error(err.message || 'Your password could not be changed.');
     } finally {
       setPassLoading(false);
     }
@@ -108,7 +108,7 @@ const StaffProfile = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%', maxWidth: '1200px', paddingBottom: '4rem' }}>
       <PageHeader
         title="Technician Profile"
-        subtitle="Manage your identity, credentials, and account security settings."
+        subtitle="Manage your profile and password."
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '2rem', alignItems: 'start' }}>
@@ -159,7 +159,7 @@ const StaffProfile = () => {
         <section style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <Key size={20} color="var(--admin-brand)" />
-            <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1px' }}>Security Credentials</h3>
+            <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1px' }}>Change password</h3>
           </div>
 
           <form onSubmit={handleUpdatePassword} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -241,7 +241,7 @@ const StaffProfile = () => {
             )}
             <Button type="submit" disabled={passLoading || !isFormValid} variant="outline" className="self-start uppercase">
               {passLoading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-              Update Credentials
+              Confirm change password
             </Button>
           </form>
         </section>
