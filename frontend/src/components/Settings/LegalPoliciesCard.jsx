@@ -45,9 +45,16 @@ const LegalPoliciesCard = () => {
   // (edited in the Business Hub), so the two can never disagree. The static text is only the fallback.
   const roleKey = ['ADMIN', 'SUPER_ADMIN'].includes(String(profile?.role || '').toUpperCase()) ? 'admin' : (String(profile?.role || '').toUpperCase() === 'STAFF' ? 'staff' : 'customer');
   const acceptedTerms = String(settings?.TERMS?.[roleKey]?.text || '').trim();
-  const documents = LEGAL_DOCUMENTS.map((doc) => (doc.id === 'terms' && acceptedTerms
-    ? { ...doc, sections: [{ heading: '', paragraphs: acceptedTerms.split(/\n+/).map((line) => line.trim()).filter(Boolean) }] }
-    : doc));
+  // Same for privacy: the live privacy & security policy for this role replaces the older static text.
+  const livePolicy = String(settings?.SECURITY_POLICY?.[roleKey]?.text || '').trim();
+  const asSections = (text) => [{ heading: '', paragraphs: text.split(/\n+/).map((line) => line.trim()).filter(Boolean) }];
+  const documents = LEGAL_DOCUMENTS.map((doc) => {
+    if (doc.id === 'terms' && acceptedTerms) return { ...doc, sections: asSections(acceptedTerms) };
+    if (doc.id === 'privacy' && livePolicy) {
+      return { ...doc, title: 'Privacy & Security Policy', summary: 'How we collect, use and protect your personal information, and your rights.', sections: asSections(livePolicy) };
+    }
+    return doc;
+  });
   const openDocument = (doc) => setOpenDoc(doc);
 
   return (

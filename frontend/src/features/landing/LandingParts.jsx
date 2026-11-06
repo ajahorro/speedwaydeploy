@@ -219,14 +219,14 @@ export function HeroActions({ user, pending, onAuth }) {
 export function AboutFeatures({ items }) {
   return (
     <div className="landing-ui grid grid-cols-2 gap-4">
-      {items.map((item) => (
-        <Card key={item.title} className="lp-card-hover gap-3 py-6">
+      {items.map((item, index) => (
+        <Card key={`${index}-${item.title}`} className="lp-card-hover gap-3 py-6">
           <CardHeader className="gap-3 px-5">
             <div className="flex size-11 items-center justify-center rounded-lg bg-primary/12 ring-1 ring-primary/25">
               <item.icon className="size-6 text-primary" />
             </div>
             <CardTitle className="text-sm font-black uppercase tracking-wide">{item.title}</CardTitle>
-            <CardDescription className="text-xs">{item.desc}</CardDescription>
+            {item.desc && <CardDescription className="text-xs">{item.desc}</CardDescription>}
           </CardHeader>
         </Card>
       ))}

@@ -5,10 +5,6 @@ import {
   MapPin,
   Phone,
   Mail,
-  Clock,
-  Shield,
-  Zap,
-  Star,
   Facebook,
   Instagram,
   Twitter,
@@ -23,6 +19,7 @@ import { useConfig } from '../context/ConfigContext';
 import { getServiceCatalog } from '../data/servicesCatalog';
 import AboutGallery from '../features/site-content/AboutGallery';
 import ShopMap from '../features/site-content/ShopMap';
+import { aboutIcon, resolveAbout } from '../features/site-content/aboutContent';
 import { AuthButtons, MobileMenu, ServiceCard, FaqList, ContactCards, ContactForm, HeroActions, AboutFeatures, SiteFooter } from '../features/landing/LandingParts';
 
 // ─── Smooth Cinematic Scroll-Reveal Component ────────────────────────────────
@@ -89,6 +86,10 @@ const Landing = () => {
   const businessName = settings?.BUSINESS_NAME || 'COMAR GARAGE';
   const aboutPhotos = Array.isArray(settings?.ABOUT_PHOTOS) ? settings.ABOUT_PHOTOS : [];
   const shopLocation = settings?.SHOP_LOCATION || null;
+  // Business Hub › About & Map: banner photo, About heading, paragraph and highlights
+  const heroPhoto = settings?.HERO_PHOTO || null;
+  const about = resolveAbout(settings);
+  const aboutCards = about.cards.map((c) => ({ icon: aboutIcon(c.icon), title: c.title, desc: c.text }));
 
   const [catalog, setCatalog] = useState(() => getServiceCatalog());
   useEffect(() => {
@@ -339,8 +340,8 @@ const Landing = () => {
         }
         .menu-drawer.is-open { transform: translateX(0); }
 
-        /* Hero video — zoom to cover screen gracefully */
-        .hero-video {
+        /* Hero banner photo (Business Hub › About & Map) */
+        .hero-photo {
           position: absolute;
           inset: 0;
           width: 100%;
@@ -348,18 +349,9 @@ const Landing = () => {
           object-fit: cover;
           object-position: center center;
           z-index: 0;
-          opacity: 0.55;
           pointer-events: none;
         }
         @media (max-width: 768px) {
-          .hero-video {
-            /* Mobile phone view: zoom to fit phone screen edge-to-edge properly */
-            object-fit: cover;
-            object-position: center center;
-            width: 100%;
-            height: 100%;
-            opacity: 0.58;
-          }
           .hero-content h1 { font-size: clamp(1.85rem, 6.5vw, 2.5rem) !important; }
 
           /* Mobile services collapse toggle */
@@ -516,30 +508,22 @@ const Landing = () => {
           alignItems: 'center',
           justifyContent: 'center',
           overflow: 'hidden',
-          background: 'radial-gradient(ellipse at center, rgba(196, 31, 43, 0.22) 0%, rgba(10, 11, 13, 0.88) 65%, #0A0B0D 100%)'
+          background: '#0A0B0D'
         }}
       >
-        {/* Background video — zoom to fit phone screen on mobile, cover widescreen on desktop */}
-        <video
-          className="hero-video"
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="auto"
-        >
-          <source src="/S7ggroup_pindown.io_1790707925.mp4" type="video/mp4" />
-          <source src="/hero-bg.mp4" type="video/mp4" />
-        </video>
-
-        {/* Gradient overlay so text stays readable */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'linear-gradient(to bottom, rgba(10,11,13,0.5) 0%, rgba(10,11,13,0.25) 50%, rgba(10,11,13,0.7) 100%)',
-          zIndex: 1,
-          pointerEvents: 'none'
-        }} />
+        {/* Shop photo from the Business Hub, darkened so the headline stays readable; plain dark without one */}
+        {heroPhoto && (
+          <>
+            <img className="hero-photo" src={heroPhoto.url} alt="" fetchPriority="high" decoding="async" />
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'linear-gradient(to bottom, rgba(10,11,13,0.72) 0%, rgba(10,11,13,0.55) 45%, rgba(10,11,13,0.85) 100%)',
+              zIndex: 1,
+              pointerEvents: 'none'
+            }} />
+          </>
+        )}
 
         <div className="hero-content" style={{ position: 'relative', zIndex: 2, textAlign: 'center', maxWidth: '850px', padding: '0 2rem' }}>
           <Reveal delay={250} direction="up">
@@ -563,24 +547,21 @@ const Landing = () => {
 
       {/* ── 4. ABOUT SECTION ── */}
       <section id="about" className="section-padding" style={{ background: '#0A0B0D' }}>
-        <div className="container-wide" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 'clamp(2rem, 5vw, 4.5rem)', alignItems: 'center' }}>
+        <div className="container-wide" style={{ display: 'grid', gridTemplateColumns: aboutCards.length ? 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))' : 'minmax(0, 52rem)', gap: 'clamp(2rem, 5vw, 4.5rem)', alignItems: 'center' }}>
           <Reveal direction="right">
-            <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '1.5rem', fontWeight: 950 }}>ABOUT US</h2>
-            <p style={{ fontSize: 'clamp(0.92rem, 1.05vw, 1.05rem)', color: 'rgba(255,255,255,0.65)', lineHeight: '1.75', marginBottom: '1.5rem' }}>
-              At Comar Garage, we believe that every vehicle deserves to look its absolute best.
-              Founded with a passion for automotive excellence, we have grown into one of the region's
-              most trusted detailing centers.
-            </p>
+            <h2 className="text-fluid-h2" style={{ textTransform: 'uppercase', marginBottom: '1.5rem', fontWeight: 950 }}>{about.heading}</h2>
+            {about.body.split(/\n{2,}/).map((para, index) => (
+              <p key={index} style={{ fontSize: 'clamp(0.92rem, 1.05vw, 1.05rem)', color: 'rgba(255,255,255,0.65)', lineHeight: '1.75', marginBottom: '1.5rem', whiteSpace: 'pre-line' }}>
+                {para}
+              </p>
+            ))}
           </Reveal>
 
-          <Reveal direction="up" delay={150}>
-            <AboutFeatures items={[
-              { icon: Shield, title: 'Protection', desc: 'Premium ceramic coatings' },
-              { icon: Zap, title: 'Performance', desc: 'Expert technicians' },
-              { icon: Star, title: 'Quality', desc: 'Satisfaction guaranteed' },
-              { icon: Clock, title: 'Reliability', desc: 'Punctual service' },
-            ]} />
-          </Reveal>
+          {aboutCards.length > 0 && (
+            <Reveal direction="up" delay={150}>
+              <AboutFeatures items={aboutCards} />
+            </Reveal>
+          )}
         </div>
 
         {/* Photos and map, managed in Business Hub › About & Map */}

@@ -4567,6 +4567,15 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const siteUploadTimes = new Map();
 const sitePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 4 } });
 const sitePhotoUrl = (id) => `${String(process.env.SUPABASE_URL || '').replace(/\/+$/, '')}/storage/v1/object/public/${SITE_PHOTO_BUCKET}/${id}.webp`;
+// like cleanSiteText, but keeps paragraph breaks (for the About paragraph)
+const cleanSiteParagraphs = (value, max) => String(value ?? '')
+  .replace(/\r\n?/g, '\n')
+  .replace(/[\u0000-\u0009\u000B-\u001F\u007F<>]/g, ' ')
+  .split('\n').map((line) => line.replace(/\s+/g, ' ').trim()).join('\n')
+  .replace(/\n{3,}/g, '\n\n')
+  .trim()
+  .slice(0, max);
+const ABOUT_ICONS = ['shield', 'zap', 'star', 'clock', 'sparkles', 'droplets', 'car', 'wrench', 'award', 'thumbs-up', 'badge-check', 'heart'];
 const cleanSiteText = (value, max) => String(value ?? '')
   .replace(/[\u0000-\u001F\u007F<>]/g, ' ')
   .replace(/\s+/g, ' ')
@@ -4680,6 +4689,32 @@ app.put('/api/admin/site-content', async (req, res) => {
     location = { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6, zoom, label: cleanSiteText(body.location.label, 120) };
   }
 
+  // banner photo (optional) and the About texts / highlight cards
+  let heroPhoto = null;
+  if (body.heroPhotoId) {
+    const heroId = String(body.heroPhotoId).toLowerCase();
+    if (!UUID_RE.test(heroId)) return res.status(400).json({ success: false, error: 'The banner photo is not valid.' });
+    heroPhoto = { id: heroId, url: sitePhotoUrl(heroId) };
+  }
+  const aboutIn = body.about && typeof body.about === 'object' ? body.about : null;
+  let aboutFields = null;
+  if (aboutIn) {
+    const cardsIn = Array.isArray(aboutIn.cards) ? aboutIn.cards : [];
+    if (cardsIn.length > 4) return res.status(400).json({ success: false, error: 'You can show up to 4 highlights.' });
+    const cards = [];
+    for (const card of cardsIn) {
+      const icon = String(card?.icon || '');
+      const title = cleanSiteText(card?.title, 40);
+      if (!ABOUT_ICONS.includes(icon) || !title) return res.status(400).json({ success: false, error: 'Each highlight needs an icon and a title.' });
+      cards.push({ icon, title, text: cleanSiteText(card?.text, 100) });
+    }
+    aboutFields = {
+      about_heading: cleanSiteText(aboutIn.heading, 80) || null,
+      about_body: cleanSiteParagraphs(aboutIn.body, 1200) || null,
+      about_cards: cards
+    };
+  }
+
   try {
     // every photo must really exist in our bucket (stops ids that point nowhere)
     const { data: files, error: listError } = await supabaseAdmin.storage.from(SITE_PHOTO_BUCKET).list('', { limit: 1000 });
@@ -4687,18 +4722,28 @@ app.put('/api/admin/site-content', async (req, res) => {
     const stored = new Map((files || []).map((f) => [String(f.name), f]));
     const missing = photos.find((p) => !stored.has(`${p.id}.webp`));
     if (missing) return res.status(400).json({ success: false, error: 'One of the photos is no longer stored. Remove it and upload it again.' });
+    if (heroPhoto && !stored.has(`${heroPhoto.id}.webp`)) return res.status(400).json({ success: false, error: 'The banner photo is no longer stored. Upload it again.' });
 
-    const { data: row, error: rowError } = await supabaseAdmin.from('business_config').select('id, about_photos, about_layout, shop_location').order('id', { ascending: true }).limit(1).maybeSingle();
+    const { data: row, error: rowError } = await supabaseAdmin.from('business_config').select('*').order('id', { ascending: true }).limit(1).maybeSingle();
     if (rowError) throw rowError;
     if (!row) return res.status(404).json({ success: false, error: 'The business settings were not found.' });
 
-    const { error: saveError } = await supabaseAdmin.from('business_config').update({ about_photos: photos, about_layout: layout, shop_location: location }).eq('id', row.id);
+    const hasPart2 = Object.prototype.hasOwnProperty.call(row, 'hero_photo');
+    const update = { about_photos: photos, about_layout: layout, shop_location: location };
+    if (hasPart2) {
+      if (Object.prototype.hasOwnProperty.call(body, 'heroPhotoId')) update.hero_photo = heroPhoto;
+      if (aboutFields) Object.assign(update, aboutFields);
+    }
+    const { error: saveError } = await supabaseAdmin.from('business_config').update(update).eq('id', row.id);
     if (saveError) throw saveError;
 
     // clean up: files no longer shown, and staged uploads older than a day that were never saved
     const keep = new Set(photos.map((p) => `${p.id}.webp`));
+    const liveHero = hasPart2 ? (Object.prototype.hasOwnProperty.call(update, 'hero_photo') ? update.hero_photo : row.hero_photo) : null;
+    if (liveHero?.id) keep.add(`${liveHero.id}.webp`);
     const dayAgo = Date.now() - 86400000;
     const before = new Set((Array.isArray(row.about_photos) ? row.about_photos : []).map((p) => `${p.id}.webp`));
+    if (row.hero_photo?.id) before.add(`${row.hero_photo.id}.webp`);
     const remove = [...stored.values()]
       .filter((f) => !keep.has(f.name) && (before.has(f.name) || new Date(f.created_at || 0).getTime() < dayAgo))
       .map((f) => f.name);
@@ -4709,12 +4754,12 @@ app.put('/api/admin/site-content', async (req, res) => {
 
     await writeAuditLog({
       actionType: 'BUSINESS_CONFIG_UPDATED',
-      details: `Updated the About photos (${photos.length}, ${layout} layout)${location ? ' and the map pin' : ''} in the Business Hub.`,
+      details: `Updated the landing page in the Business Hub: About photos (${photos.length}, ${layout} layout)${location ? ', map pin' : ''}${hasPart2 && aboutFields ? ', About text and highlights' : ''}${hasPart2 && Object.prototype.hasOwnProperty.call(body, 'heroPhotoId') ? ', banner photo' : ''}.`,
       actorId: admin.profile?.id || admin.user?.id,
       actorName: admin.profile?.full_name || admin.user?.email || 'Administrator',
       actorRole: 'ADMIN'
     }).catch(() => {});
-    return res.json({ success: true, photos, layout, location });
+    return res.json({ success: true, photos, layout, location, heroPhoto: hasPart2 ? (update.hero_photo ?? row.hero_photo ?? null) : null, textsSaved: hasPart2 });
   } catch (error) {
     console.error('[SITE CONTENT] save failed:', error.message);
     return res.status(500).json({ success: false, error: 'The changes could not be saved. Please try again.' });

@@ -74,6 +74,13 @@ const settingsFromRow = (data) => {
     SHOP_LOCATION: data?.shop_location && Number.isFinite(Number(data.shop_location.lat)) && Number.isFinite(Number(data.shop_location.lng))
       ? { lat: Number(data.shop_location.lat), lng: Number(data.shop_location.lng), zoom: Number(data.shop_location.zoom) || 16, label: String(data.shop_location.label || '') }
       : null,
+    // Top banner photo and the About heading, paragraph and highlight cards (null = use the standard ones)
+    HERO_PHOTO: data?.hero_photo && data.hero_photo.id && data.hero_photo.url ? { id: String(data.hero_photo.id), url: String(data.hero_photo.url) } : null,
+    ABOUT_HEADING: String(data?.about_heading || ''),
+    ABOUT_BODY: String(data?.about_body || ''),
+    ABOUT_CARDS: Array.isArray(data?.about_cards)
+      ? data.about_cards.filter((c) => c && c.title).slice(0, 4).map((c) => ({ icon: String(c.icon || 'shield'), title: String(c.title), text: String(c.text || '') }))
+      : null,
     // One text for the whole site, edited in the Business Hub (Payment Policy).
     TERMS_AND_CONDITIONS: String(data?.terms_customer || data?.terms_and_conditions || ''),
     // One text and version per role (master plan 1.11); each account accepts its own.
