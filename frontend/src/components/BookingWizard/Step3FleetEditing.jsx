@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import BookingWizardActions from './BookingWizardActions';
 
 const NON_OCCUPYING_BOOKING_STATUSES = ['CANCELLED', 'RELEASED', 'COMPLETED'];
 const NON_OCCUPYING_VEHICLE_STATUSES = ['COMPLETED', 'RELEASED'];
@@ -347,42 +348,18 @@ const Step3FleetEditing = ({ bookingData, setBookingData, activeVehicleIndex, se
       </div>
 
       {/* Action Footer */}
-      <div className="booking-step3-actions" style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem', marginTop: '1rem', gap: '1rem' }}>
-        <button
-          className="booking-step3-back"
-          onClick={onBack}
-          style={{
-            padding: '1rem 2rem',
-            background: 'var(--admin-bg)',
-            color: 'var(--admin-text-primary)',
-            border: '1px solid var(--admin-border)',
-            borderRadius: 'var(--admin-radius-md)',
-            fontWeight: '950',
-            fontSize: '1rem',
-            cursor: 'pointer',
-            textTransform: 'uppercase',
-            letterSpacing: '1px'
-          }}
-        >
-          Back
-        </button>
-
-        {onCancel && (
-          <Button type="button" onClick={onCancel} variant="outline" className="border-destructive/60 text-destructive hover:text-destructive uppercase">
-            Cancel
-          </Button>
+      <BookingWizardActions
+        onBack={onBack}
+        onCancel={onCancel}
+        onPrimary={onNext}
+        primaryLabel="Next: Review & Payment"
+        primaryDisabled={vehicles.length === 0}
+        primarySupplement={vehicles.length === 0 && (
+          <div role="status" className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-bold text-destructive">
+            At least one vehicle required to proceed
+          </div>
         )}
-        <div style={{ position: 'relative' }}>
-          {vehicles.length === 0 && (
-            <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: '0.5rem', background: 'rgba(196, 31, 43, 0.1)', color: 'var(--status-danger)', padding: '0.4rem 0.8rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '950', textTransform: 'uppercase', border: '1px solid rgba(196, 31, 43, 0.2)', whiteSpace: 'nowrap' }}>
-              At least one vehicle required to proceed
-            </div>
-          )}
-          <Button onClick={onNext} disabled={vehicles.length === 0} className="uppercase">
-            Next: Review & Payment
-          </Button>
-        </div>
-      </div>
+      />
       {/* Duplicate vehicle */}
       <Dialog open={duplicateSourceIndex !== null} onOpenChange={(open) => { if (!open) setDuplicateSourceIndex(null); }}>
         <DialogContent className="ui-root sm:max-w-md">

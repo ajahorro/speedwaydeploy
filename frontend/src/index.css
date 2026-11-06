@@ -133,38 +133,6 @@
   }
 }
 
-@media (max-width: 640px) {
-  .booking-step3-actions {
-    align-items: stretch !important;
-    flex-direction: column;
-    gap: 0.75rem !important;
-  }
-
-  .booking-step3-actions > button,
-  .booking-step3-actions > div {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .booking-step3-actions button {
-    font-size: 1rem !important;
-    appearance: none;
-    -webkit-appearance: none;
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    min-height: 48px;
-    padding: 0.875rem 1rem !important;
-    line-height: 1.25;
-  }
-
-  .booking-step3-actions > div > div {
-    left: 0;
-    right: 0;
-    white-space: normal !important;
-  }
-}
-
 /* Global reset sits in the `base` cascade layer (order declared in
    styles/ui.css) so Tailwind spacing utilities on shadcn components can beat
    it. A zero-specificity `*` rule already lost to every other selector, so

@@ -787,7 +787,7 @@ const AdminRefunds = () => {
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <Button variant="outline" className="flex-1 font-black" onClick={() => setState(prev => ({ ...prev, confirmRefundItem: null }))}>CANCEL</Button>
               <Button variant={state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? 'default' : 'destructive'} className="flex-1 font-black" onClick={() => handleProcessRefund(state.confirmRefundItem)}>
-                {state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? 'SEND RECEIPT' : `YES, REVERT ₱${derivedRefund.toLocaleString()}`}
+                {state.confirmRefundItem.refundStatus === 'EMAIL_PENDING' ? 'SEND RECEIPT' : `YES, REFUND ₱${derivedRefund.toLocaleString()}`}
               </Button>
             </div>
           </div>

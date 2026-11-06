@@ -40,7 +40,7 @@ const formatDay = (value) => {
  *  - data is the sales_report_daily() series, so it always matches the KPIs
  *  - the range picker drives the page-wide range instead of local state
  */
-export function RevenueAreaChart({ data, loading, preset, onPresetChange, rangeLabel }) {
+export function RevenueAreaChart({ data, loading, preset, onPresetChange, rangeLabel, showRangeSelector = true }) {
   const presets = RANGE_PRESETS.filter((option) => option.value !== 'custom' || preset === 'custom');
 
   return (
@@ -50,18 +50,20 @@ export function RevenueAreaChart({ data, loading, preset, onPresetChange, rangeL
           <CardTitle>Revenue trend</CardTitle>
           <CardDescription>Net money received and refunds per day · {rangeLabel}</CardDescription>
         </div>
-        <Select value={preset} onValueChange={onPresetChange}>
-          <SelectTrigger className="w-full sm:ml-auto sm:w-[170px]" aria-label="Select a date range">
-            <SelectValue placeholder="Last 30 days" />
-          </SelectTrigger>
-          <SelectContent>
-            {presets.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {showRangeSelector && (
+          <Select value={preset} onValueChange={onPresetChange}>
+            <SelectTrigger className="w-full sm:ml-auto sm:w-[170px]" aria-label="Select a date range">
+              <SelectValue placeholder="Last 30 days" />
+            </SelectTrigger>
+            <SelectContent>
+              {presets.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         {loading ? (

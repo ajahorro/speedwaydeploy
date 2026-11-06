@@ -2054,16 +2054,19 @@ const AdminBookingDetails = () => {
                         <button onClick={() => requestVerifyPayment(p)} style={{ flex: 1, padding: '0.85rem', background: 'var(--status-success)', color: 'var(--admin-text-primary)', borderRadius: '6px', border: 'none', fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer' }}>APPROVE</button>
                         <button onClick={() => handleRejectPayment(p)} style={{ flex: 1, padding: '0.85rem', background: 'var(--status-danger)', color: 'var(--admin-text-primary)', borderRadius: '6px', border: 'none', fontWeight: '950', fontSize: '0.75rem', cursor: 'pointer' }}>REJECT</button>
                       </div>
-                    ) : (
-                      <div style={{ 
-                        padding: '0.75rem', background: p.status === 'PAID' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(196, 31, 43, 0.05)', 
-                        border: `1px solid ${p.status === 'PAID' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(196, 31, 43, 0.2)'}`,
-                        borderRadius: '4px', textAlign: 'center', color: p.status === 'PAID' ? '#10b981' : '#C41F2B', 
-                        fontSize: '0.65rem', fontWeight: '950', textTransform: 'uppercase'
-                      }}>
-                        {p.status === 'PAID' ? 'Verified' : 'Rejected'}
-                      </div>
-                    )}
+                    ) : (() => {
+                      // One label and colour per payment status (a pending refund is not a rejection).
+                      const tone = { PAID: ['Verified', '16, 185, 129', '#10b981'], REFUNDED: ['Refunded', '100, 116, 139', 'var(--admin-text-secondary)'], REFUND_PENDING: ['Refund pending', '245, 158, 11', '#d97706'] }[p.status] || ['Rejected', '196, 31, 43', '#C41F2B'];
+                      return (
+                        <div style={{
+                          padding: '0.75rem', background: `rgba(${tone[1]}, 0.06)`, border: `1px solid rgba(${tone[1]}, 0.25)`,
+                          borderRadius: '4px', textAlign: 'center', color: tone[2],
+                          fontSize: '0.65rem', fontWeight: '950', textTransform: 'uppercase'
+                        }}>
+                          {tone[0]}
+                        </div>
+                      );
+                    })()}
                     <div style={{ marginTop: '0.5rem', fontSize: '0.6rem', color: 'var(--admin-text-secondary)', fontWeight: '700', textAlign: 'center' }}>
                       Paid on {new Date(p.created_at).toLocaleDateString()}
                     </div>

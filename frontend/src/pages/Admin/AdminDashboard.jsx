@@ -15,8 +15,13 @@ import { BACKEND_URL } from '../../config/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
-import { fetchBookingLedgers, fetchSalesReport } from '../../services/ledgerService';
+import { fetchBookingLedgers, fetchSalesReport, fetchSalesReportDaily } from '../../services/ledgerService';
 import { isPendingRefundRequest, getRefundRequestLimit, getOverpaymentRefundRemaining } from '../../utils/refundRequestUtils';
+import { KpiCards } from '../../features/financial-reports/KpiCards';
+import { RevenueAreaChart } from '../../features/financial-reports/RevenueAreaChart';
+import { TopServicesChart } from '../../features/financial-reports/BreakdownCharts';
+import { formatRangeLabel } from '../../features/financial-reports/RangeFilter';
+import { resolveRange } from '../../features/financial-reports/useReportRange';
 
 // MEMOIZED SUB-COMPONENTS: Prevent entire dashboard from re-rendering on single metric change
 const AttentionCard = React.memo(({ count, label, icon: Icon, color, bg, onClick }) => {
@@ -71,6 +76,9 @@ const getQueueStatusStyle = status => {
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { openModal } = useUI();
+  const reportRange = useMemo(() => resolveRange('30d'), []);
+  const reportsUrl = '/admin/reports?range=30d&tab=overview';
+  const [dashboardReport, setDashboardReport] = useState({ report: null, daily: [], loading: true });
 
   // BATCHED STATE
   const [state, setState] = useState({
@@ -300,6 +308,26 @@ const AdminDashboard = () => {
     }
   }, [fetchPriorityQueue]);
 
+  const fetchDashboardReports = useCallback(async () => {
+    setDashboardReport((current) => ({ ...current, loading: true }));
+    try {
+      const [report, daily] = await Promise.all([
+        fetchSalesReport(reportRange),
+        fetchSalesReportDaily(reportRange)
+      ]);
+      setDashboardReport({ report, daily, loading: false });
+    } catch (error) {
+      logger.error('Dashboard reports sync error', error);
+      toast.error('Failed to sync dashboard reports');
+      setDashboardReport((current) => ({ ...current, loading: false }));
+    }
+  }, [reportRange]);
+
+  const refreshDashboard = useCallback(() => {
+    fetchDashboardData();
+    fetchDashboardReports();
+  }, [fetchDashboardData, fetchDashboardReports]);
+
   const releaseBooking = (bookingId) => {
     openModal({
       title: 'Release Booking?',
@@ -317,7 +345,7 @@ const AdminDashboard = () => {
           const result = await response.json();
           if (!response.ok || !result.success) throw new Error(result.error || 'Release failed.');
           toast.success('Booking released from the active queue.');
-          fetchDashboardData();
+          refreshDashboard();
         } catch (error) {
           logger.error('Release Booking Error', error);
           toast.error('Unable to release this booking.');
@@ -327,13 +355,13 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    refreshDashboard();
 
     // REQ-NFR-05: Realtime subscription for auto-refresh
     const debounceRef = { current: null };
     const debouncedRefresh = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(fetchDashboardData, 500);
+      debounceRef.current = setTimeout(refreshDashboard, 500);
     };
 
     const stopRealtime = subscribeTables(
@@ -345,14 +373,14 @@ const AdminDashboard = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       stopRealtime();
     };
-  }, [fetchDashboardData]);
+  }, [refreshDashboard]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'fadeIn 0.5s ease' }}>
       <PageHeader
         title="Dashboard"
         subtitle="Real-time performance metrics and fleet coordination."
-        onRefresh={fetchDashboardData}
+        onRefresh={refreshDashboard}
         tour={ADMIN_TOURS.dashboard}
         tourLabel="How the dashboard works"
       />
@@ -450,6 +478,40 @@ const AdminDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      <section className="flex flex-col gap-4" aria-labelledby="dashboard-reports-heading">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="dashboard-reports-heading" className="m-0 text-sm font-black uppercase tracking-widest" style={{ color: 'var(--admin-text-primary)' }}>Financial overview</h2>
+            <p className="mt-1 text-xs" style={{ color: 'var(--admin-text-secondary)' }}>Sales, payments, refunds and services · {formatRangeLabel(reportRange)}</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate(reportsUrl)} className="text-xs font-bold">
+            View full reports <ChevronRight />
+          </Button>
+        </div>
+
+        <div aria-label="Financial report metrics">
+          <KpiCards
+            report={dashboardReport.report}
+            loading={dashboardReport.loading}
+            compact
+            onClick={() => navigate(reportsUrl)}
+          />
+        </div>
+
+        <RevenueAreaChart
+          data={dashboardReport.daily}
+          loading={dashboardReport.loading}
+          preset="30d"
+          rangeLabel={formatRangeLabel(reportRange)}
+          showRangeSelector={false}
+        />
+
+        <TopServicesChart
+          rows={dashboardReport.report?.top_services || []}
+          loading={dashboardReport.loading}
+        />
+      </section>
 
       <style>{`
         .dashboard-columns { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.9fr); gap: 1.25rem; align-items: start; }

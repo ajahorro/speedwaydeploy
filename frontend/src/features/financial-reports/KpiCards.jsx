@@ -23,12 +23,24 @@ const KPIS = [
   { key: 'customer_credit_liability', label: 'Customer credit', hint: 'Credit held for customers (today)' }
 ];
 
-export function KpiCards({ report, loading, compact = false }) {
+export function KpiCards({ report, loading, compact = false, onClick }) {
   const items = compact ? KPIS.filter((kpi) => ['gross_sales', 'net_sales', 'refunds', 'pending_verification'].includes(kpi.key)) : KPIS;
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {items.map((kpi) => (
-        <Card key={kpi.key} className={cn('gap-2 py-4', kpi.emphasis && 'border-primary/40')}>
+        <Card
+          key={kpi.key}
+          className={cn('gap-2 py-4', kpi.emphasis && 'border-primary/40', onClick && 'cursor-pointer transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
+          role={onClick ? 'link' : undefined}
+          tabIndex={onClick ? 0 : undefined}
+          onClick={onClick ? () => onClick(kpi.key) : undefined}
+          onKeyDown={onClick ? (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onClick(kpi.key);
+            }
+          } : undefined}
+        >
           <CardHeader className="px-4">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide">{kpi.label}</CardDescription>
             {loading || !report ? (
