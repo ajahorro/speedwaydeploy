@@ -82,6 +82,12 @@ const settingsFromRow = (data) => {
       staff: { text: String(data?.terms_staff || ''), version: Number(data?.terms_staff_version || 1) },
       admin: { text: String(data?.terms_admin || ''), version: Number(data?.terms_admin_version || 1) }
     },
+    // Privacy & security policy: same model as the terms (one text and version per role).
+    SECURITY_POLICY: {
+      customer: { text: String(data?.security_policy_customer || ''), version: Number(data?.security_policy_customer_version || 1) },
+      staff: { text: String(data?.security_policy_staff || ''), version: Number(data?.security_policy_staff_version || 1) },
+      admin: { text: String(data?.security_policy_admin || ''), version: Number(data?.security_policy_admin_version || 1) }
+    },
     // Task B: the mandated QR recipients; legacy payment_account_* / gcash_*
     // keys remain as fallbacks for older rows.
     qr_code_url: qrCodeUrl,

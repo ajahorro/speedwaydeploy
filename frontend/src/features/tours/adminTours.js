@@ -82,9 +82,10 @@ export const ADMIN_TOURS = {
   ],
 
   hub_terms: [
-    { target: '[data-tour="hub-tabs"]', title: '1. Business Hub tabs', body: 'Each tab covers one part of the shop. This one holds the terms people accept and the payment policy.' },
+    { target: '[data-tour="hub-tabs"]', title: '1. Business Hub tabs', body: 'Each tab covers one part of the shop. This one holds the terms and the privacy & security policy people agree to, and the payment policy.' },
     { target: '[data-tour="hub-terms-terms"]', title: '2. Terms and conditions', body: 'The terms customers, staff and admins accept, one version per role. Publishing a new version asks everyone to accept it again.' },
-    { target: '[data-tour="hub-terms-payments"]', title: '3. Payment policy', body: 'How much a customer pays up front before work starts. The preview shows what customers will pay for a few example totals.' },
+    { target: '[data-tour="hub-terms-security"]', title: '3. Privacy & security policy', body: 'How the shop protects personal information and accounts, one version per role. Like the terms, publishing a new version asks everyone in that role to agree again when they next sign in.' },
+    { target: '[data-tour="hub-terms-payments"]', title: '4. Payment policy', body: 'How much a customer pays up front before work starts. The preview shows what customers will pay for a few example totals.' },
   ],
 
   refunds: [

@@ -14,16 +14,23 @@ const AUDIENCES = [
   { key: 'admin', label: 'Administrators', hint: 'Every administrator reads and accepts this when they open their account.' }
 ];
 
+const DOCS = {
+  terms: { settingsKey: 'TERMS', rpc: 'publish_terms', title: 'Terms and conditions', noun: 'terms', ariaNoun: 'terms and conditions' },
+  security: { settingsKey: 'SECURITY_POLICY', rpc: 'publish_security_policy', title: 'Privacy & security policy', noun: 'privacy & security policy', ariaNoun: 'privacy & security policy' },
+};
+
 /**
- * Business Hub › Terms. One editable, versioned text per role (master plan 1.11 / 4.5).
- * Publishing goes through publish_terms(), which bumps that role's version (so everyone in
- * the role is asked again) and writes the audit log.
+ * Business Hub › Terms & Policies. One editable, versioned text per role for each document (master plan 1.11 / 4.5):
+ * the terms and conditions, and the privacy & security policy. Publishing goes through publish_terms() or
+ * publish_security_policy(), which bump that role's version (so everyone in the role is asked to agree again at
+ * their next sign-in) and write the audit log.
  */
-export function TermsEditorCard() {
+export function TermsEditorCard({ kind = 'terms' }) {
+  const doc = DOCS[kind] || DOCS.terms;
   const { confirmThen } = useConfirmAction();
   const { settings } = useConfig();
   const [audience, setAudience] = useState('customer');
-  const current = settings.TERMS?.[audience] || { text: '', version: 1 };
+  const current = settings[doc.settingsKey]?.[audience] || { text: '', version: 1 };
   const [draft, setDraft] = useState(current.text);
   const [saving, setSaving] = useState(false);
 
@@ -39,12 +46,12 @@ export function TermsEditorCard() {
   const publish = async () => {
     setSaving(true);
     try {
-      const { data, error } = await supabase.rpc('publish_terms', { p_role: audience, p_text: draft });
+      const { data, error } = await supabase.rpc(doc.rpc, { p_role: audience, p_text: draft });
       if (error) throw error;
       await fetchShopConfig({ force: true });
-      toast.success(`Published version ${data?.version} of the ${meta.label.toLowerCase()} terms.`);
+      toast.success(`Published version ${data?.version} of the ${meta.label.toLowerCase()} ${doc.noun}.`);
     } catch (error) {
-      toast.error(error?.message || 'Could not publish the terms.');
+      toast.error(error?.message || `Could not publish the ${doc.noun}.`);
     } finally {
       setSaving(false);
     }
@@ -53,9 +60,9 @@ export function TermsEditorCard() {
   return (
     <Card className="ui-root">
       <CardHeader>
-        <CardTitle>Terms and conditions</CardTitle>
-        <CardDescription>Each role has its own text. Publishing a changed text asks everyone in that role to read and accept it again the next time they open their account.</CardDescription>
-        <div className="flex flex-wrap gap-2 pt-2" role="tablist" aria-label="Terms audience">
+        <CardTitle>{doc.title}</CardTitle>
+        <CardDescription>Each role has its own text. Publishing a changed text asks everyone in that role to read and agree to it again the next time they sign in.</CardDescription>
+        <div className="flex flex-wrap gap-2 pt-2" role="tablist" aria-label={`${doc.title} audience`}>
           {AUDIENCES.map((item) => (
             <Button key={item.key} role="tab" aria-selected={audience === item.key} size="sm" variant={audience === item.key ? 'default' : 'outline'} onClick={() => setAudience(item.key)}>
               {item.label}
@@ -66,7 +73,7 @@ export function TermsEditorCard() {
       <CardContent className="grid gap-3">
         <p className="text-xs text-muted-foreground">{meta.hint} Current version: <strong>{current.version}</strong>. Put each clause on its own line.</p>
         <textarea
-          aria-label={`${meta.label} terms and conditions`}
+          aria-label={`${meta.label} ${doc.ariaNoun}`}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           rows={12}
@@ -79,8 +86,8 @@ export function TermsEditorCard() {
           disabled={!isDirty || !isValid || saving}
           title={!isDirty ? 'Edit the text first' : undefined}
           onClick={() => confirmThen({
-            title: `Publish new ${meta.label.toLowerCase()} terms?`,
-            message: `This becomes version ${current.version + 1}. Everyone in this role must accept it again the next time they open their account.`,
+            title: `Publish a new ${meta.label.toLowerCase()} ${doc.noun}?`,
+            message: `This becomes version ${current.version + 1}. Everyone in this role must agree to it again the next time they sign in.`,
             confirmText: 'Publish'
           }, publish)}
         >

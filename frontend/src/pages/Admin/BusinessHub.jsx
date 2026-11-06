@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Building, Wrench, Tag, Save, AlertCircle, CheckCircle, Check,
-  Plus, X, Trash2, Archive, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown, Wallet, ScrollText, Image as ImageIcon, Search
+  Plus, X, Trash2, Archive, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown, Wallet, ScrollText, Image as ImageIcon, Search, ShieldCheck
 } from 'lucide-react';
 import { useConfig } from '../../context/ConfigContext';
 import { useUI } from '../../context/UIContext';
@@ -426,7 +426,7 @@ export default function BusinessHub() {
   }, [message]);
 
   // Service catalog management state (Tab 3)
-  const [servicePanels, setServicePanels] = useState(() => ({ existing: false, add: false, vehicle: false, promos: searchParams.get('tab') === 'promos', terms: false, payments: searchParams.get('tab') === 'payments' }));
+  const [servicePanels, setServicePanels] = useState(() => ({ existing: false, add: false, vehicle: false, promos: searchParams.get('tab') === 'promos', terms: false, security: false, payments: searchParams.get('tab') === 'payments' }));
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState('All');
   const [newServiceForm, setNewServiceForm] = useState({
     targetVehicleCategory: 'Sedan',
@@ -3274,7 +3274,8 @@ export default function BusinessHub() {
         {currentTab === 'terms' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {[
-              { key: 'terms', title: 'Terms and conditions', hint: 'The terms customers, staff and admins accept, one version per role.', icon: ScrollText, body: <TermsEditorCard /> },
+              { key: 'terms', title: 'Terms and conditions', hint: 'The terms customers, staff and admins accept, one version per role.', icon: ScrollText, body: <TermsEditorCard kind="terms" /> },
+              { key: 'security', title: 'Privacy & security policy', hint: 'How the shop protects personal information and accounts, one version per role.', icon: ShieldCheck, body: <TermsEditorCard kind="security" /> },
               { key: 'payments', title: 'Payment policy', hint: 'How much a customer pays up front before work starts.', icon: Wallet, body: <DownpaymentPolicyCard /> },
             ].map(({ key, title, hint, icon: SectionIcon, body }) => (
               <div key={key} data-tour={`hub-terms-${key}`} style={{ ...cardStyle, gap: '1rem' }}>
