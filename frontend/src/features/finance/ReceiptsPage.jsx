@@ -66,6 +66,8 @@ const dateOf = (p) => p.verified_at || p.created_at;
 const fmtDate = (value) => (value
   ? new Date(value).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
   : '—');
+const fmtDay = (value) => (value ? new Date(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+const fmtTime = (value) => (value ? new Date(value).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }) : '');
 const proofUrl = (path) => {
   if (!path) return null;
   if (String(path).startsWith('http')) return path;
@@ -235,21 +237,21 @@ export default function ReceiptsPage() {
   const clearFilters = () => { setView('ALL'); setMethod('ALL'); setProof('ANY'); setFrom(''); setTo(''); setQuery(''); };
   const filtersOn = view !== 'ALL' || method !== 'ALL' || proof !== 'ANY' || from || to || query;
 
-  const actions = (p) => (
-    <div className="flex flex-wrap justify-end gap-2">
+  const actions = (p, compact = false) => (
+    <div className="flex flex-wrap justify-end gap-2 @6xl:flex-nowrap">
       {hasReceipt(p) && (
         <Button type="button" size="sm" variant="outline" disabled={opening === p.id} onClick={() => openReceipt(p)}>
           <FileText aria-hidden="true" /> {opening === p.id ? 'Opening…' : 'Receipt'}
         </Button>
       )}
-      <Button type="button" size="sm" variant="ghost" onClick={() => navigate(`/admin/bookings/${p.booking_id}`)} title="Open the booking">
-        <ExternalLink aria-hidden="true" /> Booking
+      <Button type="button" size={compact ? 'icon-sm' : 'sm'} variant="ghost" onClick={() => navigate(`/admin/bookings/${p.booking_id}`)} title="Open the booking" aria-label={compact ? 'Open the booking' : undefined}>
+        <ExternalLink aria-hidden="true" />{compact ? null : ' Booking'}
       </Button>
     </div>
   );
 
   return (
-    <div className="ui-root flex flex-col gap-6 pb-16">
+    <div className="ui-root @container flex flex-col gap-6 pb-16">
       {receipt && (
         <PaymentReceipt
           booking={receipt.booking}
@@ -266,7 +268,7 @@ export default function ReceiptsPage() {
       />
 
       {/* totals for what is shown */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-tour="rcp-totals">
+      <div className="grid grid-cols-1 gap-3 @md:grid-cols-3" data-tour="rcp-totals">
         <Card className="gap-1 rounded-md p-4">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Verified payments</p>
           <p className="text-xl font-black tabular-nums">{formatPeso(totals.received)}</p>
@@ -290,28 +292,29 @@ export default function ReceiptsPage() {
             </Button>
           ))}
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]">
-          <div className="grid gap-1.5" data-tour="rcp-search">
+        {/* one row only when the page itself is wide; otherwise search on its own line and the rest wrap */}
+        <div className="grid grid-cols-1 gap-3 @sm:grid-cols-2 @2xl:grid-cols-4 @5xl:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]">
+          <div className="col-span-full grid min-w-0 gap-1.5 @5xl:col-span-1" data-tour="rcp-search">
             <Label htmlFor="rcp-q">Search</Label>
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
               <Input id="rcp-q" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Receipt no., reference, customer, booking or amount" className="pl-8" />
             </div>
           </div>
-          <div className="grid gap-1.5">
+          <div className="grid min-w-0 gap-1.5">
             <Label>Method</Label>
             <Select value={method} onValueChange={setMethod}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">All methods</SelectItem>
                 {methods.map((m) => <SelectItem key={m} value={m}>{methodLabel(m)}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-1.5">
+          <div className="grid min-w-0 gap-1.5">
             <Label>Proof</Label>
             <Select value={proof} onValueChange={setProof}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ANY">With or without</SelectItem>
                 <SelectItem value="WITH">With proof</SelectItem>
@@ -319,13 +322,13 @@ export default function ReceiptsPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-1.5">
+          <div className="grid min-w-0 gap-1.5">
             <Label htmlFor="rcp-from">From</Label>
-            <Input id="rcp-from" type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
+            <Input id="rcp-from" type="date" className="w-full min-w-0 dark:[color-scheme:dark]" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
           </div>
-          <div className="grid gap-1.5">
+          <div className="grid min-w-0 gap-1.5">
             <Label htmlFor="rcp-to">To</Label>
-            <Input id="rcp-to" type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
+            <Input id="rcp-to" type="date" className="w-full min-w-0 dark:[color-scheme:dark]" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -351,7 +354,7 @@ export default function ReceiptsPage() {
         ) : (
           <>
             {/* computer: table */}
-            <Card className="hidden gap-0 overflow-hidden rounded-md p-0 md:flex">
+            <Card className="hidden gap-0 overflow-hidden rounded-md p-0 @6xl:flex">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40">
@@ -369,7 +372,10 @@ export default function ReceiptsPage() {
                   {pageRows.map((p) => (
                     <TableRow key={p.id}>
                       <TableCell className="px-4 font-mono text-sm font-bold" translate="no">{hasReceipt(p) ? getReceiptNumber(p) : '—'}</TableCell>
-                      <TableCell className="px-4 text-sm text-muted-foreground">{fmtDate(dateOf(p))}</TableCell>
+                      <TableCell className="px-4 text-sm text-muted-foreground">
+                        <span className="block whitespace-nowrap">{fmtDay(dateOf(p))}</span>
+                        <span className="block whitespace-nowrap text-xs">{fmtTime(dateOf(p))}</span>
+                      </TableCell>
                       <TableCell className="px-4">
                         <p className="text-sm font-semibold" translate="no">{customerOf(p.booking)}</p>
                         <p className="font-mono text-xs text-muted-foreground" translate="no">Booking {bookingNoOf(p)}</p>
@@ -381,7 +387,7 @@ export default function ReceiptsPage() {
                       <TableCell className={`px-4 text-right font-bold tabular-nums ${Number(p.amount) < 0 ? 'text-destructive' : ''}`}>{formatPeso(p.amount)}</TableCell>
                       <TableCell className="px-4"><StatusBadge payment={p} /></TableCell>
                       <TableCell className="px-4"><ProofCell payment={p} refundProof={proofFor(p)} /></TableCell>
-                      <TableCell className="px-4">{actions(p)}</TableCell>
+                      <TableCell className="px-4">{actions(p, true)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -389,7 +395,7 @@ export default function ReceiptsPage() {
             </Card>
 
             {/* phone: cards */}
-            <div className="grid gap-3 md:hidden">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,20rem),1fr))] gap-3 @6xl:hidden">
               {pageRows.map((p) => (
                 <Card key={p.id} className="gap-3 rounded-md p-4">
                   <div className="flex items-start justify-between gap-3">
