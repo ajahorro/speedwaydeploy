@@ -3,6 +3,18 @@ import { X, ShieldCheck, Mail, KeyRound, AlertCircle, Loader, UploadCloud } from
 import { requestQrChangeOtp, verifyQrChangeOtp, QR_FIELDS, validateQrRecipients } from '../../services/qrSecurityService';
 import { sanitizeQrAccountName, sanitizeQrAccountNumber } from '../../services/qrConfigUtils';
 import toast from '@/lib/toast';
+import { BACKEND_URL, authHeaders } from '../../config/api';
+
+const uploadQrImage = async (file) => {
+  const headers = await authHeaders();
+  delete headers['Content-Type'];
+  const body = new FormData();
+  body.append('image', file);
+  const res = await fetch(`${BACKEND_URL}/api/admin/qr-image`, { method: 'POST', headers, body });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.url) throw new Error(json.error || 'The QR image could not be uploaded. Please try again.');
+  return json.url;
+};
 
 /**
  * QrChangeOtpModal
@@ -79,6 +91,7 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
     return next;
   });
 
+  const [uploadingQr, setUploadingQr] = useState(false);
   const handleQrFile = (file) => {
     if (!file) return;
 
@@ -88,17 +101,12 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const nextValue = typeof reader.result === 'string' ? reader.result : '';
-      setField('qr_code_url', nextValue);
-      setError('');
-    };
-    reader.onerror = () => {
-      setError('Could not read the selected QR image. Please try another file.');
-      toast.error('Could not read the selected QR image. Please try another file.');
-    };
-    reader.readAsDataURL(file);
+    // Stored once as a file; the settings and each booking keep only its link (not a 200 KB copy).
+    setUploadingQr(true);
+    uploadQrImage(file)
+      .then((url) => { setField('qr_code_url', url); setError(''); })
+      .catch((err) => { setError(err.message); toast.error(err.message); })
+      .finally(() => setUploadingQr(false));
   };
 
   const handleQrDrop = (event) => {
@@ -283,7 +291,7 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
                       fontWeight: 900, fontSize: '0.74rem', textTransform: 'uppercase', cursor: 'pointer'
                     }}
                   >
-                    <UploadCloud size={16} /> {qrPreview ? 'Replace Image' : 'Upload QR Image'}
+                    <UploadCloud size={16} /> {uploadingQr ? 'Uploading…' : qrPreview ? 'Replace Image' : 'Upload QR Image'}
                   </button>
 
                   {qrPreview ? (

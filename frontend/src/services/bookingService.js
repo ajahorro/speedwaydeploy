@@ -1,3 +1,4 @@
+import { shrinkImage } from '../utils/shrinkImage';
 import { supabase } from '../lib/supabase';
 import { subscribeTable } from '../lib/realtimeHub';
 // NOTE: this module must not import eventEngine/notificationService at the top
@@ -301,7 +302,7 @@ export const createBooking = async (customerId, bookingData) => {
     let receiptPublicUrl = null;
     if (bookingData.payment?.proofOfPayment) {
       try {
-        const file = bookingData.payment.proofOfPayment;
+        const file = await shrinkImage(bookingData.payment.proofOfPayment);
         const filePath = `receipts/${Date.now()}-${file.name}`;
         const { error: uploadError } = await supabase.storage
           .from('payment-receipts')

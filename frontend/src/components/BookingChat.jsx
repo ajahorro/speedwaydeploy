@@ -1,3 +1,4 @@
+import { shrinkImage } from '../utils/shrinkImage';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { subscribeTable } from '../lib/realtimeHub';
@@ -322,9 +323,10 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
     setSending(true);
     setError('');
     try {
-      const safeName = attachment.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const file = await shrinkImage(attachment); // pictures only; PDFs pass through
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const filePath = `chat/${customerId || bookingId}/${Date.now()}_${safeName}`;
-      const { error: uploadErr } = await supabase.storage.from('chat_media').upload(filePath, attachment);
+      const { error: uploadErr } = await supabase.storage.from('chat_media').upload(filePath, file, { contentType: file.type });
       if (uploadErr) throw uploadErr;
 
       const { data: { publicUrl } } = supabase.storage.from('chat_media').getPublicUrl(filePath);

@@ -70,6 +70,8 @@ const discardPendingProof = async (supabase, bookingId, refundReference) => {
 
 /** Stores the picture and records the proof. Any earlier unused proof for the same refund is replaced. */
 const storeProof = async (supabase, { bookingId, refundReference, reference, imageHash, detectedAmount, buffer, mimetype, refundMethod, uploadedBy }) => {
+  const small = await require('./storedImage').shrinkForStorage(buffer, mimetype);
+  if (small) ({ buffer, mimetype } = small);
   await discardPendingProof(supabase, bookingId, refundReference);
   const extension = EXTENSIONS[mimetype] || 'img';
   const storagePath = `${bookingId}/${refundReference}-${imageHash.slice(0, 10)}.${extension}`;

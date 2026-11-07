@@ -1,3 +1,4 @@
+import { shrinkImage } from '../utils/shrinkImage';
 /**
  * photoService.js — Batch 5 photo proof persistence + retrieval.
  *
@@ -35,64 +36,8 @@ const fileExtension = (file) => {
   return (sub || 'jpg').toLowerCase().replace('jpeg', 'jpg');
 };
 
-const MAX_IMAGE_EDGE = 1920;
-const COMPRESS_ABOVE_BYTES = 1.5 * 1024 * 1024;
-
-const canvasToBlob = (canvas, type, quality) => new Promise((resolve, reject) => {
-  canvas.toBlob((blob) => {
-    if (blob) resolve(blob);
-    else reject(new Error('The selected photo could not be optimized.'));
-  }, type, quality);
-});
-
-/**
- * Downsize camera images before upload to reduce cellular transfer time.
- * Unsupported formats (for example HEIC on browsers without a decoder) are
- * preserved unchanged rather than blocking evidence capture.
- */
-export const optimizeServicePhoto = async (file) => {
-  if (!(file instanceof File) || file.size <= COMPRESS_ABOVE_BYTES
-    || typeof createImageBitmap !== 'function') return file;
-
-  let bitmap;
-  try {
-    bitmap = await createImageBitmap(file);
-  } catch {
-    return file;
-  }
-
-  try {
-    const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height));
-    if (scale === 1 && file.type === 'image/jpeg' && file.size <= 4 * 1024 * 1024) return file;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    const context = canvas.getContext('2d');
-    if (!context) return file;
-
-    context.fillStyle = '#fff';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-
-    let blob;
-    try {
-      blob = await canvasToBlob(canvas, 'image/jpeg', 0.82);
-    } catch (error) {
-      logger.warn('Could not optimize service photo; uploading the original file', error);
-      return file;
-    }
-    if (blob.size >= file.size) return file;
-
-    const baseName = String(file.name || 'service-photo').replace(/\.[^.]+$/, '');
-    return new File([blob], `${baseName}.jpg`, {
-      type: 'image/jpeg',
-      lastModified: file.lastModified || Date.now()
-    });
-  } finally {
-    bitmap.close();
-  }
-};
+/** Service photos are shrunk before upload (see utils/shrinkImage). */
+export const optimizeServicePhoto = (file) => shrinkImage(file);
 
 /**
  * Upload a photo to the private bucket and record it in service_photos.

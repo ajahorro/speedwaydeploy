@@ -1032,6 +1032,8 @@ const registerOcrScanSession = async (imageHash, ocrMetadata) => {
 };
 const storeOcrReceiptImage = async (file, imageHash) => {
   if (!supabaseAdmin) throw new Error('Receipt storage is unavailable.');
+  const small = await require('./services/storedImage').shrinkForStorage(file.buffer, file.mimetype);
+  if (small) file = { ...file, buffer: small.buffer, mimetype: small.mimetype };
   const extension = ({
     'image/jpeg': 'jpg',
     'image/png': 'png',
@@ -4458,6 +4460,54 @@ const cleanSiteText = (value, max) => String(value ?? '')
   .replace(/\s+/g, ' ')
   .trim()
   .slice(0, max);
+
+// ── Payment QR image: stored once as a file (site-photos/qr/), the settings and each booking keep only its link ──
+const storeQrImage = async (buffer) => {
+  const out = await sharp(buffer, { failOn: 'error', limitInputPixels: 50_000_000 })
+    .rotate().resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: 90 }).toBuffer(); // high quality so the code still scans
+  const objectPath = `qr/${crypto.randomUUID()}.webp`; // a new file per upload, never overwritten
+  const { error } = await supabaseAdmin.storage.from(SITE_PHOTO_BUCKET).upload(objectPath, out, { contentType: 'image/webp', upsert: false, cacheControl: '31536000' });
+  if (error) throw error;
+  return `${String(process.env.SUPABASE_URL || '').replace(/\/+$/, '')}/storage/v1/object/public/${SITE_PHOTO_BUCKET}/${objectPath}`;
+};
+
+app.post('/api/admin/qr-image', (req, res, next) => sitePhotoUpload.single('image')(req, res, (error) => {
+  if (!error) return next();
+  return res.status(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ success: false, error: error.code === 'LIMIT_FILE_SIZE' ? 'The image is larger than 8 MB.' : 'The image could not be received.' });
+}), async (req, res) => {
+  const admin = await requireAdmin(req);
+  if (!admin) return res.status(403).json({ success: false, error: 'Administrator access is required.' });
+  if (!req.file?.buffer?.length) return res.status(400).json({ success: false, error: 'Choose a QR image to upload.' });
+  try {
+    res.json({ success: true, url: await storeQrImage(req.file.buffer) });
+  } catch (err) {
+    console.error('[QR IMAGE] upload failed:', err.message);
+    res.status(400).json({ success: false, error: 'That file could not be used as a QR image. Use a JPEG, PNG or WebP.' });
+  }
+});
+
+// One-time: QR images saved inside the settings and bookings as text become a file + link. Runs at start-up and
+// does nothing once none are left.
+const moveInlineQrImagesToFiles = async () => {
+  if (!supabaseAdmin) return;
+  try {
+    const { data: inline, error } = await supabaseAdmin.rpc('list_inline_qr_images');
+    if (error) throw error;
+    if (!inline?.length) return;
+    const map = {};
+    for (const dataUrl of inline) {
+      const m = /^data:image\/[\w.+-]+;base64,(.+)$/s.exec(dataUrl);
+      if (m) map[dataUrl] = await storeQrImage(Buffer.from(m[1], 'base64'));
+    }
+    const { data, error: replaceError } = await supabaseAdmin.rpc('replace_inline_qr_images', { p_map: map });
+    if (replaceError) throw replaceError;
+    console.log(`🧹 [QR IMAGES] Moved ${Object.keys(map).length} inline QR image(s) to files:`, data);
+  } catch (err) {
+    console.warn('🧹 [QR IMAGES] Move to files failed (will retry next start):', err.message);
+  }
+};
+setTimeout(moveInlineQrImagesToFiles, 60 * 1000);
 
 app.post('/api/admin/site-photos', (req, res, next) => sitePhotoUpload.single('photo')(req, res, (error) => {
   if (!error) return next();

@@ -64,7 +64,7 @@ export default function BackupsPage() {
     <div className="ui-root @container flex flex-col gap-6 pb-16">
       <PageHeader
         title="Backups"
-        subtitle="A full copy of the shop's data is saved on the 1st of every month and kept for 3 months. Make one any time with Back up now."
+        subtitle="A full copy of the shop's data is saved on the 1st of every month and kept for 3 months (6 at most; the oldest goes first). Make one any time with Back up now."
         tour={ADMIN_TOURS.backups}
       />
 

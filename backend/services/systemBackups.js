@@ -40,7 +40,18 @@ async function createBackup(db, { trigger, userId = null }) {
   };
   const { data, error: insErr } = await db.from('system_backups').upsert(row, { onConflict: 'file_path' }).select().single();
   if (insErr) throw insErr;
+  await keepNewest(db);
   return data;
+}
+
+/** Never more than MAX_KEPT backups: the oldest beyond that are removed (file and list entry). */
+const MAX_KEPT = 6;
+async function keepNewest(db) {
+  const { data } = await db.from('system_backups').select('id, file_path').order('created_at', { ascending: false });
+  const extra = (data || []).slice(MAX_KEPT);
+  if (!extra.length) return;
+  await db.storage.from(BUCKET).remove(extra.map((b) => b.file_path));
+  await db.from('system_backups').delete().in('id', extra.map((b) => b.id));
 }
 
 /** Remove expired backups (file and list entry). */
