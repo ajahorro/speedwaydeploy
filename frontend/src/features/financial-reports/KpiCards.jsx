@@ -30,7 +30,7 @@ export function KpiCards({ report, loading, compact = false, onClick, gridClassN
       {items.map((kpi) => (
         <Card
           key={kpi.key}
-          className={cn('gap-2 py-4', kpi.emphasis && 'border-primary/40', onClick && 'cursor-pointer transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
+          className={cn('gap-2 py-4', onClick && 'cursor-pointer transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
           role={onClick ? 'link' : undefined}
           tabIndex={onClick ? 0 : undefined}
           onClick={onClick ? () => onClick(kpi.key) : undefined}

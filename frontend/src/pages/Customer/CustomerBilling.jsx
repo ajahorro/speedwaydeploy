@@ -73,7 +73,7 @@ const CustomerBilling = () => {
   if (loading) {
     return (
       <div className="ui-root grid gap-4 p-2" aria-busy="true">
-        <p className="text-sm font-semibold text-muted-foreground">Synchronizing financial records...</p>
+        <p className="text-sm font-semibold text-muted-foreground">Loading your payments...</p>
         <Skeleton className="h-20 w-full" /><Skeleton className="h-64 w-full" />
       </div>
     );

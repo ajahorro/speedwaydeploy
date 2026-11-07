@@ -303,7 +303,7 @@ const AdminDashboard = () => {
       window.refundGatewayMappedToastFired = true;
     } catch (err) {
       logger.error('Dashboard Sync Error', err);
-      toast.error('Failed to sync live metrics');
+      toast.error('Could not refresh the dashboard numbers.', { id: 'load:dashboard' });
       setState(prev => ({ ...prev, loading: false }));
     }
   }, [fetchPriorityQueue]);
@@ -318,7 +318,7 @@ const AdminDashboard = () => {
       setDashboardReport({ report, daily, loading: false });
     } catch (error) {
       logger.error('Dashboard reports sync error', error);
-      toast.error('Failed to sync dashboard reports');
+      toast.error('Could not refresh the financial overview.', { id: 'load:dashboard-reports' });
       setDashboardReport((current) => ({ ...current, loading: false }));
     }
   }, [reportRange]);

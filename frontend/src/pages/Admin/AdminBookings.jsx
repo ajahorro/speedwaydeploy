@@ -120,7 +120,7 @@ const AdminBookings = () => {
         throw new Error(result.error || `Cancellation failed (HTTP ${response.status}).`);
       }
       toast.success('Booking cancelled; eligible payments are in the Refund Hub.', { id: toastId });
-      (result.warnings || []).forEach((warning) => toast.error(warning));
+      toast.followUp(result.warnings);
       await refresh();
     } catch (error) {
       const requestTimedOut = error.name === 'AbortError';

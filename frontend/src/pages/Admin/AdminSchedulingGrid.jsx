@@ -56,7 +56,7 @@ const AdminSchedulingGrid = ({ onBack }) => {
       logger.admin(`Grid synchronized for ${selectedDate.toDateString()}`);
     } catch (err) {
       logger.error('Grid Sync Error', err);
-      toast.error('Failed to sync grid data');
+      toast.error('Could not refresh the schedule grid.', { id: 'load:grid' });
     } finally {
       setLoading(false);
     }

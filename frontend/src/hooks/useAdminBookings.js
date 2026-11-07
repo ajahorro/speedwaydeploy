@@ -70,7 +70,7 @@ export const useAdminBookings = () => {
       logger.admin('Booking Directory synchronized.');
     } catch (err) {
       logger.error('Booking Fetch Error', err);
-      toast.error('Failed to sync booking records.');
+      toast.error('Could not refresh the bookings. Retrying on the next update.', { id: 'load:bookings' });
     } finally {
       setLoading(false);
     }

@@ -112,7 +112,7 @@ const CustomerBookingDetails = () => {
             : 'Booking cancelled; no payment was eligible for refund.',
           { id: toastId }
         );
-        (result.warnings || []).forEach((warning) => toast.error(warning));
+        toast.followUp(result.warnings);
         setShowCancelModal(false);
         setCancelReason('');
 

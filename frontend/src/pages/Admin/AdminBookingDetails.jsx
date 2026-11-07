@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import RefundProofButton from '../../features/finance/RefundProofButton';
 import { useRefundProofs } from '../../hooks/useRefundProofs';
 import ReactDOM from 'react-dom';
@@ -280,11 +280,11 @@ const AdminBookingDetails = () => {
       setAuditLogs(logs);
 
       if (bData.staff_id && ['scheduled', 'pending', 'in_progress'].includes(String(bData.status || '').toLowerCase())) {
-        await reconcileBookingPaymentState();
+        reconcileBookingPaymentState(null, { silent: true });
       }
     } catch (error) {
       logger.error('Admin Sync Error', error);
-      toast.error('Data pipeline error. Check console.');
+      toast.error('Could not load this booking. Please refresh the page.', { id: 'booking-load-error' });
     } finally {
       setLoading(false);
     }
@@ -397,14 +397,24 @@ const AdminBookingDetails = () => {
     }
   };
 
-  const reconcileBookingPaymentState = async (paymentId = null) => {
+  // Keeps the booking status in step with payments and assignments (e.g. Scheduled -> Confirmed once a
+  // technician is assigned and the downpayment is in). After an admin action it reports follow-up notes;
+  // the background run on page load is SILENT and at most once every 30 s, because the page reloads on every
+  // live change and a slow or sleepy server must not turn into a stream of red toasts.
+  const lastSilentReconcile = useRef(0);
+  const reconcileBookingPaymentState = async (paymentId = null, { silent = false } = {}) => {
+    if (silent) {
+      if (Date.now() - lastSilentReconcile.current < 30000) return null;
+      lastSilentReconcile.current = Date.now();
+    }
     try {
       const result = await reconcilePaymentState(id, paymentId);
-      (result.warnings || []).forEach((warning) => toast.error(warning));
+      if (!silent) toast.followUp(result.warnings);
+      else if (result.warnings?.length) logger.warn('Booking status catch-up notes:', result.warnings);
       return result;
     } catch (error) {
+      // The action the admin took is already saved; this only re-checks the status, and it retries on the next load.
       logger.error('Booking payment workflow reconciliation failed:', error);
-      toast.error('Booking saved, but its payment and service status could not be synchronized.');
       return null;
     }
   };
@@ -489,7 +499,7 @@ const AdminBookingDetails = () => {
         );
       }
 
-      toast.success(isPostService ? 'Post-Service Assignment Recorded' : 'Technician Assigned Successfully', { id: toastId });
+      toast.success(isPostService ? 'Technician recorded for this finished job.' : 'Technician assigned.', { id: toastId });
       await reconcileBookingPaymentState();
       fetchBookingDetails(); fetchAuditLogs();
     } catch (error) {
@@ -509,13 +519,12 @@ const AdminBookingDetails = () => {
 
       await notifyUser(booking.customer_id, 'Payment Verified', `Your payment of ₱${verifiedAmount.toLocaleString()} has been approved. Thank you!`, 'PAYMENT_APPROVED', `/customer/bookings/${id}`);
 
-      result.warnings.forEach((warning) => toast.error(warning));
+      toast.followUp(result.warnings);
       if (result.reconcileError) {
+        // The payment IS approved; the status catch-up runs again (quietly) on the next load.
         logger.error('Booking payment workflow reconciliation failed:', result.reconcileError);
-        toast.error('Payment approved, but the booking status could not be synchronized.', { id: toastId });
-      } else {
-        toast.success('Payment Approved & Ledger Synced', { id: toastId });
       }
+      toast.success('Payment approved', { id: toastId });
       fetchPayments(); fetchAuditLogs(); fetchBookingDetails();
     } catch (err) {
       logger.error('Payment verification failed:', err);
@@ -573,12 +582,12 @@ const AdminBookingDetails = () => {
     const overrideAmount = Number(payment.detected_amount) > 0 ? Number(payment.detected_amount) : Number(payment.amount || 0);
     try {
       const result = await verifyPayment({ payment, verifiedAmount: overrideAmount, override: true, note: `AI_OVERRIDE | OCR_AMOUNT:${overrideAmount}` });
-      result.warnings.forEach((warning) => toast.error(warning));
+      toast.followUp(result.warnings);
       if (result.reconcileError) {
+        // confirmed either way; the status catch-up retries quietly on the next load
         logger.error('Booking payment workflow reconciliation failed:', result.reconcileError);
-        toast.error('Payment confirmed, but the booking status could not be synchronized.');
       } else {
-        toast.success('Manual Override Successful: Payment Confirmed');
+        toast.success('Payment confirmed.');
       }
       fetchBookingDetails();
     } catch (err) {
@@ -603,7 +612,7 @@ const AdminBookingDetails = () => {
       details: `Admin rejected payment. Reason: ${reason}`
     });
 
-    toast.error('Payment Rejected and Logged');
+    toast.success('Payment marked as unpaid.');
     fetchBookingDetails();
   };
 
@@ -618,8 +627,8 @@ const AdminBookingDetails = () => {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.success) throw new Error(result.error || 'Lifecycle validation failed.');
-      toast.success(`Booking ${status.toUpperCase()}`, { id: toastId });
-      (result.warnings || []).forEach((warning) => toast.error(warning));
+      toast.success(`Booking marked as ${String(status).replace(/_/g, ' ').toLowerCase()}.`, { id: toastId });
+      toast.followUp(result.warnings);
       fetchBookingDetails();
     } catch (err) { toast.error(err.message || 'Update failed', { id: toastId }); }
   };
@@ -686,8 +695,8 @@ const AdminBookingDetails = () => {
           const result = await response.json();
           if (!response.ok || !result.success) throw new Error(result.error || 'Cancellation failed.');
 
-          toast.success('Cancelled as No-Show', { id: toastId });
-          (result.warnings || []).forEach((warning) => toast.error(warning));
+          toast.success('Booking cancelled as a no-show.', { id: toastId });
+          toast.followUp(result.warnings);
           fetchBookingDetails();
           fetchAuditLogs();
         } catch (err) {
@@ -829,7 +838,7 @@ const AdminBookingDetails = () => {
 
       // Passing the new payment emails its receipt once (booking-lifecycle).
       await reconcileBookingPaymentState(pData?.id || null);
-      toast.success('Payment Recorded & Audit Verified', { id: toastId });
+      toast.success('Payment recorded.', { id: toastId });
       setPaymentModal(false);
       setPaymentAmount('');
       setTopUpReference('');
@@ -997,7 +1006,7 @@ const AdminBookingDetails = () => {
         if (receivableError) throw new Error(`The service was added, but the amount to be received could not be recorded: ${receivableError.message}`);
       }
 
-      toast.success(`Service Added: ${service.name}. Total updated.`, { id: toastId });
+      toast.success(`${service.name} added. The total has been updated.`, { id: toastId });
       // Keep the picker open so the admin can add another service without
       // reopening the modal. Refresh first so the newly added service is
       // immediately disabled in the catalog.
@@ -1151,7 +1160,7 @@ const AdminBookingDetails = () => {
   };
 
   const handlePrintReceipt = () => {
-    toast.success('System receipt printed for audit.');
+    toast.success('Receipt sent to the printer.');
     window.print();
   };
 
@@ -1286,7 +1295,7 @@ const AdminBookingDetails = () => {
   const bookingContactPhone = String(booking?.contact_number || booking?.customer_phone || '').trim();
   const customerPhone = bookingContactPhone || registeredCustomerPhone;
 
-  if (loading || !booking) return <LoadingState message="Synchronizing fleet records..." />;
+  if (loading || !booking) return <LoadingState message="Loading booking..." />;
 
   const pendingVerification = bookingPayments.find(p => p.status === 'FOR_VERIFICATION');
   const paymentSummary = calculatePaymentSummary({ ...booking, payments: bookingPayments, ledger });

@@ -138,7 +138,7 @@ const AdminSchedule = () => {
       setBlockedSlots(blocksData || []);
     } catch (err) {
       logger.error('Daily Sync Error', err);
-      toast.error('Failed to synchronize schedule');
+      toast.error('Could not refresh the calendar.', { id: 'load:schedule' });
     } finally {
       setLoading(false);
     }

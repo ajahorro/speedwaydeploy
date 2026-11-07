@@ -174,18 +174,15 @@ const AdminPayments = () => {
         ].filter(Boolean).join('|')
       });
 
-      result.warnings.forEach((warning) => toast.error(warning));
-      if (result.reconcileError) {
-        logger.error('Booking payment workflow reconciliation failed:', result.reconcileError);
-        toast.error('Payment verified, but the booking status could not be synchronized.', { id: toastId });
-      } else {
-        toast.success(
-          wasOverpaidDownpayment
-            ? `Payment verified. Remaining balance: ₱${Number(result.ledger?.service_balance_due || 0).toLocaleString()}`
-            : 'Payment verified',
-          { id: toastId }
-        );
-      }
+      toast.followUp(result.warnings);
+      // The payment IS verified; a failed status catch-up is retried quietly when the booking is next opened.
+      if (result.reconcileError) logger.error('Booking payment workflow reconciliation failed:', result.reconcileError);
+      toast.success(
+        wasOverpaidDownpayment
+          ? `Payment verified. Remaining balance: ₱${Number(result.ledger?.service_balance_due || 0).toLocaleString()}`
+          : 'Payment verified',
+        { id: toastId }
+      );
       fetchPayments();
       setState(prev => ({ ...prev, selectedItem: null }));
       setConfirmPayment(null);

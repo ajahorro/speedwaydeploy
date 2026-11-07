@@ -86,7 +86,7 @@ const CustomerGarage = () => {
       setFleetGroups(groups);
     } catch (error) {
       console.error('Garage Load Error:', error);
-      toast.error('Failed to synchronize garage records.');
+      toast.error('Could not load your cars. Please refresh the page.', { id: 'load:garage' });
     } finally {
       setLoading(false);
     }

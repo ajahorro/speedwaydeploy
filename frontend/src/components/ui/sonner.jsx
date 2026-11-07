@@ -26,10 +26,11 @@ function Toaster({ ...props }) {
       position="top-right"
       offset={{ top: 76, right: 20 }}
       mobileOffset={{ top: 76, right: 12, left: 12 }}
-      visibleToasts={3}
-      gap={12}
+      // Several toasts stack behind the newest one; hovering (or tapping) the stack fans them all out,
+      // and the timers pause while they are open.
+      visibleToasts={6}
+      gap={10}
       duration={4000}
-      expand
       icons={{
         success: <CheckCircle2 className="size-4" style={{ color: "var(--status-success)" }} />,
         info: <Info className="size-4" style={{ color: "var(--admin-info)" }} />,

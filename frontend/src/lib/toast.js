@@ -35,20 +35,23 @@ const normalizeMessage = (message) => {
   return message;
 };
 
-const wrap = (show) => (message, options) => {
+// The same text shown again while it is still on screen updates that toast instead of adding a copy.
+const wrap = (show, kind) => (message, options) => {
   const cleanMsg = normalizeMessage(message);
   if (!cleanMsg) return null;
+  const opts = mapOptions(options);
+  if (opts.id === undefined && typeof cleanMsg === 'string' && kind !== 'loading') opts.id = `${kind}:${cleanMsg}`;
   return typeof cleanMsg === 'function'
-    ? sonner.custom(render(cleanMsg), mapOptions(options))
-    : show(cleanMsg, mapOptions(options));
+    ? sonner.custom(render(cleanMsg), opts)
+    : show(cleanMsg, opts);
 };
 
-const toast = wrap(sonner);
-toast.success = wrap(sonner.success);
-toast.error = wrap(sonner.error);
-toast.warning = wrap(sonner.warning);
-toast.info = wrap(sonner.info);
-toast.loading = wrap(sonner.loading);
+const toast = wrap(sonner, 'default');
+toast.success = wrap(sonner.success, 'success');
+toast.error = wrap(sonner.error, 'error');
+toast.warning = wrap(sonner.warning, 'warning');
+toast.info = wrap(sonner.info, 'info');
+toast.loading = wrap(sonner.loading, 'loading');
 toast.custom = (content, options) => {
   const cleanContent = normalizeMessage(content);
   if (!cleanContent) return null;
@@ -57,6 +60,21 @@ toast.custom = (content, options) => {
 toast.promise = (promise, messages = {}, options) => sonner.promise(promise, { loading: messages.loading, success: messages.success, error: messages.error, ...mapOptions(options) });
 toast.dismiss = (id) => (id === undefined ? sonner.dismiss() : sonner.dismiss(id));
 toast.remove = toast.dismiss;
+
+/**
+ * Follow-up notes from the server after an action that SUCCEEDED (an email that could not be sent, a staff
+ * alert that could not be refreshed). They are not errors, so they show as one gentle warning, never a pile
+ * of red toasts, and the same notes are not shown twice in a row.
+ */
+toast.followUp = (warnings) => {
+  const list = [...new Set((warnings || []).map((w) => String(w || '').trim()).filter(Boolean))];
+  if (!list.length) return null;
+  return sonner.warning(list.length === 1 ? list[0] : `Done, with ${list.length} follow-up notes`, {
+    id: `follow-up:${list.join('|')}`,
+    description: list.length > 1 ? list.join(' ') : undefined,
+    duration: 6000,
+  });
+};
 
 export { toast };
 export default toast;
