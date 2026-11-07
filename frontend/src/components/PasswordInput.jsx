@@ -19,6 +19,12 @@ const PasswordInput = React.forwardRef(function PasswordInput({ as: Component = 
         ref={ref}
         {...props}
         type={visible ? 'text' : 'password'}
+        // Shown or hidden, a password is typed exactly as entered: no capital first letter, no autocorrect.
+        data-no-auto-capitalize=""
+        data-secret=""
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
         className={className}
         style={{ ...style, gridArea: '1 / 1', paddingRight: '2.75rem' }}
       />

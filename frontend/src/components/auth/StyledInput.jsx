@@ -25,6 +25,7 @@ const StyledInput = ({ icon: Icon, type, placeholder, value, onChange, required 
         autoComplete={autoComplete}
         readOnly={readOnly}
         aria-readonly={readOnly || undefined}
+        {...(isPassword ? { 'data-no-auto-capitalize': '', 'data-secret': '', autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } : {})}
         {...rest}
         className={`h-12 pl-11 ${isPassword ? 'pr-12' : ''} text-sm font-semibold shadow-none ${readOnly ? 'bg-muted' : 'bg-background'}`}
       />

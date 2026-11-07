@@ -99,6 +99,11 @@ const InputCapitalizationController = () => {
       const isTextInput = target instanceof HTMLInputElement && target.type === 'text';
       const isTextArea = target instanceof HTMLTextAreaElement;
       if ((!isTextInput && !isTextArea) || target.dataset.noAutoCapitalize !== undefined) return;
+      // Never touch secrets or identifiers: a password shown with the eye button is a plain text box, and
+      // capitalising its first letter silently changed the password people saved or typed at sign-in.
+      const ac = String(target.getAttribute('autocomplete') || '').toLowerCase();
+      if (/password|one-time-code|email|username/.test(ac) || target.dataset.secret !== undefined
+        || ['email', 'url', 'numeric', 'decimal', 'tel'].includes(String(target.inputMode || '').toLowerCase())) return;
 
       const match = target.value.match(/^(\s*)([a-z])/);
       if (!match) return;

@@ -1920,6 +1920,12 @@ app.post('/api/auth/confirm-password-change', async (req, res) => {
     if (request.purpose === 'RESET') {
       await supabaseAdmin.from('profiles').update({ must_change_password: false, updated_at: new Date().toISOString() }).eq('id', request.user_id).then(() => {}, () => {});
     }
+    // A new password set from an emailed link proves the person owns the inbox, so lift any wrong-password
+    // lock. Otherwise the lockout email's own "reset your password" link left people still locked out after
+    // resetting, until the lock timed out on its own.
+    await supabaseAdmin.rpc('clear_login_lock', { p_email: request.email }).then(({ error }) => {
+      if (error) console.warn('Lock clear after password change failed:', error.message);
+    }, (err) => console.warn('Lock clear after password change failed:', err.message));
     const { error: alertError } = await sendPasswordSecurityAlert({ email: request.email, purpose: request.purpose });
     if (alertError) console.warn('Password security alert failed:', alertError.message || alertError);
     return res.json({ success: true, purpose: request.purpose });
@@ -1944,7 +1950,8 @@ app.post('/api/auth/inspect-password-confirmation', async (req, res) => {
  * with a branded email template — bypasses unreliable Supabase SMTP.
  */
 app.post('/api/auth/recover-password', async (req, res) => {
-  const { email } = req.body;
+  // Trim and lower-case: a phone keyboard can add a trailing space or a capital first letter.
+  const email = String(req.body?.email || '').trim().toLowerCase();
   if (!email) return res.json({ success: true, message: 'If an account is associated with that email, a password reset link has been sent.' });
   if (!supabaseAdmin) return res.json({ success: true, message: 'If an account is associated with that email, a password reset link has been sent.' });
   console.log(`🔑 [AUTH] PASSWORD RECOVERY INITIATED: ${email}`);
