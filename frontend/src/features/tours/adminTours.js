@@ -91,6 +91,12 @@ export const ADMIN_TOURS = {
     { target: '[data-tour="hub-terms-payments"]', title: '4. Payment policy', body: 'How much a customer pays up front before work starts. The preview shows what customers will pay for a few example totals.' },
   ],
 
+  receipts: [
+    { target: '[data-tour="rcp-totals"]', title: '1. Totals', body: 'Verified payments, refunds sent, and online payments with no uploaded proof, for the records shown below.' },
+    { target: '[data-tour="rcp-filters"]', title: '2. Narrow the list', body: 'Show only verified, waiting, rejected or refund records, or filter by method, proof and dates. Export CSV saves exactly what is shown.' },
+    { target: '[data-tour="rcp-search"]', title: '3. Search', body: 'Type a receipt number, payment reference, customer name, booking number or amount.' },
+    { target: '[data-tour="rcp-list"]', title: '4. Proof and receipt', body: 'Click a proof to view it full size. Receipt opens the numbered acknowledgement receipt to print or save; Booking opens the booking.' },
+  ],
   refunds: [
     { target: '[data-tour="ref-search"]', title: '1. Find a refund', body: 'Search by customer name or booking number.' },
     { target: '[data-tour="ref-filter"]', title: '2. Pending or processed', body: 'Pending refunds are waiting for you to send the money back. Processed ones are done; under Processed you can show only Digital or Cash.' },

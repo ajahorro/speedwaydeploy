@@ -44,6 +44,7 @@ const AdminBookingDetails = lazy(() => import('./pages/Admin/AdminBookingDetails
 const AdminSchedule = lazy(() => import('./pages/Admin/AdminSchedule'));
 const AdminPayments = lazy(() => import('./pages/Admin/AdminPayments'));
 const AdminRefunds = lazy(() => import('./pages/Admin/AdminRefunds'));
+const ReceiptsPage = lazy(() => import('./features/finance/ReceiptsPage'));
 import LoadingState from './components/LoadingState';
 
 // Lazy so the chart library only loads for admins who open the report.
@@ -188,6 +189,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route path="schedule" element={<AdminSchedule />} />
                   <Route path="payments" element={<AdminPayments />} />
                   <Route path="refunds" element={<AdminRefunds />} />
+                  <Route path="receipts" element={<ReceiptsPage />} />
                   <Route path="reports" element={financialReports('overview')} />
                   <Route path="analytics" element={<Navigate to="/admin/reports" replace />} />
                   <Route path="finance" element={<Navigate to="/admin/reports" replace />} />

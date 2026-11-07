@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   ArrowLeftRight, BellRing, Calendar, Car, Clock, Contact2, Footprints, HardHat, History, Inbox, LayoutGrid, LineChart, ListChecks, LogOut, PlusSquare, Receipt, Settings, Store, Wallet,
+  FileArchive
 } from 'lucide-react';
 
 /**
@@ -21,6 +22,7 @@ export const NAV_ICONS = {
   messages: Inbox,
   paymentVerification: Receipt,
   refunds: ArrowLeftRight,
+  receipts: FileArchive,
   reports: LineChart,
   history: History,
   staff: HardHat,
