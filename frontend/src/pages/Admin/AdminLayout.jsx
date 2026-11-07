@@ -169,6 +169,7 @@ const AdminLayout = () => {
       name: 'System & Admin',
       links: [
         { name: 'Audit Logs', path: '/admin/audit-logs', icon: NAV_ICONS.history },
+        { name: 'Backups', path: '/admin/backups', icon: NAV_ICONS.backups },
         { name: 'Staff Roles', path: '/admin/accounts', icon: NAV_ICONS.staff },
         { name: 'Client Directory', path: '/admin/users', icon: NAV_ICONS.clients },
         { name: 'Notifications', path: '/admin/notifications', icon: NAV_ICONS.notifications }

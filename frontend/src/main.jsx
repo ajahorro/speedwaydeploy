@@ -45,6 +45,7 @@ const AdminSchedule = lazy(() => import('./pages/Admin/AdminSchedule'));
 const AdminPayments = lazy(() => import('./pages/Admin/AdminPayments'));
 const AdminRefunds = lazy(() => import('./pages/Admin/AdminRefunds'));
 const ReceiptsPage = lazy(() => import('./features/finance/ReceiptsPage'));
+const BackupsPage = lazy(() => import('./features/admin/BackupsPage'));
 import LoadingState from './components/LoadingState';
 
 // Lazy so the chart library only loads for admins who open the report.
@@ -201,6 +202,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   {/* Classic report kept for one release as an instant fallback. */}
                   <Route path="finance/classic" element={<Navigate to="/admin/reports" replace />} />
                   <Route path="audit-logs" element={<AdminAuditLogs />} />
+                  <Route path="backups" element={<BackupsPage />} />
                   <Route path="accounts" element={<AdminAccountsManagement />} />
                   <Route path="users" element={<AdminUserManagement />} />
                   <Route path="settings" element={<AdminSettings />} />

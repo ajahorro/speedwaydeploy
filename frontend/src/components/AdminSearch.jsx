@@ -18,6 +18,7 @@ const PAGES = [
   { name: 'Receipts & Proofs', path: '/admin/receipts', icon: NAV_ICONS.receipts, category: 'Pages' },
   { name: 'Reports', path: '/admin/reports', icon: NAV_ICONS.reports, category: 'Pages' },
   { name: 'Audit Logs', path: '/admin/audit-logs', icon: NAV_ICONS.history, category: 'Pages' },
+  { name: 'Backups', path: '/admin/backups', icon: NAV_ICONS.backups, category: 'Pages' },
   { name: 'Staff & Admin Accounts', path: '/admin/accounts', icon: NAV_ICONS.staff, category: 'Pages' },
   { name: 'Business Hub', path: '/admin/business', icon: NAV_ICONS.business, category: 'Pages' },
   { name: 'Walk-in Booking', path: '/admin/walk-in', icon: NAV_ICONS.walkIn, category: 'Pages' },

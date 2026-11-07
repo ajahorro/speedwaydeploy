@@ -91,6 +91,10 @@ export const ADMIN_TOURS = {
     { target: '[data-tour="hub-terms-payments"]', title: '4. Payment policy', body: 'How much a customer pays up front before work starts. The preview shows what customers will pay for a few example totals.' },
   ],
 
+  backups: [
+    { target: '[data-tour="bk-create"]', title: '1. Back up now', body: 'A backup is also made on its own on the 1st of every month. Each one is kept for 3 months.' },
+    { target: '[data-tour="bk-list"]', title: '2. Your backups', body: 'Download keeps a copy on your computer (a zip with a spreadsheet of each part). Restore puts the shop\'s data back to that day, after saving a backup of the current data first.' },
+  ],
   receipts: [
     { target: '[data-tour="rcp-totals"]', title: '1. Totals', body: 'Verified payments, refunds sent, and online payments with no uploaded proof, for the records shown below.' },
     { target: '[data-tour="rcp-filters"]', title: '2. Narrow the list', body: 'Show only verified, waiting, rejected or refund records, or filter by method, proof and dates. Export CSV saves exactly what is shown.' },

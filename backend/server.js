@@ -6320,6 +6320,75 @@ app.delete('/api/admin/blocked-slots/:id', async (req, res) => {
 // when a REQUIRED variable is absent — a health check that cannot fail is not a
 // health check. Hosts (Render) also poll this to decide whether a deploy is
 // live, so a genuinely broken instance must not be marked as ready.
+// ── System backups (admins only; the monthly call below is the exception and is idempotent) ──
+const backups = require('./services/systemBackups');
+const backupError = (res, err, fallback) => {
+  console.error('[backups]', err?.message || err);
+  res.status(500).json({ success: false, error: fallback });
+};
+const adminName = (actor) => actor.profile.full_name || actor.profile.email || 'Admin';
+
+app.post('/api/backups/scheduled', async (req, res) => {
+  try {
+    const made = await backups.ensureMonthly(supabaseAdmin);
+    if (made) await writeAuditLog({ actionType: 'BACKUP_CREATED', details: `Monthly backup ${made.file_path} created.`, metadata: { backup_id: made.id, trigger: 'SCHEDULED' } });
+    res.json({ success: true, created: Boolean(made) });
+  } catch (err) { backupError(res, err, 'The monthly backup could not be made.'); }
+});
+
+app.get('/api/admin/backups', async (req, res) => {
+  const actor = await requireAdmin(req);
+  if (!actor) return res.status(403).json({ success: false, error: 'Administrator access required.' });
+  try {
+    await backups.ensureMonthly(supabaseAdmin).catch((err) => console.error('[backups] monthly catch-up failed:', err.message));
+    const { data, error } = await supabaseAdmin.from('system_backups').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({ success: true, backups: data });
+  } catch (err) { backupError(res, err, 'The backups could not be loaded.'); }
+});
+
+app.post('/api/admin/backups', async (req, res) => {
+  const actor = await requireAdmin(req);
+  if (!actor) return res.status(403).json({ success: false, error: 'Administrator access required.' });
+  try {
+    const made = await backups.createBackup(supabaseAdmin, { trigger: 'MANUAL', userId: actor.user.id });
+    await writeAuditLog({ actionType: 'BACKUP_CREATED', details: `Backup ${made.file_path} created.`, actorId: actor.user.id, actorName: adminName(actor), actorRole: 'ADMIN', metadata: { backup_id: made.id, trigger: 'MANUAL' } });
+    res.json({ success: true, backup: made });
+  } catch (err) { backupError(res, err, 'The backup could not be made.'); }
+});
+
+app.get('/api/admin/backups/:id/download', async (req, res) => {
+  const actor = await requireAdmin(req);
+  if (!actor) return res.status(403).json({ success: false, error: 'Administrator access required.' });
+  try {
+    const link = await backups.downloadUrl(supabaseAdmin, req.params.id);
+    await writeAuditLog({ actionType: 'BACKUP_DOWNLOADED', details: `Backup ${link.fileName} downloaded.`, actorId: actor.user.id, actorName: adminName(actor), actorRole: 'ADMIN', metadata: { backup_id: req.params.id } });
+    res.json({ success: true, ...link });
+  } catch (err) { backupError(res, err, 'The backup could not be downloaded.'); }
+});
+
+app.post('/api/admin/backups/:id/restore', async (req, res) => {
+  const actor = await requireAdmin(req);
+  if (!actor) return res.status(403).json({ success: false, error: 'Administrator access required.' });
+  if (req.body?.confirm !== 'RESTORE') return res.status(400).json({ success: false, error: 'Type RESTORE to confirm.' });
+  try {
+    const result = await backups.restoreBackup(supabaseAdmin, req.params.id, actor.user.id);
+    // written after the restore, so the restored audit history keeps this entry
+    await writeAuditLog({ actionType: 'BACKUP_RESTORED', details: `Data restored from ${result.backup.file_path}. Safety backup taken first: ${result.safety.file_path}.`, actorId: actor.user.id, actorName: adminName(actor), actorRole: 'ADMIN', metadata: { backup_id: result.backup.id, safety_backup_id: result.safety.id, restored_tables: result.restored_tables } });
+    res.json({ success: true, restoredFrom: result.backup.file_path, safetyBackup: result.safety.file_path });
+  } catch (err) { backupError(res, err, 'The restore did not run. Nothing was changed.'); }
+});
+
+app.delete('/api/admin/backups/:id', async (req, res) => {
+  const actor = await requireAdmin(req);
+  if (!actor) return res.status(403).json({ success: false, error: 'Administrator access required.' });
+  try {
+    const removed = await backups.deleteBackup(supabaseAdmin, req.params.id);
+    await writeAuditLog({ actionType: 'BACKUP_DELETED', details: `Backup ${removed.file_path} deleted.`, actorId: actor.user.id, actorName: adminName(actor), actorRole: 'ADMIN', metadata: { backup_id: req.params.id } });
+    res.json({ success: true });
+  } catch (err) { backupError(res, err, 'The backup could not be deleted.'); }
+});
+
 app.get('/api/health', (req, res) => {
   const degraded = !startupConfig.ok;
 
