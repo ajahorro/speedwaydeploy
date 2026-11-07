@@ -29,9 +29,14 @@ import {
  */
 
 const peso = (value) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 }).format(Number(value || 0));
-const dateOnly = (value) => (value ? new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value)) : '');
+const dateOnly = (value) => (value ? new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(value)) : ''); // "Oct 21, 2026": no slashes, which the PDF converter spaces out
 const dateTime = (value) => (value ? new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value)) : '');
 const titleCase = (s) => String(s || '').toLowerCase().replace(/\b([a-z])/g, (m) => m.toUpperCase());
+
+/** The tick in a receipt box: two strokes drawn as a vector, so it sits exactly inside the box on screen, in print and in the PDF. */
+const Cross = () => (
+  <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1 L9 9 M9 1 L1 9" stroke="#18181b" strokeWidth="1.8" strokeLinecap="square" fill="none" /></svg>
+);
 
 const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose, mode = 'modal' }) => {
   const receiptRef = useRef(null);
@@ -103,7 +108,8 @@ const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose
     <div ref={receiptRef} id="printable-receipt" className="ar-doc" translate="no">
       <style>{`
         .ar-doc{background:#fff;color:#18181b;padding:clamp(16px,4vw,32px);font-family:Inter,'Segoe UI',Roboto,Arial,sans-serif;font-size:13px;line-height:1.45}
-        .ar-doc *{box-sizing:border-box}
+        .ar-doc *{box-sizing:border-box;border-radius:0 !important}
+        .ar-doc table{border-collapse:collapse !important;border-spacing:0 !important}
         .ar-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px}
         .ar-shop{min-width:0;flex:1 1 260px}
         .ar-shopname{font-size:22px;font-weight:800;letter-spacing:-.01em;margin:0}
@@ -117,7 +123,8 @@ const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose
         .ar-kv>.k{border-right:1px solid #d6d3cf;color:#5f5b57;white-space:nowrap}
         .ar-checks{display:flex;flex-wrap:wrap;gap:20px;margin:16px 0 10px;font-weight:600}
         .ar-check{display:inline-flex;align-items:center;gap:8px}
-        .ar-check i{display:inline-grid;place-items:center;width:16px;height:16px;border:1.5px solid #18181b;font-style:normal;font-size:12px;font-weight:800;line-height:1}
+        .ar-check i{display:block;flex:none;width:16px;height:16px;border:1.5px solid #18181b;padding:2px}
+        .ar-check i svg{display:block;width:100%;height:100%}
         .ar-section{margin-top:12px}
         .ar-label{background:#f3f1ee;padding:6px 10px;font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid #18181b}
         .ar-scroll{overflow-x:auto}
@@ -146,14 +153,14 @@ const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose
           <p className="ar-doctitle">{title}</p>
           {number && <div><span className="ar-muted">Receipt no.</span> <strong style={{ color: '#C41F2B' }}>{number}</strong></div>}
           <div className="ar-box ar-kv" style={{ minWidth: 200 }}>
-            <div className="k">Date</div><div className="ar-num">{dateOnly(docDate) || '—'}</div>
+            <div className="k">Date</div><div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{dateOnly(docDate) || '—'}</div>
           </div>
         </div>
       </div>
 
       <div className="ar-checks" role="group" aria-label="Payment type">
-        <span className="ar-check"><i aria-hidden="true">{isReceipt && cash ? 'X' : ''}</i>CASH</span>
-        <span className="ar-check"><i aria-hidden="true">{isReceipt && !cash ? 'X' : ''}</i>ONLINE{isReceipt && !cash && method ? ` (${methodLabel(method)})` : ''}</span>
+        <span className="ar-check"><i aria-hidden="true">{isReceipt && cash ? <Cross /> : null}</i>CASH</span>
+        <span className="ar-check"><i aria-hidden="true">{isReceipt && !cash ? <Cross /> : null}</i>ONLINE{isReceipt && !cash && method ? ` (${methodLabel(method)})` : ''}</span>
       </div>
 
       <div className="ar-box">
@@ -206,7 +213,7 @@ const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose
       {isReceipt && (
         <div>
           <div className="ar-received">
-            <span className="ar-check"><i aria-hidden="true">X</i>{isRefund ? 'Refunded the amount of' : 'Received the amount of'}</span>
+            <span className="ar-check"><i aria-hidden="true"><Cross /></i>{isRefund ? 'Refunded the amount of' : 'Received the amount of'}</span>
             <span className="ar-line ar-num" style={{ textAlign: 'center' }}>{peso(received)}</span>
           </div>
           <div className="ar-words ar-muted">{amountInWords(received)}</div>

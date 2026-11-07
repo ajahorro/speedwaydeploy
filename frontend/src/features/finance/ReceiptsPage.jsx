@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabase';
 import { subscribeTable } from '@/lib/realtimeHub';
 import PageHeader from '@/components/PageHeader';
 import PaymentReceipt from '@/components/PaymentReceipt';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -46,11 +45,12 @@ const STATUS = {
   REFUND_PENDING: { label: 'Refund pending', tone: 'warning' },
   REFUNDED: { label: 'Refunded', tone: 'muted' },
 };
+// Status is plain coloured text (no pill or outline): the colour alone carries the state, the word says it.
 const TONES = {
-  success: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
-  warning: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400',
-  danger: 'border-destructive/40 bg-destructive/10 text-destructive',
-  muted: 'border-border bg-muted text-muted-foreground',
+  success: 'text-emerald-700 dark:text-emerald-400',
+  warning: 'text-amber-700 dark:text-amber-400',
+  danger: 'text-destructive',
+  muted: 'text-muted-foreground',
 };
 
 const isRefundRow = (p) => Number(p.amount) < 0
@@ -78,7 +78,7 @@ const dayEnd = (iso) => (iso ? new Date(`${iso}T23:59:59.999`) : null);
 
 function StatusBadge({ payment }) {
   const s = statusOf(payment);
-  return <Badge variant="outline" className={`whitespace-nowrap ${TONES[s.tone]}`}>{s.label}</Badge>;
+  return <span className={`whitespace-nowrap text-sm font-semibold ${TONES[s.tone]}`}>{s.label}</span>;
 }
 
 /** The proof column: a small preview of the customer's upload, the shop's proof of refund, or a plain note. */
