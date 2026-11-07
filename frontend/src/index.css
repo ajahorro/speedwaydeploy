@@ -699,3 +699,30 @@ body.admin-account-active :where(input, select, textarea) {
     cursor: not-allowed;
   }
 }
+
+/* Round icon buttons in the account header (search, notifications): one size and hit area on every screen. */
+.admin-header-icon {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--admin-radius-sm, 4px);
+  background: transparent;
+  color: var(--admin-text-secondary);
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
+}
+.admin-header-icon:hover,
+.admin-header-icon[aria-expanded='true'] {
+  color: var(--admin-text-primary);
+  background: var(--admin-bg);
+}
+.admin-header-icon:focus-visible {
+  color: var(--admin-text-primary);
+  outline: 2px solid var(--admin-brand);
+  outline-offset: 2px;
+}

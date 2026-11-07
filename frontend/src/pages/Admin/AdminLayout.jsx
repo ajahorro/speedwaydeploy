@@ -305,22 +305,24 @@ const AdminLayout = () => {
             >
               Admin Account
             </div>
-            {!isMobile && <AdminSearch />}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '1.5rem', position: 'relative' }}>
-            <div
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.5rem' : '0.75rem', position: 'relative' }}>
+            <AdminSearch />
+            <button
+              type="button"
+              className="admin-header-icon"
               onClick={() => setShowNotifPopover(!showNotifPopover)}
-              style={{ position: 'relative', cursor: 'pointer', opacity: showNotifPopover ? 1 : 0.6, color: 'var(--admin-text-primary)', transition: 'all 0.2s' }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-              onMouseLeave={(e) => { if (!showNotifPopover) e.currentTarget.style.opacity = '0.6'; }}
+              aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+              aria-expanded={showNotifPopover}
+              data-active={showNotifPopover || undefined}
             >
-              <Bell size={18} strokeWidth={2.5} />
+              <Bell size={18} strokeWidth={2.25} />
               {unreadCount > 0 && (
-                <div style={{
+                <span aria-hidden="true" style={{
                   position: 'absolute',
-                  top: '-6px',
-                  right: '-6px',
+                  top: '2px',
+                  right: '0px',
                   background: 'var(--admin-brand)',
                   color: 'var(--admin-text-on-brand)',
                   fontSize: '0.55rem',
@@ -334,9 +336,9 @@ const AdminLayout = () => {
                   borderRadius: '2px', // SHARP BADGE
                   border: '1px solid var(--admin-card)',
                   boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                }}>{unreadCount}</div>
+                }}>{unreadCount}</span>
               )}
-            </div>
+            </button>
 
             {showNotifPopover && (
               <div ref={notifRef}>
@@ -360,12 +362,6 @@ const AdminLayout = () => {
             />
           </div>
         </header>
-
-        {isMobile && (
-          <div className="portal-search-row" style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--admin-border)', background: 'var(--admin-bg)' }}>
-            <AdminSearch />
-          </div>
-        )}
 
         <main style={{ flex: 1, minHeight: 0, padding: isMobile ? '1.5rem 1rem' : '2.5rem', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', background: 'var(--admin-bg)' }}>
           <Outlet />

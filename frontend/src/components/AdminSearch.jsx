@@ -34,15 +34,32 @@ const AdminSearch = () => {
   const [searched, setSearched] = useState(false);
   const navigate = useNavigate();
   const searchRef = useRef(null);
+  const buttonRef = useRef(null);
+  // The search is an icon in the header; it opens a panel under the header (any screen size).
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelTop, setPanelTop] = useState(64);
+
+  const openPanel = () => {
+    const r = buttonRef.current?.getBoundingClientRect();
+    if (r) setPanelTop(Math.round(r.bottom + 10));
+    setPanelOpen(true);
+  };
+  const closePanel = () => { setPanelOpen(false); setIsOpen(false); };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (searchRef.current && !searchRef.current.contains(event.target)) {
         setIsOpen(false);
+        setPanelOpen(false);
       }
     };
+    // Ctrl+K / Cmd+K opens the search from anywhere in the admin pages
+    const handleKey = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openPanel(); }
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKey);
+    return () => { document.removeEventListener('mousedown', handleClickOutside); document.removeEventListener('keydown', handleKey); };
   }, []);
 
   useEffect(() => {
@@ -144,12 +161,29 @@ const AdminSearch = () => {
     navigate(path);
     setQuery('');
     setIsOpen(false);
+    setPanelOpen(false);
   };
 
   return (
-    <div ref={searchRef} className="portal-search-control" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+    <div ref={searchRef} style={{ display: 'flex', alignItems: 'center' }}>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="admin-header-icon"
+        onClick={() => (panelOpen ? closePanel() : openPanel())}
+        aria-label="System search"
+        aria-expanded={panelOpen}
+        title="Search (Ctrl+K)"
+      >
+        <Search size={18} strokeWidth={2.25} />
+      </button>
+      {panelOpen && (
+    <div className="admin-search-panel" role="dialog" aria-label="System search" style={{ position: 'fixed', top: panelTop, right: 12, width: 'min(440px, calc(100vw - 24px))', zIndex: 2100, padding: '0.75rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', boxShadow: '0 12px 32px rgba(0,0,0,0.18)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
       <Search size={16} style={{ position: 'absolute', left: '1rem', color: 'var(--admin-text-secondary)', opacity: 0.5, zIndex: 10 }} />
       <input
+        autoFocus
         className="portal-search-input"
         type="text" 
         placeholder="SYSTEM SEARCH..." 
@@ -157,7 +191,7 @@ const AdminSearch = () => {
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => query.length > 0 && setIsOpen(true)}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') setIsOpen(false);
+          if (e.key === 'Escape') { if (isOpen) setIsOpen(false); else closePanel(); }
           if (e.key === 'Enter' && results[0]) handleSelect(results[0].path);
         }}
         style={{ 
@@ -168,32 +202,29 @@ const AdminSearch = () => {
           color: 'var(--admin-text-primary)',
           fontSize: '0.75rem',
           fontWeight: '950',
-          width: '320px',
+          width: '100%',
           outline: 'none',
           transition: '0.2s',
           letterSpacing: '0.5px'
         }} 
       />
+      </div>
 
       {isOpen && searched && results.length === 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '0.5rem', padding: '0.9rem 1rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: 700, zIndex: 2000 }}>
+        <div style={{ marginTop: '0.5rem', padding: '0.9rem 1rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-secondary)', fontSize: '0.75rem', fontWeight: 700, zIndex: 2000 }}>
           No matches for "{query.trim()}"
         </div>
       )}
 
       {isOpen && results.length > 0 && (
         <div style={{ 
-          position: 'absolute', 
-          top: '100%', 
-          left: 0, 
-          right: 0, 
           background: 'var(--admin-card)', 
           border: '1px solid var(--admin-border)', 
           borderRadius: 'var(--admin-radius-sm)', 
           boxShadow: 'var(--admin-card-shadow)', 
           marginTop: '0.5rem',
           zIndex: 2000,
-          maxHeight: '400px',
+          maxHeight: 'min(400px, 60vh)',
           overflowY: 'auto'
         }}>
           {['Pages', 'Recent Bookings', 'Users & Staff'].map(category => {
@@ -231,6 +262,9 @@ const AdminSearch = () => {
             );
           })}
         </div>
+      )}
+      </div>
+    </div>
       )}
     </div>
   );
