@@ -173,9 +173,9 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
    * round-trip for already-compressed screenshots.
    */
   const compressReceiptImage = (origFile) => new Promise((resolve) => {
-    const MAX_W = 1400;
+    const MAX_W = 1080; // a phone screenshot's width; the server reads at 1000 px
     const QUALITY = 0.85;
-    const SKIP_THRESHOLD_BYTES = 512 * 1024; // 512 KB - already small, skip
+    const SKIP_THRESHOLD_BYTES = 200 * 1024; // already small, skip
 
     if (!origFile || origFile.size <= SKIP_THRESHOLD_BYTES) {
       resolve(origFile);

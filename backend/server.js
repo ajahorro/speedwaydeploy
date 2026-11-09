@@ -1082,7 +1082,8 @@ const registerOcrScanSession = async (imageHash, ocrMetadata) => {
 };
 const storeOcrReceiptImage = async (file, imageHash) => {
   if (!supabaseAdmin) throw new Error('Receipt storage is unavailable.');
-  const small = await require('./services/storedImage').shrinkForStorage(file.buffer, file.mimetype);
+  // the booking page already sends a resized JPEG; re-encoding that on the server's small CPU only delays the answer
+  const small = file.buffer.length > 600 * 1024 ? await require('./services/storedImage').shrinkForStorage(file.buffer, file.mimetype) : null;
   if (small) file = { ...file, buffer: small.buffer, mimetype: small.mimetype };
   const extension = ({
     'image/jpeg': 'jpg',
@@ -1162,6 +1163,14 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // SC-17: byte-level SHA-256 catches exact-file reuse independently of any
     // OCR-extracted reference. Re-encoded copies require perceptual hashing.
     const imageHash = ocrGuard.computeImageHash(req.file.buffer);
+    // Upload the picture while the text is read; it is kept only for a receipt that passes, otherwise removed.
+    const storing = storeOcrReceiptImage(req.file, imageHash);
+    storing.catch(() => {}); // an upload failure is reported where the URL is needed
+    let keepReceipt = false;
+    res.on('finish', () => {
+      if (keepReceipt) return;
+      storing.then((url) => supabaseAdmin.storage.from('payment-receipts').remove([decodeURIComponent(url.split('/payment-receipts/')[1])])).catch(() => {});
+    });
 
     const paymentType = String(req.body.paymentType || req.body.payment_type || 'Full').toLowerCase();
     const requiredAmount = parseFloat(req.body.requiredAmount) || 0;
@@ -1620,9 +1629,8 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     const isValidReceipt = receiptIsTrustworthy;
     const failureReason = isValidReceipt ? null : (validationErrors[0]?.code || 'FLAGGED_DETAILS_MISMATCH');
 
-    const receiptUrl = isValidReceipt
-      ? await storeOcrReceiptImage(req.file, imageHash)
-      : null;
+    keepReceipt = isValidReceipt;
+    const receiptUrl = isValidReceipt ? await storing : null;
     const ocrScanId = isValidReceipt
       ? await registerOcrScanSession(imageHash, {
         ...extractedData,

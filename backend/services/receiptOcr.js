@@ -40,7 +40,9 @@ const getWorker = () => {
     const initialization = createWorker('eng', 1, { cachePath: TESSERACT_CACHE_PATH });
     let pending;
     pending = withTimeout(initialization, WORKER_INIT_TIMEOUT_MS, 'OCR worker initialization')
-      .then((worker) => {
+      // receipts are dark text on light: skipping the inverted-text check saves about a tenth of each read
+      .then(async (worker) => {
+        await worker.setParameters({ tessedit_do_invert: '0' });
         finishTiming();
         return worker;
       })
@@ -94,7 +96,7 @@ const buildImageVariant = async (buffer, index) => {
       return await base.clone()
         .grayscale()
         .normalize()
-        .png()
+        .png({ compressionLevel: 0 }) // Tesseract reads it straight away; compressing only costs CPU
         .toBuffer();
     }
     if (index === 1) {
@@ -106,7 +108,7 @@ const buildImageVariant = async (buffer, index) => {
         .grayscale()
         .normalize()
         .sharpen()
-        .png()
+        .png({ compressionLevel: 0 })
         .toBuffer();
     }
     throw new RangeError(`Unknown receipt preprocessing pass: ${index + 1}`);
