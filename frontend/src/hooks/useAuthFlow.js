@@ -94,6 +94,21 @@ export const useAuthFlow = ({ next: nextOption } = {}) => {
       // to the project's Site URL.
       const redirectTo = `${window.location.origin}/auth/callback`;
 
+      // From a walk-in's invite link: the server makes the account already confirmed, then we sign straight in.
+      if (userData.inviteToken) {
+        const res = await fetch(`${BACKEND_URL}/customer/register-invite`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: userData.inviteToken, first_name: userData.firstName.trim(), last_name: userData.lastName.trim(), phone: normalizePhPhone(userData.phone), password: userData.password })
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || 'Registration failed.');
+        const { error: signInError } = await signInWithPassword(email, userData.password);
+        if (signInError) throw signInError;
+        toast.success('Your account is ready. Welcome!');
+        return;
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password: userData.password,

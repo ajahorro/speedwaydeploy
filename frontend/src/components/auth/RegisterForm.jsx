@@ -34,7 +34,7 @@ const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '', 
       return;
     }
     setError('');
-    onRegister(formData);
+    onRegister({ ...formData, inviteToken: initialData?.inviteToken });
   };
 
   const updateField = (field, value) => {

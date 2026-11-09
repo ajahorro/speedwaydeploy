@@ -91,6 +91,7 @@ const Login = ({ isModal = false, onClose, next, initialMode }) => {
         return;
       }
       setRegisterPrefill({
+        inviteToken: invite,
         firstName: row.first_name || '',
         lastName: row.last_name || '',
         email: row.email || '',

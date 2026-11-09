@@ -768,6 +768,7 @@ app.post('/admin/generate-invite', async (req, res) => {
       email: normalizedEmail,
       password: temporaryPassword,
       email_confirm: true,
+      app_metadata: { role: normalizedRole },
       user_metadata: {
         first_name: safeFirst,
         last_name: safeLast,
@@ -874,6 +875,54 @@ app.get('/invite/validate', async (req, res) => {
   }
 });
 
+// Walk-in registration invite (link in the booking email). The link was sent to this address, so the account is
+// created already confirmed and the customer signs in straight away, with no second "confirm your email" step.
+app.post('/customer/register-invite', async (req, res) => {
+  const { token, first_name, last_name, phone, password } = req.body || {};
+  const first = String(first_name || '').trim();
+  const last = String(last_name || '').trim();
+  const phoneNumber = normalizePhPhone(phone);
+  try {
+    if (!first || !last) return res.status(400).json({ error: 'First and last name are required.' });
+    if (!isValidPhPhone(phoneNumber)) return res.status(400).json({ error: 'Enter an 11-digit mobile number starting with 09 (for example 09123456789).' });
+    if (typeof password !== 'string' || password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+
+    const { data: invite } = await supabaseAdmin
+      .from('guest_registration_invites')
+      .select('email')
+      .eq('token', String(token || ''))
+      .is('used_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+    if (!invite) return res.status(400).json({ error: 'This invitation link has expired or was already used. You can still register normally.' });
+
+    const fullName = `${first} ${last}`;
+    const { data: created, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: invite.email,
+      password,
+      email_confirm: true,
+      app_metadata: { role: 'CUSTOMER' },
+      user_metadata: { first_name: first, last_name: last, full_name: fullName, phone_number: phoneNumber, role: 'CUSTOMER' }
+    });
+    if (authError) {
+      if (/already|registered|exists/i.test(authError.message || '')) {
+        return res.status(409).json({ error: 'An account with this email already exists. Sign in, or use "Forgot Password?".' });
+      }
+      throw authError;
+    }
+
+    const { error: profileError } = await supabaseAdmin.from('profiles')
+      .update({ first_name: first, last_name: last, full_name: fullName, phone_number: phoneNumber, updated_at: new Date().toISOString() })
+      .eq('id', created.user.id);
+    if (profileError) console.warn('[register-invite] profile details not saved:', profileError.message);
+
+    return res.json({ success: true, email: invite.email });
+  } catch (err) {
+    console.error('[register-invite] failed:', err.message);
+    return res.status(500).json({ error: 'Could not create the account. Please try again.' });
+  }
+});
+
 // 3. ACCEPT INVITE (Create Account)
 app.post('/invite/accept', async (req, res) => {
   const { token, password, first_name, last_name } = req.body;
@@ -903,6 +952,7 @@ app.post('/invite/accept', async (req, res) => {
       email: invite.email,
       password: password,
       email_confirm: true,
+      app_metadata: { role: invite.role },
       user_metadata: { first_name, last_name, role: invite.role }
     });
 
@@ -2439,6 +2489,7 @@ app.post('/api/admin/invite-account', async (req, res) => {
       email: normalizedEmail,
       password: temporaryPassword,
       email_confirm: true,
+      app_metadata: { role: normalizedRole },
       user_metadata: {
         first_name: safeFirst,
         last_name: safeLast,
