@@ -6,6 +6,7 @@ import toast from '@/lib/toast';
 import { BACKEND_URL } from '../config/api';
 import { emailError, phoneError, normalizePhPhone } from '../utils/contactValidation';
 import { safeNextPath } from '../utils/safeNextPath';
+import { onHandOff } from '@/lib/tabHandoff';
 
 /**
  * @param {{ next?: string }} [options] next: where to go after sign-in when the page address has no ?next=
@@ -56,6 +57,13 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
       }
     }
   }, [user, profile, mode, navigate, nextOption, audience, signOut]);
+
+  // another tab finished the emailed step: an activated account is signed in (the redirect above takes over),
+  // a new password means signing in with it here
+  useEffect(() => onHandOff((kind) => {
+    if (kind === 'account-confirmed') window.location.reload();
+    if (kind === 'password-updated') { setMode('LOGIN'); toast.success('Password updated. Sign in with your new password.'); }
+  }), []);
 
   const login = async (email, password) => {
     setIsLoading(true);

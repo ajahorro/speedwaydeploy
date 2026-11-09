@@ -3,6 +3,7 @@ import { supabase, createUniqueChannel } from '../lib/supabase';
 import { logger } from '../utils/logger';
 import toast from '@/lib/toast';
 import { BACKEND_URL, authHeaders } from '../config/api';
+import { onHandOff } from '@/lib/tabHandoff';
 
 export const AuthContext = createContext({});
 
@@ -218,6 +219,9 @@ export const AuthProvider = ({ children }) => {
       subscription.unsubscribe();
     };
   }, [fetchProfile]);
+
+  // a password change confirmed from the email in another tab
+  useEffect(() => (user ? onHandOff((kind) => { if (kind === 'password-updated') toast.success('Your password change is confirmed.'); }) : undefined), [user]);
 
   const signInWithPassword = async (email, password) => {
     logger.auth('Attempting sign in with credentials...');

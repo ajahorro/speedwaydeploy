@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
+import { handOff } from '@/lib/tabHandoff';
 
 /**
  * AuthCallback.jsx
@@ -77,6 +78,11 @@ const AuthCallback = () => {
       if (cancelled) return;
       const destination = routeForRole(role);
       logger.auth('[AuthCallback] Confirmed; redirecting to', destination);
+      // opened from the email next to an existing Comar Garage tab: that tab signs in, this one steps aside
+      if (await handOff('account-confirmed')) {
+        if (!cancelled) setState({ status: 'done', message: 'Your account is confirmed and your other Comar Garage tab is now signed in. You can close this tab.' });
+        return;
+      }
       setState({ status: 'done', message: 'Account confirmed. Redirecting…' });
       navigate(destination, { replace: true });
     };

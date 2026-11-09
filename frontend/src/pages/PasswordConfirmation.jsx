@@ -5,14 +5,18 @@ import toast from '@/lib/toast';
 // at the viewer's own localhost (the cause of "confirmation links go nowhere").
 import { BACKEND_URL } from '../config/api';
 import PasswordInput from '../components/PasswordInput';
+import { handOff } from '@/lib/tabHandoff';
 
 const PasswordConfirmation = () => {
   const token = new URLSearchParams(window.location.search).get('token');
   const [purpose, setPurpose] = useState(null);
+  const [otherTab, setOtherTab] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [status, setStatus] = useState('checking');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // once done, tell the Comar Garage tab the person was already using (it moves on by itself)
+  useEffect(() => { if (status === 'complete') handOff('password-updated').then(setOtherTab); }, [status]);
 
   useEffect(() => {
     if (!token) {
@@ -89,7 +93,7 @@ const PasswordConfirmation = () => {
       <h1 style={{ margin: '0 0 .75rem', fontSize: '1.4rem', fontWeight: 900 }}>{heading}</h1>
       {status === 'checking' && <p style={{ color: 'var(--admin-text-secondary)' }}>Validating your secure confirmation link...</p>}
       {status === 'invalid' && <><p style={{ color: 'var(--admin-text-secondary)', lineHeight: 1.6 }}>This link has expired, was already used, or is invalid. Request a fresh one from the login screen — use <strong>Forgot Password?</strong>.</p><button onClick={requestNewLink} style={{ marginTop: '1rem', padding: '.75rem 1.25rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 0, borderRadius: '4px', fontWeight: 800, cursor: 'pointer' }}>Request a New Link</button></>}
-      {status === 'complete' && <><p style={{ color: 'var(--admin-text-secondary)', lineHeight: 1.6 }}>Your password has been updated successfully. You may now sign in with it.</p><button onClick={goToLogin} style={{ marginTop: '1rem', padding: '.75rem 1.25rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 0, borderRadius: '4px', fontWeight: 800, cursor: 'pointer' }}>Continue to Login</button></>}
+      {status === 'complete' && <><p style={{ color: 'var(--admin-text-secondary)', lineHeight: 1.6 }}>{otherTab ? 'Your password has been updated. Go back to your other Comar Garage tab to continue. You can close this tab.' : 'Your password has been updated successfully. You may now sign in with it.'}</p>{!otherTab && <button onClick={goToLogin} style={{ marginTop: '1rem', padding: '.75rem 1.25rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 0, borderRadius: '4px', fontWeight: 800, cursor: 'pointer' }}>Continue to Login</button>}</>}
       {status === 'ready' && purpose === 'RESET' && <form onSubmit={submitReset} style={{ textAlign: 'left' }}><label style={{ display: 'block', marginBottom: '.4rem', fontWeight: 700 }}>New Password</label><PasswordInput type="password" autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} required style={{ width: '100%', boxSizing: 'border-box', padding: '.8rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px' }} /><label style={{ display: 'block', margin: '1rem 0 .4rem', fontWeight: 700 }}>Confirm New Password</label><PasswordInput type="password" autoComplete="new-password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} required style={{ width: '100%', boxSizing: 'border-box', padding: '.8rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px' }} /><button disabled={isSubmitting} style={{ width: '100%', marginTop: '1.25rem', padding: '.85rem', background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)', border: 0, borderRadius: '4px', fontWeight: 800, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}>{isSubmitting ? 'Updating...' : 'Update Password'}</button></form>}
     </div>
   </div>;
