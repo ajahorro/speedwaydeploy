@@ -497,7 +497,7 @@ const AdminDashboard = () => {
               report={dashboardReport.report}
               loading={dashboardReport.loading}
               compact
-              gridClassName="sm:grid-cols-2"
+              gridClassName="h-full sm:grid-cols-2"
               onClick={() => navigate(reportsUrl)}
             />
           </div>
@@ -505,6 +505,7 @@ const AdminDashboard = () => {
             rows={dashboardReport.report?.top_services || []}
             loading={dashboardReport.loading}
             limit={4}
+            fill
           />
         </div>
 

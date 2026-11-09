@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import { Bar, BarChart, Cell, Label, Pie, PieChart, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
@@ -73,19 +74,20 @@ export function MethodBreakdownChart({ rows = [], total = 0, loading }) {
 }
 
 /** Most-booked services among paying bookings (from sales_report().top_services). */
-export function TopServicesChart({ rows = [], loading, limit }) {
+/** fill: stretch to the row's height (dashboard), so it lines up with the cards beside it. */
+export function TopServicesChart({ rows = [], loading, limit, fill }) {
   const data = rows.slice(0, limit).map((row) => ({ name: row.name, count: Number(row.count || 0) }));
   const config = { count: { label: 'Bookings', color: '#10b981' } };
 
   return (
-    <Card className="gap-2">
+    <Card className={cn('gap-2', fill && 'h-full')}>
       <CardHeader>
         <CardTitle>Top services</CardTitle>
         <CardDescription>Most booked among paying bookings</CardDescription>
       </CardHeader>
-      <CardContent>
-        {loading ? <Skeleton className="h-[220px] w-full" /> : !data.length ? <EmptyState>No services in this range.</EmptyState> : (
-          <ChartContainer config={config} className="aspect-auto h-[220px] w-full">
+      <CardContent className={cn(fill && 'flex flex-1 flex-col')}>
+        {loading ? <Skeleton className={cn('h-[220px] w-full', fill && 'flex-1')} /> : !data.length ? <EmptyState>No services in this range.</EmptyState> : (
+          <ChartContainer config={config} className={cn('aspect-auto h-[220px] w-full', fill && 'h-auto min-h-[180px] flex-1')}>
             <BarChart data={data} layout="vertical" margin={{ left: 8, right: 16 }}>
               <XAxis type="number" hide allowDecimals={false} />
               <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={130} />
