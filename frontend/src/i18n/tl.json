@@ -3802,5 +3802,13 @@
  "This is the customer sign-in. Staff and administrator accounts sign in on the staff page.": "Ito ang sign-in para sa customer. Ang mga account ng staff at administrator ay mag-sign in sa staff page.",
  "This sign-in is for shop staff. Customers sign in on the customer page.": "Ang sign-in na ito ay para sa staff ng shop. Ang mga customer ay mag-sign in sa customer page.",
  "Go to the staff sign-in": "Pumunta sa staff sign-in",
- "Customer? Sign in here": "Customer? Mag-sign in dito"
+ "Customer? Sign in here": "Customer? Mag-sign in dito",
+ "Sign in": "Mag-sign in",
+ "Use your staff or admin account": "Gamitin ang iyong staff o admin account",
+ "Staff portal": "Portal ng staff",
+ "Run the shop from one place.": "Patakbuhin ang shop sa iisang lugar.",
+ "Schedule and bays": "Iskedyul at mga bay",
+ "Bookings and walk-ins": "Mga booking at walk-in",
+ "Payments and receipts": "Mga bayad at resibo",
+ "For authorized Comar Garage staff only.": "Para lamang sa awtorisadong staff ng Comar Garage."
 }

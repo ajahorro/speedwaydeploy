@@ -6,7 +6,7 @@ const AuthHeader = ({ mode, email, staff = false }) => {
   // itself happens from the emailed link, on /password-confirmation.
   const getSubtext = () => {
     switch (mode) {
-      case 'LOGIN': return staff ? 'STAFF AND ADMIN SIGN-IN' : 'WELCOME BACK';
+      case 'LOGIN': return staff ? 'Use your staff or admin account' : 'WELCOME BACK';
       case 'REGISTER': return 'CREATE YOUR ACCOUNT';
       case 'RECOVER': return 'REQUEST A RESET LINK';
       case 'RECOVER_OTP': return 'EMERGENCY ACCOUNT RECOVERY';
@@ -29,7 +29,7 @@ const AuthHeader = ({ mode, email, staff = false }) => {
         textTransform: 'uppercase',
         lineHeight: '1.2'
       }}>
-        Comar Garage
+        {staff && mode === 'LOGIN' ? 'Sign in' : 'Comar Garage'}
       </h1>
       <p style={{
         color: 'var(--admin-text-secondary)',

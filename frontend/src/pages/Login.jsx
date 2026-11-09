@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import RecoverForm from '../components/auth/RecoverForm';
 import EmergencyRecoveryForm from '../components/auth/EmergencyRecoveryForm';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { X, Mail } from 'lucide-react';
+import { X, Mail, ShieldCheck, CalendarDays, ClipboardList, Wallet } from 'lucide-react';
 import toast from '@/lib/toast';
 import { supabase } from '../lib/supabase';
 import { Link } from 'react-router-dom';
@@ -240,13 +240,36 @@ const Login = ({ isModal = false, onClose, next, initialMode, audience = 'custom
         </>
       )}
 
-      <div style={cardStyle} onClick={e => e.stopPropagation()}>
-        {isModal && (
-          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 text-muted-foreground"><X size={20} /></Button>
-        )}
-        <AuthHeader mode={mode} email={prefillEmail} staff={staff} />
-        {renderForm()}
-      </div>
+      {staff && !isModal ? (
+        <div style={{ ...cardStyle, maxWidth: 'min(94vw, 920px)', padding: 0 }} className="grid overflow-hidden md:grid-cols-[1fr_1.1fr]">
+          {/* brand panel: dark in both themes so the white logo reads */}
+          <aside className="flex flex-col gap-5 bg-[#111214] p-6 text-white md:p-10">
+            <img src="/comarlogo-Photoroom.png" alt="Comar Garage" className="w-40 md:w-52" />
+            <span className="inline-flex w-fit items-center gap-2 rounded-[2px] bg-[#C41F2B] px-2.5 py-1 text-[0.7rem] font-black uppercase tracking-wider">
+              <ShieldCheck size={14} /> Staff portal
+            </span>
+            <div className="hidden flex-1 flex-col gap-5 md:flex">
+              <p className="text-2xl font-black leading-tight">Run the shop from one place.</p>
+              {[[CalendarDays, 'Schedule and bays'], [ClipboardList, 'Bookings and walk-ins'], [Wallet, 'Payments and receipts']].map(([Icon, label]) => (
+                <p key={label} className="flex items-center gap-3 text-sm font-semibold text-white/80"><Icon size={18} className="text-[#ff5a66]" />{label}</p>
+              ))}
+              <p className="mt-auto text-xs text-white/50">For authorized Comar Garage staff only.</p>
+            </div>
+          </aside>
+          <div className="p-6 sm:p-10">
+            <AuthHeader mode={mode} email={prefillEmail} staff={staff} />
+            {renderForm()}
+          </div>
+        </div>
+      ) : (
+        <div style={cardStyle} onClick={e => e.stopPropagation()}>
+          {isModal && (
+            <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 text-muted-foreground"><X size={20} /></Button>
+          )}
+          <AuthHeader mode={mode} email={prefillEmail} staff={staff} />
+          {renderForm()}
+        </div>
+      )}
       <style>{`
         @keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
       `}</style>
