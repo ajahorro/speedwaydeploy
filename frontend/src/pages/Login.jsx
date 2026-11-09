@@ -43,9 +43,10 @@ const Login = ({ isModal = false, onClose, next, initialMode, audience = 'custom
   useEffect(() => {
     if (!staff || isModal) return undefined;
     const root = document.documentElement;
-    const previous = root.dataset.theme;
+    const previous = { theme: root.dataset.theme, title: document.title };
     root.dataset.theme = 'dark';
-    return () => { root.dataset.theme = previous; };
+    document.title = 'Staff sign-in | Comar Garage'; // what a search result or browser tab shows
+    return () => { root.dataset.theme = previous.theme; document.title = previous.title; };
   }, [staff, isModal]);
 
   // Opened straight on a form, e.g. the Services page's "Create an account" opens on REGISTER.

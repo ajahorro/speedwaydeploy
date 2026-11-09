@@ -255,7 +255,10 @@ export function SiteFooter({ businessName, links, onNavigate, socials }) {
         </div>
         <Separator />
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <p className="m-0 text-[0.7rem] uppercase text-muted-foreground">© {new Date().getFullYear()} {businessName}. All rights reserved.</p>
+          <p className="m-0 flex flex-wrap gap-x-4 gap-y-1 text-[0.7rem] uppercase text-muted-foreground">
+            <span>© {new Date().getFullYear()} {businessName}. All rights reserved.</span>
+            <a href="/staff/login" className="font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Staff sign-in</a>
+          </p>
           <div className="flex gap-1">
             {socials.map(({ platform, label, url }) => {
               const Icon = SOCIAL_ICONS[platform];
