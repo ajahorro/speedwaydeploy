@@ -39,6 +39,15 @@ const Login = ({ isModal = false, onClose, next, initialMode, audience = 'custom
     if (/^\/(admin|staff)(\/|$)/.test(params.get('next') || '')) window.location.replace(`/staff/login${window.location.search}`);
   }, [staff, isModal]);
 
+  // The staff sign-in is always dark: a signed-out page does not follow the last account's theme setting.
+  useEffect(() => {
+    if (!staff || isModal) return undefined;
+    const root = document.documentElement;
+    const previous = root.dataset.theme;
+    root.dataset.theme = 'dark';
+    return () => { root.dataset.theme = previous; };
+  }, [staff, isModal]);
+
   // Opened straight on a form, e.g. the Services page's "Create an account" opens on REGISTER.
   useEffect(() => {
     if (initialMode) setMode(initialMode);
