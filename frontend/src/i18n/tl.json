@@ -3782,5 +3782,8 @@
  "Your staff session has expired. Please sign in again.": "Nag-expire na ang iyong sesyon bilang staff. Mag-sign in muli.",
  "Zero Administrative Records": "Walang Tala ng Administrasyon",
  "Zoom in": "I-zoom in",
- "Zoom out": "I-zoom out"
+ "Zoom out": "I-zoom out",
+ "Only the administrator who sent this invitation can open the customer's booking details.": "Ang administrator lang na nagpadala ng imbitasyong ito ang makakapagbukas ng booking details ng customer.",
+ "Only the administrator who sent this invitation can open these details.": "Ang administrator lang na nagpadala ng imbitasyong ito ang makakapagbukas ng mga detalyeng ito.",
+ "Unread Messages": "Mga Hindi Pa Nababasang Mensahe"
 }

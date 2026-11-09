@@ -5,8 +5,9 @@ import { supabase } from '../../lib/supabase';
 import { subscribeTables } from '../../lib/realtimeHub';
 import { formatBookingDate, formatBookingTime, getStatusColor } from '../../utils/bookingHelpers';
 import {
-  Receipt, UserX, Flag, ArrowLeftRight, PackageCheck, ChevronRight, ChevronsRight
+  Receipt, UserX, Flag, ArrowLeftRight, PackageCheck, MessageSquare, ChevronRight, ChevronsRight
 } from 'lucide-react';
+import { useGlobalChat } from '../../context/ChatContext';
 import PageHeader from '../../components/PageHeader';
 import { useUI } from '../../context/UIContext';
 import { logger } from '../../utils/logger';
@@ -75,6 +76,7 @@ const getQueueStatusStyle = status => {
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const { globalUnreadCount, openInbox } = useGlobalChat();
   const { openModal } = useUI();
   const reportRange = useMemo(() => resolveRange('30d'), []);
   const reportsUrl = '/admin/reports?range=30d&tab=overview';
@@ -432,6 +434,14 @@ const AdminDashboard = () => {
             color="var(--status-success)"
             bg="rgba(16, 185, 129, 0.1)"
             onClick={() => navigate('/admin/bookings?filter=completed')}
+          />
+          <AttentionCard
+            count={globalUnreadCount}
+            label="Unread Messages"
+            icon={MessageSquare}
+            color="#8b5cf6"
+            bg="rgba(139, 92, 246, 0.1)"
+            onClick={openInbox}
           />
         </div>
 

@@ -21,20 +21,22 @@ export default function BookingInviteCard({ message }) {
   const [invite, setInvite] = useState(null);
   const [busy, setBusy] = useState(false);
   const isAdmin = String(profile?.role || '').toUpperCase() === 'ADMIN';
+  // only the administrator who sent the invitation can see or open what the customer shares
+  const sentByOtherAdmin = isAdmin && message.sender_id !== user?.id;
 
   const load = useCallback(async () => {
-    if (!message.invite_id) return;
+    if (!message.invite_id || sentByOtherAdmin) return;
     const { data } = await supabase
       .from('booking_draft_invites')
       .select('id, status, expires_at, customer_id')
       .eq('id', message.invite_id)
       .maybeSingle();
     setInvite(data || null);
-  }, [message.invite_id]);
+  }, [message.invite_id, sentByOtherAdmin]);
 
   useEffect(() => {
     load();
-    if (!message.invite_id) return undefined;
+    if (!message.invite_id || sentByOtherAdmin) return undefined;
     return subscribeTable({ table: 'booking_draft_invites', event: 'UPDATE', filter: `id=eq.${message.invite_id}` }, () => load());
   }, [load, message.invite_id]);
 
@@ -104,10 +106,12 @@ export default function BookingInviteCard({ message }) {
   );
 
   // not tapped within 2 minutes, or replaced by a newer one: nothing is shown
-  if (state === 'CANCELLED' || (state === 'EXPIRED' && invite?.status === 'SENT')) return null;
+  if (!sentByOtherAdmin && (state === 'CANCELLED' || (state === 'EXPIRED' && invite?.status === 'SENT'))) return null;
 
   let body = null;
-  if (state === 'SENT') {
+  if (sentByOtherAdmin) {
+    body = <div style={{ marginTop: '0.4rem', fontWeight: 700 }}>Only the administrator who sent this invitation can open the customer's booking details.</div>;
+  } else if (state === 'SENT') {
     body = isAdmin
       ? <div style={{ marginTop: '0.4rem', fontWeight: 700 }}>Waiting for the customer to send their booking details.</div>
       : button('Send my booking details', () => confirmThen({ title: 'Send your booking details?', message: 'The booking you saved (vehicles, services, date and time) will be sent to Comar Garage so they can book for you. Your payment receipt is not included.', confirmText: 'Send' }, send));
