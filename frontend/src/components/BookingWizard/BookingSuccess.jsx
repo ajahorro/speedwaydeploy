@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { supabase } from '../../lib/supabase';
 import { CheckCircle, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PaymentReceipt from '../PaymentReceipt';
@@ -44,6 +45,28 @@ const BookingSuccess = ({ bookingData }) => {
     })),
   };
 
+  // Once saved, show the booking as the database has it: booking number, contact details and any payment
+  // already recorded (a walk-in paid in full shows CASH ticked and Fully paid), not the wizard's draft copy.
+  const [saved, setSaved] = useState(null);
+  useEffect(() => {
+    const id = receiptBooking.id;
+    if (!id) return undefined;
+    let cancelled = false;
+    (async () => {
+      const [{ data: b }, { data: vs }, { data: ps }] = await Promise.all([
+        supabase.from('bookings').select('*').eq('id', id).maybeSingle(),
+        supabase.from('booking_vehicles').select('*').eq('booking_id', id).order('created_at'),
+        supabase.from('payments').select('*').eq('booking_id', id).neq('method', 'RECEIVABLE').order('created_at'),
+      ]);
+      if (!b || cancelled) return;
+      const { data: ss } = vs?.length ? await supabase.from('booking_vehicle_services').select('*').in('booking_vehicle_id', vs.map((v) => v.id)) : { data: [] };
+      if (cancelled) return;
+      const vehicles = (vs || []).map((v) => ({ ...v, services: (ss || []).filter((s) => s.booking_vehicle_id === v.id) }));
+      setSaved({ ...b, payments: ps || [], vehicles: vehicles.length ? vehicles : receiptBooking.vehicles });
+    })();
+    return () => { cancelled = true; };
+  }, [receiptBooking.id]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2rem', gap: '2rem' }}>
       <div className="no-print" style={{ textAlign: 'center' }}>
@@ -55,8 +78,8 @@ const BookingSuccess = ({ bookingData }) => {
       </div>
 
       <PaymentReceipt
-        booking={receiptBooking}
-        vehicles={receiptBooking.vehicles}
+        booking={saved || receiptBooking}
+        vehicles={(saved || receiptBooking).vehicles}
         onClose={() => navigate('/customer')}
         mode="modal"
       />

@@ -332,16 +332,18 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
           // created and confirmed." — for the single click that created the
           // booking. Exactly one toast must describe one action, so the wizard
           // stays silent when the admin handler already reported.
-          await onAdminSubmit(bookingData);
+          const created = await onAdminSubmit(bookingData);
+          if (created?.id) setBookingData((prev) => ({ ...prev, bookingId: created.id }));
           setHasDraftChanges(false);
           setIsSubmitted(true);
           return;
         }
-        await createBooking(user.id, {
+        const created = await createBooking(user.id, {
           ...bookingData,
           adminWalkIn: Boolean(adminMode || bookingData.adminWalkIn),
           adminActorId: adminMode ? user?.id : (bookingData.adminActorId || null)
         });
+        if (created?.id) setBookingData((prev) => ({ ...prev, bookingId: created.id }));
       }
       setHasDraftChanges(false);
       if (user?.id) deleteDraft(user.id, draftKind);

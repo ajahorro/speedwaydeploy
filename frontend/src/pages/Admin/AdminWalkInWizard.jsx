@@ -233,6 +233,7 @@ const AdminWalkInWizard = () => {
       customerEmail: bookingData.guest?.email || bookingData.customerEmail || null
     });
     toastManager.success('Walk-in booking created and confirmed.');
+    return booking;
   };
 
   // Fired by the wizard after a successful submit so the next walk-in starts
