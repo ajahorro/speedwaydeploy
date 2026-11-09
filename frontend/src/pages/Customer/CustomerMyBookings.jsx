@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { TourLauncher } from '../../components/common/GuidedTour';
 import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
+import { usePaged } from '../../components/common/ListPager';
 
 const CustomerMyBookings = () => {
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ const CustomerMyBookings = () => {
 
     return matchesFilter && matchesSearch;
   });
+  const { rows: pagedBookings, pager } = usePaged(filteredBookings, { resetKey: [searchTerm, filter], label: 'bookings' });
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
@@ -134,7 +136,7 @@ const CustomerMyBookings = () => {
               <p className="text-sm text-muted-foreground">You don't have any {filter.toLowerCase()} appointments matching this criteria.</p>
             </div>
           ) : (
-            filteredBookings.map(b => {
+            pagedBookings.map(b => {
               const dt = b.start_datetime ? new Date(b.start_datetime) : null;
               const dateStr = dt ? dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD';
               const timeStr = dt ? dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
@@ -207,6 +209,7 @@ const CustomerMyBookings = () => {
               );
             })
           )}
+          {!loading && pager}
         </div>
       </div>
     </div>

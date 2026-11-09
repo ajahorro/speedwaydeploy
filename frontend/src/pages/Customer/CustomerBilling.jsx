@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TourLauncher } from '../../components/common/GuidedTour';
 import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
+import { usePaged } from '../../components/common/ListPager';
 
 const CustomerBilling = () => {
   const { openImage } = useImagePreview();
@@ -61,6 +62,16 @@ const CustomerBilling = () => {
   }, [user?.id, fetchData]);
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val || 0);
+
+  // every listed payment across bookings, newest first within each booking, shown 10 a page
+  const paymentRows = bookings.flatMap((booking) => (booking.payments || [])
+    .filter(p =>
+      ['PAID', 'REFUND_PENDING', 'REFUNDED', 'FOR_VERIFICATION', 'REJECTED'].includes(String(p.status || '').toUpperCase())
+      || (String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(p.amount) < 0)
+    )
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .map((p) => ({ booking, p })));
+  const { rows: pagedPayments, pager } = usePaged(paymentRows, { label: 'payments' });
 
   const totalSpent = bookings.reduce((sum, booking) => sum + calculatePaymentSummary(booking).totalPaid, 0);
 
@@ -138,20 +149,12 @@ const CustomerBilling = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {bookings.length === 0 ? (
+              {paymentRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="py-12 text-center text-sm font-semibold uppercase text-muted-foreground">No records in the current pipeline.</TableCell>
                 </TableRow>
               ) : (
-                bookings.flatMap((booking) => {
-                  const bookingPayments = (booking.payments || [])
-                    .filter(p =>
-                      ['PAID', 'REFUND_PENDING', 'REFUNDED', 'FOR_VERIFICATION', 'REJECTED'].includes(String(p.status || '').toUpperCase())
-                      || (String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(p.amount) < 0)
-                    )
-                    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-
-                  return bookingPayments.map((p) => {
+                pagedPayments.map(({ booking, p }) => {
                     const paymentStatus = String(p.status || '').toUpperCase();
                     const isRefund = String(p.method || '').toUpperCase() === 'SYSTEM_REFUND' && Number(p.amount) < 0;
                     const canIssueReceipt = isRefund || (Number(p.amount) > 0
@@ -228,11 +231,11 @@ const CustomerBilling = () => {
                         </TableCell>
                       </TableRow>
                     );
-                  });
                 })
               )}
             </TableBody>
           </Table>
+          <div className="border-t px-4">{pager}</div>
         </Card>
 
         {/* Second receipt view removed — handled by PaymentReceipt above */}

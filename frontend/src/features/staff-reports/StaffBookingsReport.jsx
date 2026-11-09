@@ -14,6 +14,7 @@ import { useReportRange, toDateParam } from '@/features/financial-reports/useRep
 import { downloadStaffBookingsCsv, downloadStaffBookingsPdf, statusGroup, statusWords } from './staffBookingsExport';
 import { supabase } from '@/lib/supabase';
 import PhotoProofGallery from '@/components/Photos/PhotoProofGallery';
+import { usePaged } from '@/components/common/ListPager';
 
 // The assistant loads only when it is opened, so the report's first paint is unchanged.
 const AssistantPanel = lazy(() => import('@/features/financial-reports/AssistantPanel'));
@@ -128,6 +129,7 @@ export default function StaffBookingsReport() {
       return haystack.includes(term);
     }).sort((a, b) => new Date(b.start || 0) - new Date(a.start || 0));
   }, [report, statusFilter, search]);
+  const { rows: pageRows, pager } = usePaged(rows, { resetKey: [search, statusFilter, rows.length], label: 'bookings' });
 
   // The assistant (and the buttons) can ask for another day or period; the report itself is always the database's.
   const showRange = (from, to) => {
@@ -229,7 +231,7 @@ export default function StaffBookingsReport() {
                 {(report?.bookings || []).length ? 'No bookings match your search.' : 'No bookings start in this range.'}
               </p>
             )}
-            {!loading && rows.map((b, rowIndex) => (
+            {!loading && pageRows.map((b, rowIndex) => (
               <div key={`${b.reference}-${b.start}-${rowIndex}`} className="rounded-lg border bg-card p-3.5 space-y-2.5">
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -285,7 +287,7 @@ export default function StaffBookingsReport() {
                 {!loading && rows.length === 0 && (
                   <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">{(report?.bookings || []).length ? 'No bookings match your search.' : 'No bookings start in this range.'}</TableCell></TableRow>
                 )}
-                {!loading && rows.map((b, rowIndex) => (
+                {!loading && pageRows.map((b, rowIndex) => (
                   <TableRow key={`${b.reference}-${b.start}-${rowIndex}`}>
                     <TableCell className="whitespace-nowrap">{when(b.start)}<div className="font-mono text-xs text-muted-foreground">#{b.reference}</div></TableCell>
                     <TableCell>{b.customer}{b.walk_in && <div className="text-xs text-muted-foreground">Walk-in</div>}</TableCell>
@@ -316,6 +318,7 @@ export default function StaffBookingsReport() {
               </TableBody>
             </Table>
           </div>
+          {!loading && pager}
           {!loading && (totals.bookings || 0) > (report?.bookings || []).length && (
             <p className="mt-3 text-xs text-muted-foreground">Showing the first {(report?.bookings || []).length} of {totals.bookings} bookings. Choose a shorter period to see the rest.</p>
           )}

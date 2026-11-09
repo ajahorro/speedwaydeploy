@@ -12,6 +12,7 @@ import { useUnifiedData } from "../context/UnifiedContext";
 
 import NotificationDetailsModal from '../components/NotificationDetailsModal';
 import { matchesSearchText } from '../utils/searchMatch';
+import { usePaged } from '../components/common/ListPager';
 
 const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
   <div style={{
@@ -105,6 +106,7 @@ const GlobalNotifications = () => {
     if (filter === 'READ') return matchesSearch && n.is_read;
     return matchesSearch;
   });
+  const { rows: pagedNotifications, pager } = usePaged(filteredNotifications, { resetKey: [searchQuery, filter], label: 'notifications' });
 
   const cardStyle = { background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', padding: '1.25rem', cursor: 'pointer', transition: '0.2s' };
 
@@ -131,7 +133,7 @@ const GlobalNotifications = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
         {filteredNotifications.length > 0 ? (
-          filteredNotifications.map((notif) => (
+          pagedNotifications.map((notif) => (
             <div
               key={notif.id}
               onClick={() => {
@@ -184,6 +186,7 @@ const GlobalNotifications = () => {
             </div>
           </div>
         )}
+        {pager}
       </div>
     </div>
   );
