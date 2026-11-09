@@ -3793,5 +3793,8 @@
  "This is not a {} link.": "Hindi ito link ng {}.",
  "Remove this link": "Alisin ang link na ito",
  "Social media site": "Social media site",
- "Link to the shop's page": "Link ng page ng shop"
+ "Link to the shop's page": "Link ng page ng shop",
+ "Open overnight: the shop closes the next day at this closing time.": "Bukas magdamag: magsasara ang shop kinabukasan sa oras ng pagsasarang ito.",
+ "The shop is closed at that time. Please choose a time within opening hours.": "Sarado ang shop sa oras na iyan. Pumili ng oras na bukas ang shop.",
+ "The service would run past closing time. Please choose an earlier time.": "Lalampas ang serbisyo sa oras ng pagsasara. Pumili ng mas maagang oras."
 }

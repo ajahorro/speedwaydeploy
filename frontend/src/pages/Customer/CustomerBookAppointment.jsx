@@ -13,7 +13,7 @@ import ValidationModal from '../../components/ValidationModal';
 import { validateSlot } from '../../services/scheduleValidationService';
 import { classifyScheduleError } from '../../utils/errorRouting';
 import { calculateBayUsage, calculateTotalDuration } from '../../utils/schedulingUtils';
-import { SERVICES_DATA } from '../../data/servicesCatalog';
+import { getServiceCatalog } from '../../data/servicesCatalog';
 import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import LeaveGuardModal from '../../components/LeaveGuardModal';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
@@ -24,13 +24,15 @@ import { TourLauncher } from '../../components/common/GuidedTour';
 import { ADMIN_TOURS } from '../../features/tours/adminTours';
 import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
 
-// Utility for Data Integrity: Find service in catalog by name and get current price
+// Book Again: the service at today's price from the live catalog (the Business Hub's prices; archived
+// services are left out), never the built-in list, which the database would refuse after a price change.
 const getCatalogServiceByName = (name, type) => {
-  for (const cat in SERVICES_DATA) {
-    const svc = SERVICES_DATA[cat].find(s => s.name === name);
+  const catalog = getServiceCatalog();
+  for (const cat in catalog) {
+    const svc = catalog[cat].find(s => s.name === name);
     if (svc) {
-      const price = svc.prices[type] || 0;
-      return { ...svc, price };
+      const price = svc.prices?.[type] || 0;
+      if (price > 0) return { ...svc, price };
     }
   }
   return null;

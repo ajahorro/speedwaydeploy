@@ -13,7 +13,7 @@ import {
   Send, ShieldCheck, ShieldAlert, Image as ImageIcon, Plus, Zap, TrendingUp,
   FileText, Printer, CalendarClock
 } from 'lucide-react';
-import { SERVICES_DATA, resolveFrozenServicePrice } from '../../data/servicesCatalog';
+import { getServiceCatalog, resolveFrozenServicePrice } from '../../data/servicesCatalog';
 import { calculateBayUsage, calculateOccupancy, filterActiveBookings } from '../../utils/schedulingUtils';
 import { SHOP_CONFIG } from '../../config/constants';
 import { getStatusColor, isStaffOccupied } from '../../utils/bookingHelpers';
@@ -927,11 +927,18 @@ const AdminBookingDetails = () => {
       closingBoundary.setHours(closingHour, 0, 0, 0);
       const openingBoundary = new Date(bookingStart);
       openingBoundary.setHours(openingHour, 0, 0, 0);
+      // overnight shop (closes the next day): a job started in the evening may run until the next closing time
+      const overnight = !is247 && closingHour <= openingHour;
+      const overnightClose = new Date(bookingStart);
+      overnightClose.setHours(closingHour, 0, 0, 0);
+      if (bookingStart.getHours() >= openingHour) overnightClose.setDate(overnightClose.getDate() + 1);
       // Only the day-boundary rule still applies for 24/7 (services stay within a
       // calendar day because capacity/reporting are day-scoped).
       const exceedsBusinessHours = is247
         ? newEndDatetime.getDate() !== bookingEnd.getDate()
-        : bookingStart < openingBoundary || newEndDatetime > closingBoundary || newEndDatetime.getDate() !== bookingEnd.getDate();
+        : overnight
+          ? newEndDatetime > overnightClose
+          : bookingStart < openingBoundary || newEndDatetime > closingBoundary || newEndDatetime.getDate() !== bookingEnd.getDate();
 
       // tentative logic: allow a late service only after explicit admin confirmation and only when its bay is otherwise clear.
       if (exceedsBusinessHours && !allowOvernight) {
@@ -2160,15 +2167,16 @@ const AdminBookingDetails = () => {
             </div>
             
             <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '1rem' : '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              {Object.keys(SERVICES_DATA).map(category => (
+              {/* live catalog: the Business Hub's prices, archived services left out */}
+              {Object.entries(getServiceCatalog()).map(([category, categoryServices]) => (
                 <div key={category}>
                   <div style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-brand)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Zap size={12} /> {category}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: '1rem' }}>
-                    {SERVICES_DATA[category].map(s => {
+                    {categoryServices.map(s => {
                       const v = vehicles.find(item => item.id === serviceModal.vehicleId);
-                      const price = s.prices[v?.vehicle_type] || 0;
+                      const price = s.prices?.[v?.vehicle_type] || 0;
                       const alreadyAssigned = v?.services?.some(existing => (existing.service_name || existing.name || '').toLowerCase() === s.name.toLowerCase());
                       if (price === 0) return null;
                       

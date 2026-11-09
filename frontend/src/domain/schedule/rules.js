@@ -140,6 +140,8 @@ export const normalizeConfig = (config) => {
     // closing_hour may legitimately be 24 for a 24/7 shop (end of day).
     closing_hour: closingHour,
     is_24_7: is247,
+    // overnight: closing at or before opening means the shop closes the next day (e.g. 18:00 to 08:00)
+    overnight: !is247 && closingHour <= openingHour,
   };
 };
 
@@ -376,7 +378,16 @@ export const isSlotBookable = (date, slot, config, existingBookings = [], option
   //      (a 7-21 shop cannot run a 4-hour job from 20:00 to midnight).
   //    - 24/7 shop: there is no closing time, so a service MAY cross midnight and
   //      may span multiple days (a vehicle staged for 2+ days). No bound applies.
-  if (!cfg.is_24_7 && slotEnd.getTime() > slotToDate(day, cfg.closing_hour, 0).getTime()) {
+  if (!cfg.is_24_7) {
+    const openM = cfg.opening_hour * 60;
+    const closeM = cfg.closing_hour * 60;
+    const inWindow = cfg.overnight ? (startMinutes >= openM || startMinutes < closeM) : (startMinutes >= openM && startMinutes < closeM);
+    if (!inWindow) return no(SCHEDULE_DECISION_CODES.SLOT_BLOCKED, 'The shop is closed at that time. Please choose a time within opening hours.');
+  }
+  // an overnight window that starts in the evening closes the next day
+  const closeAt = cfg.is_24_7 ? null : new Date(slotToDate(day, cfg.closing_hour, 0).getTime()
+    + (cfg.overnight && startMinutes >= cfg.opening_hour * 60 ? MS_PER_DAY : 0));
+  if (closeAt && slotEnd.getTime() > closeAt.getTime()) {
     return no(
       SCHEDULE_DECISION_CODES.SLOT_BLOCKED,
       `The service would run past closing time (${cfg.closing_hour}:00). Please choose an earlier slot.`
@@ -451,8 +462,9 @@ export const getBookableSlots = (date, config, existingBookings = [], options = 
   const dateCheck = isDateBookable(date, cfg, options);
   if (!dateCheck.bookable) return [];
 
-  const openMinutes = cfg.opening_hour * 60;
-  const closeMinutes = cfg.closing_hour * 60;
+  // overnight: list the whole day; isSlotBookable keeps only the open part
+  const openMinutes = cfg.overnight ? 0 : cfg.opening_hour * 60;
+  const closeMinutes = cfg.overnight ? 24 * 60 : cfg.closing_hour * 60;
 
   const slots = [];
   for (let minutes = openMinutes; minutes < closeMinutes; minutes += granularity) {

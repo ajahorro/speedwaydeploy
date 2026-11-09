@@ -70,8 +70,9 @@ const DetailTimeline = ({
       </div>
     );
   }
-  const openingHour = Number(config.OPENING_HOUR || CONFIG.OPENING_HOUR || 7);
-  const closingHour = Number(config.CLOSING_HOUR || CONFIG.CLOSING_HOUR || 21);
+  // ?? not ||: a 24/7 or overnight shop opens at hour 0
+  const openingHour = Number(config.OPENING_HOUR ?? CONFIG.OPENING_HOUR ?? 7);
+  const closingHour = Number(config.CLOSING_HOUR ?? CONFIG.CLOSING_HOUR ?? 21);
   const totalHours = Math.max(1, closingHour - openingHour);
 
   // selectedDate is a shop-calendar day ('YYYY-MM-DD'); noon keeps the header label on that day.

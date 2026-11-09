@@ -784,7 +784,8 @@ export default function BusinessHub() {
       const hoursValid = businessForm.is_24_7 === true
         || (String(businessForm.opening_hour || '').trim().length > 0
           && String(businessForm.closing_hour || '').trim().length > 0
-          && String(businessForm.closing_hour) > String(businessForm.opening_hour));
+          // closing before opening = open overnight (closes the next day); only equal times are invalid
+          && formatTimeForInput(businessForm.closing_hour) !== formatTimeForInput(businessForm.opening_hour));
       return (
         Number.isFinite(lead) && lead >= 0 && lead <= 43200 &&
         Number.isFinite(advance) && advance >= 1 && advance <= 365 &&
@@ -2480,6 +2481,11 @@ export default function BusinessHub() {
                       />
                     </Field>
                   </div>
+                  {businessForm.is_24_7 !== true && formatTimeForInput(businessForm.closing_hour) && formatTimeForInput(businessForm.closing_hour) < formatTimeForInput(businessForm.opening_hour) && (
+                    <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: 700, color: 'var(--admin-text-secondary)' }}>
+                      Open overnight: the shop closes the next day at this closing time.
+                    </p>
+                  )}
                   {!sectionValid('schedule') && (
                     <Hint>
                       {businessForm.is_24_7 === true

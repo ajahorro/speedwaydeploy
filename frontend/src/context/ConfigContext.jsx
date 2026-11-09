@@ -27,6 +27,10 @@ const parseHour = (timeStr, defaultHour) => {
   }
 };
 
+/** 24/7, or overnight (closing at or before opening, so it closes the next day): grids show the whole day. */
+const fullDayGrid = (data) => data?.is_24_7 === true
+  || parseHour(data?.closing_hour, SHOP_CONFIG.CLOSING_HOUR) <= parseHour(data?.opening_hour, SHOP_CONFIG.OPENING_HOUR);
+
 /**
  * Screen-facing settings derived from the business_config row (the Business
  * Hub's single source of truth). `config` is the raw row for screens that need
@@ -48,8 +52,10 @@ const settingsFromRow = (data) => {
     BAYS: Number(data?.slots_per_hour) || 1,
     // When the shop is open 24 hours the whole day is bookable; report 0..24 so
     // grid math spanning CLOSING_HOUR - OPENING_HOUR covers the full day.
-    OPENING_HOUR: data?.is_24_7 === true ? 0 : parseHour(data?.opening_hour, SHOP_CONFIG.OPENING_HOUR),
-    CLOSING_HOUR: data?.is_24_7 === true ? 24 : parseHour(data?.closing_hour, SHOP_CONFIG.CLOSING_HOUR),
+    // An overnight shop (closes the next day) also shows the whole day.
+    OPENING_HOUR: fullDayGrid(data) ? 0 : parseHour(data?.opening_hour, SHOP_CONFIG.OPENING_HOUR),
+    CLOSING_HOUR: fullDayGrid(data) ? 24 : parseHour(data?.closing_hour, SHOP_CONFIG.CLOSING_HOUR),
+    OVERNIGHT: data?.is_24_7 !== true && fullDayGrid(data),
     IS_24_7: data?.is_24_7 === true,
     BOOKING_LEAD_TIME_MINUTES: Number(data?.booking_lead_time_minutes ?? 5),
     MAX_ADVANCE_DAYS: Number(data?.max_advance_days ?? 30),
