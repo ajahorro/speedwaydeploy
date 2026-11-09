@@ -470,8 +470,8 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/auth/verify-password`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, password })
+        headers: await authHeaders(),
+        body: JSON.stringify({ password })
       });
       return await response.json();
     } catch (err) {

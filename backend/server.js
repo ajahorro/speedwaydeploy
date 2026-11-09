@@ -1713,12 +1713,15 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
  * Allows frontend to verify current password before sensitive updates
  */
 app.post('/api/auth/verify-password', async (req, res) => {
-  const { email, password } = req.body;
   if (!supabaseAdmin) return res.status(503).json({ success: false, error: 'Admin service unavailable' });
-  console.log(`🔐 [AUTH] PASSWORD CHALLENGE FOR: ${email}`);
+  // only the signed-in owner checks their own password, so this cannot be used to guess other accounts' passwords
+  const actor = await getAuthenticatedActor(req);
+  if (!actor) return res.status(401).json({ success: false, error: 'Authentication required.' });
+  const email = actor.user.email;
+  const password = String(req.body?.password || '');
 
   try {
-    const { data, error } = await supabaseAdmin.auth.signInWithPassword({ email, password });
+    const { error } = await supabaseAdmin.auth.signInWithPassword({ email, password });
     if (error) {
       return res.status(401).json({ success: false, error: 'Invalid current password' });
     }
