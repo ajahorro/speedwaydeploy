@@ -504,6 +504,7 @@ const AdminDashboard = () => {
           <TopServicesChart
             rows={dashboardReport.report?.top_services || []}
             loading={dashboardReport.loading}
+            limit={4}
           />
         </div>
 

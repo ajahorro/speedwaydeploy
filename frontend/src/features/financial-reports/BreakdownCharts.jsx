@@ -73,8 +73,8 @@ export function MethodBreakdownChart({ rows = [], total = 0, loading }) {
 }
 
 /** Most-booked services among paying bookings (from sales_report().top_services). */
-export function TopServicesChart({ rows = [], loading }) {
-  const data = rows.map((row) => ({ name: row.name, count: Number(row.count || 0) }));
+export function TopServicesChart({ rows = [], loading, limit }) {
+  const data = rows.slice(0, limit).map((row) => ({ name: row.name, count: Number(row.count || 0) }));
   const config = { count: { label: 'Bookings', color: '#10b981' } };
 
   return (
