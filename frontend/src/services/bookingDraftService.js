@@ -16,6 +16,9 @@ import { supabase } from '../lib/supabase';
 const DRAFT_VERSION = 1;
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const localKey = (userId, kind) => `comar-booking-draft:${userId}:${kind}`;
+/** The customer's accepted receipt (its server reading, not the file) is kept in this browser until it is replaced,
+ *  the booking is submitted or cancelled, or they log out (AuthContext clears every comar-receipt: key). */
+export const receiptKey = (userId, kind) => `comar-receipt:${userId}:${kind}`;
 
 /** The part of the wizard state worth keeping. */
 export const toDraftData = (bookingData) => {
@@ -68,7 +71,7 @@ export const saveServerDraft = async (userId, kind, { data, step, extras }) => {
 
 /** Remove the draft everywhere (submit or Cancel). */
 export const deleteDraft = async (userId, kind) => {
-  try { localStorage.removeItem(localKey(userId, kind)); } catch { /* ignore */ }
+  try { localStorage.removeItem(localKey(userId, kind)); localStorage.removeItem(receiptKey(userId, kind)); } catch { /* ignore */ }
   const { error } = await supabase.from('booking_drafts').delete().eq('user_id', userId).eq('kind', kind);
   if (error) console.warn('[booking draft] could not delete the server copy:', error.message);
 };

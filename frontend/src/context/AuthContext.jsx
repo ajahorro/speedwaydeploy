@@ -82,6 +82,8 @@ export const AuthProvider = ({ children }) => {
   // signOut('/somewhere') keeps the current screen until the browser loads that page, so no signed-out screen
   // (a login redirect or loading state) flashes in between.
   const signOut = useCallback(async (redirectTo) => {
+    // receipts kept on the booking page belong to this sign-in only
+    try { Object.keys(localStorage).filter((k) => k.startsWith('comar-receipt:')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
     if (typeof redirectTo === 'string') {
       leavingRef.current = true;
       try { await supabase.auth.signOut(); } catch (err) { logger.error('Sign Out Error', err); }
