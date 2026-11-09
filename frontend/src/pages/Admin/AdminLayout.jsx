@@ -139,8 +139,8 @@ const AdminLayout = () => {
       // 2. Perform sign out
       await signOut();
 
-      // 3. Force clean redirect to homepage
-      window.location.href = '/';
+      // 3. Back to the staff sign-in
+      window.location.href = '/staff/login';
     });
   };
 

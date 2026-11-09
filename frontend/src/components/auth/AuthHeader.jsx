@@ -1,12 +1,12 @@
 import React from 'react';
 
-const AuthHeader = ({ mode, email }) => {
+const AuthHeader = ({ mode, email, staff = false }) => {
   // Copy states what the screen actually does. "RESET YOUR PASSWORD" over an
   // email-entry form promised an outcome the screen cannot deliver — the reset
   // itself happens from the emailed link, on /password-confirmation.
   const getSubtext = () => {
     switch (mode) {
-      case 'LOGIN': return 'WELCOME BACK';
+      case 'LOGIN': return staff ? 'STAFF AND ADMIN SIGN-IN' : 'WELCOME BACK';
       case 'REGISTER': return 'CREATE YOUR ACCOUNT';
       case 'RECOVER': return 'REQUEST A RESET LINK';
       case 'RECOVER_OTP': return 'EMERGENCY ACCOUNT RECOVERY';

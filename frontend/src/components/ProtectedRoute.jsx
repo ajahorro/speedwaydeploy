@@ -42,7 +42,8 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   if (!user) {
     // Remember the page they wanted: sign-in continues there.
     const wanted = `${location.pathname}${location.search}`;
-    return <Navigate to={`/login?next=${encodeURIComponent(wanted)}`} replace />;
+    const signIn = /^\/(admin|staff)(\/|$)/.test(location.pathname) ? '/staff/login' : '/login';
+    return <Navigate to={`${signIn}?next=${encodeURIComponent(wanted)}`} replace />;
   }
 
   // 3. Optional Profile Enrichment Gate:

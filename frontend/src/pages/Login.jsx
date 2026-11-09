@@ -10,8 +10,11 @@ import { useMediaQuery } from '../hooks/useMediaQuery';
 import { X, Mail } from 'lucide-react';
 import toast from '@/lib/toast';
 import { supabase } from '../lib/supabase';
+import { Link } from 'react-router-dom';
 
-const Login = ({ isModal = false, onClose, next, initialMode }) => {
+/** audience 'staff' = /staff/login: technicians and administrators; no sign-up, invites or walk-in links. */
+const Login = ({ isModal = false, onClose, next, initialMode, audience = 'customer' }) => {
+  const staff = audience === 'staff';
   const isMobile = useMediaQuery('(max-width: 640px)');
   const {
     mode,
@@ -25,8 +28,16 @@ const Login = ({ isModal = false, onClose, next, initialMode }) => {
     requestEmergencyRecovery,
     completeEmergencyRecovery,
     loginError,
+    wrongPage,
     clearLoginError
-  } = useAuthFlow({ next });
+  } = useAuthFlow({ next, audience });
+
+  // A staff or admin page sent here (?next=/admin/... or /staff/...): use the staff sign-in.
+  useEffect(() => {
+    if (staff || isModal) return;
+    const params = new URLSearchParams(window.location.search);
+    if (/^\/(admin|staff)(\/|$)/.test(params.get('next') || '')) window.location.replace(`/staff/login${window.location.search}`);
+  }, [staff, isModal]);
 
   // Opened straight on a form, e.g. the Services page's "Create an account" opens on REGISTER.
   useEffect(() => {
@@ -59,7 +70,7 @@ const Login = ({ isModal = false, onClose, next, initialMode }) => {
 
   const [registerPrefill, setRegisterPrefill] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('register') !== '1' || params.get('invite')) return null;
+    if (staff || params.get('register') !== '1' || params.get('invite')) return null;
     return {
       firstName: params.get('firstName') || '',
       lastName: params.get('lastName') || '',
@@ -80,7 +91,7 @@ const Login = ({ isModal = false, onClose, next, initialMode }) => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const invite = params.get('invite');
-    if (params.get('register') !== '1' || !invite) return undefined;
+    if (staff || params.get('register') !== '1' || !invite) return undefined;
     let cancelled = false;
     supabase.rpc('get_registration_invite', { p_token: invite }).then(({ data, error }) => {
       if (cancelled) return;
@@ -124,7 +135,18 @@ const Login = ({ isModal = false, onClose, next, initialMode }) => {
   const renderForm = () => {
     switch (mode) {
       case 'LOGIN':
-        return <LoginForm onLogin={login} onSwitchMode={switchMode} isLoading={isLoading} error={loginError} onClearError={clearLoginError} initialEmail={prefillEmail} onEmailChange={setPrefillEmail} />;
+        return (
+          <>
+            <LoginForm onLogin={login} onSwitchMode={switchMode} isLoading={isLoading} error={loginError} onClearError={clearLoginError} initialEmail={prefillEmail} onEmailChange={setPrefillEmail} allowRegister={!staff} />
+            {(staff || wrongPage) && !isModal && (
+              <p style={{ margin: '1.25rem 0 0', textAlign: 'center', fontSize: '0.8rem', fontWeight: 700 }}>
+                {wrongPage === 'staff'
+                  ? <Link to="/staff/login" className="text-primary">Go to the staff sign-in</Link>
+                  : <Link to="/login" className="text-primary">Customer? Sign in here</Link>}
+              </p>
+            )}
+          </>
+        );
       case 'REGISTER':
         return <RegisterForm onRegister={startRegister} onSwitchMode={switchMode} isLoading={isLoading} initialEmail={prefillEmail} initialData={registerPrefill} />;
       case 'RECOVER':
@@ -222,7 +244,7 @@ const Login = ({ isModal = false, onClose, next, initialMode }) => {
         {isModal && (
           <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 text-muted-foreground"><X size={20} /></Button>
         )}
-        <AuthHeader mode={mode} email={prefillEmail} />
+        <AuthHeader mode={mode} email={prefillEmail} staff={staff} />
         {renderForm()}
       </div>
       <style>{`

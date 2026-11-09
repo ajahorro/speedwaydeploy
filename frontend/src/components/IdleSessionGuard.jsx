@@ -57,7 +57,7 @@ export default function IdleSessionGuard() {
       ]);
     }
     await signOut();
-    window.location.assign('/login?reason=idle');
+    window.location.assign(`${['ADMIN', 'SUPER_ADMIN', 'STAFF'].includes(role) ? '/staff/login' : '/login'}?reason=idle`);
   }, [role, signOut]);
 
   useEffect(() => {

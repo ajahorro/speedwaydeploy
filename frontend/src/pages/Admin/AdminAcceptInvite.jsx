@@ -73,7 +73,7 @@ const AdminAcceptInvite = () => {
       const data = await response.json();
       if (data.success) {
         toast.success('Account activated! You can now log in.');
-        navigate('/login');
+        navigate('/staff/login');
       } else {
         throw new Error(data.error || 'Activation failed');
       }
@@ -100,7 +100,7 @@ const AdminAcceptInvite = () => {
           <h2 style={{ fontSize: '1.5rem', fontWeight: '900', color: 'var(--admin-text-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Invitation Error</h2>
           <p style={{ color: '#888', marginBottom: '1.5rem', fontSize: '0.9rem' }}>{error}</p>
           <button 
-            onClick={() => navigate('/login')}
+            onClick={() => navigate('/staff/login')}
             style={{ width: '100%', background: '#C41F2B', color: 'var(--admin-text-primary)', padding: '1rem', borderRadius: '0.75rem', fontWeight: '900', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}
           >
             Go to Login

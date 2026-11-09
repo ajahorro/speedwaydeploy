@@ -4,7 +4,7 @@ import StyledInput from './StyledInput';
 import { Button } from '@/components/ui/button';
 import { sanitizeEmail } from '../../config/constants';
 
-const LoginForm = ({ onLogin, onSwitchMode, isLoading, error, onClearError, initialEmail = '', onEmailChange }) => {
+const LoginForm = ({ onLogin, onSwitchMode, isLoading, error, onClearError, initialEmail = '', onEmailChange, allowRegister = true }) => {
   const [email, setEmail] = useState(initialEmail || '');
   const [password, setPassword] = useState('');
 
@@ -32,9 +32,11 @@ const LoginForm = ({ onLogin, onSwitchMode, isLoading, error, onClearError, init
         {isLoading ? 'Processing...' : 'Login'}
       </Button>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', marginTop: '1.5rem', fontSize: '0.85rem' }}>
-        <p style={{ margin: 0, color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
-          Don't have an account? <Button type="button" variant="link" className="h-auto p-0 font-black text-primary" onClick={() => onSwitchMode('REGISTER')}>Register</Button>
-        </p>
+        {allowRegister && (
+          <p style={{ margin: 0, color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
+            Don't have an account? <Button type="button" variant="link" className="h-auto p-0 font-black text-primary" onClick={() => onSwitchMode('REGISTER')}>Register</Button>
+          </p>
+        )}
         <Button type="button" variant="link" className="h-auto p-0 font-bold text-muted-foreground" onClick={() => onSwitchMode('RECOVER', email)}>Forgot Password?</Button>
         {/* Section 1.2: reach the email-OTP unlock flow without waiting out the lock. */}
         <Button type="button" variant="link" className="h-auto p-0 font-bold text-muted-foreground" onClick={() => onSwitchMode('RECOVER_OTP', email)}>Account locked? Recover it</Button>

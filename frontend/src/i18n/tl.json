@@ -3797,5 +3797,10 @@
  "Open overnight: the shop closes the next day at this closing time.": "Bukas magdamag: magsasara ang shop kinabukasan sa oras ng pagsasarang ito.",
  "The shop is closed at that time. Please choose a time within opening hours.": "Sarado ang shop sa oras na iyan. Pumili ng oras na bukas ang shop.",
  "The service would run past closing time. Please choose an earlier time.": "Lalampas ang serbisyo sa oras ng pagsasara. Pumili ng mas maagang oras.",
- "Opening and closing are the same time. For a shop open all day, turn on Open 24 hours (24/7) above.": "Pareho ang oras ng pagbukas at pagsara. Para sa shop na bukas buong araw, i-on ang Open 24 hours (24/7) sa itaas."
+ "Opening and closing are the same time. For a shop open all day, turn on Open 24 hours (24/7) above.": "Pareho ang oras ng pagbukas at pagsara. Para sa shop na bukas buong araw, i-on ang Open 24 hours (24/7) sa itaas.",
+ "STAFF AND ADMIN SIGN-IN": "PAG-SIGN IN NG STAFF AT ADMIN",
+ "This is the customer sign-in. Staff and administrator accounts sign in on the staff page.": "Ito ang sign-in para sa customer. Ang mga account ng staff at administrator ay mag-sign in sa staff page.",
+ "This sign-in is for shop staff. Customers sign in on the customer page.": "Ang sign-in na ito ay para sa staff ng shop. Ang mga customer ay mag-sign in sa customer page.",
+ "Go to the staff sign-in": "Pumunta sa staff sign-in",
+ "Customer? Sign in here": "Customer? Mag-sign in dito"
 }

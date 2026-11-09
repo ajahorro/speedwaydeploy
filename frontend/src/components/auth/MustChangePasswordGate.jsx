@@ -148,8 +148,9 @@ const MustChangePasswordGate = () => {
   };
 
   const handleSignOut = async () => {
+    const staffSide = ['ADMIN', 'SUPER_ADMIN', 'STAFF'].includes(String(profile?.role || '').toUpperCase());
     await signOut();
-    navigate('/login', { replace: true });
+    navigate(staffSide ? '/staff/login' : '/login', { replace: true });
   };
 
   const cardStyle = {

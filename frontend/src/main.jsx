@@ -165,7 +165,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 {/* Public Routes */}
                 <Route path="/" element={<Landing />} />
                 <Route path="/services" element={<ServicesPage />} />
-                <Route path="/login" element={<Login />} />
+                <Route path="/login" element={<Login key="customer" />} />
+                <Route path="/staff/login" element={<Login key="staff" audience="staff" />} />
                 <Route path="/accept-invite" element={<AdminAcceptInvite />} />
                 {/* Landing page for Supabase auth email links (signup
                     confirmation, recovery, email change). The session arrives in

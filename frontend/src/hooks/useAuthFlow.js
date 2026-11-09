@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -11,9 +11,14 @@ import { safeNextPath } from '../utils/safeNextPath';
  * @param {{ next?: string }} [options] next: where to go after sign-in when the page address has no ?next=
  *   (the sign-in pop-up passes it, e.g. /customer/book after a "Book" button). Checked by safeNextPath like ?next=.
  */
-export const useAuthFlow = ({ next: nextOption } = {}) => {
+const STAFF_ROLES = ['ADMIN', 'SUPER_ADMIN', 'STAFF'];
+
+/** audience: 'customer' (/login) or 'staff' (/staff/login). An account signing in on the other page is signed out. */
+export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
   const navigate = useNavigate();
-  const { user, profile, signInWithPassword, requestPasswordReset } = useAuth();
+  const { user, profile, signInWithPassword, requestPasswordReset, signOut } = useAuth();
+  const attemptedRef = useRef(false);
+  const [wrongPage, setWrongPage] = useState(null); // 'staff' | 'customer': the page this account belongs on
 
   const [mode, setMode] = useState('LOGIN'); // LOGIN, REGISTER, VERIFY, AWAIT_LINK, RECOVER, RECOVER_OTP, RECOVER_VERIFY, RESET
   const [isLoading, setIsLoading] = useState(false);
@@ -24,6 +29,16 @@ export const useAuthFlow = ({ next: nextOption } = {}) => {
   useEffect(() => {
     if (user && profile) {
       const roleKey = String(profile.role || '').toUpperCase();
+      const belongsOn = STAFF_ROLES.includes(roleKey) ? 'staff' : 'customer';
+      if (attemptedRef.current && audience && audience !== belongsOn) {
+        attemptedRef.current = false;
+        setWrongPage(belongsOn);
+        setLoginError(belongsOn === 'staff'
+          ? 'This is the customer sign-in. Staff and administrator accounts sign in on the staff page.'
+          : 'This sign-in is for shop staff. Customers sign in on the customer page.');
+        signOut();
+        return;
+      }
       const routes = {
         ADMIN: '/admin',
         STAFF: '/staff',
@@ -40,15 +55,17 @@ export const useAuthFlow = ({ next: nextOption } = {}) => {
         navigate(next || routes[roleKey] || '/customer');
       }
     }
-  }, [user, profile, mode, navigate, nextOption]);
+  }, [user, profile, mode, navigate, nextOption, audience, signOut]);
 
-  const login = async (email, password) => {    setIsLoading(true);
+  const login = async (email, password) => {
+    setIsLoading(true);
     setLoginError('');
+    setWrongPage(null);
+    attemptedRef.current = true;
     try {
       const { error } = await signInWithPassword(email, password);
       if (error) throw error;
-
-      toast.success('Successfully logged in!');
+      // no success toast here: the account may still be on the wrong page (see the redirect above)
     } catch (error) {
       setLoginError(error.message || 'Login failed.');
       toast.error(error.message || 'Login failed.');
@@ -275,6 +292,7 @@ export const useAuthFlow = ({ next: nextOption } = {}) => {
     requestEmergencyRecovery,
     completeEmergencyRecovery,
     loginError,
+    wrongPage,
     clearLoginError: () => setLoginError(''),
   };
 };
