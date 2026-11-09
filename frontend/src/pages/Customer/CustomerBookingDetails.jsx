@@ -848,7 +848,7 @@ const CustomerBookingDetails = () => {
       </div>
       {receiptModal && (
         <PaymentReceipt
-          booking={booking}
+          booking={{ ...booking, payments }}
           vehicles={vehicles}
           user={user}
           selectedPayment={selectedPayment}

@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Download, FileText, Printer, X } from 'lucide-react';
 import { resolveFrozenServicePrice } from '../data/servicesCatalog';
 import { useConfig } from '../context/ConfigContext';
@@ -67,6 +68,11 @@ const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose
       .reduce((sum, p) => { const a = resolveTransactionReceiptAmounts(p); return sum + a.netReceived + a.creditApplied; }, 0)
     : null;
   const thisPayment = pay ? pay.netReceived + pay.creditApplied : 0;
+  // Booking summary: once payments are recorded it shows how the booking was paid and what is left.
+  const paidList = !isReceipt && allPayments ? allPayments.filter(counted) : [];
+  const paidTotal = paidList.reduce((sum, p) => { const a = resolveTransactionReceiptAmounts(p); return sum + a.netReceived + a.creditApplied; }, 0);
+  const paidMethods = [...new Set(paidList.map((p) => String(p.method || '').toUpperCase()).filter(Boolean))];
+  const summaryBalance = Math.max(0, invoice.totalDue - paidTotal);
   const balanceAfter = paidBefore === null ? null : Math.max(0, invoice.totalDue - paidBefore - thisPayment);
 
   const customerName = booking?.customer_name || booking?.customer?.full_name || user?.user_metadata?.full_name || '';
@@ -159,8 +165,10 @@ const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose
       </div>
 
       <div className="ar-checks" role="group" aria-label="Payment type">
-        <span className="ar-check"><i aria-hidden="true">{isReceipt && cash ? <Cross /> : null}</i>CASH</span>
-        <span className="ar-check"><i aria-hidden="true">{isReceipt && !cash ? <Cross /> : null}</i>ONLINE{isReceipt && !cash && method ? ` (${methodLabel(method)})` : ''}</span>
+        <span className="ar-check"><i aria-hidden="true">{(isReceipt ? cash : paidMethods.some(isCashMethod)) ? <Cross /> : null}</i>CASH</span>
+        <span className="ar-check"><i aria-hidden="true">{(isReceipt ? !cash : paidMethods.some((m) => !isCashMethod(m))) ? <Cross /> : null}</i>ONLINE{isReceipt
+          ? (!cash && method ? ` (${methodLabel(method)})` : '')
+          : (paidMethods.some((m) => !isCashMethod(m)) ? ` (${paidMethods.filter((m) => !isCashMethod(m)).map(methodLabel).join(', ')})` : '')}</span>
       </div>
 
       <div className="ar-box">
@@ -190,7 +198,9 @@ const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose
         <div className="ar-box">
           <div className="ar-label">Payment details</div>
           <div className="ar-kv">
-            <div className="k">Paid by</div><div>{isReceipt ? (cash ? 'Cash' : methodLabel(method)) : (method ? methodLabel(method) : 'Not paid yet')}</div>
+            <div className="k">Paid by</div><div>{isReceipt ? (cash ? 'Cash' : methodLabel(method)) : paidMethods.length ? paidMethods.map((m) => (isCashMethod(m) ? 'Cash' : methodLabel(m))).join(', ') : 'Not paid yet'}</div>
+            {!isReceipt && paidList.length > 0 && <><div className="k">Status</div><div style={{ fontWeight: 700 }}>{summaryBalance === 0 ? 'Fully paid' : 'Partly paid'}</div></>}
+            {!isReceipt && paidList.length > 0 && <><div className="k">Last payment</div><div>{dateTime(paidList[paidList.length - 1].verified_at || paidList[paidList.length - 1].created_at) || '—'}</div></>}
             {isReceipt && <><div className="k">Reference no.</div><div style={{ overflowWrap: 'anywhere' }}>{reference || (cash ? 'Paid at the shop' : 'Not provided')}</div></>}
             {isReceipt && <><div className="k">Recorded</div><div>{dateTime(selectedPayment.verified_at || selectedPayment.created_at) || '—'}</div></>}
             {pay && pay.transferFee > 0 && <><div className="k">Transfer fee</div><div className="ar-num" style={{ textAlign: 'left' }}>{peso(pay.transferFee)} (charged by the payment app, not by the shop)</div></>}
@@ -206,6 +216,8 @@ const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose
             {pay && pay.creditApplied > 0 && <><div className="k">Account credit used</div><div className="ar-num">{peso(pay.creditApplied)}</div></>}
             {isReceipt && <><div className="k" style={{ fontWeight: 800, color: '#18181b' }}>{isRefund ? 'Amount refunded' : 'This payment'}</div><div className="ar-num" style={{ fontWeight: 800 }}>{peso(received)}</div></>}
             {balanceAfter !== null && <><div className="k">Balance remaining</div><div className="ar-num">{peso(balanceAfter)}</div></>}
+            {!isReceipt && paidList.length > 0 && <><div className="k">Amount paid</div><div className="ar-num">{peso(paidTotal)}</div></>}
+            {!isReceipt && paidList.length > 0 && <><div className="k" style={{ fontWeight: 800, color: '#18181b' }}>Balance remaining</div><div className="ar-num" style={{ fontWeight: 800 }}>{peso(summaryBalance)}</div></>}
           </div>
         </div>
       </div>
@@ -238,6 +250,13 @@ const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose
           {onClose && <button type="button" onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: '#fff', cursor: 'pointer', minHeight: 0 }}><X size={18} /></button>}
         </div>
         {content}
+        {createPortal(
+          <div className="ar-print-root">
+            <style>{`.ar-print-root{display:none}@media print{body>*:not(.ar-print-root){display:none !important}.ar-print-root{display:block !important;position:static !important}.ar-print-root #printable-receipt{position:static !important;visibility:visible !important}.ar-print-root *{visibility:visible !important}}`}</style>
+            {React.cloneElement(content, { ref: undefined })}
+          </div>,
+          document.body
+        )}
         <div className="no-print" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '0.5rem', padding: '0.8rem 1rem', background: '#f6f5f3', borderTop: '1px solid #e7e4e0' }}>
           <button type="button" onClick={downloadPdf} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 0.9rem', background: '#C41F2B', color: '#fff', border: 0, borderRadius: 2, cursor: 'pointer', fontWeight: 600 }}><Download size={15} /> Download PDF</button>
           <button type="button" onClick={() => window.print()} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 0.9rem', background: '#fff', color: '#18181b', border: '1px solid #d6d3cf', borderRadius: 2, cursor: 'pointer', fontWeight: 600 }}><Printer size={15} /> Print</button>
