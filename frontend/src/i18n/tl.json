@@ -3785,5 +3785,13 @@
  "Zoom out": "I-zoom out",
  "Only the administrator who sent this invitation can open the customer's booking details.": "Ang administrator lang na nagpadala ng imbitasyong ito ang makakapagbukas ng booking details ng customer.",
  "Only the administrator who sent this invitation can open these details.": "Ang administrator lang na nagpadala ng imbitasyong ito ang makakapagbukas ng mga detalyeng ito.",
- "Unread Messages": "Mga Hindi Pa Nababasang Mensahe"
+ "Unread Messages": "Mga Hindi Pa Nababasang Mensahe",
+ "Social Media": "Social Media",
+ "Pick a site and paste the link to the shop's page. Each one shows as an icon at the bottom of the website.": "Pumili ng site at i-paste ang link ng page ng shop. Bawat isa ay lalabas bilang icon sa ibaba ng website.",
+ "Add social media": "Magdagdag ng social media",
+ "Paste the link, or remove this row.": "I-paste ang link, o alisin ang row na ito.",
+ "This is not a {} link.": "Hindi ito link ng {}.",
+ "Remove this link": "Alisin ang link na ito",
+ "Social media site": "Social media site",
+ "Link to the shop's page": "Link ng page ng shop"
 }

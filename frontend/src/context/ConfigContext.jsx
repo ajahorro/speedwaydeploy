@@ -3,6 +3,7 @@ import { subscribeTable } from '../lib/realtimeHub';
 import { SHOP_CONFIG } from '../config/constants';
 import { resolveVehicleTypeOptions } from '../config/vehicleTypes';
 import { logger } from '../utils/logger';
+import { cleanSocialLinks } from '../config/socialLinks';
 import { bayCapacityOf, fetchShopConfig, getShopConfig, subscribeShopConfig } from '../config/shopConfig';
 
 const ConfigContext = createContext();
@@ -68,6 +69,7 @@ const settingsFromRow = (data) => {
     BUSINESS_EMAIL: data?.email_address || '',
     BUSINESS_ADDRESS: data?.business_address || '',
     FAQS: Array.isArray(data?.faqs) ? data.faqs : [],
+    SOCIAL_LINKS: cleanSocialLinks(data?.social_links),
     // Landing page About section (Business Hub › About & Map)
     ABOUT_PHOTOS: Array.isArray(data?.about_photos) ? data.about_photos.filter((p) => p && p.id && p.url) : [],
     ABOUT_LAYOUT: ['mosaic', 'carousel', 'grid', 'split'].includes(data?.about_layout) ? data.about_layout : 'mosaic',

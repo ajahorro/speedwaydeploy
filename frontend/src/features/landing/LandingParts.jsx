@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { LayoutGrid, LogIn, LogOut, ChevronRight } from 'lucide-react';
+import { LayoutGrid, LogIn, LogOut, ChevronRight, Facebook, Instagram, Music2, Youtube, Twitter, MessageCircle } from 'lucide-react';
+
+const SOCIAL_ICONS = { facebook: Facebook, instagram: Instagram, tiktok: Music2, youtube: Youtube, x: Twitter, messenger: MessageCircle };
 import { BACKEND_URL } from '@/config/api';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
@@ -255,11 +257,14 @@ export function SiteFooter({ businessName, links, onNavigate, socials }) {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <p className="m-0 text-[0.7rem] uppercase text-muted-foreground">© {new Date().getFullYear()} {businessName}. All rights reserved.</p>
           <div className="flex gap-1">
-            {socials.map(({ label, icon: Icon }) => (
-              <Button key={label} variant="ghost" size="icon" aria-label={label} className="text-muted-foreground hover:text-foreground">
-                <Icon />
-              </Button>
-            ))}
+            {socials.map(({ platform, label, url }) => {
+              const Icon = SOCIAL_ICONS[platform];
+              return (
+                <Button key={platform} asChild variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+                  <a href={url} target="_blank" rel="noopener noreferrer" aria-label={`${label} (opens in a new tab)`} title={label}><Icon /></a>
+                </Button>
+              );
+            })}
           </div>
         </div>
       </div>

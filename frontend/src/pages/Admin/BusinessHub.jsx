@@ -4,6 +4,7 @@ import {
   Building, Wrench, Tag, Save, AlertCircle, CheckCircle, Check,
   Plus, X, Trash2, Archive, ArchiveRestore, CalendarClock, HelpCircle, ChevronUp, ChevronDown, Wallet, ScrollText, Image as ImageIcon, Search, ShieldCheck
 } from 'lucide-react';
+import { SOCIAL_PLATFORMS, toSocialUrl } from '../../config/socialLinks';
 import { useConfig } from '../../context/ConfigContext';
 import { useUI } from '../../context/UIContext';
 import { supabase } from '../../lib/supabase';
@@ -85,7 +86,7 @@ const SECTION_FIELDS = {
     'business_name', 'contact_number', 'email_address', 'business_address',
     // Task B: the primary QR recipient fields plus the uploaded QR image.
     'qr_account_name', 'qr_account_number', 'payment_qr_url',
-    'faqs'
+    'faqs', 'social_links'
   ],
   schedule: [
     'opening_hour', 'closing_hour', 'is_24_7', 'slots_per_hour', 'max_vehicles_per_staff',
@@ -494,6 +495,7 @@ export default function BusinessHub() {
   // Live form state + a pristine snapshot used for dirty detection.
   const [businessForm, setBusinessForm] = useState({
     business_name: '',
+    social_links: [],
     contact_number: '',
     email_address: '',
     business_address: '',
@@ -595,6 +597,7 @@ export default function BusinessHub() {
           contact_number: data.contact_number || '',
           email_address: data.email_address || '',
           business_address: data.business_address || '',
+          social_links: Array.isArray(data.social_links) ? data.social_links.map((l) => ({ platform: String(l.platform || ''), url: String(l.url || '') })) : [],
           opening_hour: data.opening_hour || '',
           closing_hour: data.closing_hour || '',
           is_24_7: data.is_24_7 === true,
@@ -764,7 +767,8 @@ export default function BusinessHub() {
       // the shop's phone may be a mobile or a landline: 7 to 12 digits; empty is allowed
       const phoneDigits = String(businessForm.contact_number || '').replace(/D/g, '');
       const phoneOk = phoneDigits.length === 0 || (phoneDigits.length >= 7 && phoneDigits.length <= 12);
-      return Boolean(String(businessForm.business_name || '').trim()) && qr.ok && phoneOk;
+      const socialOk = (businessForm.social_links || []).every((l) => toSocialUrl(l.platform, l.url));
+      return Boolean(String(businessForm.business_name || '').trim()) && qr.ok && phoneOk && socialOk;
     }
     if (section === 'schedule') {
       // Mirror the DB CHECK constraints from migration 20260925000001 so an
@@ -2154,6 +2158,40 @@ export default function BusinessHub() {
                 </div>
               );
             })()}
+
+            <SectionHeading style={{ paddingTop: '0.5rem' }}>Social Media</SectionHeading>
+            <p style={{ margin: '-0.4rem 0 0', fontSize: '0.72rem', fontWeight: 700, color: 'var(--admin-text-secondary)' }}>
+              Pick a site and paste the link to the shop's page. Each one shows as an icon at the bottom of the website.
+            </p>
+            {(businessForm.social_links || []).map((link, i) => {
+              const setLink = (patch) => handleInputChange('social_links', businessForm.social_links.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+              const used = businessForm.social_links.map((l) => l.platform);
+              const bad = link.url.trim() && !toSocialUrl(link.platform, link.url);
+              return (
+                <div key={i} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'flex-start' }}>
+                  <select aria-label="Social media site" value={link.platform} onChange={(e) => setLink({ platform: e.target.value })} style={{ ...inputStyle, flex: '1 1 9rem', width: 'auto' }}>
+                    {SOCIAL_PLATFORMS.filter((p) => p.id === link.platform || !used.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                  </select>
+                  <div style={{ flex: '3 1 14rem', minWidth: 0 }}>
+                    <input aria-label="Link to the shop's page" type="url" inputMode="url" value={link.url} onChange={(e) => setLink({ url: e.target.value })} placeholder={`https://${SOCIAL_PLATFORMS.find((p) => p.id === link.platform)?.hosts[0]}/your-page`} style={{ ...inputStyle, ...(bad ? { borderColor: 'var(--status-danger)' } : null) }} />
+                    {(bad || !link.url.trim()) && <div style={{ marginTop: '0.3rem', fontSize: '0.68rem', fontWeight: 800, color: 'var(--status-danger)' }}>{bad ? `This is not a ${SOCIAL_PLATFORMS.find((p) => p.id === link.platform)?.label} link.` : 'Paste the link, or remove this row.'}</div>}
+                  </div>
+                  <button type="button" aria-label="Remove this link" title="Remove" onClick={() => handleInputChange('social_links', businessForm.social_links.filter((_, j) => j !== i))} style={{ ...ghostButton, minHeight: '44px', color: 'var(--status-danger)' }}><Trash2 size={15} /></button>
+                </div>
+              );
+            })}
+            {(businessForm.social_links || []).length < SOCIAL_PLATFORMS.length && (
+              <button
+                type="button"
+                onClick={() => {
+                  const used = (businessForm.social_links || []).map((l) => l.platform);
+                  handleInputChange('social_links', [...(businessForm.social_links || []), { platform: SOCIAL_PLATFORMS.find((p) => !used.includes(p.id)).id, url: '' }]);
+                }}
+                style={{ ...ghostButton, alignSelf: 'flex-start', minHeight: '40px' }}
+              >
+                <Plus size={14} /> Add social media
+              </button>
+            )}
 
             <div data-tour="hub-faq" style={{ ...insetPanelStyle, display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '0.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>

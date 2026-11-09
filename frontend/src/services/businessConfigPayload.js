@@ -1,3 +1,5 @@
+import { cleanSocialLinks } from '../config/socialLinks';
+
 export const isMissingColumnError = (error, columnName) => {
   if (!error || typeof error.message !== 'string') return false;
   return error.message.includes(`Could not find the '${columnName}' column of 'business_config'`);
@@ -35,6 +37,7 @@ export const buildBusinessConfigUpdatePayload = (form, {
     max_advance_days: Number(form.max_advance_days),
     closed_weekdays: form.closed_weekdays || [],
     enforce_capacity: Boolean(form.enforce_capacity),
+    social_links: cleanSocialLinks(form.social_links).map(({ platform, url }) => ({ platform, url })),
   };
 
   if (supportsCustomServices) {
@@ -76,6 +79,7 @@ export const stripUnsupportedBusinessConfigColumns = (payload, error) => {
   if (isMissingColumnError(error, 'deleted_service_ids')) unsupported.push('deleted_service_ids');
 
   if (isMissingColumnError(error, 'is_24_7')) unsupported.push('is_24_7');
+  if (isMissingColumnError(error, 'social_links')) unsupported.push('social_links');
 
   if (unsupported.length === 0) return payload;
 

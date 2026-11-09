@@ -5,9 +5,6 @@ import {
   MapPin,
   Phone,
   Mail,
-  Facebook,
-  Instagram,
-  Twitter,
   X as XIcon,
   LogIn,
   LogOut,
@@ -737,7 +734,7 @@ const Landing = () => {
         businessName={businessName}
         links={NAV_LINKS}
         onNavigate={scrollToSection}
-        socials={[{ label: 'Facebook', icon: Facebook }, { label: 'Instagram', icon: Instagram }, { label: 'Twitter', icon: Twitter }]}
+        socials={settings?.SOCIAL_LINKS || []}
       />
 
       {/* LOGIN MODAL */}

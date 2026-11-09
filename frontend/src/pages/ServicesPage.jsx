@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Calendar, ChevronRight, Clock, Facebook, Instagram, Lock, Menu, Search, Twitter, UserPlus, X as XIcon
+  ArrowLeft, Calendar, ChevronRight, Clock, Lock, Menu, Search, UserPlus, X as XIcon
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useConfig } from '../context/ConfigContext';
@@ -319,11 +319,7 @@ export default function ServicesPage() {
         businessName={businessName}
         links={FOOTER_LINKS}
         onNavigate={runLink(FOOTER_LINKS)}
-        socials={[
-          { label: 'Facebook', icon: Facebook },
-          { label: 'Instagram', icon: Instagram },
-          { label: 'Twitter', icon: Twitter },
-        ]}
+        socials={settings?.SOCIAL_LINKS || []}
       />
 
       {loginNext !== null && !user && (
