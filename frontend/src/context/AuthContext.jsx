@@ -69,6 +69,7 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   const activeFetchRef = useRef(0);
+  const leavingRef = useRef(false);
   const fetchedForRef = useRef(null);
   const profileRef = useRef(null);
 
@@ -77,7 +78,15 @@ export const AuthProvider = ({ children }) => {
     profileRef.current = profile;
   }, [profile]);
 
-  const signOut = useCallback(async () => {
+  // signOut('/somewhere') keeps the current screen until the browser loads that page, so no signed-out screen
+  // (a login redirect or loading state) flashes in between.
+  const signOut = useCallback(async (redirectTo) => {
+    if (typeof redirectTo === 'string') {
+      leavingRef.current = true;
+      try { await supabase.auth.signOut(); } catch (err) { logger.error('Sign Out Error', err); }
+      window.location.replace(redirectTo);
+      return;
+    }
     // Stop any in-flight profile request from putting the public page back into
     // an authenticated/loading state after the user has chosen to sign out.
     activeFetchRef.current += 1;
@@ -187,7 +196,7 @@ export const AuthProvider = ({ children }) => {
     initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'INITIAL_SESSION') return;
+      if (event === 'INITIAL_SESSION' || leavingRef.current) return;
 
       logger.auth(`Event: ${event}`);
 

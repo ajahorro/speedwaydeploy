@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Lock, ShieldAlert, CheckCircle2, Loader2, LogOut } from 'lucide-react';
 import toast from '@/lib/toast';
 import { supabase } from '../../lib/supabase';
@@ -79,7 +78,6 @@ const clearFirstLoginFlag = async () => {
 
 const MustChangePasswordGate = () => {
   const { user, profile, signOut, fetchProfile } = useAuth();
-  const navigate = useNavigate();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -149,8 +147,7 @@ const MustChangePasswordGate = () => {
 
   const handleSignOut = async () => {
     const staffSide = ['ADMIN', 'SUPER_ADMIN', 'STAFF'].includes(String(profile?.role || '').toUpperCase());
-    await signOut();
-    navigate(staffSide ? '/staff/login' : '/login', { replace: true });
+    await signOut(staffSide ? '/staff/login' : '/login');
   };
 
   const cardStyle = {

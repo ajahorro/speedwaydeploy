@@ -56,8 +56,7 @@ export default function IdleSessionGuard() {
         new Promise((resolve) => setTimeout(resolve, AUDIT_TIMEOUT_MS))
       ]);
     }
-    await signOut();
-    window.location.assign(`${['ADMIN', 'SUPER_ADMIN', 'STAFF'].includes(role) ? '/staff/login' : '/login'}?reason=idle`);
+    await signOut(`${['ADMIN', 'SUPER_ADMIN', 'STAFF'].includes(role) ? '/staff/login' : '/login'}?reason=idle`);
   }, [role, signOut]);
 
   useEffect(() => {

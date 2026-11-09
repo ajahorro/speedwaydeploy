@@ -136,7 +136,7 @@ const TermsGate = () => {
             </label>
           )}
           <div className="flex flex-wrap justify-between gap-3">
-            <Button type="button" variant="outline" onClick={() => signOut()}>Sign out</Button>
+            <Button type="button" variant="outline" onClick={() => signOut('/')}>Sign out</Button>
             {atEnd && (
               <Button type="button" onClick={accept} disabled={!checked || saving}>
                 {saving ? 'Saving…' : 'Agree and continue'}

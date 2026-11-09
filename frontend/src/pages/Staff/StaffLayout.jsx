@@ -125,11 +125,8 @@ const StaffLayout = () => {
         closeModal();
       }
 
-      // 2. Perform sign out
-      await signOut();
-
-      // 3. Back to the staff sign-in
-      window.location.href = '/staff/login';
+      // 2. Sign out and go straight to the next page
+      await signOut('/staff/login');
     });
   };
 

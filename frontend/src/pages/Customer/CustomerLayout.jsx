@@ -92,11 +92,8 @@ const CustomerLayout = () => {
         closeModal();
       }
 
-      // 2. Perform sign out
-      await signOut();
-
-      // 3. Force clean redirect to homepage
-      window.location.href = '/';
+      // 2. Sign out and go straight to the next page
+      await signOut('/');
     });
   };
 
