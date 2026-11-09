@@ -2490,7 +2490,9 @@ export default function BusinessHub() {
                     <Hint>
                       {businessForm.is_24_7 === true
                         ? 'Capacity values must be at least 1.'
-                        : 'Add valid opening and closing times, then keep both capacity values at 1 or higher.'}
+                        : formatTimeForInput(businessForm.opening_hour) === formatTimeForInput(businessForm.closing_hour)
+                          ? 'Opening and closing are the same time. For a shop open all day, turn on Open 24 hours (24/7) above.'
+                          : 'Add valid opening and closing times, then keep both capacity values at 1 or higher.'}
                     </Hint>
                   )}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem', width: '100%' }}>
