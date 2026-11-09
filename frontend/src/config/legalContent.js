@@ -43,7 +43,7 @@ export const LEGAL_DOCUMENTS = Object.freeze([
       {
         heading: '2. Bookings & Scheduling',
         paragraphs: [
-          'All bookings are subject to vehicle condition, available staff capacity, and timing confirmation by the studio.',
+          'All bookings are subject to vehicle condition, available staff capacity, and timing confirmation by Comar Garage.',
           'Customers agree to provide truthful vehicle details and to keep their contact information current for appointment updates.',
         ],
       },
@@ -57,7 +57,7 @@ export const LEGAL_DOCUMENTS = Object.freeze([
       {
         heading: '4. Liability',
         paragraphs: [
-          'The studio exercises reasonable care in handling all vehicles. The studio is not liable for pre-existing damage, undeclared valuables left in the vehicle, or delays caused by events beyond its control.',
+          'Comar Garage exercises reasonable care in handling all vehicles. Comar Garage is not liable for pre-existing damage, undeclared valuables left in the vehicle, or delays caused by events beyond its control.',
         ],
       },
       {
@@ -103,7 +103,7 @@ export const LEGAL_DOCUMENTS = Object.freeze([
       {
         heading: '5. Consent',
         paragraphs: [
-          'By submitting a booking you authorize the studio to process the personal data required for service delivery, account management, and operational communications.',
+          'By submitting a booking you authorize Comar Garage to process the personal data required for service delivery, account management, and operational communications.',
         ],
       },
     ],
@@ -117,7 +117,7 @@ export const LEGAL_DOCUMENTS = Object.freeze([
       {
         heading: '1. Downpayments',
         paragraphs: [
-          'Bookings above the studio threshold require a downpayment to secure the slot. The downpayment is deducted from your final bill.',
+          'Bookings above the shop’s set amount require a downpayment to secure the slot. The downpayment is deducted from your final bill.',
         ],
       },
       {

@@ -21,10 +21,10 @@ import BookingWizardActions from './BookingWizardActions';
 
 const DEFAULT_TERMS = [
   '1. Customer information provided during booking is collected solely for scheduling, service communication, and payment verification.',
-  '2. All bookings are subject to vehicle condition, available staff capacity, and service timing confirmation by the studio.',
-  '3. Deposits and payments remain subject to the studio’s refund and cancellation policy as disclosed in the booking confirmation.',
+  '2. All bookings are subject to vehicle condition, available staff capacity, and service timing confirmation by Comar Garage.',
+  '3. Deposits and payments remain subject to Comar Garage’s refund and cancellation policy as disclosed in the booking confirmation.',
   '4. Customers agree to provide truthful vehicle details and to keep the contact information current for appointment updates.',
-  '5. By submitting this booking, the customer authorizes the studio to process personal data required for service delivery, account management, and operational communications.'
+  '5. By submitting this booking, the customer authorizes Comar Garage to process personal data required for service delivery, account management, and operational communications.'
 ].join('\n');
 
 const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, onNext, onBack, onSubmit, isSubmitting, onCancel }) => {
