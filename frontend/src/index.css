@@ -316,14 +316,14 @@ img, video {
   to { transform: translateY(0); opacity: 1; }
 }
 
-@keyframes pulse {
+@keyframes soft-pulse {
   0% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.7; transform: scale(0.98); }
   100% { opacity: 1; transform: scale(1); }
 }
 
 .pulse-animation {
-  animation: pulse 2s infinite ease-in-out;
+  animation: soft-pulse 2s infinite ease-in-out;
 }
 
 /* Shared spinning indicator (Batch 5 photo uploader and modern admin panels). */

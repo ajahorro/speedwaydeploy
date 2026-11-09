@@ -450,7 +450,7 @@ const AdminDashboard = () => {
         <Card className="live-queue-panel" data-tour="dash-queue" style={{ background: 'var(--admin-card)' }}>
           <CardHeader className="flex-row items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-xs font-black uppercase tracking-widest">
-              <span className="size-1.5 rounded-full" style={{ background: 'var(--admin-brand)', animation: 'pulse 1.5s infinite' }} />
+              <span className="size-1.5 rounded-full" style={{ background: 'var(--admin-brand)', animation: 'live-dot 1.5s infinite' }} />
               Live Booking Queue
             </CardTitle>
             <Button variant="ghost" size="sm" onClick={() => navigate('/admin/bookings')} className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--admin-brand)' }}>
@@ -532,7 +532,7 @@ const AdminDashboard = () => {
         .dashboard-columns { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.9fr); gap: 1.25rem; align-items: start; }
         @media (max-width: 1000px) { .dashboard-columns { grid-template-columns: 1fr; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }
+        @keyframes live-dot { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }
       `}</style>
     </div>
   );

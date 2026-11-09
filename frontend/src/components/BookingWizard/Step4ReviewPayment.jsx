@@ -1235,7 +1235,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                           <div style={{ position: 'relative', width: '60px', height: '60px' }}>
                             <div style={{ position: 'absolute', inset: 0, border: '4px solid rgba(var(--admin-brand-rgb), 0.1)', borderRadius: '50%' }} />
                             <div style={{ position: 'absolute', inset: 0, border: '4px solid var(--admin-brand)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                            <div style={{ position: 'absolute', inset: '10px', background: 'var(--admin-brand)', opacity: 0.1, borderRadius: '50%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                            <div style={{ position: 'absolute', inset: '10px', background: 'var(--admin-brand)', opacity: 0.1, borderRadius: '50%', animation: 'soft-pulse 1.5s ease-in-out infinite' }} />
                           </div>
                           <div>
                             <div style={{ color: 'var(--admin-brand)', fontWeight: '950', fontSize: '1rem', marginBottom: '0.5rem', letterSpacing: '1px' }}>Verifying receipt details...</div>
