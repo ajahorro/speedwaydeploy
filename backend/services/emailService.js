@@ -5,12 +5,12 @@ const { appUrl } = require('./appUrl');
 /**
  * Every email the backend sends goes through here, in the one shared layout (./emailLayout.js).
  *
- * Sender: always the no-reply address on our verified domain (EMAIL_FROM to change it). Replies go to the shop's
- * own inbox (Business Hub › Business Profile email) through Reply-To, so a customer who answers still reaches
- * a person. Every message carries a plain-text version.
+ * Sender: always "Comar Garage (No Reply)" at the no-reply address on our verified domain (EMAIL_FROM changes the
+ * address). Automated emails carry no Reply-To; only the conversation emails (inquiry replies, issue reports) pass one.
+ * Every message carries a plain-text version.
  */
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const SENDER = process.env.EMAIL_FROM || 'Comar Garage <noreply@comargarage.com>';
+const SENDER = `Comar Garage (No Reply) <${String(process.env.EMAIL_FROM || '').match(/[^<\s]+@[^>\s]+/)?.[0] || 'noreply@comargarage.com'}>`;
 
 // ── shop details for the footer (name, address, phone, email), read from the Business Hub ──────────────────────
 let shopProvider = null;
@@ -40,8 +40,7 @@ const titleCase = (s) => String(s).toLowerCase().replace(/\b([a-z])/g, (m) => m.
 const send = async ({ to, subject, html, text, replyTo, headers, attachments }) => {
   if (!resend) return { success: false, error: 'RESEND_API_KEY is not configured' };
   try {
-    const shop = await getShop();
-    const reply = replyTo === null ? undefined : (replyTo || shop.email || undefined);
+    const reply = replyTo || undefined;
     console.log(`[Email] Sending "${subject}"`);
     const { data, error } = await resend.emails.send({
       from: SENDER,

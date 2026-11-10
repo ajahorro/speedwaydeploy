@@ -8,7 +8,7 @@ const corsHeaders = {
 }
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
-const resendFrom = Deno.env.get('RESEND_FROM') || 'Comar Garage <notifications@comargarage.com>'
+const resendFrom = `Comar Garage (No Reply) <${String(Deno.env.get('EMAIL_FROM') || '').match(/[^<\s]+@[^>\s]+/)?.[0] || 'noreply@comargarage.com'}>`
 const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
 const escapeHtml = (value: unknown) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;')
 const EMAILABLE_NOTIFICATION_TYPES = new Set<string>()
@@ -88,7 +88,7 @@ serve(async (req) => {
 
     const bookingRef = notification.booking_id ? `#${String(notification.booking_id).slice(0, 8).toUpperCase()}` : ''
     const subject = `${notification.title || 'Notification'}${bookingRef ? ` ${bookingRef}` : ''} - Comar Garage`
-    const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;color:#111827"><div style="background:#C41F2B;padding:22px;text-align:center;color:#fff"><h1 style="margin:0;font-size:22px;letter-spacing:2px">COMAR GARAGE</h1></div><div style="padding:28px"><p>Hi ${escapeHtml(recipient?.full_name || 'Valued Customer')},</p><h2 style="color:#C41F2B">${escapeHtml(notification.title)}</h2><p style="font-size:15px;line-height:1.7">${escapeHtml(notification.message)}</p>${detailsUrl ? `<p><a href="${escapeHtml(detailsUrl)}" style="display:inline-block;background:#C41F2B;color:#fff;padding:12px 20px;border-radius:5px;text-decoration:none;font-weight:700">VIEW BOOKING DETAILS</a></p>` : ''}</div><div style="background:#f8fafc;padding:16px;text-align:center;font-size:12px;color:#6b7280">Comar Garage Detail Studio</div></div>`
+    const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;color:#111827"><div style="background:#C41F2B;padding:22px;text-align:center;color:#fff"><h1 style="margin:0;font-size:22px;letter-spacing:2px">COMAR GARAGE</h1></div><div style="padding:28px"><p>Hi ${escapeHtml(recipient?.full_name || 'Valued Customer')},</p><h2 style="color:#C41F2B">${escapeHtml(notification.title)}</h2><p style="font-size:15px;line-height:1.7">${escapeHtml(notification.message)}</p>${detailsUrl ? `<p><a href="${escapeHtml(detailsUrl)}" style="display:inline-block;background:#C41F2B;color:#fff;padding:12px 20px;border-radius:5px;text-decoration:none;font-weight:700">VIEW BOOKING DETAILS</a></p>` : ''}</div><div style="background:#f8fafc;padding:16px;text-align:center;font-size:12px;color:#6b7280">Comar Garage · This email was sent from a no-reply address, so please do not reply to it. To reach us, use the chat in your account.</div></div>`
     const { data, error } = await resend.emails.send({ from: resendFrom, to: [email], subject, html })
     if (error) throw error
     return new Response(JSON.stringify({ ok: true, data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })

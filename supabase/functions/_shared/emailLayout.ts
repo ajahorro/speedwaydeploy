@@ -176,7 +176,7 @@ const renderEmail = (o) => {
   const blocks = (o.blocks || []).filter(Boolean);
   const replyNote = o.replyNote !== undefined
     ? o.replyNote
-    : shop.email ? `This email was sent automatically. To reach us, reply to this email or write to ${shop.email}.` : 'This email was sent automatically from a no-reply address.';
+    : `This email was sent from a no-reply address, so please do not reply to it. To reach us, ${shop.email ? `write to ${shop.email} or ` : ''}use the chat in your account.`;
 
   const cta = o.cta && o.cta.url ? `
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 8px;"><tr><td style="border-radius:2px;background:${BRAND};">

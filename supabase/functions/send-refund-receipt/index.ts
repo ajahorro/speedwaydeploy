@@ -78,7 +78,7 @@ serve(async (req) => {
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
     if (!resendApiKey) throw new Error('Missing RESEND_API_KEY environment variable.');
     // The one no-reply sender for every email (the domain is verified in Resend); replies go to the shop inbox.
-    const resendFrom = Deno.env.get('EMAIL_FROM') || 'Comar Garage <noreply@comargarage.com>';
+    const resendFrom = `Comar Garage (No Reply) <${String(Deno.env.get('EMAIL_FROM') || '').match(/[^<\s]+@[^>\s]+/)?.[0] || 'noreply@comargarage.com'}>`;
     const { data: shopRow } = await supabaseAdmin.from('business_config')
       .select('business_name, business_address, contact_number, email_address')
       .order('id', { ascending: true }).limit(1).maybeSingle();
@@ -123,7 +123,6 @@ serve(async (req) => {
       body: JSON.stringify({
         from: resendFrom,
         to: [customerEmail],
-        ...(shopEmail ? { reply_to: shopEmail } : {}),
         subject: `Your refund of ${formatPeso(refundAmount)} was sent (#${bookingRef})`,
         html,
         text,

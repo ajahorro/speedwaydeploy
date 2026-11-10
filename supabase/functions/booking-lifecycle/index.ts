@@ -116,8 +116,8 @@ const corsHeaders = {
 }
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
-// Every email comes from the one no-reply address; replies go to the shop inbox (Business Hub email).
-const resendFrom = Deno.env.get('EMAIL_FROM') || 'Comar Garage <noreply@comargarage.com>'
+// Every email comes from the one no-reply address and says so; people reach the shop by email or the in-app chat.
+const resendFrom = `Comar Garage (No Reply) <${String(Deno.env.get('EMAIL_FROM') || '').match(/[^<\s]+@[^>\s]+/)?.[0] || 'noreply@comargarage.com'}>`
 
 /** Shop details for the email footer and the Reply-To address (Business Hub › Business Profile). */
 const loadShop = async () => {
@@ -561,7 +561,6 @@ serve(async (req: Request): Promise<Response> => {
       subject,
       html,
       text,
-      ...(shop?.email ? { reply_to: shop.email } : {}),
       ...(attachments.length ? { attachments } : {}),
     })
 
