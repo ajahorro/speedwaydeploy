@@ -7,7 +7,6 @@ import { BACKEND_URL } from '../config/api';
 import { emailError, phoneError, normalizePhPhone } from '../utils/contactValidation';
 import { safeNextPath } from '../utils/safeNextPath';
 import { BREACHED_PASSWORD_ERROR, isBreachedPassword } from '../utils/breachedPassword';
-import { captchaEnabled } from '../components/auth/Turnstile';
 import { onHandOff } from '@/lib/tabHandoff';
 
 /**
@@ -67,23 +66,13 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
     if (kind === 'password-updated') { setMode('LOGIN'); toast.success('Password updated. Sign in with your new password.'); }
   }), []);
 
-  // Bot check (Turnstile): each token works once, so every use asks the widget for a fresh one.
-  const [captchaToken, setCaptchaToken] = useState('');
-  const [captchaKey, setCaptchaKey] = useState(0);
-  const takeCaptcha = () => {
-    if (!captchaEnabled) return undefined;
-    if (!captchaToken) throw new Error('Please complete the security check first.');
-    setCaptchaKey((k) => k + 1);
-    return captchaToken;
-  };
-
   const login = async (email, password) => {
     setIsLoading(true);
     setLoginError('');
     setWrongPage(null);
     attemptedRef.current = true;
     try {
-      const { error } = await signInWithPassword(email, password, takeCaptcha());
+      const { error } = await signInWithPassword(email, password);
       if (error) throw error;
       // no success toast here: the account may still be on the wrong page (see the redirect above)
     } catch (error) {
@@ -140,7 +129,7 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.error || 'Registration failed.');
-        const { error: signInError } = await signInWithPassword(email, userData.password, takeCaptcha());
+        const { error: signInError } = await signInWithPassword(email, userData.password);
         if (signInError) throw signInError;
         await supabase.rpc('accept_current_policies'); // agreed on the form; a failure only means TermsGate asks again
         toast.success('Your account is ready. Welcome!');
@@ -148,7 +137,6 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
       }
 
       if (await isBreachedPassword(userData.password)) throw new Error(BREACHED_PASSWORD_ERROR);
-      const captcha = takeCaptcha();
       const { data, error } = await supabase.auth.signUp({
         email,
         password: userData.password,
@@ -164,8 +152,7 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
             accepted_terms_version: userData.acceptedTerms,
             accepted_security_version: userData.acceptedPrivacy
           },
-          emailRedirectTo: redirectTo,
-          captchaToken: captcha
+          emailRedirectTo: redirectTo
         }
       });
       if (error) throw error;
@@ -320,8 +307,6 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
     completeEmergencyRecovery,
     loginError,
     wrongPage,
-    captchaKey,
-    setCaptchaToken,
     clearLoginError: () => setLoginError(''),
   };
 };

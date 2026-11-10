@@ -221,7 +221,7 @@ export const AuthProvider = ({ children }) => {
   // a password change confirmed from the email in another tab
   useEffect(() => (user ? onHandOff((kind) => { if (kind === 'password-updated') toast.success('Your password change is confirmed.'); }) : undefined), [user]);
 
-  const signInWithPassword = async (email, password, captchaToken) => {
+  const signInWithPassword = async (email, password) => {
     logger.auth('Attempting sign in with credentials...');
     const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
     if (!normalizedEmail || typeof password !== 'string' || !password) {
@@ -277,7 +277,7 @@ export const AuthProvider = ({ children }) => {
         email: normalizedEmail,
         passwordPresent: true
       });
-      const result = await supabase.auth.signInWithPassword({ email: normalizedEmail, password, options: captchaToken ? { captchaToken } : undefined });
+      const result = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
       if (result.error) throw result.error;
 
       // Success: clear the DB lock and counter so the next session starts clean.

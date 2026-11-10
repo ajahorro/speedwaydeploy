@@ -8,8 +8,6 @@ const { isValidEmail, isValidPhPhone, normalizePhPhone, normalizeEmail } = requi
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
 require('dotenv').config();
-// Error alerts: crashes and failed requests are reported to Sentry once SENTRY_DSN is set (no personal data is sent).
-if (process.env.SENTRY_DSN) require('@sentry/node').init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV || 'production', sendDefaultPii: false, tracesSampleRate: 0 });
 
 const { normalizeStatus, shouldRestoreGraceWindow } = require('./noShowRestoreLogic');
 const { blockedSlotsOverlap, blockWindow } = require('./services/blockedSlotRules');
@@ -4150,20 +4148,6 @@ const shopInboxEmail = async () => {
   return EMAIL_PATTERN.test(fromEnv) ? fromEnv : null;
 };
 
-// Cloudflare Turnstile bot check: only enforced once TURNSTILE_SECRET_KEY is set. If Cloudflare cannot be reached the
-// message is let through (the rate limit and hidden field still apply).
-const passesTurnstile = async (token, ip) => {
-  if (!process.env.TURNSTILE_SECRET_KEY) return true;
-  if (!token) return false;
-  try {
-    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      method: 'POST', signal: AbortSignal.timeout(5000),
-      body: new URLSearchParams({ secret: process.env.TURNSTILE_SECRET_KEY, response: String(token), remoteip: ip }),
-    });
-    return Boolean((await r.json()).success);
-  } catch { return true; }
-};
-
 app.post('/api/public/inquiry', async (req, res) => {
   if (!supabaseAdmin) return res.status(500).json({ success: false, error: 'The service is not available right now.' });
   // a hidden field real visitors never fill in: bots do. Answer as if it worked.
@@ -4180,7 +4164,6 @@ app.post('/api/public/inquiry', async (req, res) => {
   if (message.length < 5) return res.status(400).json({ success: false, error: 'Please write your question.' });
 
   const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() || 'unknown';
-  if (!(await passesTurnstile(req.body?.captcha, ip))) return res.status(400).json({ success: false, error: 'Please complete the security check and try again.' });
   if (tooManyGuestInquiries(`ip:${ip}`, 5, 3600000) || tooManyGuestInquiries(`email:${email}`, 5, 86400000)) {
     return res.status(429).json({ success: false, error: 'You have sent several messages already. Please wait a while before writing again.' });
   }
