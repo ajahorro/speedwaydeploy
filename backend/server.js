@@ -2082,7 +2082,8 @@ app.post('/api/auth/confirm-password-change', async (req, res) => {
     const { data: claimedRequest, error: claimError } = await supabaseAdmin.from('password_confirmation_requests').update({ consumed_at: new Date().toISOString() }).eq('id', request.id).is('consumed_at', null).select('id').maybeSingle();
     if (claimError) throw claimError;
     if (!claimedRequest) return res.status(400).json({ success: false, error: 'This confirmation link is expired or invalid.' });
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(request.user_id, { password });
+    // a password set from an emailed link also proves the inbox is theirs, so an unconfirmed sign-up becomes confirmed
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(request.user_id, request.purpose === 'UPDATE' ? { password } : { password, email_confirm: true });
     if (updateError) throw updateError;
     await supabaseAdmin.from('password_confirmation_requests').update({ password_ciphertext: null, password_iv: null, password_tag: null }).eq('id', request.id);
     // they chose this password themselves (an invitation link or Forgot password), so no first-sign-in change is needed
@@ -2791,7 +2792,7 @@ app.post('/api/auth/emergency-recovery/verify', async (req, res) => {
     if (!claimed) return res.status(400).json({ success: false, error: 'The recovery code is incorrect or has expired.' });
 
     // 1. Apply the new password directly (the caller has proven ownership).
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(challenge.user_id, { password: newPassword });
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(challenge.user_id, { password: newPassword, email_confirm: true });
     if (updateError) throw updateError;
 
     // 2. Clear the DB lock and the first-login flag so the user can sign in.

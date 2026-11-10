@@ -306,6 +306,12 @@ export const AuthProvider = ({ children }) => {
       // escalation that emails a security notice + password-reset link and holds
       // the account for an hour. The wording here must match what the RPC
       // actually did, because this string is the only thing the user sees.
+      // The right password on an account whose email was never confirmed: say so, and do not count it as a
+      // wrong password (it used to show "Invalid login credentials" and move the account toward a lock).
+      if (authError?.code === 'email_not_confirmed' || /not confirmed/i.test(authError?.message || '')) {
+        return { data: { user: null }, error: new Error('This account’s email is not confirmed yet. Open the confirmation link we emailed when you signed up, or use Forgot Password: setting a new password from the emailed link also confirms the account.') };
+      }
+
       let failureError = new Error('Invalid login credentials.');
       if (lockoutAvailable) {
         try {
