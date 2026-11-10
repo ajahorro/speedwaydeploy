@@ -5,8 +5,7 @@ import { subscribeTables } from '../../lib/realtimeHub';
 import { useAuth } from '../../hooks/useAuth';
 import {
   ArrowLeft, Clock, Car, ShieldCheck,
-  CreditCard, FileText, MessageCircle, ChevronRight, AlertCircle, Package, Printer, CheckCircle2, X
-} from 'lucide-react';
+  CreditCard, FileText, MessageCircle, ChevronRight, AlertCircle, Package, Printer, CheckCircle2, X, CalendarPlus } from 'lucide-react';
 import toast from '@/lib/toast';
 import { cancelBooking, rescheduleBooking } from '../../services/bookingService';
 import { getStatusColor } from '../../utils/bookingHelpers';
@@ -39,6 +38,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TourLauncher } from '../../components/common/GuidedTour';
 import { signRows } from '../../lib/privateFiles';
+import { downloadCalendarEvent } from '../../utils/calendarFile';
 import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
 
 const CustomerBookingDetails = () => {
@@ -414,12 +414,24 @@ const CustomerBookingDetails = () => {
         <Button type="button" variant="outline" size="icon" onClick={() => navigate(-1)} aria-label="Go back"><ArrowLeft /></Button>
         <div>
           <div style={{ fontSize: '0.7rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Booking Reference</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '950', color: 'var(--admin-text-primary)', fontFamily: 'monospace' }}>#{id.substring(0, 8).toUpperCase()}</h1>
             <TourLauncher steps={CUSTOMER_TOURS.bookingDetails} label="How this booking page works" />
             {['confirmed', 'completed'].includes(booking.status) && (
               <Button data-tour="cbd-receipt" onClick={() => navigate(`/customer/receipt/${id}`)} variant="outline" size="sm" className="uppercase">
                 <Printer size={12} /> Print receipt
+              </Button>
+            )}
+            {booking.start_datetime && new Date(booking.start_datetime) > new Date() && !['cancelled', 'completed', 'no_show'].includes(String(booking.status || '').toLowerCase()) && (
+              <Button type="button" variant="outline" size="sm" className="uppercase" onClick={() => downloadCalendarEvent({
+                id,
+                title: `${settings?.BUSINESS_NAME || 'Comar Garage'} appointment`,
+                start: booking.start_datetime,
+                end: booking.end_datetime,
+                location: settings?.BUSINESS_ADDRESS || 'Comar Garage',
+                description: `Booking #${id.substring(0, 8).toUpperCase()}. ${window.location.origin}/customer/bookings/${id}`,
+              })}>
+                <CalendarPlus size={12} /> Add to calendar
               </Button>
             )}
           </div>

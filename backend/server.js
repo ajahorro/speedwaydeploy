@@ -175,6 +175,23 @@ app.use(cors({
   origin: (origin, done) => done(null, !origin || allowedOrigins.has(origin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)),
 }));
 
+// Request limits per address: account and sign-in actions allow 20 tries per 15 minutes each, file links 120 a
+// minute. A script hammering one of them gets "too many requests" instead of the server's time.
+const requestHits = new Map();
+const clientIp = (req) => String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() || 'unknown';
+const limitRequests = (max, windowMs) => (req, res, next) => {
+  const key = `${req.baseUrl}${req.path}|${clientIp(req)}`;
+  const now = Date.now();
+  const recent = (requestHits.get(key) || []).filter((t) => t > now - windowMs);
+  if (recent.length >= max) return res.status(429).json({ success: false, error: 'Too many attempts. Please wait a few minutes and try again.' });
+  recent.push(now);
+  requestHits.set(key, recent);
+  return next();
+};
+setInterval(() => { const cutoff = Date.now() - 15 * 60000; for (const [k, v] of requestHits) if (!v.some((t) => t > cutoff)) requestHits.delete(k); }, 5 * 60000).unref();
+app.use(['/api/auth', '/customer/register-invite', '/api/me/export'], limitRequests(20, 15 * 60000));
+app.use('/api/files/sign', limitRequests(120, 60000));
+
 // ── Server-Side In-Memory Response Cache ─────────────────────────────────────
 const serverCache = new Map();
 const getCachedResponse = (key) => {

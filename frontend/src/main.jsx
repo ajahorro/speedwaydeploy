@@ -89,6 +89,7 @@ const CustomerSettings = lazy(() => import('./pages/Customer/CustomerSettings'))
 const CustomerProfile = lazy(() => import('./pages/Customer/CustomerProfile'));
 const CustomerBookingDetails = lazy(() => import('./pages/Customer/CustomerBookingDetails'));
 const CustomerReceipt = lazy(() => import('./pages/Customer/CustomerReceipt'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 const PasswordConfirmation = lazy(() => import('./pages/PasswordConfirmation'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 import './index.css';
@@ -210,7 +211,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route path="chat" element={<AdminChat />} />
                   <Route path="notifications" element={<AdminNotifications />} />
                   <Route path="profile" element={<AdminProfile />} />
-                  <Route path="*" element={<div style={{ padding: '2rem' }}>Module under development</div>} />
+                  <Route path="*" element={<NotFound home="/admin" label="Back to the dashboard" inLayout />} />
                 </Route>
 
                 {/* Staff Routes */}
@@ -232,7 +233,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route path="notifications" element={<StaffNotifications />} />
                   <Route path="settings" element={<StaffSettings />} />
                   {/* an address that does not exist goes back to the technician's home, not a blank page */}
-                  <Route path="*" element={<Navigate to="/staff" replace />} />
+                  <Route path="*" element={<NotFound home="/staff" label="Back to the dashboard" inLayout />} />
                 </Route>
 
                 {/* Customer Routes */}
@@ -254,11 +255,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route path="settings" element={<CustomerSettings />} />
                   <Route path="profile" element={<CustomerProfile />} />
                   <Route path="receipt/:id" element={<CustomerReceipt />} />
-                  <Route path="*" element={<Navigate to="/customer" replace />} />
+                  <Route path="*" element={<NotFound home="/customer" label="Back to my dashboard" inLayout />} />
                 </Route>
 
-                {/* Any other address: the home page, never a blank screen. */}
-                <Route path="*" element={<Navigate to="/" replace />} />
+                {/* Any other address: a clear "page not found" with a way back, never a blank screen. */}
+                <Route path="*" element={<NotFound />} />
                 </Routes>
                 </Suspense>
                 {/* The one toast host (shadcn Sonner). Every toast.*() call goes through lib/toast.js, which

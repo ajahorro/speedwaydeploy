@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { HelpCircle, Bug, UserX, Download, LogOut } from 'lucide-react';
+import { HelpCircle, Bug, UserX, Download, LogOut, MonitorSmartphone } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import toast from '@/lib/toast';
@@ -131,6 +131,21 @@ const AppMetadataFooter = ({ role = 'customer' }) => {
     }
   };
 
+  // Recent sign-ins: this account's active sessions (device, address, last used), from the database.
+  const [signIns, setSignIns] = useState(null);
+  const openSignIns = async () => {
+    setSignIns([]);
+    const { data, error } = await supabase.rpc('my_sign_ins');
+    if (error) { setSignIns(null); toast.error('Your sign-ins could not be loaded.'); return; }
+    setSignIns(data || []);
+  };
+  const deviceName = (ua) => {
+    const os = /iPhone|iPad/.test(ua) ? 'iPhone or iPad' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Unknown device';
+    const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Chrome\//.test(ua) ? 'Chrome' : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+    return `${browser} on ${os}`;
+  };
+  const when = (iso) => new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+
   // Ends every session of this account (other phones and computers too), then this one.
   const handleSignOutEverywhere = () => openModal({
     title: 'Sign out of all devices?',
@@ -170,6 +185,12 @@ const AppMetadataFooter = ({ role = 'customer' }) => {
         </SettingRow>
       )}
 
+      <SettingRow title="Recent Sign-ins" subtitle="See the phones and computers signed in to this account.">
+        <SettingButton onClick={openSignIns}>
+          <MonitorSmartphone size={14} /> View
+        </SettingButton>
+      </SettingRow>
+
       <SettingRow title="Sign Out of All Devices" subtitle="Use this if you lost a phone or signed in on someone else's computer.">
         <SettingButton onClick={handleSignOutEverywhere}>
           <LogOut size={14} /> Sign out everywhere
@@ -201,6 +222,30 @@ const AppMetadataFooter = ({ role = 'customer' }) => {
           ))}
         </div>
       </LegalReaderDialog>
+
+      <Dialog open={signIns !== null} onOpenChange={(next) => { if (!next) setSignIns(null); }}>
+        <DialogContent className="ui-root sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Recent Sign-ins</DialogTitle>
+            <DialogDescription>Devices signed in to this account. If you don't recognize one, use Sign Out of All Devices and change your password.</DialogDescription>
+          </DialogHeader>
+          <ul className="grid gap-2" aria-live="polite">
+            {(signIns || []).length === 0 && <li className="text-sm text-muted-foreground">Loading…</li>}
+            {(signIns || []).map((s, i) => (
+              <li key={i} className="grid gap-0.5 rounded-[2px] border p-3">
+                <span className="flex flex-wrap items-center gap-2 text-sm font-bold">
+                  {deviceName(s.device || '')}
+                  {s.is_current && <span className="rounded-[2px] bg-primary px-1.5 py-0.5 text-[0.65rem] font-black uppercase text-primary-foreground">This device</span>}
+                </span>
+                <span className="text-xs text-muted-foreground">Last used {when(s.last_active)} · Signed in {when(s.signed_in_at)}{s.ip ? ` · ${s.ip}` : ''}</span>
+              </li>
+            ))}
+          </ul>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setSignIns(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={reportOpen} onOpenChange={(next) => { if (!filing) setReportOpen(next); }}>
         <DialogContent className="ui-root sm:max-w-md">
