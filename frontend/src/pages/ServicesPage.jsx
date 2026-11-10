@@ -337,7 +337,7 @@ export default function ServicesPage() {
 }
 
 const SERVICES_CSS = `
-.sp-page { --sp-bg:#0A0B0D; --sp-card:#15171A; --sp-line:rgba(255,255,255,.09); --sp-muted:rgba(255,255,255,.62); --sp-red:#C41F2B;
+.sp-page { --sp-bg:#0A0B0D; --sp-card:#15171A; --sp-line:rgba(255,255,255,.09); --sp-muted:rgba(255,255,255,.62); --sp-red:#C41F2B; --sp-red-text:#FF5A66;
   background:var(--sp-bg); color:#fff; min-height:100vh; display:flex; flex-direction:column; }
 .sp-container { width:100%; max-width:1140px; margin:0 auto; padding:0 clamp(1rem,4vw,1.5rem); box-sizing:border-box; }
 
@@ -348,7 +348,7 @@ const SERVICES_CSS = `
 .sp-nav { display:flex; gap:clamp(1.2rem,2.2vw,2.5rem); }
 .sp-nav-link { background:none; border:0; color:rgba(255,255,255,.82); font-size:.8rem; font-weight:900; text-transform:uppercase;
   letter-spacing:1px; cursor:pointer; padding:.5rem 0; }
-.sp-nav-link:hover, .sp-nav-link.is-active { color:var(--sp-red); }
+.sp-nav-link:hover, .sp-nav-link.is-active { color:var(--sp-red-text); }
 .sp-actions { flex:1; display:flex; justify-content:flex-end; }
 .sp-menu-btn { display:none; align-items:center; justify-content:center; width:42px; height:42px; border-radius:2px; cursor:pointer;
   background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); color:#fff; }
@@ -361,7 +361,7 @@ const SERVICES_CSS = `
   background:radial-gradient(ellipse at 50% 15%, rgba(196,31,43,.16) 0%, transparent 70%); }
 .sp-hero h1 { font-size:clamp(1.9rem,5vw,3rem); font-weight:950; text-transform:uppercase; margin:0 0 .75rem; letter-spacing:.5px; }
 .sp-hero p { max-width:600px; margin:0 auto 1.75rem; color:var(--sp-muted); font-size:.95rem; line-height:1.6; }
-.sp-back { display:inline-flex; align-items:center; gap:.4rem; background:none; border:0; color:var(--sp-red); font-size:.78rem;
+.sp-back { display:inline-flex; align-items:center; gap:.4rem; background:none; border:0; color:var(--sp-red-text); font-size:.78rem;
   font-weight:800; text-transform:uppercase; letter-spacing:.5px; cursor:pointer; margin-bottom:1rem; }
 .sp-search { position:relative; max-width:520px; margin:0 auto; display:flex; align-items:center; }
 .sp-search > svg { position:absolute; left:1rem; opacity:.5; pointer-events:none; }
@@ -411,7 +411,7 @@ const SERVICES_CSS = `
 .sp-price { font-weight:950; font-size:1.05rem; color:#fff; }
 .sp-time { display:inline-flex; align-items:center; gap:.3rem; font-size:.75rem; font-weight:700; color:rgba(255,255,255,.55); }
 .sp-card-more { display:inline-flex; align-items:center; gap:.2rem; font-size:.72rem; font-weight:900; text-transform:uppercase;
-  letter-spacing:.8px; color:var(--sp-red); }
+  letter-spacing:.8px; color:var(--sp-red-text); }
 
 .sp-pager { display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-top:2.5rem; }
 .sp-results-head { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1.5rem; }

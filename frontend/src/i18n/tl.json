@@ -3840,5 +3840,19 @@
  "Use this if you lost a phone or signed in on someone else's computer.": "Gamitin ito kung nawala ang iyong phone o nag-sign in ka sa computer ng iba.",
  "Sign out everywhere": "Mag-sign out sa lahat",
  "Sign out of all devices?": "Mag-sign out sa lahat ng device?",
- "You will be signed out here and on every other phone or computer using this account.": "Masa-sign out ka rito at sa bawat phone o computer na gumagamit ng account na ito."
+ "You will be signed out here and on every other phone or computer using this account.": "Masa-sign out ka rito at sa bawat phone o computer na gumagamit ng account na ito.",
+ "Error 404": "Error 404",
+ "This page doesn't exist": "Walang ganitong pahina",
+ "The link may be mistyped or the page may have moved.": "Maaaring mali ang pagkaka-type ng link o nailipat na ang pahina.",
+ "Go to the home page": "Pumunta sa home page",
+ "Back to the dashboard": "Bumalik sa dashboard",
+ "Back to my dashboard": "Bumalik sa aking dashboard",
+ "Recent Sign-ins": "Mga Kamakailang Pag-sign In",
+ "See the phones and computers signed in to this account.": "Tingnan ang mga phone at computer na naka-sign in sa account na ito.",
+ "Devices signed in to this account. If you don't recognize one, use Sign Out of All Devices and change your password.": "Mga device na naka-sign in sa account na ito. Kung may hindi mo kilala, gamitin ang Mag-sign Out sa Lahat ng Device at palitan ang iyong password.",
+ "This device": "Ang device na ito",
+ "Add to calendar": "Idagdag sa kalendaryo",
+ "Skip to main content": "Lumaktaw sa pangunahing nilalaman",
+ "Attachment": "Attachment",
+ "Too many attempts. Please wait a few minutes and try again.": "Masyadong maraming pagsubok. Maghintay ng ilang minuto at subukan ulit."
 }

@@ -33,7 +33,6 @@ const AuthHeader = ({ mode, email, staff = false }) => {
       </h1>
       <p style={{
         color: 'var(--admin-text-secondary)',
-        opacity: 0.6,
         marginTop: '0.6rem',
         fontSize: '0.85rem',
         fontWeight: '600'

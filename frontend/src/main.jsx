@@ -161,6 +161,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                     fail-closed, so surfacing an unreachable scheduling server
                     BEFORE the user fills in the wizard (instead of a scary
                     console refusal at submit time) is the right UX. */}
+                {/* Keyboard and screen-reader users can jump past the menus straight to the page content. */}
+                <a href="#main" className="skip-link" onClick={(e) => { const m = document.querySelector('main, section, form'); if (!m) return; e.preventDefault(); m.tabIndex = -1; m.focus(); }}>Skip to main content</a>
                 <Suspense fallback={<LoadingState message="Loading..." />}>
                 <Routes>
                 {/* Public Routes */}

@@ -733,3 +733,8 @@ div[style*="position: fixed"][style*="inset: 0"][style*="align-items: center"] {
   overflow-y: auto !important;
   align-items: safe center !important;
 }
+
+/* "Skip to main content": hidden until a keyboard user tabs to it. */
+.skip-link { position: fixed; left: 1rem; top: -4rem; z-index: 100001; padding: 0.6rem 1rem; border-radius: 2px;
+  background: #C41F2B; color: #fff; font-weight: 800; text-decoration: none; }
+.skip-link:focus { top: 1rem; outline: 2px solid #fff; outline-offset: 2px; }

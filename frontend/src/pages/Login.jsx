@@ -152,7 +152,7 @@ const Login = ({ isModal = false, onClose, next, initialMode, audience = 'custom
               <p style={{ margin: '1.25rem 0 0', textAlign: 'center', fontSize: '0.8rem', fontWeight: 700 }}>
                 {wrongPage === 'staff'
                   ? <Link to="/staff/login" className="text-primary">Go to the staff sign-in</Link>
-                  : <Link to="/login" className="text-primary">Customer? Sign in here</Link>}
+                  : <Link to="/login" className={staff ? 'text-[#ff5a66]' : 'text-primary'}>Customer? Sign in here</Link>}
               </p>
             )}
           </>
