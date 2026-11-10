@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import usePolicyReader from '../legal/usePolicyReader';
+import Turnstile, { captchaEnabled } from '../../components/auth/Turnstile';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 /**
@@ -134,6 +135,8 @@ export function ContactCards({ items }) {
 export function ContactForm() {
   const [values, setValues] = useState({ name: '', email: '', message: '', website: '' });
   const [status, setStatus] = useState({ state: 'idle', text: '' });
+  const [captcha, setCaptcha] = useState('');
+  const [captchaKey, setCaptchaKey] = useState(0);
   const set = (key) => (event) => setValues((prev) => ({ ...prev, [key]: event.target.value }));
 
   const submit = async (event) => {
@@ -144,13 +147,15 @@ export function ContactForm() {
       const response = await fetch(`${BACKEND_URL}/api/public/inquiry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values)
+        body: JSON.stringify({ ...values, captcha })
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !body.success) throw new Error(body.error || 'Your message could not be sent. Please try again.');
       setValues({ name: '', email: '', message: '', website: '' });
+      setCaptchaKey((k) => k + 1);
       setStatus({ state: 'sent', text: 'Thank you! Your message was sent. We will reply to your email address.' });
     } catch (error) {
+      setCaptchaKey((k) => k + 1);
       setStatus({ state: 'error', text: error.message === 'Failed to fetch' ? 'The server could not be reached. Please try again in a moment.' : error.message });
     }
   };
@@ -190,7 +195,8 @@ export function ContactForm() {
           {status.text && (
             <p role={status.state === 'error' ? 'alert' : 'status'} className={`text-sm font-semibold ${status.state === 'error' ? 'text-destructive' : 'text-emerald-500'}`}>{status.text}</p>
           )}
-          <Button type="submit" size="lg" disabled={status.state === 'sending'} className="h-12 font-black uppercase tracking-wider">
+          <Turnstile onToken={setCaptcha} resetKey={captchaKey} />
+          <Button type="submit" size="lg" disabled={status.state === 'sending' || (captchaEnabled && !captcha)} className="h-12 font-black uppercase tracking-wider">
             {status.state === 'sending' ? 'Sending…' : 'Send message'}
           </Button>
         </form>

@@ -13,6 +13,7 @@ import {
 import Login from './Login';
 import { useAuth } from '../hooks/useAuth';
 import { useConfig } from '../context/ConfigContext';
+import useBusinessSchema from '../features/landing/useBusinessSchema';
 import { getServiceCatalog } from '../data/servicesCatalog';
 import AboutGallery from '../features/site-content/AboutGallery';
 import ShopMap from '../features/site-content/ShopMap';
@@ -76,6 +77,7 @@ const Landing = () => {
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const { user, profile, signOut, isInitialized, loading: authLoading } = useAuth();
   const { settings } = useConfig();
+  useBusinessSchema(settings);
   const navigate = useNavigate();
   const location = useLocation();
   const authActionPending = Boolean(user && (!isInitialized || authLoading));

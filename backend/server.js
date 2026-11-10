@@ -8,6 +8,8 @@ const { isValidEmail, isValidPhPhone, normalizePhPhone, normalizeEmail } = requi
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
 require('dotenv').config();
+// Error alerts: crashes and failed requests are reported to Sentry once SENTRY_DSN is set (no personal data is sent).
+if (process.env.SENTRY_DSN) require('@sentry/node').init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV || 'production', sendDefaultPii: false, tracesSampleRate: 0 });
 
 const { normalizeStatus, shouldRestoreGraceWindow } = require('./noShowRestoreLogic');
 const { blockedSlotsOverlap, blockWindow } = require('./services/blockedSlotRules');
@@ -151,11 +153,29 @@ const decryptPendingPassword = ({ ciphertext, iv, tag }) => {
   return Buffer.concat([decipher.update(Buffer.from(ciphertext, 'base64url')), decipher.final()]).toString('utf8');
 };
 
+// Refuses a password that appears in known data breaches (Have I Been Pwned, k-anonymity: only the first 5
+// characters of its SHA-1 hash leave the server). If the service cannot be reached the password is allowed.
+const BREACHED_PASSWORD_ERROR = 'This password has appeared in a data breach and is not safe to use. Please choose a different one.';
+const isBreachedPassword = async (password) => {
+  try {
+    const hash = crypto.createHash('sha1').update(String(password)).digest('hex').toUpperCase();
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${hash.slice(0, 5)}`, { headers: { 'Add-Padding': 'true' }, signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return false;
+    return (await res.text()).split('\n').some((line) => { const [suffix, count] = line.trim().split(':'); return suffix === hash.slice(5) && Number(count) > 0; });
+  } catch { return false; }
+};
+
 const hashConfirmationToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 const app = express();
 app.use(compression({ threshold: 1024 }));
-app.use(cors());
+// Browsers may call this API only from the shop's own website (plus local development). Requests with no Origin
+// (server-to-server calls, scheduled jobs, links opened from email) are unaffected.
+const allowedOrigins = new Set(['https://comargarage.com', 'https://www.comargarage.com',
+  ...String(process.env.FRONTEND_URL || '').split(',').map((u) => u.trim().replace(/\/+$/, '')).filter(Boolean)]);
+app.use(cors({
+  origin: (origin, done) => done(null, !origin || allowedOrigins.has(origin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)),
+}));
 
 // ── Server-Side In-Memory Response Cache ─────────────────────────────────────
 const serverCache = new Map();
@@ -886,6 +906,7 @@ app.post('/customer/register-invite', async (req, res) => {
     if (!first || !last) return res.status(400).json({ error: 'First and last name are required.' });
     if (!isValidPhPhone(phoneNumber)) return res.status(400).json({ error: 'Enter an 11-digit mobile number starting with 09 (for example 09123456789).' });
     if (typeof password !== 'string' || password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+    if (await isBreachedPassword(password)) return res.status(400).json({ error: BREACHED_PASSWORD_ERROR });
 
     const { data: invite } = await supabaseAdmin
       .from('guest_registration_invites')
@@ -1720,6 +1741,32 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
  * 🛡️ REQ-NFR-31: Password Verification Challenge
  * Allows frontend to verify current password before sensitive updates
  */
+// "Download my data": a signed-in customer gets everything the shop holds about them as one JSON file.
+app.get('/api/me/export', async (req, res) => {
+  const actor = await getAuthenticatedActor(req);
+  if (!actor) return res.status(401).json({ success: false, error: 'Please sign in again.' });
+  const id = actor.profile.id;
+  try {
+    const pick = async (q) => { const { data, error } = await q; if (error) throw error; return data || []; };
+    const [profile, vehicles, bookings, messages, credit, notifications] = await Promise.all([
+      pick(supabaseAdmin.from('profiles').select('*').eq('id', id)),
+      pick(supabaseAdmin.from('vehicles').select('*').eq('owner_id', id)),
+      pick(supabaseAdmin.from('bookings').select('*, booking_vehicles(*)').eq('customer_id', id)),
+      pick(supabaseAdmin.from('booking_messages').select('booking_id, sender_id, message, message_text, media_url, created_at').eq('customer_id', id)),
+      pick(supabaseAdmin.from('customer_credit_ledger').select('*').eq('customer_id', id)),
+      pick(supabaseAdmin.from('notifications').select('title, message, notification_type, is_read, created_at').eq('user_id', id)),
+    ]);
+    const bookingIds = bookings.map((b) => b.id);
+    const payments = bookingIds.length ? await pick(supabaseAdmin.from('payments').select('*').in('booking_id', bookingIds)) : [];
+    res.setHeader('Content-Disposition', `attachment; filename="comar-garage-my-data-${new Date().toISOString().slice(0, 10)}.json"`);
+    return res.json({ exported_at: new Date().toISOString(), account: { email: actor.user.email, created_at: actor.user.created_at, last_sign_in_at: actor.user.last_sign_in_at },
+      profile: profile[0] || null, vehicles, bookings, payments, messages, credit_history: credit, notifications });
+  } catch (err) {
+    console.error('Data export failed:', err.message);
+    return res.status(500).json({ success: false, error: 'Your data could not be prepared. Please try again.' });
+  }
+});
+
 app.post('/api/auth/verify-password', async (req, res) => {
   if (!supabaseAdmin) return res.status(503).json({ success: false, error: 'Admin service unavailable' });
   // only the signed-in owner checks their own password, so this cannot be used to guess other accounts' passwords
@@ -1885,6 +1932,7 @@ const createPasswordConfirmationRequest = async ({ userId, email, purpose, newPa
 app.post('/api/auth/request-password-change', async (req, res) => {
   const { email, currentPassword, newPassword } = req.body;
   if (!email || !currentPassword || !newPassword) return res.status(400).json({ success: false, error: 'All password fields are required.' });
+  if (await isBreachedPassword(newPassword)) return res.status(400).json({ success: false, error: BREACHED_PASSWORD_ERROR });
   try {
     const { error: verifyError } = await supabaseAdmin.auth.signInWithPassword({ email, password: currentPassword });
     if (verifyError) return res.status(401).json({ success: false, error: 'Invalid current password.' });
@@ -1973,6 +2021,7 @@ app.post('/api/auth/confirm-password-change', async (req, res) => {
     if (!request) return res.status(400).json({ success: false, error: 'This confirmation link is expired or invalid.' });
     const password = request.purpose === 'UPDATE' ? decryptPendingPassword(request) : newPassword;
     if (!password || password.length < 6) return res.status(400).json({ success: false, error: 'A password of at least 6 characters is required.' });
+    if (request.purpose !== 'UPDATE' && await isBreachedPassword(password)) return res.status(400).json({ success: false, error: BREACHED_PASSWORD_ERROR });
     const { data: claimedRequest, error: claimError } = await supabaseAdmin.from('password_confirmation_requests').update({ consumed_at: new Date().toISOString() }).eq('id', request.id).is('consumed_at', null).select('id').maybeSingle();
     if (claimError) throw claimError;
     if (!claimedRequest) return res.status(400).json({ success: false, error: 'This confirmation link is expired or invalid.' });
@@ -2658,6 +2707,7 @@ app.post('/api/auth/emergency-recovery/verify', async (req, res) => {
   if (typeof newPassword !== 'string' || newPassword.length < 6) {
     return res.status(400).json({ success: false, error: 'A new password of at least 6 characters is required.' });
   }
+  if (await isBreachedPassword(newPassword)) return res.status(400).json({ success: false, error: BREACHED_PASSWORD_ERROR });
 
   try {
     await supabaseAdmin.from('account_recovery_otps').delete().lte('expires_at', new Date().toISOString());
@@ -4100,6 +4150,20 @@ const shopInboxEmail = async () => {
   return EMAIL_PATTERN.test(fromEnv) ? fromEnv : null;
 };
 
+// Cloudflare Turnstile bot check: only enforced once TURNSTILE_SECRET_KEY is set. If Cloudflare cannot be reached the
+// message is let through (the rate limit and hidden field still apply).
+const passesTurnstile = async (token, ip) => {
+  if (!process.env.TURNSTILE_SECRET_KEY) return true;
+  if (!token) return false;
+  try {
+    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST', signal: AbortSignal.timeout(5000),
+      body: new URLSearchParams({ secret: process.env.TURNSTILE_SECRET_KEY, response: String(token), remoteip: ip }),
+    });
+    return Boolean((await r.json()).success);
+  } catch { return true; }
+};
+
 app.post('/api/public/inquiry', async (req, res) => {
   if (!supabaseAdmin) return res.status(500).json({ success: false, error: 'The service is not available right now.' });
   // a hidden field real visitors never fill in: bots do. Answer as if it worked.
@@ -4116,6 +4180,7 @@ app.post('/api/public/inquiry', async (req, res) => {
   if (message.length < 5) return res.status(400).json({ success: false, error: 'Please write your question.' });
 
   const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() || 'unknown';
+  if (!(await passesTurnstile(req.body?.captcha, ip))) return res.status(400).json({ success: false, error: 'Please complete the security check and try again.' });
   if (tooManyGuestInquiries(`ip:${ip}`, 5, 3600000) || tooManyGuestInquiries(`email:${email}`, 5, 86400000)) {
     return res.status(429).json({ success: false, error: 'You have sent several messages already. Please wait a while before writing again.' });
   }

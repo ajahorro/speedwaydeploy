@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { HelpCircle, Bug, UserX } from 'lucide-react';
+import { HelpCircle, Bug, UserX, Download, LogOut } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import toast from '@/lib/toast';
 import { BACKEND_URL, authHeaders } from '../../config/api';
@@ -46,7 +47,7 @@ const sendSupportReport = async ({ kind, message, elapsedMs, website = '' }) => 
 
 const AppMetadataFooter = ({ role = 'customer' }) => {
   const { openModal } = useUI();
-  const { deactivateAccount } = useAuth();
+  const { deactivateAccount, signOut } = useAuth();
   const { settings } = useConfig();
   const [filing, setFiling] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
@@ -113,6 +114,36 @@ const AppMetadataFooter = ({ role = 'customer' }) => {
     },
   });
 
+  // Everything the shop holds about this customer, as one file they can keep.
+  const handleDownloadData = async () => {
+    setFiling(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/me/export`, { headers: await authHeaders() });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Your data could not be prepared.');
+      const url = URL.createObjectURL(await res.blob());
+      const a = Object.assign(document.createElement('a'), { href: url, download: `comar-garage-my-data-${new Date().toISOString().slice(0, 10)}.json` });
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setFiling(false);
+    }
+  };
+
+  // Ends every session of this account (other phones and computers too), then this one.
+  const handleSignOutEverywhere = () => openModal({
+    title: 'Sign out of all devices?',
+    message: 'You will be signed out here and on every other phone or computer using this account.',
+    type: 'danger',
+    confirmText: 'Sign out everywhere',
+    cancelText: 'Cancel',
+    onConfirm: async () => {
+      await supabase.auth.signOut({ scope: 'global' }).catch(() => {});
+      signOut(role === 'customer' ? '/' : '/staff/login');
+    },
+  });
+
   return (
     <SettingsSection title="About & Support">
       <SettingRow title="App Version">
@@ -128,6 +159,20 @@ const AppMetadataFooter = ({ role = 'customer' }) => {
       <SettingRow title="Report an Issue" subtitle="Tell our team about a problem you encountered.">
         <SettingButton onClick={() => { setOpenedAt(Date.now()); setTrap(''); setReportOpen(true); }} disabled={filing}>
           <Bug size={14} /> Report
+        </SettingButton>
+      </SettingRow>
+
+      {showDeletion && (
+        <SettingRow title="Download My Data" subtitle="Get a copy of your profile, vehicles, bookings and payments.">
+          <SettingButton onClick={handleDownloadData} disabled={filing}>
+            <Download size={14} /> Download
+          </SettingButton>
+        </SettingRow>
+      )}
+
+      <SettingRow title="Sign Out of All Devices" subtitle="Use this if you lost a phone or signed in on someone else's computer.">
+        <SettingButton onClick={handleSignOutEverywhere}>
+          <LogOut size={14} /> Sign out everywhere
         </SettingButton>
       </SettingRow>
 

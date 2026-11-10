@@ -3,6 +3,7 @@ import { Lock, ShieldAlert, CheckCircle2, Loader2, LogOut } from 'lucide-react';
 import toast from '@/lib/toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { BREACHED_PASSWORD_ERROR, isBreachedPassword } from '../../utils/breachedPassword';
 import PasswordInput from '../PasswordInput';
 
 /**
@@ -107,6 +108,11 @@ const MustChangePasswordGate = () => {
     }
 
     setIsSubmitting(true);
+    if (await isBreachedPassword(newPassword)) {
+      setIsSubmitting(false);
+      toast.error(BREACHED_PASSWORD_ERROR);
+      return;
+    }
     try {
       // 1. Update the password in Supabase Auth.
       const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });

@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /$
+Allow: /services
+Disallow: /admin
+Allow: /staff/login
+Disallow: /staff
+Disallow: /customer
+Disallow: /auth
+Disallow: /login
+
+Sitemap: https://comargarage.com/sitemap.xml

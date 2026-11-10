@@ -10,6 +10,7 @@ import { useMediaQuery } from '../hooks/useMediaQuery';
 import { X, Mail, ShieldCheck, CalendarDays, ClipboardList, Wallet } from 'lucide-react';
 import toast from '@/lib/toast';
 import { supabase } from '../lib/supabase';
+import Turnstile from '../components/auth/Turnstile';
 import { Link } from 'react-router-dom';
 
 /** audience 'staff' = /staff/login: technicians and administrators; no sign-up, invites or walk-in links. */
@@ -29,6 +30,8 @@ const Login = ({ isModal = false, onClose, next, initialMode, audience = 'custom
     completeEmergencyRecovery,
     loginError,
     wrongPage,
+    captchaKey,
+    setCaptchaToken,
     clearLoginError
   } = useAuthFlow({ next, audience });
 
@@ -269,6 +272,7 @@ const Login = ({ isModal = false, onClose, next, initialMode, audience = 'custom
           <div className="p-6 sm:p-10">
             <AuthHeader mode={mode} email={prefillEmail} staff={staff} />
             {renderForm()}
+            {(mode === 'LOGIN' || mode === 'REGISTER') && <Turnstile onToken={setCaptchaToken} resetKey={`${mode}-${captchaKey}`} />}
           </div>
         </div>
       ) : (
@@ -278,6 +282,7 @@ const Login = ({ isModal = false, onClose, next, initialMode, audience = 'custom
           )}
           <AuthHeader mode={mode} email={prefillEmail} staff={staff} />
           {renderForm()}
+            {(mode === 'LOGIN' || mode === 'REGISTER') && <Turnstile onToken={setCaptchaToken} resetKey={`${mode}-${captchaKey}`} />}
         </div>
       )}
       <style>{`

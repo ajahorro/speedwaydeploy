@@ -1,0 +1,14 @@
+{
+  "name": "Comar Garage",
+  "short_name": "Comar Garage",
+  "description": "Book your car wash and detailing, pay and follow your booking.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0B0C0E",
+  "theme_color": "#C41F2B",
+  "icons": [
+    { "src": "/favicon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/favicon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

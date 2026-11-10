@@ -140,6 +140,11 @@ console.warn = (...args) => {
 // a boot-time rejection is caught and surfaced rather than silently dropped.
 installGlobalErrorReporter();
 
+// Error alerts: errors customers and staff hit are reported to Sentry once VITE_SENTRY_DSN is set (loaded only then).
+if (import.meta.env.VITE_SENTRY_DSN) {
+  import('@sentry/react').then((Sentry) => Sentry.init({ dsn: import.meta.env.VITE_SENTRY_DSN, environment: import.meta.env.MODE, sendDefaultPii: false, tracesSampleRate: 0 })).catch(() => {});
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <ErrorBoundary>
     <ConfigProvider>
