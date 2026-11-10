@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, Bell } from 'lucide-react';
 import { NAV_ICONS, SidebarLink, SidebarButton } from '../../components/sidebar/SidebarNav';
@@ -10,7 +10,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../context/ThemeContext';
 import HeaderProfileDropdown from '../../components/common/HeaderProfileDropdown';
 import { confirmLogout } from '../../utils/logoutConfirm';
-import { isNotificationActionable, isRedundantStaffTechnicianAssignment } from '../../utils/notificationRouting';
+import { isRedundantStaffTechnicianAssignment } from '../../utils/notificationRouting';
+import NotificationPopover from '../../components/NotificationPopover';
 import TermsGate from '../../components/TermsGate';
 import LanguageGate from '../../components/LanguageGate';
 
@@ -27,6 +28,14 @@ const StaffLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const [isDesktopCollapsed, setIsDesktopCollapsed] = React.useState(() => localStorage.getItem('comar_sidebar_staff_collapsed') === 'true');
   const [unreadCount, setUnreadCount] = React.useState(0);
+  const [showNotifPopover, setShowNotifPopover] = useState(false);
+  const notifRef = useRef(null);
+  useEffect(() => {
+    if (!showNotifPopover) return undefined;
+    const close = (event) => { if (notifRef.current && !notifRef.current.contains(event.target) && !event.target.closest?.('.admin-header-icon')) setShowNotifPopover(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [showNotifPopover]);
   const userId = user?.id || profile?.id;
 
   const toggleSidebar = () => {
@@ -51,16 +60,12 @@ const StaffLayout = () => {
     try {
       const { data, error } = await supabase
         .from('notifications')
-        .select('notification_type, title, booking_id')
+        .select('notification_type, title, message, booking_id')
         .eq('user_id', userId)
         .eq('is_read', false);
       if (error) throw error;
-      setUnreadCount((data || []).filter((notification) =>
-        isNotificationActionable(notification)
-        && !isRedundantStaffTechnicianAssignment(notification)
-        && notification.notification_type !== 'MESSAGE_RECEIVED'
-        && !notification.title?.toLowerCase().includes('new message')
-      ).length);
+      // the same notifications the bell list shows (it hides only duplicate assignment alerts)
+      setUnreadCount((data || []).filter((n) => !isRedundantStaffTechnicianAssignment(n)).length);
     } catch {
       setUnreadCount(0);
     }
@@ -77,11 +82,13 @@ const StaffLayout = () => {
     };
 
     window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('notificationsRead', fetchUnreadCount);
 
     const stopRealtime = subscribeTable({ table: 'notifications', filter: `user_id=eq.${userId}` }, () => fetchUnreadCount());
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('notificationsRead', fetchUnreadCount);
       stopRealtime();
     };
   }, [userId, fetchUnreadCount]);
@@ -263,7 +270,7 @@ const StaffLayout = () => {
               </h2>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '1.25rem', flexWrap: 'nowrap', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '1.25rem', flexWrap: 'nowrap', flexShrink: 0, position: 'relative' }}>
             {/* 🟢 Header Status Badge */}
             <div style={{
               padding: isMobile ? '0.35rem 0.6rem' : '0.4rem 0.85rem', background: 'var(--admin-input-bg)',
@@ -285,8 +292,10 @@ const StaffLayout = () => {
             <button
               type="button"
               className="admin-header-icon"
-              onClick={() => navigate('/staff/notifications')}
+              onClick={() => setShowNotifPopover((open) => !open)}
               aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+              aria-expanded={showNotifPopover}
+              data-active={showNotifPopover || undefined}
             >
               <Bell size={18} strokeWidth={2.25} />
               {unreadCount > 0 && (
@@ -300,6 +309,12 @@ const StaffLayout = () => {
                 }}>{unreadCount > 99 ? '99+' : unreadCount}</span>
               )}
             </button>
+
+            {showNotifPopover && (
+              <div ref={notifRef}>
+                <NotificationPopover user={user} profile={profile} onClose={() => setShowNotifPopover(false)} onRead={fetchUnreadCount} />
+              </div>
+            )}
 
             {/* Shared identity menu — one component for every role portal. */}
             <HeaderProfileDropdown

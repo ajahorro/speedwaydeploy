@@ -196,7 +196,7 @@ const CustomerProfile = () => {
   const handleDeactivate = async () => {
     const res = await deactivateAccount();
     if (res.success) {
-      toast.success('Account deactivated. Sign in again any time to recover it.');
+      toast.success('Account deactivated. Sign in within 15 days to recover it.');
     } else {
       toast.error(res.error || 'Deactivation failed');
     }
@@ -394,7 +394,7 @@ const CustomerProfile = () => {
               <h2 className="text-base font-semibold">Account Actions</h2>
             </div>
             <p className="mb-5 text-sm text-muted-foreground">
-              Deactivating your account signs you out and hides it. Nothing is deleted. Sign in again any time to recover it.
+              Deactivating signs you out. Sign in again within 15 days to recover your account. After 15 days it is deleted permanently. The shop keeps your booking and payment records.
             </p>
             <Button type="button" variant="outline" onClick={() => setShowDeactivateModal(true)} className="w-full border-destructive/50 text-destructive hover:text-destructive">Deactivate Account</Button>
           </Card>
@@ -486,7 +486,7 @@ const CustomerProfile = () => {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-destructive"><AlertTriangle className="size-5" aria-hidden="true" />Confirm Account Deactivation</AlertDialogTitle>
             <AlertDialogDescription>
-              This will sign you out immediately. Your account and records are kept. Sign in again any time to recover your account.
+              This will sign you out immediately. Sign in again within 15 days to recover your account. After that it is deleted permanently. The shop keeps your booking and payment records.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { HelpCircle, Bug, Trash2 } from 'lucide-react';
+import { HelpCircle, Bug, UserX } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
 import toast from '@/lib/toast';
 import { BACKEND_URL, authHeaders } from '../../config/api';
 import { useUI } from '../../context/UIContext';
@@ -16,9 +17,9 @@ import { SettingsSection, SettingRow, SettingButton, SettingTag } from './Settin
  * APP METADATA & SUPPORT FOOTER.
  *  - Build version line.
  *  - Support: View FAQ (the same short scrolling reader as the policies) and Report an Issue.
- *  - Data compliance: Request Account Data Deletion (customers).
+ *  - Deactivate Account (customers): 15-day recovery, then permanent deletion.
  *
- * "Report an Issue" and "Request Account Data Deletion" are e-mailed to the developer support inbox by the server
+ * "Report an Issue" is e-mailed to the developer support inbox by the server
  * (with the sender's name, role and e-mail, so support can reply), which also keeps a record in the audit log.
  */
 
@@ -43,8 +44,9 @@ const sendSupportReport = async ({ kind, message, elapsedMs, website = '' }) => 
   }
 };
 
-const AppMetadataFooter = ({ onRequestDeletion = null, role = 'customer' }) => {
+const AppMetadataFooter = ({ role = 'customer' }) => {
   const { openModal } = useUI();
+  const { deactivateAccount } = useAuth();
   const { settings } = useConfig();
   const [filing, setFiling] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
@@ -94,31 +96,22 @@ const AppMetadataFooter = ({ onRequestDeletion = null, role = 'customer' }) => {
     }
   };
 
-  const handleRequestDeletion = () => {
-    // A dashboard may supply its own handler (e.g. the customer account
-    // deactivation grace-period flow). Fall back to sending a support request.
-    if (typeof onRequestDeletion === 'function') {
-      onRequestDeletion();
-      return;
-    }
-    openModal({
-      title: 'Request Account Data Deletion',
-      message: 'This raises a data-deletion request with our team. Your account and records are kept until our team reviews the request. Do you want to continue?',
-      type: 'danger',
-      confirmText: 'Request Deletion',
-      cancelText: 'Keep My Account',
-      onConfirm: async () => {
-        setFiling(true);
-        const result = await sendSupportReport({ kind: 'DELETION_REQUEST', message: 'Please delete my account data (request sent from Settings).' });
-        setFiling(false);
-        if (result.ok) {
-          toast.success('Data-deletion request received. Our team will process it shortly.');
-        } else {
-          toast.error(result.error || `The request could not be sent. Contact ${APP_METADATA.supportEmail} to confirm.`);
-        }
-      },
-    });
-  };
+  // Deactivating starts a 15-day recovery period; signing in again within it brings the account back,
+  // after that the account is deleted for good. The shop keeps its booking and payment records.
+  const handleDeactivate = () => openModal({
+    title: 'Deactivate account?',
+    message: 'You will be signed out right away. Sign in again within 15 days to recover your account. After 15 days it is deleted permanently. The shop keeps your booking and payment records.',
+    type: 'danger',
+    confirmText: 'Deactivate',
+    cancelText: 'Keep my account',
+    onConfirm: async () => {
+      setFiling(true);
+      const result = await deactivateAccount();
+      setFiling(false);
+      if (result?.success) toast.success('Account deactivated. Sign in within 15 days to recover it.');
+      else toast.error(result?.error || 'The account could not be deactivated.');
+    },
+  });
 
   return (
     <SettingsSection title="About & Support">
@@ -140,11 +133,11 @@ const AppMetadataFooter = ({ onRequestDeletion = null, role = 'customer' }) => {
 
       {showDeletion && (
         <SettingRow
-          title="Account Data Deletion"
-          subtitle="Request permanent removal of your personal data (15-day recovery window applies)."
+          title="Deactivate Account"
+          subtitle="Sign in again within 15 days to recover it. After that it is deleted permanently."
         >
-          <SettingButton variant="danger" onClick={handleRequestDeletion} disabled={filing}>
-            <Trash2 size={14} /> Request Deletion
+          <SettingButton variant="danger" onClick={handleDeactivate} disabled={filing}>
+            <UserX size={14} /> Deactivate
           </SettingButton>
         </SettingRow>
       )}

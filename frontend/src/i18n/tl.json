@@ -3821,5 +3821,12 @@
  "Deactivating your account signs you out and hides it. Nothing is deleted. Sign in again any time to recover it.": "Ang pag-deactivate ng iyong account ay magsa-sign out sa iyo at itatago ito. Walang binubura. Mag-sign in ulit anumang oras para maibalik ito.",
  "This will sign you out immediately. Your account and records are kept. Sign in again any time to recover your account.": "Masa-sign out ka agad. Nananatili ang iyong account at mga record. Mag-sign in ulit anumang oras para maibalik ang iyong account.",
  "Account deactivated. Sign in again any time to recover it.": "Na-deactivate ang account. Mag-sign in ulit anumang oras para maibalik ito.",
- "This account is deactivated. Would you like to recover and reactivate it?": "Naka-deactivate ang account na ito. Gusto mo bang ibalik at i-reactivate ito?"
+ "This account is deactivated. Would you like to recover and reactivate it?": "Naka-deactivate ang account na ito. Gusto mo bang ibalik at i-reactivate ito?",
+ "Sign in again within 15 days to recover it. After that it is deleted permanently.": "Mag-sign in ulit sa loob ng 15 araw para maibalik ito. Pagkatapos nito, permanente na itong mabubura.",
+ "Deactivate account?": "I-deactivate ang account?",
+ "You will be signed out right away. Sign in again within 15 days to recover your account. After 15 days it is deleted permanently. The shop keeps your booking and payment records.": "Masa-sign out ka agad. Mag-sign in ulit sa loob ng 15 araw para maibalik ang iyong account. Pagkalipas ng 15 araw, permanente na itong mabubura. Itatago ng shop ang iyong mga booking at bayad.",
+ "Keep my account": "Panatilihin ang account ko",
+ "Account deactivated. Sign in within 15 days to recover it.": "Na-deactivate ang account. Mag-sign in sa loob ng 15 araw para maibalik ito.",
+ "Deactivating signs you out. Sign in again within 15 days to recover your account. After 15 days it is deleted permanently. The shop keeps your booking and payment records.": "Masa-sign out ka kapag nag-deactivate. Mag-sign in ulit sa loob ng 15 araw para maibalik ang iyong account. Pagkalipas ng 15 araw, permanente na itong mabubura. Itatago ng shop ang iyong mga booking at bayad.",
+ "This will sign you out immediately. Sign in again within 15 days to recover your account. After that it is deleted permanently. The shop keeps your booking and payment records.": "Masa-sign out ka agad. Mag-sign in ulit sa loob ng 15 araw para maibalik ang iyong account. Pagkatapos nito, permanente na itong mabubura. Itatago ng shop ang iyong mga booking at bayad."
 }

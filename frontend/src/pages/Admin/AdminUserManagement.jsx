@@ -109,7 +109,7 @@ const AdminUserManagement = () => {
     const reactivate = target.is_active === false;
     if (!window.confirm(reactivate
       ? `Reactivate the account of ${name}? They will be able to sign in again.`
-      : `Deactivate the account of ${name}? They will not be able to sign in. Nothing is deleted, and you can reactivate it at any time.`)) return;
+      : `Deactivate the account of ${name}? They will not be able to sign in. You can reactivate it within 15 days; after that it is deleted permanently. The shop keeps its booking and payment records.`)) return;
     const toastId = toast.loading(reactivate ? `Reactivating ${name}...` : `Deactivating ${name}...`);
     try {
       const response = await fetch(`${BACKEND_URL}/api/admin/${reactivate ? 'reactivate-staff' : 'delete-account'}`, {

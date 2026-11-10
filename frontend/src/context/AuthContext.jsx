@@ -138,12 +138,17 @@ export const AuthProvider = ({ children }) => {
 
       if (data) {
         if (data.is_active === false) {
+          const daysLeft = 15 - Math.floor((Date.now() - new Date(data.deactivated_at)) / 86400000);
           if (String(data.role || '').toUpperCase() !== 'CUSTOMER' || data.staff_deactivated_at) {
             // staff, administrators, and customers deactivated by the shop can only be brought back by an administrator
             toast.error('This account is deactivated. Ask an administrator to reactivate it.');
-          } else if (window.confirm('This account is deactivated. Would you like to recover and reactivate it?')) {
-            const res = await recoverAccount(userId);
-            if (res.success) return; // fetchProfile will be called again inside recoverAccount
+          } else if (daysLeft > 0) {
+            if (window.confirm(`This account is deactivated and will be deleted in ${daysLeft} day(s). Recover it now?`)) {
+              const res = await recoverAccount(userId);
+              if (res.success) return; // fetchProfile will be called again inside recoverAccount
+            }
+          } else {
+            toast.error('This account is no longer available.');
           }
           await signOut();
           return;

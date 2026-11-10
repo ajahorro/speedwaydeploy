@@ -2849,6 +2849,7 @@ app.post('/api/admin/reactivate-staff', async (req, res) => {
     // Back to work with the same role; the database gives a fresh joined date and lifts the sign-in block.
     const { error } = await supabaseAdmin.rpc('reactivate_staff_account', { p_account_id: memberId });
     if (error) {
+      if (error.code === 'check_violation') return res.status(409).json({ success: false, error: 'The 15-day recovery period for this account has ended.' });
       throw error;
     }
 
@@ -2959,7 +2960,7 @@ app.post('/api/admin/revoke-access', async (req, res) => {
       actorId: actor.profile.id,
       actorName: actor.profile.full_name || actor.profile.email || 'ADMIN',
       actorRole: 'ADMIN',
-      details: `Account of ${profile.full_name} (${profile.email}) deactivated. It stays a ${String(profile.role || '').toLowerCase()} account and cannot sign in until an administrator reactivates it.`,
+      details: `Account of ${profile.full_name} (${profile.email}) deactivated. It stays a ${String(profile.role || '').toLowerCase()} account cannot sign in, and is deleted permanently if not reactivated within the recovery period.`,
     });
 
     return res.json({ success: true });
@@ -2968,7 +2969,8 @@ app.post('/api/admin/revoke-access', async (req, res) => {
   }
 });
 
-// Removing an account only deactivates it (any role). Nothing is deleted; an administrator can reactivate it later.
+// Removing an account deactivates it (any role). An administrator can reactivate it within 15 days; after that the
+// scheduled purge deletes it for good while the shop keeps its booking and payment records.
 app.post('/api/admin/delete-account', async (req, res) => {
   invalidateServerCache('admin:profiles');
   const actor = await requireAdmin(req);
@@ -2998,7 +3000,7 @@ app.post('/api/admin/delete-account', async (req, res) => {
     await writeAuditLog({
       actionType: 'DEACTIVATE_ACCOUNT', actorId: actor.profile.id,
       actorName: actor.profile.full_name || actor.profile.email || 'ADMIN', actorRole: 'ADMIN',
-      details: `Account of ${profile.full_name || 'Unnamed'} (${profile.email}) deactivated. It is kept and can be reactivated by an administrator.`,
+      details: `Account of ${profile.full_name || 'Unnamed'} (${profile.email}) deactivated. It is deleted permanently if not reactivated within 15 days.`,
     });
     return res.json({ success: true });
   } catch (err) {
@@ -3567,7 +3569,7 @@ app.post('/api/staff/update-preferences', async (req, res) => {
 });
 
 /**
- * 🛡️ REQ-ADM-14: Account Deactivation (kept, never deleted)
+ * 🛡️ REQ-ADM-14: Account Deactivation (15-Day Grace Period)
  * Marks account as INACTIVE instead of deleting immediately.
  */
 app.post('/api/auth/deactivate-account', async (req, res) => {
@@ -3682,13 +3684,13 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
       actorId: actor?.profile?.id || userId,
       actorName: profile.email || 'SYSTEM',
       actorRole: 'SECURITY',
-      details: `User ${userId} (${profile.email || 'unknown'}) deactivated. ${cancelledCount} upcoming booking(s) cancelled to free their slots. The account is kept and can be recovered by signing in again.`,
+      details: `User ${userId} (${profile.email || 'unknown'}) deactivated. ${cancelledCount} upcoming booking(s) cancelled to free their slots. Scheduled for deletion in 15 days.`,
     });
 
     return res.json({
       success: true,
       cancelledBookings: cancelledCount,
-      message: 'Account deactivated. Sign in again any time to recover it.'
+      message: 'Account deactivated. You have 15 days to recover it.'
     });
   } catch (err) {
     if (err.code === '23514' || /assigned to an active service/i.test(err.message || '')) {
@@ -4035,6 +4037,21 @@ const deactivateInactiveStaff = async () => {
 setInterval(deactivateInactiveStaff, 24 * 60 * 60000);
 setTimeout(deactivateInactiveStaff, 2 * 60000);
 
+
+// A deactivated account (customer, staff or admin) is deleted from the database for good once its recovery period
+// (15 days) has passed. The database function does the deletion and writes the audit entry.
+const purgeDeactivatedAccounts = async () => {
+  if (!supabaseAdmin) return;
+  try {
+    const { data, error } = await supabaseAdmin.rpc('purge_deactivated_accounts');
+    if (error) throw error;
+    if (Number(data) > 0) console.log(`🧹 [ACCOUNT PURGE] Permanently deleted ${data} deactivated account(s).`);
+  } catch (err) {
+    console.warn('🧹 [ACCOUNT PURGE] Sweep failed:', err.message);
+  }
+};
+setInterval(purgeDeactivatedAccounts, 6 * 60 * 60000);
+setTimeout(purgeDeactivatedAccounts, 3 * 60000);
 
 // Service photos past their retention period (archived, past the purge window, not on legal hold): the stored file
 // is removed first and the record second, so a failed removal is simply tried again on the next run.
