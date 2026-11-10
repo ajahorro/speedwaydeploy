@@ -1,6 +1,6 @@
 import { isAlphaNum } from '../config/constants.js';
 
-export const sanitizeQrAccountName = (value = '') => String(value ?? '').replace(/[^a-zA-Z\s]/g, '').replace(/\s+/g, ' ');
+export const sanitizeQrAccountName = (value = '') => String(value ?? '').replace(/[^\p{L}\p{M}\s]/gu, '').replace(/\s+/g, ' ');
 export const sanitizeQrAccountNumber = (value = '') => String(value ?? '').replace(/[^\d\s-]/g, '').replace(/\s+/g, ' ');
 
 export const QR_FIELDS = [
@@ -57,7 +57,7 @@ export const validateQrRecipients = (config = {}) => {
   const rawName = String(config.qr_account_name ?? '');
   if (!rawName.trim()) {
     missing.push('QR Account Name');
-  } else if (!/^[A-Za-z\s]+$/.test(rawName) || !rawName.replace(/\s+/g, ' ').trim()) {
+  } else if (!/^[\p{L}\p{M}\s]+$/u.test(rawName) || !rawName.replace(/\s+/g, ' ').trim()) {
     invalid.push('QR Account Name');
   }
 

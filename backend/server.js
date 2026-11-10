@@ -2410,8 +2410,8 @@ app.post('/api/admin/invite-account', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Role must be STAFF or ADMIN.' });
   }
   // Field-type sanitisation (Section 2.5, option b): names are plain text.
-  const safeFirst = String(firstName || '').replace(/[^a-zA-Z0-9\s'-]/g, '').trim();
-  const safeLast = String(lastName || '').replace(/[^a-zA-Z0-9\s'-]/g, '').trim();
+  const safeFirst = String(firstName || '').replace(/[^\p{L}\p{M}0-9\s'-]/gu, '').trim();
+  const safeLast = String(lastName || '').replace(/[^\p{L}\p{M}0-9\s'-]/gu, '').trim();
 
   try {
     // 1. Duplicate guard across auth.users AND profiles.

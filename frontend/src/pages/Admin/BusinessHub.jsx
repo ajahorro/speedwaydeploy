@@ -708,7 +708,7 @@ export default function BusinessHub() {
     };
 
     if (fieldTypeMap[field] === null) return raw;
-    if (field === 'qr_account_name') return raw.replace(/[^a-zA-Z\s]/g, '').replace(/\s+/g, ' ');
+    if (field === 'qr_account_name') return raw.replace(/[^\p{L}\p{M}\s]/gu, '').replace(/\s+/g, ' ');
     if (field === 'qr_account_number') return raw.replace(/[^\d\s-]/g, '').replace(/\s+/g, ' ');
     return sanitizeByFieldType(raw, fieldTypeMap[field] || 'alphaNum');
   };

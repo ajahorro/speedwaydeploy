@@ -417,7 +417,7 @@ const AdminAccountsManagement = () => {
                       type="text"
                       placeholder="e.g. Juan"
                       value={inviteForm.firstName}
-                      onChange={(e) => setInviteForm({...inviteForm, firstName: e.target.value.replace(/[^a-zA-Z0-9\s'-]/g, '')})}
+                      onChange={(e) => setInviteForm({...inviteForm, firstName: e.target.value.replace(/[^\p{L}\p{M}0-9\s'-]/gu, '')})}
                       style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', outline: 'none', fontWeight: '700' }}
                     />
                   </div>
@@ -430,7 +430,7 @@ const AdminAccountsManagement = () => {
                       type="text"
                       placeholder="e.g. Dela Cruz"
                       value={inviteForm.lastName}
-                      onChange={(e) => setInviteForm({...inviteForm, lastName: e.target.value.replace(/[^a-zA-Z0-9\s'-]/g, '')})}
+                      onChange={(e) => setInviteForm({...inviteForm, lastName: e.target.value.replace(/[^\p{L}\p{M}0-9\s'-]/gu, '')})}
                       style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', outline: 'none', fontWeight: '700' }}
                     />
                   </div>

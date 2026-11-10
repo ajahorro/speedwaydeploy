@@ -66,7 +66,7 @@ export const VEHICLE_TYPE_OPTIONS = [
 export const VEHICLE_TYPE_KEYS = VEHICLE_TYPE_OPTIONS.map((option) => option.value);
 
 export const sanitizeVehiclePlate = (value = '') => value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-export const sanitizeVehicleText = (value = '') => value.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ');
+export const sanitizeVehicleText = (value = '') => value.replace(/[^\p{L}\p{M}0-9 ]/gu, '').replace(/\s+/g, ' ');
 
 // ─── Task B: STRICT ALPHANUMERIC INPUT GUARD ─────────────────────────────────
 // Canonical allow-list: letters, digits and whitespace only (no special chars).
@@ -74,9 +74,9 @@ export const sanitizeVehicleText = (value = '') => value.replace(/[^a-zA-Z0-9 ]/
 // plate numbers) so a paste of `"><script>` or `₱1,000!!` can never land in the
 // DB. Sanitising and validating are intentionally separate: `sanitizeAlphaNum`
 // cleans on input; `isAlphaNum` gates submission.
-export const ALPHANUMERIC_PATTERN = /^[a-zA-Z0-9\s]+$/;
+export const ALPHANUMERIC_PATTERN = /^[\p{L}\p{M}0-9\s]+$/u; // letters include ñ, é and the like
 export const sanitizeAlphaNum = (value = '') =>
-  String(value).replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, ' ');
+  String(value).replace(/[^\p{L}\p{M}0-9\s]/gu, '').replace(/\s+/g, ' ');
 export const isAlphaNum = (value = '') =>
   ALPHANUMERIC_PATTERN.test(String(value).trim());
 
@@ -99,7 +99,7 @@ export const sanitizeCurrency = (value = '') => {
 };
 
 export const sanitizeAddress = (value = '') =>
-  stripDangerous(value).replace(/[^a-zA-Z0-9\s,.\-/#]/g, '').replace(/\s+/g, ' ');
+  stripDangerous(value).replace(/[^\p{L}\p{M}0-9\s,.\-/#]/gu, '').replace(/\s+/g, ' ');
 
 export const sanitizePhone = (value = '') => stripDangerous(value).replace(/\D/g, '').slice(0, 15);
 
@@ -118,7 +118,7 @@ export const toTitleCase = (value = '') =>
 // HTML-dangerous angle brackets/backtick/quote set first, so a `<script>` or
 // attribute-injection payload can never survive. Collapses runs of whitespace.
 export const sanitizeProse = (value = '') => {
-  const DISALLOWED = /[^a-zA-Z0-9\s?!,.;:()\-_@&%+/=#*\u20B1]/g;
+  const DISALLOWED = /[^\p{L}\p{M}0-9\s?!,.;:()\-_@&%+/=#*\u20B1]/gu;
   return stripDangerous(value).replace(DISALLOWED, '').replace(/\s+/g, ' ');
 };
 
