@@ -2842,14 +2842,13 @@ app.post('/api/admin/reactivate-staff', async (req, res) => {
       .eq('id', memberId)
       .maybeSingle();
     if (readError) throw readError;
-    if (!profile || profile.is_active !== false || !profile.staff_deactivated_at) {
+    if (!profile || profile.is_active !== false) {
       return res.status(409).json({ success: false, error: 'This account is not deactivated.' });
     }
 
     // Back to work with the same role; the database gives a fresh joined date and lifts the sign-in block.
     const { error } = await supabaseAdmin.rpc('reactivate_staff_account', { p_account_id: memberId });
     if (error) {
-      if (error.code === 'check_violation') return res.status(409).json({ success: false, error: 'The recovery period for this account has ended.' });
       throw error;
     }
 
@@ -2858,7 +2857,7 @@ app.post('/api/admin/reactivate-staff', async (req, res) => {
       actorId: actor.profile.id,
       actorName: actor.profile.full_name || actor.profile.email || 'ADMIN',
       actorRole: 'ADMIN',
-      details: `Staff account reactivated for ${profile.full_name || 'Unnamed'} (${profile.email}).`,
+      details: `Account reactivated for ${profile.full_name || 'Unnamed'} (${profile.email}).`,
     });
     return res.json({ success: true });
   } catch (err) {
@@ -2960,7 +2959,7 @@ app.post('/api/admin/revoke-access', async (req, res) => {
       actorId: actor.profile.id,
       actorName: actor.profile.full_name || actor.profile.email || 'ADMIN',
       actorRole: 'ADMIN',
-      details: `Account of ${profile.full_name} (${profile.email}) deactivated. It stays a ${String(profile.role || '').toLowerCase()} account, cannot sign in, and is deleted permanently if not reactivated within the recovery period.`,
+      details: `Account of ${profile.full_name} (${profile.email}) deactivated. It stays a ${String(profile.role || '').toLowerCase()} account and cannot sign in until an administrator reactivates it.`,
     });
 
     return res.json({ success: true });
@@ -2969,148 +2968,42 @@ app.post('/api/admin/revoke-access', async (req, res) => {
   }
 });
 
-// ─── Section 1.5: Permanent Account Deletion (Admin-Only) ──────────────────────
-// Completely removes an account (auth user + profile) and cleans up references
-// while preserving booking history and financial integrity.
-const permanentlyDeleteAccount = async (identifier, actor = null) => {
-  if (!supabaseAdmin) throw new Error('Database service unavailable');
-
-  const cleanId = String(identifier || '').trim();
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
-  const query = supabaseAdmin.from('profiles').select('*');
-  const { data: profile, error: readErr } = isUuid
-    ? await query.eq('id', cleanId).maybeSingle()
-    : await query.ilike('email', cleanId.toLowerCase()).maybeSingle();
-
-  if (readErr) throw readErr;
-
-  let targetId = profile?.id;
-  let targetEmail = profile?.email || (!isUuid ? cleanId.toLowerCase() : null);
-  let targetRole = profile?.role || 'UNKNOWN';
-  let targetName = profile?.full_name || cleanId;
-
-  // If not found in profiles, check auth.users directly
-  if (!profile) {
-    try {
-      const { data: authList } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      const authUser = (authList?.users || []).find((u) =>
-        u.id === cleanId || String(u.email || '').toLowerCase() === cleanId.toLowerCase()
-      );
-      if (authUser) {
-        targetId = authUser.id;
-        targetEmail = authUser.email;
-        targetRole = authUser.user_metadata?.role || 'CUSTOMER';
-        targetName = authUser.user_metadata?.full_name || authUser.email;
-      }
-    } catch (authLookupErr) {
-      console.warn('⚠️ [PURGE] Auth user lookup failed:', authLookupErr.message);
-    }
-  }
-
-  if (!targetId) {
-    return { success: false, notFound: true, message: `Account not found: ${cleanId}` };
-  }
-
-  // Safety Guards
-  if (targetId === DEFAULT_ADMIN_ID) {
-    throw new Error('The Default Admin account cannot be deleted.');
-  }
-  if (actor && actor.profile?.id === targetId) {
-    throw new Error('You cannot delete your own account.');
-  }
-  if (String(targetRole || '').toUpperCase() === 'ADMIN') {
-    const { count, error: countErr } = await supabaseAdmin
-      .from('profiles')
-      .select('id', { count: 'exact', head: true })
-      .eq('role', 'ADMIN');
-    if (countErr) throw countErr;
-    if ((count || 0) <= 1) {
-      throw new Error('Cannot delete the last remaining administrator account.');
-    }
-  }
-
-  console.log(`🧹 [PURGE] Permanently deleting account ${targetEmail} (${targetId}, ${targetRole})...`);
-
-  // 1. Snapshot customer booking details so past shop records stay complete
-  try {
-    await supabaseAdmin
-      .from('bookings')
-      .update({
-        customer_name: targetName || targetEmail,
-        customer_first_name: profile?.first_name || null,
-        customer_last_name: profile?.last_name || null,
-        customer_email: targetEmail || null,
-        contact_number: profile?.phone_number || null,
-        customer_id: null
-      })
-      .eq('customer_id', targetId);
-  } catch (err) {
-    console.warn(`⚠️ [PURGE] Failed to snapshot bookings for ${targetEmail}:`, err.message);
-  }
-
-  // 2. Unassign from staff bookings
-  try {
-    await supabaseAdmin.from('bookings').update({ staff_id: null }).eq('staff_id', targetId);
-    await supabaseAdmin.from('booking_vehicles').update({ staff_id: null }).eq('staff_id', targetId);
-  } catch (err) {
-    console.warn(`⚠️ [PURGE] Failed to unassign staff bookings for ${targetEmail}:`, err.message);
-  }
-
-  // 3. Clear dependent or owned records
-  try { await supabaseAdmin.from('booking_draft_invites').delete().eq('created_by', targetId); } catch {}
-  try { await supabaseAdmin.from('vehicles').delete().eq('owner_id', targetId); } catch {}
-  try { await supabaseAdmin.from('notifications').delete().eq('user_id', targetId); } catch {}
-  try { await supabaseAdmin.from('staff_shifts').delete().eq('staff_id', targetId); } catch {}
-  try { await supabaseAdmin.from('account_recovery_otps').delete().eq('user_id', targetId); } catch {}
-  try { await supabaseAdmin.from('password_confirmation_requests').delete().eq('user_id', targetId); } catch {}
-  try { await supabaseAdmin.from('customer_credit_ledger').update({ customer_id: null }).eq('customer_id', targetId); } catch {}
-  try { await supabaseAdmin.from('audit_logs').update({ actor_id: null, actor_name: 'Deleted account' }).eq('actor_id', targetId); } catch {}
-  try { await supabaseAdmin.from('audit_trails').update({ actor_id: null }).eq('actor_id', targetId); } catch {}
-  try { await supabaseAdmin.from('booking_events').update({ actor_id: null }).eq('actor_id', targetId); } catch {}
-  if (targetEmail) {
-    try { await supabaseAdmin.from('invites').delete().ilike('email', targetEmail); } catch {}
-  }
-
-  // 4. Delete from auth.users (cascades dependent auth rows)
-  try {
-    await supabaseAdmin.auth.admin.deleteUser(targetId);
-  } catch (authDelErr) {
-    console.warn(`⚠️ [PURGE] Auth deleteUser error for ${targetEmail}:`, authDelErr.message);
-  }
-
-  // 5. Delete from public.profiles
-  try {
-    await supabaseAdmin.from('profiles').delete().eq('id', targetId);
-  } catch (profDelErr) {
-    console.warn(`⚠️ [PURGE] Profile delete error for ${targetEmail}:`, profDelErr.message);
-  }
-
-  // 6. Record audit log
-  await writeAuditLog({
-    actionType: 'ACCOUNT_PURGED',
-    actorName: actor?.profile?.full_name || actor?.profile?.email || 'System',
-    actorRole: actor?.profile?.role || 'SYSTEM',
-    details: `Account ${targetEmail} (${targetRole}) was permanently deleted as requested.`
-  });
-
-  console.log(`✅ [PURGE] Account ${targetEmail} permanently deleted.`);
-  return { success: true, id: targetId, email: targetEmail, role: targetRole };
-};
-
+// Removing an account only deactivates it (any role). Nothing is deleted; an administrator can reactivate it later.
 app.post('/api/admin/delete-account', async (req, res) => {
   invalidateServerCache('admin:profiles');
   const actor = await requireAdmin(req);
   if (!actor) return res.status(403).json({ success: false, error: 'Administrator access required.' });
-  const { memberId, email } = req.body || {};
-  const target = memberId || email;
-  if (!target) return res.status(400).json({ success: false, error: 'Account identifier is required.' });
-
+  const { memberId } = req.body || {};
+  if (!memberId) return res.status(400).json({ success: false, error: 'Account identifier is required.' });
+  if (memberId === DEFAULT_ADMIN_ID) return res.status(403).json({ success: false, error: 'The Default Admin account cannot be deactivated.' });
+  if (memberId === actor.profile.id) return res.status(403).json({ success: false, error: 'You cannot deactivate your own account.' });
   try {
-    const result = await permanentlyDeleteAccount(target, actor);
-    return res.json({ success: true, result });
+    const { data: profile, error: readErr } = await supabaseAdmin.from('profiles').select('role, email, full_name').eq('id', memberId).maybeSingle();
+    if (readErr) throw readErr;
+    if (!profile) return res.status(404).json({ success: false, error: 'Account not found.' });
+    const role = String(profile.role || '').toUpperCase();
+    if (role === 'ADMIN') {
+      const { count } = await supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'ADMIN').eq('is_active', true);
+      if ((count || 0) <= 1) return res.status(403).json({ success: false, error: 'The last remaining administrator cannot be deactivated.' });
+    }
+    if (role === 'STAFF') {
+      const { data: busy } = await supabaseAdmin.rpc('staff_has_active_services', { p_staff_id: memberId });
+      if (busy) return res.status(409).json({ success: false, error: 'This staff account cannot be deactivated while assigned to an active service. Reassign or complete the service first.' });
+    }
+    const { error } = await supabaseAdmin.rpc('deactivate_staff_account', {
+      p_account_id: memberId,
+      p_reason: `Deactivated by ${actor.profile.full_name || actor.profile.email || 'an administrator'}.`
+    });
+    if (error) throw error;
+    await writeAuditLog({
+      actionType: 'DEACTIVATE_ACCOUNT', actorId: actor.profile.id,
+      actorName: actor.profile.full_name || actor.profile.email || 'ADMIN', actorRole: 'ADMIN',
+      details: `Account of ${profile.full_name || 'Unnamed'} (${profile.email}) deactivated. It is kept and can be reactivated by an administrator.`,
+    });
+    return res.json({ success: true });
   } catch (err) {
-    console.error('Delete account failed:', err.message);
-    return res.status(400).json({ success: false, error: err.message });
+    console.error('Deactivate account failed:', err.message);
+    return res.status(400).json({ success: false, error: 'The account could not be deactivated.' });
   }
 });
 
@@ -3674,7 +3567,7 @@ app.post('/api/staff/update-preferences', async (req, res) => {
 });
 
 /**
- * 🛡️ REQ-ADM-14: Account Deactivation (15-Day Grace Period)
+ * 🛡️ REQ-ADM-14: Account Deactivation (kept, never deleted)
  * Marks account as INACTIVE instead of deleting immediately.
  */
 app.post('/api/auth/deactivate-account', async (req, res) => {
@@ -3789,13 +3682,13 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
       actorId: actor?.profile?.id || userId,
       actorName: profile.email || 'SYSTEM',
       actorRole: 'SECURITY',
-      details: `User ${userId} (${profile.email || 'unknown'}) deactivated. ${cancelledCount} upcoming booking(s) cancelled to free their slots. Scheduled for deletion in 15 days.`,
+      details: `User ${userId} (${profile.email || 'unknown'}) deactivated. ${cancelledCount} upcoming booking(s) cancelled to free their slots. The account is kept and can be recovered by signing in again.`,
     });
 
     return res.json({
       success: true,
       cancelledBookings: cancelledCount,
-      message: 'Account deactivated. You have 15 days to recover it.'
+      message: 'Account deactivated. Sign in again any time to recover it.'
     });
   } catch (err) {
     if (err.code === '23514' || /assigned to an active service/i.test(err.message || '')) {
@@ -4142,20 +4035,6 @@ const deactivateInactiveStaff = async () => {
 setInterval(deactivateInactiveStaff, 24 * 60 * 60000);
 setTimeout(deactivateInactiveStaff, 2 * 60000);
 
-// A deactivated account (customer, staff or admin) is deleted from the database for good once its recovery period
-// (15 days) has passed. The database function does the deletion and writes the audit entry.
-const purgeDeactivatedAccounts = async () => {
-  if (!supabaseAdmin) return;
-  try {
-    const { data, error } = await supabaseAdmin.rpc('purge_deactivated_accounts');
-    if (error) throw error;
-    if (Number(data) > 0) console.log(`🧹 [ACCOUNT PURGE] Permanently deleted ${data} deactivated account(s).`);
-  } catch (err) {
-    console.warn('🧹 [ACCOUNT PURGE] Sweep failed:', err.message);
-  }
-};
-setInterval(purgeDeactivatedAccounts, 6 * 60 * 60000);
-setTimeout(purgeDeactivatedAccounts, 3 * 60000);
 
 // Service photos past their retention period (archived, past the purge window, not on legal hold): the stored file
 // is removed first and the record second, so a failed removal is simply tried again on the next run.
@@ -4178,27 +4057,6 @@ setInterval(purgeExpiredPhotos, 6 * 60 * 60000);
 setTimeout(purgeExpiredPhotos, 4 * 60000);
 releaseExpiredUnpaidHolds();
 
-// Targeted cleanup on startup: permanently remove requested accounts if they still exist.
-const purgeRequestedTargetAccounts = async () => {
-  if (!supabaseAdmin) return;
-  const targetAccounts = [
-    'jamesvillanueva@gmail.com',
-    'gopilotfor@gmail.com',
-    'mauirayos100@gmail.com',
-    'ehdlemuelrefuerzo8@gmail.com'
-  ];
-  for (const account of targetAccounts) {
-    try {
-      const res = await permanentlyDeleteAccount(account);
-      if (res.success && !res.notFound) {
-        console.log(`🧹 [STARTUP PURGE] Removed target account: ${account}`);
-      }
-    } catch (err) {
-      console.warn(`⚠️ [STARTUP PURGE] Could not remove ${account}:`, err.message);
-    }
-  }
-};
-setTimeout(purgeRequestedTargetAccounts, 4000);
 
 
 // ── Guest inquiries (landing page contact form) ─────────────────────────────────────────────────────────────

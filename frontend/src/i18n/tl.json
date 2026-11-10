@@ -3815,5 +3815,11 @@
  "Comar Garage exercises reasonable care in handling all vehicles. Comar Garage is not liable for pre-existing damage, undeclared valuables left in the vehicle, or delays caused by events beyond its control.": "Nag-iingat nang makatwiran ang Comar Garage sa paghawak ng lahat ng sasakyan. Hindi mananagot ang Comar Garage sa dati nang pinsala, hindi idineklarang mahahalagang gamit na naiwan sa sasakyan, o pagkaantalang dulot ng mga pangyayaring wala sa kontrol nito.",
  "By submitting a booking you authorize Comar Garage to process the personal data required for service delivery, account management, and operational communications.": "Sa pagsumite ng booking, pinahihintulutan mo ang Comar Garage na iproseso ang personal na datos na kailangan para sa serbisyo, pamamahala ng account, at mga komunikasyon sa operasyon.",
  "Bookings above the shop’s set amount require a downpayment to secure the slot. The downpayment is deducted from your final bill.": "Ang mga booking na lampas sa limitasyon ng Comar Garage ay nangangailangan ng downpayment para masigurado ang slot. Ibabawas ang downpayment sa iyong huling bayarin.",
- "Staff sign-in": "Sign-in ng staff"
+ "Staff sign-in": "Sign-in ng staff",
+ "Deactivated": "Naka-deactivate",
+ "Deactivate staff who have not signed in for a set time. A deactivated account cannot sign in. Only an administrator can reactivate it. Nothing is deleted. Staff with active work are skipped.": "I-deactivate ang staff na hindi nag-sign in sa takdang panahon. Hindi makakapag-sign in ang naka-deactivate na account. Administrator lang ang makakapag-reactivate nito. Walang binubura. Nilalaktawan ang staff na may aktibong trabaho.",
+ "Deactivating your account signs you out and hides it. Nothing is deleted. Sign in again any time to recover it.": "Ang pag-deactivate ng iyong account ay magsa-sign out sa iyo at itatago ito. Walang binubura. Mag-sign in ulit anumang oras para maibalik ito.",
+ "This will sign you out immediately. Your account and records are kept. Sign in again any time to recover your account.": "Masa-sign out ka agad. Nananatili ang iyong account at mga record. Mag-sign in ulit anumang oras para maibalik ang iyong account.",
+ "Account deactivated. Sign in again any time to recover it.": "Na-deactivate ang account. Mag-sign in ulit anumang oras para maibalik ito.",
+ "This account is deactivated. Would you like to recover and reactivate it?": "Naka-deactivate ang account na ito. Gusto mo bang ibalik at i-reactivate ito?"
 }

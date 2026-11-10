@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import PageHeader from '../../components/PageHeader';
 import { 
   Users, Search, Mail, Phone, User, ChevronRight, 
-  History, Calendar, CheckCircle2, Shield, UserCog, ExternalLink, Trash2
+  History, Calendar, CheckCircle2, Shield, UserCog, ExternalLink, UserCheck, UserX
 } from 'lucide-react';
 import toast from '@/lib/toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -100,34 +100,31 @@ const AdminUserManagement = () => {
     return matchesSearch;
   });
 
-  const handleDeleteUser = async (userToDelete) => {
-    if (!userToDelete) return;
-    const isSelf = userToDelete.id === currentUser?.id;
-    const isDefault = userToDelete.id === defaultAdminId;
-    if (isSelf) return toast.error('You cannot delete your own account.');
-    if (isDefault) return toast.error('The Default Admin account cannot be deleted.');
-
-    const name = userToDelete.full_name || userToDelete.email;
-    const confirmed = window.confirm(
-      `Are you sure you want to permanently DELETE the account for ${name}? This will remove their credentials and account access.`
-    );
-    if (!confirmed) return;
-
-    const toastId = toast.loading(`Deleting account ${name}...`);
+  // Accounts are never deleted: the button deactivates an active account and reactivates a deactivated one.
+  const handleDeleteUser = async (target) => {
+    if (!target) return;
+    if (target.id === currentUser?.id) return toast.error('You cannot deactivate your own account.');
+    if (target.id === defaultAdminId) return toast.error('The Default Admin account cannot be deactivated.');
+    const name = target.full_name || target.email;
+    const reactivate = target.is_active === false;
+    if (!window.confirm(reactivate
+      ? `Reactivate the account of ${name}? They will be able to sign in again.`
+      : `Deactivate the account of ${name}? They will not be able to sign in. Nothing is deleted, and you can reactivate it at any time.`)) return;
+    const toastId = toast.loading(reactivate ? `Reactivating ${name}...` : `Deactivating ${name}...`);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/admin/delete-account`, {
+      const response = await fetch(`${BACKEND_URL}/api/admin/${reactivate ? 'reactivate-staff' : 'delete-account'}`, {
         method: 'POST',
-        headers: await authHeaders(),
-        body: JSON.stringify({ memberId: userToDelete.id, email: userToDelete.email })
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ memberId: target.id })
       });
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to delete account');
-      toast.success(`Account for ${name} permanently deleted.`, { id: toastId });
-      if (view === 'history') setView('list');
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) throw new Error(result.error || 'The account could not be updated.');
+      toast.success(reactivate ? `${name} is active again.` : `${name} is deactivated.`, { id: toastId });
+      if (view === 'history') setSelectedUser({ ...target, is_active: reactivate });
       invalidateCache('admin_profiles');
       fetchUsers(true);
     } catch (err) {
-      toast.error(err.message || 'Failed to delete account', { id: toastId });
+      toast.error(err.message, { id: toastId });
     }
   };
 
@@ -275,7 +272,7 @@ const AdminUserManagement = () => {
                         cursor: 'pointer'
                       }}
                     >
-                      <Trash2 size={13} /> Delete Account
+                      {selectedUser?.is_active === false ? <><UserCheck size={13} /> Reactivate</> : <><UserX size={13} /> Deactivate</>}
                     </button>
                   )}
                 </div>

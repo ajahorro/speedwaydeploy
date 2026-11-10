@@ -199,7 +199,7 @@ const AdminAccountsManagement = () => {
 
     showConfirmation({
       title: 'Revoke Access?',
-      message: `Are you sure you want to deactivate ${member.full_name?.toUpperCase()}? They will no longer be able to sign in. An administrator can reactivate the account within 15 days, after that it is deleted permanently.`,
+      message: `Are you sure you want to deactivate ${member.full_name?.toUpperCase()}? They will no longer be able to sign in. An administrator can reactivate the account at any time.`,
       confirmLabel: 'Deactivate',
       cancelLabel: 'Cancel',
       onConfirm: async () => {

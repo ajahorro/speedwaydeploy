@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, History, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, History, UserCheck, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -37,8 +37,8 @@ function Actions({ user, canDelete, onHistory, onDelete, full = false }) {
         <History /> View history
       </Button>
       {canDelete(user) ? (
-        <Button size="sm" variant="outline" className={`text-destructive ${full ? 'h-10' : ''}`} onClick={() => onDelete(user)}>
-          <Trash2 /> Delete account
+        <Button size="sm" variant="outline" className={`${user.is_active === false ? '' : 'text-destructive'} ${full ? 'h-10' : ''}`} onClick={() => onDelete(user)}>
+          {user.is_active === false ? <><UserCheck /> Reactivate</> : <><UserX /> Deactivate</>}
         </Button>
       ) : full ? <span /> : null}
     </div>
@@ -86,7 +86,7 @@ export default function ClientDirectoryList({ users, loading, isMobile: phone = 
             <li key={user.id} className="grid gap-2 border-b px-3 py-3 last:border-b-0">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="font-medium [overflow-wrap:anywhere]">{user.full_name || 'Unnamed client'}</div>
+                  <div className="font-medium [overflow-wrap:anywhere]">{user.full_name || 'Unnamed client'}{user.is_active === false && <span className="ml-2 text-xs font-normal text-muted-foreground">Deactivated</span>}</div>
                   <div className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{user.email || '—'}</div>
                 </div>
               </div>
@@ -117,7 +117,7 @@ export default function ClientDirectoryList({ users, loading, isMobile: phone = 
         <TableBody>
           {rows.map((user) => (
             <TableRow key={user.id}>
-              <TableCell className="max-w-[14rem] pl-4 font-medium whitespace-normal [overflow-wrap:anywhere]">{user.full_name || 'Unnamed client'}</TableCell>
+              <TableCell className="max-w-[14rem] pl-4 font-medium whitespace-normal [overflow-wrap:anywhere]">{user.full_name || 'Unnamed client'}{user.is_active === false && <span className="ml-2 text-xs font-normal text-muted-foreground">Deactivated</span>}</TableCell>
               <TableCell className="max-w-[16rem] whitespace-normal [overflow-wrap:anywhere]">{user.email || '—'}</TableCell>
               <TableCell className="whitespace-nowrap">{phoneOf(user) || '—'}</TableCell>
               <TableCell className="whitespace-nowrap">{formatDate(user.created_at)}</TableCell>

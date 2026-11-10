@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 /**
  * Staff accounts that have not signed in for a period chosen here are deactivated automatically
- * (the account is switched off and deleted for good after 15 days unless an administrator reactivates it). Off by default.
+ * (the account is switched off until an administrator reactivates it; nothing is deleted). Off by default.
  * The list below shows the accounts that were deactivated for inactivity, each with a Reactivate button.
  */
 export default function InactiveStaffPanel({ onChanged, confirmThen }) {
@@ -25,7 +25,7 @@ export default function InactiveStaffPanel({ onChanged, confirmThen }) {
   const load = useCallback(async () => {
     const [{ data: config }, { data: people }] = await Promise.all([
       supabase.from('business_config').select('id, staff_auto_deactivate_enabled, staff_auto_deactivate_after, staff_auto_deactivate_unit').order('id').limit(1).maybeSingle(),
-      supabase.from('profiles').select('id, full_name, email, staff_deactivated_at, staff_deactivation_reason').not('staff_deactivated_at', 'is', null).order('staff_deactivated_at', { ascending: false })
+      supabase.from('profiles').select('id, full_name, email, staff_deactivated_at, staff_deactivation_reason').not('staff_deactivated_at', 'is', null).in('role', ['STAFF', 'ADMIN']).order('staff_deactivated_at', { ascending: false })
     ]);
     if (config) {
       const next = { enabled: Boolean(config.staff_auto_deactivate_enabled), after: Number(config.staff_auto_deactivate_after) || 90, unit: config.staff_auto_deactivate_unit || 'days' };
@@ -84,7 +84,7 @@ export default function InactiveStaffPanel({ onChanged, confirmThen }) {
       <CardHeader>
         <CardTitle className="text-base">Inactive staff accounts</CardTitle>
         <CardDescription>
-          Deactivate staff who have not signed in for a set time. A deactivated account cannot sign in. Only an administrator can reactivate it, and after 15 days it is deleted permanently. Staff with active work are skipped.
+          Deactivate staff who have not signed in for a set time. A deactivated account cannot sign in. Only an administrator can reactivate it. Nothing is deleted. Staff with active work are skipped.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">

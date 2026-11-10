@@ -283,21 +283,20 @@ const StaffLayout = () => {
             </div>
 
             <button
+              type="button"
+              className="admin-header-icon"
               onClick={() => navigate('/staff/notifications')}
               aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
-              style={{ minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', color: 'var(--admin-text-secondary)', padding: '0.5rem', borderRadius: 'var(--admin-radius)', cursor: 'pointer', position: 'relative', opacity: unreadCount > 0 ? 1 : 0.6, transition: 'all 0.2s' }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-              onMouseLeave={(e) => { if (unreadCount <= 0) e.currentTarget.style.opacity = '0.6'; }}
             >
-              <Bell size={18} />
+              <Bell size={18} strokeWidth={2.25} />
               {unreadCount > 0 && (
-                <span style={{
-                  position: 'absolute', top: '-4px', right: '-4px',
-                  background: 'var(--admin-brand)', color: 'var(--admin-text-primary)',
-                  fontSize: '0.72rem', fontWeight: '950',
-                  minWidth: '16px', height: '16px', padding: '0 3px',
+                <span aria-hidden="true" style={{
+                  position: 'absolute', top: '2px', right: '0px',
+                  background: 'var(--admin-brand)', color: 'var(--admin-text-on-brand)',
+                  fontSize: '0.55rem', fontWeight: '950',
+                  minWidth: '16px', height: '16px', padding: '0 4px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  borderRadius: 'var(--admin-radius-sm)', border: '1.5px solid var(--admin-card)'
+                  borderRadius: '2px', border: '1px solid var(--admin-card)', boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
                 }}>{unreadCount > 99 ? '99+' : unreadCount}</span>
               )}
             </button>

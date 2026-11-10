@@ -196,7 +196,7 @@ const CustomerProfile = () => {
   const handleDeactivate = async () => {
     const res = await deactivateAccount();
     if (res.success) {
-      toast.success('Account deactivated. Grace period started.');
+      toast.success('Account deactivated. Sign in again any time to recover it.');
     } else {
       toast.error(res.error || 'Deactivation failed');
     }
@@ -394,7 +394,7 @@ const CustomerProfile = () => {
               <h2 className="text-base font-semibold">Account Actions</h2>
             </div>
             <p className="mb-5 text-sm text-muted-foreground">
-              Account deactivation initiates a 15-day grace period. After 15 days, your account and personal details are permanently deleted. The shop keeps your booking and payment records.
+              Deactivating your account signs you out and hides it. Nothing is deleted. Sign in again any time to recover it.
             </p>
             <Button type="button" variant="outline" onClick={() => setShowDeactivateModal(true)} className="w-full border-destructive/50 text-destructive hover:text-destructive">Deactivate Account</Button>
           </Card>
@@ -486,7 +486,7 @@ const CustomerProfile = () => {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-destructive"><AlertTriangle className="size-5" aria-hidden="true" />Confirm Account Deactivation</AlertDialogTitle>
             <AlertDialogDescription>
-              This will log you out immediately. You will have 15 days to recover your account by logging back in. After that, your account is permanently deleted. The shop keeps your booking and payment records.
+              This will sign you out immediately. Your account and records are kept. Sign in again any time to recover your account.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
