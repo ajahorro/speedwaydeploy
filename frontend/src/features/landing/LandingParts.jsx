@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import usePolicyReader from '../legal/usePolicyReader';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 /**
@@ -237,6 +238,7 @@ export function AboutFeatures({ items }) {
 }
 
 export function SiteFooter({ businessName, links, onNavigate, socials }) {
+  const [openPolicy, policyDialog] = usePolicyReader();
   return (
     <footer className="landing-ui border-t border-border bg-background px-6 py-12 text-foreground">
       <div className="mx-auto grid max-w-6xl gap-8">
@@ -257,6 +259,8 @@ export function SiteFooter({ businessName, links, onNavigate, socials }) {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <p className="m-0 flex flex-wrap gap-x-4 gap-y-1 text-[0.7rem] uppercase text-muted-foreground">
             <span>© {new Date().getFullYear()} {businessName}. All rights reserved.</span>
+            <button type="button" onClick={() => openPolicy('terms')} style={{ minHeight: 0 }} className="cursor-pointer border-0 bg-transparent p-0 text-[0.7rem] uppercase font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Terms and Conditions</button>
+            <button type="button" onClick={() => openPolicy('privacy')} style={{ minHeight: 0 }} className="cursor-pointer border-0 bg-transparent p-0 text-[0.7rem] uppercase font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Privacy Policy</button>
             <a href="/staff/login" className="font-bold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Staff sign-in</a>
           </p>
           <div className="flex gap-1">
@@ -271,6 +275,7 @@ export function SiteFooter({ businessName, links, onNavigate, socials }) {
           </div>
         </div>
       </div>
+      {policyDialog}
     </footer>
   );
 }

@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { sanitizeByFieldType } from '../../config/constants';
 import { PhoneInput, EmailInput } from '../common/ContactInputs';
 import { emailError, phoneError } from '../../utils/contactValidation';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useConfig } from '../../context/ConfigContext';
+import usePolicyReader from '../../features/legal/usePolicyReader';
 
 // Task 2.5: per-field allowlist so each input keeps only its legitimate chars.
 const FIELD_TYPE = { firstName: 'text', lastName: 'text', email: 'email', phone: 'phone' };
@@ -21,6 +24,9 @@ const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '', 
     confirmPassword: ''
   });
   const [error, setError] = useState('');
+  const [agreed, setAgreed] = useState(false);
+  const { settings } = useConfig();
+  const [openPolicy, policyDialog] = usePolicyReader();
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -33,8 +39,18 @@ const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '', 
       setError('Passwords do not match.');
       return;
     }
+    if (!agreed) {
+      setError('Please agree to the Terms and Conditions and the Privacy Policy.');
+      return;
+    }
     setError('');
-    onRegister({ ...formData, inviteToken: initialData?.inviteToken });
+    // the versions agreed to here are recorded on the first sign-in, so the agreement is not asked again
+    onRegister({
+      ...formData,
+      inviteToken: initialData?.inviteToken,
+      acceptedTerms: Number(settings?.TERMS?.customer?.version || 1),
+      acceptedPrivacy: Number(settings?.SECURITY_POLICY?.customer?.version || 1)
+    });
   };
 
   const updateField = (field, value) => {
@@ -83,7 +99,18 @@ const RegisterForm = ({ onRegister, onSwitchMode, isLoading, initialEmail = '', 
         <StyledInput icon={Lock} type="password" placeholder="Confirm Password" required value={formData.confirmPassword} onChange={e => updateField('confirmPassword', e.target.value)} autoComplete="new-password" />
       </div>
 
-      <Button type="submit" disabled={isLoading} className="mt-6 h-12 w-full text-sm font-black uppercase tracking-wider">
+      <label className="ui-root flex items-start gap-2.5 text-left text-xs leading-relaxed text-muted-foreground">
+        <Checkbox checked={agreed} onCheckedChange={(v) => { setAgreed(v === true); if (error) setError(''); }} className="mt-0.5" aria-label="I agree to the Terms and Conditions and the Privacy Policy" />
+        <span>
+          I have read and agree to the{' '}
+          <button type="button" style={{ minHeight: 0 }} className="inline cursor-pointer border-0 bg-transparent p-0 text-xs font-bold text-primary underline underline-offset-2" onClick={() => openPolicy('terms')}>Terms and Conditions</button>
+          {' '}and the{' '}
+          <button type="button" style={{ minHeight: 0 }} className="inline cursor-pointer border-0 bg-transparent p-0 text-xs font-bold text-primary underline underline-offset-2" onClick={() => openPolicy('privacy')}>Privacy Policy</button>.
+        </span>
+      </label>
+      {policyDialog}
+
+      <Button type="submit" disabled={isLoading || !agreed} className="mt-6 h-12 w-full text-sm font-black uppercase tracking-wider">
         {isLoading ? <><Loader2 size={16} style={{ verticalAlign: 'middle', marginRight: '0.4rem', animation: 'spin 1s linear infinite' }} /> Creating Account...</> : 'Register'}
       </Button>
       

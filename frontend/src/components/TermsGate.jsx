@@ -46,12 +46,13 @@ const ROLE_LABEL = { customer: 'Customer', staff: 'Staff', admin: 'Administrator
  * is signing out. Agreeing records both documents' current versions (accept_current_policies), with an audit entry.
  */
 const TermsGate = () => {
-  const { profile, signOut, fetchProfile } = useAuth();
+  const { user, profile, signOut, fetchProfile } = useAuth();
   const { settings } = useConfig();
   const bodyRef = useRef(null);
   const [atEnd, setAtEnd] = useState(false);
   const [checked, setChecked] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [autoFailed, setAutoFailed] = useState(false);
 
   const key = roleKey(profile?.role);
   const docs = pendingDocs(profile, settings);
@@ -72,8 +73,6 @@ const TermsGate = () => {
     return () => clearTimeout(timer);
   }, [signature, key, checkEnd]);
 
-  if (!docs.length) return null;
-
   const accept = async () => {
     setSaving(true);
     try {
@@ -85,11 +84,20 @@ const TermsGate = () => {
       if (error) throw error;
       await fetchProfile(profile.id, 'TERMS_ACCEPTED', true);
     } catch (error) {
-      toast.error(error?.message || 'Could not record your agreement. Try again.');
+      if (agreedAtSignUp) setAutoFailed(true); // show the agreement instead
+      else toast.error(error?.message || 'Could not record your agreement. Try again.');
     } finally {
       setSaving(false);
     }
   };
+
+  // A customer who ticked the agreement while creating the account is not asked again: it is recorded here.
+  const meta = user?.user_metadata || {};
+  const agreedAtSignUp = !autoFailed && key === 'customer' && docs.length > 0 && docs.every((d) =>
+    Number(meta[d.id === 'terms' ? 'accepted_terms_version' : 'accepted_security_version'] || 0) >= d.version);
+  useEffect(() => { if (agreedAtSignUp) accept(); }, [agreedAtSignUp]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!docs.length || agreedAtSignUp) return null;
 
   const both = docs.length > 1;
   const anyUpdated = docs.some((d) => d.updated);

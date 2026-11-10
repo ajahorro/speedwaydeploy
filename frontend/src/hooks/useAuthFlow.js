@@ -130,6 +130,7 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
         if (!res.ok) throw new Error(body.error || 'Registration failed.');
         const { error: signInError } = await signInWithPassword(email, userData.password);
         if (signInError) throw signInError;
+        await supabase.rpc('accept_current_policies'); // agreed on the form; a failure only means TermsGate asks again
         toast.success('Your account is ready. Welcome!');
         return;
       }
@@ -144,7 +145,10 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
             first_name: userData.firstName.trim(),
             last_name: userData.lastName.trim(),
             phone_number: normalizePhPhone(userData.phone),
-            role: 'CUSTOMER'
+            role: 'CUSTOMER',
+            // agreed on the form; recorded on the first sign-in
+            accepted_terms_version: userData.acceptedTerms,
+            accepted_security_version: userData.acceptedPrivacy
           },
           emailRedirectTo: redirectTo
         }
