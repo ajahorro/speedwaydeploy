@@ -46,6 +46,7 @@ import { BACKEND_URL } from '../../config/api';
 import { reconcilePaymentState, verifyPayment, rejectPayment } from '../../services/paymentVerificationService';
 import { ensureShopConfig, bayCapacityOf } from '../../config/shopConfig';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
+import { signRows } from '../../lib/privateFiles';
 import { useImagePreview } from '../../context/ImagePreviewContext';
 
 const AdminBookingDetails = () => {
@@ -297,14 +298,7 @@ const AdminBookingDetails = () => {
     const { data } = await supabase.from('payments').select('*').eq('booking_id', id).order('created_at', { ascending: true });
     if (data) {
       // Process URLs for previews
-      const processed = data.map(p => {
-        let url = p.receipt_url;
-        if (url && !url.startsWith('http')) {
-          const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(url);
-          url = publicUrl;
-        }
-        return { ...p, receipt_url: url };
-      });
+      const processed = await signRows(data, ['receipt_url', 'evidence_url']);
       setBookingPayments(processed);
     }
   };

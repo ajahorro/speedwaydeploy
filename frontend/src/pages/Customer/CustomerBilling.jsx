@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TourLauncher } from '../../components/common/GuidedTour';
 import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
+import { signRows } from '../../lib/privateFiles';
 import { usePaged } from '../../components/common/ListPager';
 
 const CustomerBilling = () => {
@@ -39,14 +40,10 @@ const CustomerBilling = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      const processedBookings = (data || []).map(booking => ({
+      const processedBookings = await Promise.all((data || []).map(async (booking) => ({
         ...booking,
-        payments: (booking.payments || []).map(payment => {
-          if (!payment.receipt_url || payment.receipt_url.startsWith('http')) return payment;
-          const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(payment.receipt_url);
-          return { ...payment, receipt_url: publicUrl };
-        })
-      }));
+        payments: await signRows(booking.payments || [])
+      })));
       // Money for every booking comes from the ledger in one request.
       const ledgers = await fetchBookingLedgers(processedBookings.map((booking) => booking.id));
       setBookings(processedBookings.map((booking) => ({ ...booking, ledger: ledgers.get(booking.id) || null })));

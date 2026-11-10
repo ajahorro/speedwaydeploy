@@ -1739,6 +1739,48 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
  * 🛡️ REQ-NFR-31: Password Verification Challenge
  * Allows frontend to verify current password before sensitive updates
  */
+// Receipts and chat attachments are private. The app asks for links that expire after an hour: staff and
+// administrators may open any of them, a customer only files from their own bookings and their own chat.
+const PRIVATE_BUCKETS = new Set(['payment-receipts', 'chat_media', 'receipts']);
+const storageRef = (value) => {
+  const raw = String(value || '');
+  const m = raw.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/([^?]+)/);
+  if (m) return { bucket: m[1], path: decodeURIComponent(m[2]) };
+  return raw && !raw.startsWith('http') ? { bucket: 'payment-receipts', path: raw.replace(/^\/+/, '') } : null;
+};
+app.post('/api/files/sign', async (req, res) => {
+  const actor = await getAuthenticatedActor(req);
+  if (!actor) return res.status(401).json({ success: false, error: 'Please sign in again.' });
+  const values = [...new Set((Array.isArray(req.body?.files) ? req.body.files : []).map(String))].slice(0, 200);
+  const staff = ['ADMIN', 'STAFF'].includes(String(actor.profile.role || '').toUpperCase());
+  try {
+    let mine = null;
+    if (!staff) {
+      // everything this customer may open: receipts on their bookings and files in their own chat
+      const { data: bookings } = await supabaseAdmin.from('bookings').select('id, payments(receipt_url, evidence_url)').eq('customer_id', actor.profile.id);
+      const { data: chat } = await supabaseAdmin.from('booking_messages').select('message, media_url').eq('customer_id', actor.profile.id).in('message_type', ['image', 'file']);
+      mine = new Set([...(bookings || []).flatMap((b) => (b.payments || []).flatMap((p) => [p.receipt_url, p.evidence_url])), ...(chat || []).flatMap((c) => [c.message, c.media_url])]
+        .map((v) => storageRef(v)).filter(Boolean).map((r) => `${r.bucket}/${r.path}`));
+    }
+    const urls = {};
+    const byBucket = {};
+    for (const value of values) {
+      const ref = storageRef(value);
+      if (!ref || !PRIVATE_BUCKETS.has(ref.bucket)) continue;
+      if (!staff && !mine.has(`${ref.bucket}/${ref.path}`)) continue;
+      (byBucket[ref.bucket] ||= []).push([value, ref.path]);
+    }
+    await Promise.all(Object.entries(byBucket).map(async ([bucket, list]) => {
+      const { data } = await supabaseAdmin.storage.from(bucket).createSignedUrls(list.map(([, path]) => path), 3600);
+      (data || []).forEach((item, i) => { if (item?.signedUrl) urls[list[i][0]] = item.signedUrl; });
+    }));
+    return res.json({ success: true, urls });
+  } catch (err) {
+    console.error('File link signing failed:', err.message);
+    return res.status(500).json({ success: false, error: 'The file could not be opened.' });
+  }
+});
+
 // "Download my data": a signed-in customer gets everything the shop holds about them as one JSON file.
 app.get('/api/me/export', async (req, res) => {
   const actor = await getAuthenticatedActor(req);

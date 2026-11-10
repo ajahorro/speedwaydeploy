@@ -22,6 +22,7 @@ import { useUI } from '../../context/UIContext';
 import { useImagePreview } from '../../context/ImagePreviewContext';
 import { matchesSearchText } from '../../utils/searchMatch';
 import { usePaged } from '../../components/common/ListPager';
+import { signRows } from '../../lib/privateFiles';
 import { ADMIN_TOURS } from '../../features/tours/adminTours';
 
 const AdminPayments = () => {
@@ -73,12 +74,8 @@ const AdminPayments = () => {
 
       if (paymentError) throw paymentError;
 
-      const processed = (paymentData || []).map(p => {
-        let url = p.receipt_url;
-        if (url && !url.startsWith('http')) {
-          const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(url);
-          url = publicUrl;
-        }
+      const processed = (await signRows(paymentData || [])).map(p => {
+        const url = p.receipt_url;
         const customerName = p.booking?.customer_name || p.booking?.customer?.full_name || 'Fleet Transaction';
         return {
           ...p,

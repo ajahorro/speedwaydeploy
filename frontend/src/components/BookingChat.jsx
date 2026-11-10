@@ -10,6 +10,23 @@ import { useGlobalChat } from '../context/ChatContext';
 import { useImagePreview } from '../context/ImagePreviewContext';
 import { useConfirmAction } from '../hooks/useConfirmAction';
 import BookingInviteCard from './BookingInviteCard';
+import { useSignedUrl } from '../lib/privateFiles';
+
+// Chat attachments are private; each one is shown through a link that works for an hour.
+const ChatImage = ({ value, sending, onOpen }) => {
+  const url = useSignedUrl(value);
+  if (!url) return <div role="img" aria-label="Attachment loading" style={{ width: 120, height: 90, borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', background: 'var(--admin-bg)' }} />;
+  return (
+    <img src={url} alt="Chat attachment" onClick={() => onOpen(url)}
+      style={{ maxWidth: '200px', maxHeight: '200px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', cursor: 'zoom-in', objectFit: 'cover', opacity: sending ? 0.6 : 1 }} />
+  );
+};
+const ChatFile = ({ value, color }) => {
+  const url = useSignedUrl(value);
+  return url
+    ? <a href={url} target="_blank" rel="noreferrer" style={{ color, fontWeight: '800', textDecoration: 'underline' }}>Open attachment</a>
+    : <span style={{ color, fontWeight: 800, opacity: 0.7 }}>Attachment</span>;
+};
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Radix Select cannot hold an empty value, so "no booking" travels as this marker inside the picker only.
@@ -479,16 +496,9 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
 
                 {/* Bubble */}
                 {msg.message_type === 'image' ? (
-                  <img
-                    src={msg.message}
-                    alt="attachment"
-                    style={{ maxWidth: '200px', maxHeight: '200px', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)', cursor: 'zoom-in', objectFit: 'cover', opacity: msg.status === 'sending' ? 0.6 : 1 }}
-                    onClick={() => openImage(msg.message, { alt: 'Chat attachment' })}
-                  />
+                  <ChatImage value={msg.message} sending={msg.status === 'sending'} onOpen={(url) => openImage(url, { alt: 'Chat attachment' })} />
                 ) : msg.message_type === 'file' ? (
-                  <a href={msg.message} target="_blank" rel="noreferrer" style={{ color: isMe ? '#fff' : 'var(--admin-brand)', fontWeight: '800', textDecoration: 'underline' }}>
-                    Open attachment
-                  </a>
+                  <ChatFile value={msg.message} color={isMe ? '#fff' : 'var(--admin-brand)'} />
                 ) : (
                   <div style={{
                     background: isSystem ? 'rgba(var(--admin-brand-rgb), 0.05)' : (isMe ? 'var(--admin-brand)' : 'var(--admin-card)'),

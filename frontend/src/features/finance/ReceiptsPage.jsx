@@ -20,6 +20,7 @@ import { formatPeso } from '@/features/finance/money';
 import RefundProofButton from '@/features/finance/RefundProofButton';
 import { useRefundProofs } from '@/hooks/useRefundProofs';
 import { ADMIN_TOURS } from '@/features/tours/adminTours';
+import { useSignedUrl } from '../../lib/privateFiles';
 import { formatReceiptNo, getReceiptNumber, isCashMethod, methodLabel } from '../../../../shared/receiptModel.ts';
 
 /**
@@ -68,11 +69,6 @@ const fmtDate = (value) => (value
   : '—');
 const fmtDay = (value) => (value ? new Date(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
 const fmtTime = (value) => (value ? new Date(value).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }) : '');
-const proofUrl = (path) => {
-  if (!path) return null;
-  if (String(path).startsWith('http')) return path;
-  return supabase.storage.from('payment-receipts').getPublicUrl(path).data.publicUrl;
-};
 const dayStart = (iso) => (iso ? new Date(`${iso}T00:00:00`) : null);
 const dayEnd = (iso) => (iso ? new Date(`${iso}T23:59:59.999`) : null);
 
@@ -85,12 +81,12 @@ function StatusBadge({ payment }) {
 function ProofCell({ payment, refundProof }) {
   const { openImage } = useImagePreview();
   const [broken, setBroken] = useState(false);
+  const url = useSignedUrl(isRefundRow(payment) ? null : payment.receipt_url);
   if (isRefundRow(payment)) {
     return refundProof?.storage_path
       ? <RefundProofButton proof={refundProof} />
       : <span className="text-xs text-muted-foreground">No proof saved</span>;
   }
-  const url = proofUrl(payment.receipt_url);
   if (url) {
     return (
       <button

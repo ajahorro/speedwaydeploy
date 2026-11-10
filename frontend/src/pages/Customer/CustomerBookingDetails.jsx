@@ -38,6 +38,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TourLauncher } from '../../components/common/GuidedTour';
+import { signRows } from '../../lib/privateFiles';
 import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
 
 const CustomerBookingDetails = () => {
@@ -262,14 +263,7 @@ const CustomerBookingDetails = () => {
       const { data: pData } = await supabase
         .from('payments').select('*').eq('booking_id', actualBookingId).neq('method', 'RECEIVABLE').order('created_at', { ascending: true });
 
-      const processedPayments = (pData || []).map(p => {
-        let url = p.receipt_url;
-        if (url && !url.startsWith('http')) {
-          const { data: { publicUrl } } = supabase.storage.from('payment-receipts').getPublicUrl(url);
-          url = publicUrl;
-        }
-        return { ...p, receipt_url: url };
-      });
+      const processedPayments = await signRows(pData || []);
 
       // Booking money comes from the database ledger, never from summing rows here.
       const ledger = await fetchBookingLedger(id).catch((ledgerError) => {
