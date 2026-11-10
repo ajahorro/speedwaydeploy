@@ -85,7 +85,7 @@ const PasswordConfirmation = () => {
 
   const heading = status === 'invalid' ? 'Link Expired or Invalid' : status === 'complete' ? 'Password Updated' : purpose === 'UPDATE' ? 'Password Change Confirmed' : 'Create New Password';
 
-  return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: 'var(--admin-bg)' }}>
+  return <div style={{ height: '100%', overflowY: 'auto', display: 'flex', alignItems: 'safe center', justifyContent: 'center', padding: '1rem', background: 'var(--admin-bg)' }}>
     <div style={{ width: '100%', maxWidth: '440px', padding: '2.5rem', background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '6px', color: 'var(--admin-text-primary)', textAlign: 'center' }}>
       <div style={{ width: '56px', height: '56px', margin: '0 auto 1.25rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: status === 'invalid' ? 'rgba(196, 31, 43,.12)' : 'rgba(16,185,129,.12)', color: status === 'invalid' ? '#C41F2B' : '#10b981' }}>
         {status === 'invalid' ? <AlertTriangle size={28} /> : status === 'complete' ? <ShieldCheck size={28} /> : <Lock size={28} />}

@@ -149,9 +149,10 @@ const AuthCallback = () => {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      height: '100%',
+      overflowY: 'auto',
       display: 'flex',
-      alignItems: 'center',
+      alignItems: 'safe center',
       justifyContent: 'center',
       background: '#0f1115',
       color: '#f9fafb',

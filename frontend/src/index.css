@@ -726,3 +726,10 @@ body.admin-account-active :where(input, select, textarea) {
   outline: 2px solid var(--admin-brand);
   outline-offset: 2px;
 }
+
+/* Full-screen pop-up backdrops: when a pop-up is taller than the window (large display scaling, short laptop
+   screens) the backdrop scrolls instead of cutting the pop-up off, so nobody has to zoom out to reach a button. */
+div[style*="position: fixed"][style*="inset: 0"][style*="align-items: center"] {
+  overflow-y: auto !important;
+  align-items: safe center !important;
+}

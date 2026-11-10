@@ -94,7 +94,7 @@ const AdminAcceptInvite = () => {
 
   if (error) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      <div style={{ height: '100%', overflowY: 'auto', background: '#0A0A0A', display: 'flex', alignItems: 'safe center', justifyContent: 'center', padding: '1rem' }}>
         <div style={{ maxWidth: '400px', width: '100%', background: '#111', border: '1px solid #222', borderRadius: '1rem', padding: '2rem', textAlign: 'center' }}>
           <AlertCircle style={{ width: '4rem', height: '4rem', color: 'var(--status-danger)', margin: '0 auto 1rem' }} />
           <h2 style={{ fontSize: '1.5rem', fontWeight: '900', color: 'var(--admin-text-primary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Invitation Error</h2>
@@ -133,7 +133,7 @@ const AdminAcceptInvite = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ height: '100%', overflowY: 'auto', background: '#0A0A0A', display: 'flex', alignItems: 'safe center', justifyContent: 'center', padding: '1rem', fontFamily: 'system-ui, sans-serif' }}>
       <div style={{ maxWidth: '450px', width: '100%' }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>

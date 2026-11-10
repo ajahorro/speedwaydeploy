@@ -203,11 +203,12 @@ const Login = ({ isModal = false, onClose, next, initialMode, audience = 'custom
     position: 'fixed',
     top: 0, left: 0, width: '100vw', height: '100vh',
     background: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)',
-    display: 'flex', justifyContent: 'center', alignItems: 'center',
-    zIndex: 2000, padding: '1rem', overflow: 'hidden'
+    display: 'flex', justifyContent: 'center', alignItems: 'safe center',
+    zIndex: 2000, padding: '1rem', overflowY: 'auto'
   } : {
-    minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    background: 'var(--admin-bg)', padding: '1rem', position: 'relative', overflow: 'hidden',
+    // the page itself scrolls when the form is taller than the window (big display scaling, short laptops)
+    height: '100%', display: 'flex', alignItems: 'safe center', justifyContent: 'center',
+    background: 'var(--admin-bg)', padding: '1rem', position: 'relative', overflowX: 'hidden', overflowY: 'auto',
     // The decorative BlurGlow discs are sized in the hundreds of px and offset
     // negative; clipping them here keeps /login at zero horizontal overflow on
     // 375px without touching their visual effect within the viewport.
@@ -246,11 +247,11 @@ const Login = ({ isModal = false, onClose, next, initialMode, audience = 'custom
     <div style={overlayStyle} onClick={isModal ? onClose : undefined}>
       {/* Background Glows */}
       {!isModal && (
-        <>
+        <div aria-hidden="true" style={{ position: 'fixed', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
           <BlurGlow top="-5%" left="-5%" size="800px" color="rgba(196, 31, 43, 0.3)" />
           <BlurGlow top="20%" right="-5%" size="700px" color="rgba(196, 31, 43, 0.2)" />
           <BlurGlow bottom="5%" right="0%" size="800px" color="rgba(196, 31, 43, 0.2)" />
-        </>
+        </div>
       )}
 
       {staff && !isModal ? (
