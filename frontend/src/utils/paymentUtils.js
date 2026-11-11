@@ -84,6 +84,11 @@ export const calculatePaymentSummary = (booking = {}) => {
     case 'void':
       status = 'NO_CHARGE';
       break;
+    case 'cancelled_refunded':
+    case 'cancelled_partially_refunded':
+    case 'cancelled_not_refunded':
+      status = row.paid_status.toUpperCase();
+      break;
     case 'paid':
     case 'overpaid':
       status = 'PAID';
@@ -170,7 +175,13 @@ export const getPaymentStatusUI = (status) => {
     case 'VERIFYING':
       return { label: 'VERIFYING', color: 'var(--status-accent)' };
     case 'NO_CHARGE':
-      return { label: 'NO CHARGE', color: 'var(--admin-text-secondary)' };
+      return { label: 'CANCELLED · NOTHING PAID', color: 'var(--admin-text-secondary)' };
+    case 'CANCELLED_REFUNDED':
+      return { label: 'CANCELLED · REFUNDED', color: 'var(--admin-text-secondary)' };
+    case 'CANCELLED_PARTIALLY_REFUNDED':
+      return { label: 'CANCELLED · PARTLY REFUNDED', color: 'var(--status-warning)' };
+    case 'CANCELLED_NOT_REFUNDED':
+      return { label: 'CANCELLED · NOT REFUNDED', color: 'var(--status-danger)' };
     case 'DOWNPAYMENT_PAID':
       return { label: 'DOWNPAYMENT', color: 'var(--status-info)' };
     default:

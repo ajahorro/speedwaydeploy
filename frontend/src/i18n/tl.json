@@ -3854,5 +3854,17 @@
  "Add to calendar": "Idagdag sa kalendaryo",
  "Skip to main content": "Lumaktaw sa pangunahing nilalaman",
  "Attachment": "Attachment",
- "Too many attempts. Please wait a few minutes and try again.": "Masyadong maraming pagsubok. Maghintay ng ilang minuto at subukan ulit."
+ "Too many attempts. Please wait a few minutes and try again.": "Masyadong maraming pagsubok. Maghintay ng ilang minuto at subukan ulit.",
+ "Cancelled · Nothing paid": "Kinansela · Walang naibayad",
+ "Cancelled · Refunded": "Kinansela · Na-refund",
+ "Cancelled · Partly refunded": "Kinansela · Bahagyang na-refund",
+ "Cancelled · Not refunded": "Kinansela · Hindi na-refund",
+ "CANCELLED · NOTHING PAID": "KINANSELA · WALANG NAIBAYAD",
+ "CANCELLED · REFUNDED": "KINANSELA · NA-REFUND",
+ "CANCELLED · PARTLY REFUNDED": "KINANSELA · BAHAGYANG NA-REFUND",
+ "CANCELLED · NOT REFUNDED": "KINANSELA · HINDI NA-REFUND",
+ "Nothing paid": "Walang naibayad",
+ "Partly refunded": "Bahagyang na-refund",
+ "Not refunded": "Hindi na-refund",
+ "Your sign-in has expired. Please sign out and sign in again.": "Nag-expire na ang iyong pag-sign in. Mag-sign out at mag-sign in ulit."
 }

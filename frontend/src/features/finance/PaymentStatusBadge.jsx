@@ -11,6 +11,10 @@ const TONE = {
   refunded: 'bg-muted text-muted-foreground',
   unpaid: 'bg-destructive/15 text-destructive',
   void: 'bg-muted text-muted-foreground',
+  cancelled_refunded: 'bg-muted text-muted-foreground',
+  cancelled_partially_refunded: 'bg-chart-2/15 text-chart-2',
+  cancelled_not_refunded: 'bg-destructive/15 text-destructive',
+  CANCELLED: 'bg-muted text-muted-foreground',
   // payment row statuses
   PAID: 'bg-success/15 text-success',
   FOR_VERIFICATION: 'bg-warning/15 text-warning',
@@ -24,7 +28,8 @@ const ROW_LABELS = {
   FOR_VERIFICATION: 'For verification',
   REFUND_PENDING: 'Refund pending',
   REFUNDED: 'Refunded',
-  REJECTED: 'Rejected'
+  REJECTED: 'Rejected',
+  CANCELLED: 'Cancelled'
 };
 
 /** Badge for a ledger paid_status or a payment row status. */

@@ -28,7 +28,10 @@ export const PAID_STATUS_LABELS = {
   overpaid: 'Overpaid',
   refunded: 'Refunded',
   partially_refunded: 'Partially refunded',
-  void: 'No charge'
+  void: 'Cancelled · Nothing paid',
+  cancelled_refunded: 'Cancelled · Refunded',
+  cancelled_partially_refunded: 'Cancelled · Partly refunded',
+  cancelled_not_refunded: 'Cancelled · Not refunded'
 };
 
 export const PAYMENT_METHOD_LABELS = {

@@ -6,7 +6,7 @@ const timeOf = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-PH', { timeZ
 const dayTimeOf = (iso) => (iso ? new Date(iso).toLocaleString('en-PH', { timeZone: TZ, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 const longDate = (day) => new Date(`${day}T12:00:00+08:00`).toLocaleDateString('en-US', { timeZone: TZ, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 const statusWords = (status) => String(status || '').replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
-const paidWords = (status) => ({ paid: 'Fully paid', partial: 'Partly paid', unpaid: 'Not paid yet', pending: 'Waiting for verification', overpaid: 'Overpaid', refunded: 'Refunded' }[String(status || '').toLowerCase()] || statusWords(status));
+const paidWords = (status) => ({ paid: 'Fully paid', partial: 'Partly paid', unpaid: 'Not paid yet', pending: 'Waiting for verification', overpaid: 'Overpaid', refunded: 'Refunded', void: 'Nothing paid', cancelled_refunded: 'Refunded', cancelled_partially_refunded: 'Partly refunded', cancelled_not_refunded: 'Not refunded' }[String(status || '').toLowerCase()] || statusWords(status));
 const plural = (n, word) => `${n} ${word}${Number(n) === 1 ? '' : 's'}`;
 
 const heading = (text) => `<h2 style="margin:18px 0 6px;font-size:14px;border-bottom:2px solid #111;padding-bottom:3px">${esc(text)}</h2>`;

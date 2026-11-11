@@ -294,11 +294,15 @@ function normalizeBookingData(booking) {
   };
 }
 
+const denyLifecycle = (req, res) => req.signInExpired
+  ? res.status(401).json({ success: false, error: 'Your sign-in has expired. Please sign out and sign in again.' })
+  : res.status(403).json({ success: false, error: 'Authorized admin or staff account required.' });
+
 const getLifecycleActor = async (req) => {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
   if (!token || !supabaseAdmin) return null;
   const { data: { user } } = await supabaseAdmin.auth.getUser(token);
-  if (!user) return null;
+  if (!user) { req.signInExpired = true; return null; }
   const { data: profile } = await supabaseAdmin.from('profiles').select('id, role, is_active').eq('id', user.id).maybeSingle();
   if (!profile?.is_active || !['ADMIN', 'STAFF'].includes(String(profile.role || '').toUpperCase())) return null;
   return { user, profile };
@@ -5406,7 +5410,7 @@ app.post('/api/bookings/add-service', async (req, res) => {
 app.post('/api/bookings/update-master-status', async (req, res) => {
   const { bookingId, status, reason = '' } = req.body || {};
   const actor = await getLifecycleActor(req);
-  if (!actor) return res.status(403).json({ success: false, error: 'Authorized admin or staff account required.' });
+  if (!actor) return denyLifecycle(req, res);
   if (!bookingId || !status) return res.status(400).json({ success: false, error: 'Booking ID and status are required.' });
 
   try {
@@ -5472,7 +5476,7 @@ app.post('/api/bookings/update-master-status', async (req, res) => {
 app.post('/api/bookings/release', async (req, res) => {
   const { bookingId } = req.body;
   if (!bookingId) return res.status(400).json({ success: false, error: 'Booking ID is required.' });
-  if (!(await getLifecycleActor(req))) return res.status(403).json({ success: false, error: 'Authorized admin or staff account required.' });
+  if (!(await getLifecycleActor(req))) return denyLifecycle(req, res);
 
   try {
     const { data: booking, error: fetchError } = await supabaseAdmin
@@ -5872,7 +5876,7 @@ app.post('/api/bookings/update-status', async (req, res) => {
 
   if (!supabaseAdmin) return res.status(500).json({ success: false, error: 'Supabase Admin not initialized' });
   const actor = await getLifecycleActor(req);
-  if (!actor) return res.status(403).json({ success: false, error: 'Authorized admin or staff account required.' });
+  if (!actor) return denyLifecycle(req, res);
   const requestedStatus = String(newStatus || '').toUpperCase();
   if (!['IN_PROGRESS', 'COMPLETED'].includes(requestedStatus)) {
     return res.status(400).json({ success: false, error: 'Only service start and completion updates are supported.' });

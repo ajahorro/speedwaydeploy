@@ -12,7 +12,7 @@ import PageHeader from '../../components/PageHeader';
 import { useUI } from '../../context/UIContext';
 import { logger } from '../../utils/logger';
 import toast from '@/lib/toast';
-import { BACKEND_URL } from '../../config/api';
+import { BACKEND_URL, authHeaders } from '../../config/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -341,7 +341,7 @@ const AdminDashboard = () => {
         try {
           const response = await fetch(`${BACKEND_URL}/api/bookings/release`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await authHeaders(),
             body: JSON.stringify({ bookingId })
           });
           const result = await response.json();

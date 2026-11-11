@@ -86,7 +86,7 @@ export const AuthProvider = ({ children }) => {
     try { Object.keys(localStorage).filter((k) => k.startsWith('comar-receipt:')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
     if (typeof redirectTo === 'string') {
       leavingRef.current = true;
-      try { await supabase.auth.signOut(); } catch (err) { logger.error('Sign Out Error', err); }
+      try { await supabase.auth.signOut({ scope: 'local' }); } catch (err) { logger.error('Sign Out Error', err); }
       window.location.replace(redirectTo);
       return;
     }
@@ -101,7 +101,7 @@ export const AuthProvider = ({ children }) => {
 
     try {
       logger.auth('Initiating sign out sequence...');
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
       logger.auth('Sign out complete.');
     } catch (err) {
       logger.error('Sign Out Error', err);
