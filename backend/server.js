@@ -19,7 +19,7 @@ const startupConfig = checkEnvironment();
 const { validateBookingRequest } = require('./services/scheduleValidation');
 const { Resend } = require('resend');
 const {
-  configureShop: configureEmailShop, sendPasswordConfirmationEmail: sendPasswordLinkEmail, sendPasswordChangedEmail,
+  configureShop: configureEmailShop, sendPasswordConfirmationEmail: sendPasswordLinkEmail, sendPasswordChangedEmail, sendSignupConfirmationEmail,
   sendWrongPasswordSecurityNotice, sendInviteAccountEmail, sendEmergencyRecoveryEmail, sendQrChangeOtpEmail, sendEmailChangedNotice,
   sendEmailChangeCode, sendAnnouncementEmail, sendPromoEmail, sendInquiryReplyEmail, sendInquiryToShopEmail, sendSupportReportEmail
 } = require('./services/emailService');
@@ -2123,6 +2123,62 @@ app.post('/api/auth/inspect-password-confirmation', async (req, res) => {
  * Generates a secure Supabase recovery link and delivers it via Resend
  * with a branded email template — bypasses unreliable Supabase SMTP.
  */
+// Sign-up goes through the server so its confirmation email comes from the same sender as every other Comar Garage
+// email. generateLink creates the unconfirmed account without Supabase sending anything; we email the link ourselves.
+// The link opens /auth/callback on our own domain, which confirms the account and signs the customer in.
+const signupLinkUrl = (hashedToken, type) => appUrl(`/auth/callback?token_hash=${encodeURIComponent(hashedToken)}&type=${type}`);
+app.post('/api/auth/register', async (req, res) => {
+  const b = req.body || {};
+  const email = String(b.email || '').trim().toLowerCase();
+  const password = String(b.password || '');
+  const first = String(b.first_name || '').trim(), last = String(b.last_name || '').trim();
+  if (!isValidEmail(email)) return res.status(400).json({ success: false, error: 'Enter a valid email address.' });
+  if (password.length < 6) return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
+  if (!first || !last) return res.status(400).json({ success: false, error: 'Enter your first and last name.' });
+  if (await isBreachedPassword(password)) return res.status(400).json({ success: false, error: BREACHED_PASSWORD_ERROR });
+  try {
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'signup', email, password,
+      options: { data: {
+        full_name: `${first} ${last}`, first_name: first, last_name: last, phone_number: b.phone || null, role: 'CUSTOMER',
+        accepted_terms_version: Number(b.accepted_terms_version) || null, accepted_security_version: Number(b.accepted_security_version) || null,
+      } },
+    });
+    if (error) {
+      if (error.code === 'email_exists' || /already been registered|already registered/i.test(error.message || '')) {
+        return res.status(409).json({ success: false, error: 'An account with this email already exists. Try signing in or use "Forgot Password?".' });
+      }
+      throw error;
+    }
+    const sent = await sendSignupConfirmationEmail({ email, name: first, url: signupLinkUrl(data.properties.hashed_token, 'signup') });
+    if (!sent.success) return res.status(502).json({ success: false, accountCreated: true, error: 'Your account was created, but the confirmation email could not be sent. Use "Resend link" on the next screen.' });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Registration failed:', err.message);
+    return res.status(500).json({ success: false, error: 'Registration failed. Please try again.' });
+  }
+});
+
+// "Resend link" for an account that is not confirmed yet. Same answer whether or not the address exists.
+app.post('/api/auth/resend-signup', async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const reply = { success: true, message: 'If this address has an account waiting for confirmation, a new link is on its way.' };
+  if (!isValidEmail(email)) return res.json(reply);
+  try {
+    const { data: users, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (usersError) throw usersError;
+    const account = users.users.find((u) => u.email?.toLowerCase() === email);
+    if (account && !account.email_confirmed_at) {
+      const { data, error } = await supabaseAdmin.auth.admin.generateLink({ type: 'magiclink', email });
+      if (error) throw error;
+      await sendSignupConfirmationEmail({ email, name: account.user_metadata?.first_name, url: signupLinkUrl(data.properties.hashed_token, 'magiclink'), resend: true });
+    }
+  } catch (err) {
+    console.error('Resend sign-up link failed:', err.message);
+  }
+  return res.json(reply);
+});
+
 app.post('/api/auth/recover-password', async (req, res) => {
   // Trim and lower-case: a phone keyboard can add a trailing space or a capital first letter.
   const email = String(req.body?.email || '').trim().toLowerCase();

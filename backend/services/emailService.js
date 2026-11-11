@@ -96,6 +96,24 @@ const sendPasswordConfirmationEmail = ({ email, url, purpose, minutes = 15 }) =>
   reason: 'You get this email because someone asked to change the password on this account.',
 });
 
+/** Sign-up confirmation (and its resend): the one link that activates a new customer account. */
+const sendSignupConfirmationEmail = ({ email, name, url, resend: again = false }) => deliver({
+  to: email,
+  subject: 'Confirm your Comar Garage account',
+  preheader: 'One tap to activate your account.',
+  title: 'Confirm your account',
+  greeting: hi(name),
+  blocks: [
+    again
+      ? `Here is a new link to activate the Comar Garage account **${email}**.`
+      : `Thanks for signing up. Confirm that **${email}** is your email address to activate your Comar Garage account.`,
+    { type: 'small', text: 'The link works once. After you confirm, you are signed in and can book right away.' },
+    { type: 'notice', tone: 'info', text: 'If you did not create this account, you can ignore this email. Nothing happens unless the link is opened.' },
+  ],
+  cta: { label: 'Confirm my account', url },
+  reason: 'You get this email because this address was used to create a Comar Garage account.',
+});
+
 const sendPasswordChangedEmail = ({ email, purpose }) => deliver({
   to: email,
   subject: 'Your Comar Garage password was changed',
@@ -281,6 +299,7 @@ module.exports = {
   send,
   deliver,
   sendPasswordConfirmationEmail,
+  sendSignupConfirmationEmail,
   sendPasswordChangedEmail,
   sendWrongPasswordSecurityNotice,
   sendEmergencyRecoveryEmail,

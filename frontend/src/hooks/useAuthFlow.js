@@ -87,7 +87,6 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
     setIsLoading(true);
     try {
       const email = userData.email.trim().toLowerCase();
-      const fullName = `${userData.firstName.trim()} ${userData.lastName.trim()}`.trim();
       const contactProblem = emailError(email) || phoneError(userData.phone);
       if (contactProblem) throw new Error(contactProblem);
       if (userData.password.length < 6) {
@@ -97,28 +96,6 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
         throw new Error('First and last name are required.');
       }
 
-      // Email confirmation is mandatory, so a successful signUp() returns NO
-      // session. The profile row below therefore cannot be written from the
-      // client — RLS would reject it (auth.uid() is null) and the crash surfaced
-      // as "Registration failed". The backend writes the profile on confirm
-      // instead, which is why this now only validates and reports success.
-      // AUTH REDIRECT.
-      //
-      // This used to be `${window.location.origin}/login`. Supabase appends the
-      // session as a URL FRAGMENT (#access_token=...&type=signup), and /login
-      // never read a fragment — so a freshly confirmed customer landed on a
-      // login FORM with their session silently discarded. That is the
-      // "confirmation links don't lead where they are intended" defect.
-      //
-      // `/auth/callback` consumes the fragment, establishes the session, and
-      // redirects by role. The origin is still derived from the browser so it
-      // follows whatever domain the app is served from — but the PATH is now a
-      // route that actually handles the link.
-      //
-      // IMPORTANT: this URL must also be listed under Supabase > Authentication >
-      // URL Configuration > Redirect URLs, or Supabase ignores it and falls back
-      // to the project's Site URL.
-      const redirectTo = `${window.location.origin}/auth/callback`;
 
       // From a walk-in's invite link: the server makes the account already confirmed, then we sign straight in.
       if (userData.inviteToken) {
@@ -137,32 +114,24 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
       }
 
       if (await isBreachedPassword(userData.password)) throw new Error(BREACHED_PASSWORD_ERROR);
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password: userData.password,
-        options: {
-          // Consumed by the backend when it materialises the profile on confirm.
-          data: {
-            full_name: fullName,
-            first_name: userData.firstName.trim(),
-            last_name: userData.lastName.trim(),
-            phone_number: normalizePhPhone(userData.phone),
-            role: 'CUSTOMER',
-            // agreed on the form; recorded on the first sign-in
-            accepted_terms_version: userData.acceptedTerms,
-            accepted_security_version: userData.acceptedPrivacy
-          },
-          emailRedirectTo: redirectTo
-        }
+      // The server creates the account and sends the confirmation link from the same sender as every other email.
+      const res = await fetch(`${BACKEND_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password: userData.password,
+          first_name: userData.firstName.trim(),
+          last_name: userData.lastName.trim(),
+          phone: normalizePhPhone(userData.phone),
+          // agreed on the form; recorded on the first sign-in
+          accepted_terms_version: userData.acceptedTerms,
+          accepted_security_version: userData.acceptedPrivacy
+        })
       });
-      if (error) throw error;
-
-      // Supabase deliberately returns a fake user with no identities when the
-      // address is already registered, to avoid account enumeration. Treat it as
-      // "nothing sent" rather than showing a success screen that never arrives.
-      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-        throw new Error('An account with this email already exists. Try signing in or use "Forgot Password?".');
-      }
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok && !body.accountCreated) throw new Error(body.error || 'Registration failed.');
+      if (body.accountCreated) toast.error(body.error);
 
       setVerificationEmail(email);
 
@@ -190,8 +159,12 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
     }
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.resend({ type: 'signup', email: target.toLowerCase() });
-      if (error) throw error;
+      const res = await fetch(`${BACKEND_URL}/api/auth/resend-signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: target.toLowerCase() })
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not resend the activation link.');
       toast.success(`Activation link resent to ${target}.`);
     } catch (error) {
       toast.error(error.message || 'Could not resend the activation link.');
