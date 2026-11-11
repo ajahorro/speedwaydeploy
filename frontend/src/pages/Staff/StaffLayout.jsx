@@ -166,7 +166,7 @@ const StaffLayout = () => {
     position: 'fixed',
     top: 0,
     left: isMobile ? (isSidebarOpen ? 0 : '-260px') : (isDesktopCollapsed ? '-260px' : 0),
-    height: '100vh',
+    height: 'var(--app-vh)',
     flexShrink: 0,
     zIndex: 1000,
     transition: 'left 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -185,7 +185,7 @@ const StaffLayout = () => {
   };
 
   return (
-    <div className="admin-theme" data-theme={resolvedTheme} style={{ display: 'flex', width: '100vw', height: '100vh', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', fontFamily: 'Inter, system-ui, sans-serif', overflow: 'hidden' }}>
+    <div className="admin-theme" data-theme={resolvedTheme} style={{ display: 'flex', width: '100vw', height: 'var(--app-vh)', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', fontFamily: 'Inter, system-ui, sans-serif', overflow: 'hidden' }}>
 
       <div style={overlayStyle} onClick={() => setIsSidebarOpen(false)} />
 
@@ -250,7 +250,7 @@ const StaffLayout = () => {
       </aside>
 
       {/* Main Content */}
-      <main style={{ flex: 1, minWidth: 0, marginLeft: isMobile ? 0 : (isDesktopCollapsed ? 0 : '260px'), height: '100vh', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', position: 'relative', background: 'var(--admin-bg)', transition: 'margin-left 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+      <main style={{ flex: 1, minWidth: 0, marginLeft: isMobile ? 0 : (isDesktopCollapsed ? 0 : '260px'), height: 'var(--app-vh)', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', position: 'relative', background: 'var(--admin-bg)', transition: 'margin-left 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
         {/* Top Header */}
         <header style={{
           height: '70px', background: 'var(--admin-card)', backdropFilter: 'blur(10px)',

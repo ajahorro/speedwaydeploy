@@ -113,7 +113,7 @@ const CustomerLayout = () => {
     position: 'fixed',
     top: 0,
     left: isMobile ? (isSidebarOpen ? 0 : '-260px') : (isDesktopCollapsed ? '-260px' : 0),
-    height: '100vh',
+    height: 'var(--app-vh)',
     flexShrink: 0,
     zIndex: 1000,
     transition: 'left 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -132,7 +132,7 @@ const CustomerLayout = () => {
   };
 
   return (
-    <div className="admin-theme" data-theme={resolvedTheme} style={{ display: 'flex', width: '100vw', height: '100vh', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', position: 'relative', overflow: 'hidden' }}>
+    <div className="admin-theme" data-theme={resolvedTheme} style={{ display: 'flex', width: '100vw', height: 'var(--app-vh)', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', position: 'relative', overflow: 'hidden' }}>
 
       {/* Mobile Overlay */}
       <div style={overlayStyle} onClick={() => setIsSidebarOpen(false)} />
@@ -174,7 +174,7 @@ const CustomerLayout = () => {
         </div>
       </aside>
 
-      <div className="admin-main-wrapper" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', position: 'relative', maxWidth: '100%', height: '100vh', overflow: 'hidden', marginLeft: isMobile ? 0 : (isDesktopCollapsed ? 0 : '260px'), transition: 'margin-left 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+      <div className="admin-main-wrapper" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', position: 'relative', maxWidth: '100%', height: 'var(--app-vh)', overflow: 'hidden', marginLeft: isMobile ? 0 : (isDesktopCollapsed ? 0 : '260px'), transition: 'margin-left 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
         <header className="no-print" style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -187,8 +187,8 @@ const CustomerLayout = () => {
           zIndex: 50,
           boxShadow: 'var(--admin-card-shadow)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '2rem' }}>
-            <button onClick={toggleSidebar} aria-label="Toggle menu" style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '2rem', minWidth: 0 }}>
+            <button type="button" onClick={toggleSidebar} aria-label="Toggle menu" style={{ color: 'var(--admin-text-primary)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0, minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginLeft: '-0.5rem' }}>
               <Menu size={20} />
             </button>
             <div
