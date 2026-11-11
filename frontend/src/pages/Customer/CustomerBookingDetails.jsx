@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { canRescheduleNoShow, noShowDeadline } from '../../utils/noShow';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { subscribeTables } from '../../lib/realtimeHub';
@@ -131,7 +132,8 @@ const CustomerBookingDetails = () => {
   };
 
   const openRescheduleModal = () => {
-    const start = booking?.start_datetime ? new Date(booking.start_datetime) : new Date();
+    // a missed appointment opens on today rather than its past date
+    const start = booking?.start_datetime && new Date(booking.start_datetime) > new Date() ? new Date(booking.start_datetime) : new Date();
     setRescheduleDate(`${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`);
     setRescheduleTime(`${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`);
     setRescheduleSlots([]);
@@ -767,6 +769,18 @@ const CustomerBookingDetails = () => {
                 Cancel Appointment
               </Button>
               <Button onClick={openRescheduleModal} variant="outline" className="border-primary text-primary hover:text-primary w-full mt-3 uppercase">
+                Reschedule Appointment
+              </Button>
+            </div>
+          )}
+
+          {canRescheduleNoShow(booking) && (
+            <div style={cardStyle}>
+              <div style={labelStyle}>Missed appointment</div>
+              <p style={{ margin: '0.5rem 0 1rem 0', fontSize: '0.8rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>
+                You missed this appointment. You can still pick a new time until {noShowDeadline(booking)?.toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}. After that it is cancelled.
+              </p>
+              <Button onClick={openRescheduleModal} variant="outline" className="border-primary text-primary hover:text-primary w-full uppercase">
                 Reschedule Appointment
               </Button>
             </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { canRescheduleNoShow, noShowDeadline } from '../../utils/noShow';
 import RefundProofButton from '../../features/finance/RefundProofButton';
 import { useRefundProofs } from '../../hooks/useRefundProofs';
 import ReactDOM from 'react-dom';
@@ -1425,7 +1426,7 @@ const AdminBookingDetails = () => {
           && new Date(booking.start_datetime).toDateString() === new Date().toDateString() && (
           <EarlyStartButton bookingId={booking.id} onAllowed={() => { fetchBookingDetails(); fetchAuditLogs(); }} />
         )}
-        {!['completed', 'released', 'cancelled', 'in_progress', 'ongoing'].includes(derivedStatus) && !anyUnitStarted && (
+        {!['completed', 'released', 'cancelled', 'in_progress', 'ongoing'].includes(derivedStatus) && !anyUnitStarted && (!isNoShowBooking || canRescheduleNoShow(booking)) && (
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <button
               onClick={handleOpenReschedule}
@@ -1499,6 +1500,7 @@ const AdminBookingDetails = () => {
             <AlertCircle size={18} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--status-warning)' }} />
             <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '700', color: 'var(--admin-text-primary)', lineHeight: 1.5 }}>
               Booking Flagged as No-Show. Scheduled appointment time passed without confirmation.
+              {canRescheduleNoShow(booking) && <> It can still be rescheduled or restored until {noShowDeadline(booking)?.toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.</>}
             </p>
           </div>
 

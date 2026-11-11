@@ -3887,5 +3887,11 @@
  "Too many wrong codes. Please start again.": "Masyadong maraming maling code. Magsimula ulit.",
  "The email could not be changed. Please try again.": "Hindi napalitan ang email. Pakisubukan ulit.",
  "Email address changed. Use the new address the next time you sign in.": "Napalitan na ang email address. Gamitin ang bagong address sa susunod na pag-sign in.",
- "Your sign-in has expired. Please sign in again.": "Nag-expire na ang iyong pag-sign in. Mag-sign in ulit."
+ "Your sign-in has expired. Please sign in again.": "Nag-expire na ang iyong pag-sign in. Mag-sign in ulit.",
+ "Missed appointment": "Hindi nasiputang appointment",
+ "You missed this appointment. You can still pick a new time until": "Hindi mo nasipot ang appointment na ito. Maaari ka pang pumili ng bagong oras hanggang",
+ ". After that it is cancelled.": ". Pagkatapos noon, kakanselahin ito.",
+ "It can still be rescheduled or restored until": "Maaari pa itong i-reschedule o ibalik hanggang",
+ "The 24-hour window to reschedule this missed appointment has closed.": "Sarado na ang 24 na oras para i-reschedule ang hindi nasiputang appointment na ito.",
+ "This booking was already refunded, so it cannot be rescheduled. Please make a new booking.": "Na-refund na ang booking na ito kaya hindi na ito mai-reschedule. Gumawa ng bagong booking."
 }

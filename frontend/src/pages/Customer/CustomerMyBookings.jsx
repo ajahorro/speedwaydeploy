@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { canRescheduleBooking } from '../../utils/noShow';
 import { Calendar, Search, ChevronRight, Car, RotateCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -57,7 +58,7 @@ const CustomerMyBookings = () => {
 
   const confirmRebook = () => {
     if (selectedRebook) {
-      const canReschedule = ['scheduled', 'confirmed'].includes(selectedRebook.status?.toLowerCase());
+      const canReschedule = canRescheduleBooking(selectedRebook);
       sessionStorage.setItem('comar_rebook_data', JSON.stringify({
         ...selectedRebook,
         reschedule: canReschedule
@@ -76,7 +77,7 @@ const CustomerMyBookings = () => {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <RotateCw className="size-5 text-primary" aria-hidden="true" />
-              {['scheduled', 'confirmed'].includes(selectedRebook?.status?.toLowerCase()) ? 'Reschedule Booking?' : 'Fast-Track Rebook?'}
+              {canRescheduleBooking(selectedRebook) ? 'Reschedule Booking?' : 'Fast-Track Rebook?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {['scheduled', 'confirmed'].includes(selectedRebook?.status?.toLowerCase())
@@ -184,7 +185,7 @@ const CustomerMyBookings = () => {
                     </div>
 
                     <div className="flex gap-2">
-                      {['scheduled', 'confirmed', 'completed', 'cancelled'].includes(b.status?.toLowerCase()) && (
+                      {(['scheduled', 'confirmed', 'completed', 'cancelled'].includes(b.status?.toLowerCase()) || canRescheduleBooking(b)) && (
                         <Button
                           type="button"
                           variant="outline"
@@ -194,8 +195,8 @@ const CustomerMyBookings = () => {
                             e.stopPropagation();
                             handleBookAgainClick(b);
                           }}
-                          title={['scheduled', 'confirmed'].includes(b.status?.toLowerCase()) ? 'Reschedule Booking' : 'Book Again'}
-                          aria-label={['scheduled', 'confirmed'].includes(b.status?.toLowerCase()) ? 'Reschedule Booking' : 'Book Again'}
+                          title={canRescheduleBooking(b) ? 'Reschedule Booking' : 'Book Again'}
+                          aria-label={canRescheduleBooking(b) ? 'Reschedule Booking' : 'Book Again'}
                         >
                           <RotateCw />
                         </Button>
