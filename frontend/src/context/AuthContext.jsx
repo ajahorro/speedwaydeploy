@@ -436,7 +436,7 @@ export const AuthProvider = ({ children }) => {
     // fields a user may change and strip everything else.
     const SAFE_PROFILE_FIELDS = [
       'first_name', 'last_name', 'phone_number',
-      'push_notifications_enabled', 'email_change_temp'
+      'push_notifications_enabled'
     ];
     const safeUpdates = Object.fromEntries(
       Object.entries(updates || {}).filter(([key]) => SAFE_PROFILE_FIELDS.includes(key))
@@ -496,13 +496,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const requestEmailChange = async (newEmail) => {
+  const requestEmailChange = async (newEmail, password) => {
     if (!user) return;
     try {
       const response = await fetch(`${BACKEND_URL}/api/auth/request-email-change`, {
         method: 'POST',
         headers: await authHeaders(),
-        body: JSON.stringify({ newEmail })
+        body: JSON.stringify({ newEmail, password })
       });
       return await response.json();
     } catch (err) {
@@ -510,16 +510,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const confirmEmailChange = async (otp) => {
+  const confirmEmailChange = async (currentCode, newCode) => {
     if (!user) return;
     try {
       const response = await fetch(`${BACKEND_URL}/api/auth/confirm-email-change`, {
         method: 'POST',
         headers: await authHeaders(),
-        body: JSON.stringify({ otp })
+        body: JSON.stringify({ currentCode, newCode })
       });
       const result = await response.json();
       if (result.success) {
+        // the sign-in still carries the old address until it is refreshed
+        const { data } = await supabase.auth.refreshSession().catch(() => ({ data: {} }));
+        if (data?.user) setUser(data.user);
         await fetchProfile(user.id, 'EMAIL_CHANGE_COMPLETE');
       }
       return result;

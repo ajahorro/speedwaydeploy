@@ -7,9 +7,11 @@ import PageHeader from '../../components/PageHeader';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import PasswordInput from '../../components/PasswordInput';
+import ChangeEmailDialog from '../../features/accounts/ChangeEmailDialog';
 
 const StaffProfile = () => {
   const { profile, user, verifyPassword, requestPasswordChange, resendPasswordChange } = useAuth();
+  const [showEmailChange, setShowEmailChange] = useState(false);
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [loading, setLoading] = useState(false);
   const [passLoading, setPassLoading] = useState(false);
@@ -131,8 +133,9 @@ const StaffProfile = () => {
             <div>
               <div style={labelStyle}>Primary Email</div>
               <div style={{ ...inputStyle, opacity: 0.6, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Mail size={16} /> {profile?.email || user?.email}
+                <Mail size={16} /> <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{profile?.email || user?.email}</span>
               </div>
+              <Button type="button" variant="outline" size="sm" className="mt-2 rounded-[2px]" onClick={() => setShowEmailChange(true)}>Change email address</Button>
             </div>
             <div>
               <div style={labelStyle}>Phone Number</div>
@@ -246,6 +249,7 @@ const StaffProfile = () => {
           </form>
         </section>
       </div>
+      <ChangeEmailDialog open={showEmailChange} onOpenChange={setShowEmailChange} />
     </div>
   );
 };

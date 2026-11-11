@@ -7,10 +7,13 @@ import toast from '@/lib/toast';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { supabase } from '../../lib/supabase';
 import PasswordInput from '../../components/PasswordInput';
+import ChangeEmailDialog from '../../features/accounts/ChangeEmailDialog';
+import { Button } from '@/components/ui/button';
 
 const AdminProfile = () => {
   const navigate = useNavigate();
   const { user, profile, updateProfile, verifyPassword, requestPasswordChange, resendPasswordChange } = useAuth();
+  const [showEmailChange, setShowEmailChange] = useState(false);
   const isMobile = useMediaQuery('(max-width: 1024px)');
 
   // States
@@ -209,15 +212,16 @@ const AdminProfile = () => {
               </div>
             </div>
             <div>
-              <label style={labelStyle}>Email Address (Protected)</label>
+              <label style={labelStyle}>Email Address</label>
               <div style={{ position: 'relative' }}>
                 <Mail size={18} style={{ position: 'absolute', left: '1.25rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)', opacity: 0.5 }} />
                 <input 
                   style={{ ...inputStyle, paddingLeft: '3.25rem', opacity: 0.6, cursor: 'not-allowed' }} 
-                  value={formData.email}
+                  value={profile?.email || user?.email || formData.email}
                   readOnly
                 />
               </div>
+              <Button type="button" variant="outline" size="sm" className="mt-2 rounded-[2px]" onClick={() => setShowEmailChange(true)}>Change email address</Button>
             </div>
             {isEditing && (
               <div style={{ display: 'flex', gap: '1rem' }}>
@@ -397,6 +401,7 @@ const AdminProfile = () => {
           </form>
         </div>
       )}
+      <ChangeEmailDialog open={showEmailChange} onOpenChange={setShowEmailChange} />
     </div>
   );
 };

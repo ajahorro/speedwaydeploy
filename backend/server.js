@@ -20,7 +20,7 @@ const { validateBookingRequest } = require('./services/scheduleValidation');
 const { Resend } = require('resend');
 const {
   configureShop: configureEmailShop, sendPasswordConfirmationEmail: sendPasswordLinkEmail, sendPasswordChangedEmail,
-  sendWrongPasswordSecurityNotice, sendInviteAccountEmail, sendEmergencyRecoveryEmail, sendQrChangeOtpEmail,
+  sendWrongPasswordSecurityNotice, sendInviteAccountEmail, sendEmergencyRecoveryEmail, sendQrChangeOtpEmail, sendEmailChangedNotice,
   sendEmailChangeCode, sendAnnouncementEmail, sendPromoEmail, sendInquiryReplyEmail, sendInquiryToShopEmail, sendSupportReportEmail
 } = require('./services/emailService');
 // EMAIL AUTH POLICY: single source of truth for LINK vs OTP per flow.
@@ -2160,39 +2160,59 @@ app.post('/api/auth/recover-password', async (req, res) => {
 
 
 /**
- * 🛡️ REQ-CST-12: Double-Step Email Change
- * Sends verification token to OLD email address before authorizing change
+ * REQ-CST-12: change the sign-in email (any account type). The current password is required, then one code
+ * goes to the current address (it's really the owner) and one to the new address (they own it).
+ * Codes are stored hashed, expire in 15 minutes and allow 5 wrong tries.
  */
+const EMAIL_CODE_TTL_MS = 15 * 60000;
+const hashCode = (code) => crypto.createHash('sha256').update(String(code)).digest('hex');
+const sixDigitCode = () => String(crypto.randomInt(100000, 1000000));
+// A throwaway client checks the password, so the shared service client never picks up the user's session.
+const passwordMatches = async (email, password) => {
+  const probe = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data, error } = await probe.auth.signInWithPassword({ email, password });
+  if (data?.session) await probe.auth.signOut({ scope: 'local' }).catch(() => {});
+  return !error;
+};
+const emailTakenByOther = async (email, userId) => {
+  const { data } = await supabaseAdmin.from('profiles').select('id').ilike('email', email).neq('id', userId).limit(1);
+  return Boolean(data?.length);
+};
+const EMAIL_TAKEN = 'That email address is already used by another account.';
+
 app.post('/api/auth/request-email-change', async (req, res) => {
   const actor = await getAuthenticatedActor(req);
-  if (!actor) return res.status(401).json({ success: false, error: 'Authentication required.' });
+  if (!actor) return res.status(401).json({ success: false, error: 'Your sign-in has expired. Please sign in again.' });
   const userId = actor.user.id;
-  const oldEmail = actor.user.email;
+  const oldEmail = String(actor.user.email || '').toLowerCase();
   const newEmail = String(req.body?.newEmail || '').trim().toLowerCase();
-  if (!isValidEmail(newEmail)) {
-    return res.status(400).json({ success: false, error: 'A valid new email is required.' });
-  }
-  console.log(`📧 [AUTH] EMAIL CHANGE REQUEST: ${oldEmail} -> ${newEmail}`);
+  const password = String(req.body?.password || '');
+  if (!isValidEmail(newEmail)) return res.status(400).json({ success: false, error: 'Enter a valid email address.' });
+  if (newEmail === oldEmail) return res.status(400).json({ success: false, error: 'That is already your email address.' });
 
   try {
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    if (!password || !(await passwordMatches(oldEmail, password))) return res.status(401).json({ success: false, error: 'Your current password is incorrect.' });
+    if (await emailTakenByOther(newEmail, userId)) return res.status(409).json({ success: false, error: EMAIL_TAKEN });
 
-    // Store OTP in profiles metadata temporarily (In a real system, use a dedicated table)
-    const { error: dbError } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        email_change_temp: { newEmail, otp, expires: new Date(Date.now() + 15 * 60000).toISOString() }
-      })
-      .eq('id', userId);
-
+    const codes = { current: sixDigitCode(), next: sixDigitCode() };
+    const { error: dbError } = await supabaseAdmin.from('profiles').update({
+      email_change_temp: { newEmail, current: hashCode(codes.current), next: hashCode(codes.next), attempts: 0, expires: new Date(Date.now() + EMAIL_CODE_TTL_MS).toISOString() }
+    }).eq('id', userId);
     if (dbError) throw dbError;
 
-    // Send the code to the CURRENT (old) address. The code is never logged.
-    const codeResult = await sendEmailChangeCode({ oldEmail, newEmail, otp });
-    if (!codeResult.success) throw new Error('The code could not be emailed. Try again in a moment.');
-    return res.json({ success: true, message: 'Verification code sent to current email' });
+    // The codes are never logged.
+    const sent = await Promise.all([
+      sendEmailChangeCode({ to: oldEmail, oldEmail, newEmail, otp: codes.current }),
+      sendEmailChangeCode({ to: newEmail, oldEmail, newEmail, otp: codes.next }),
+    ]);
+    if (!sent.every((r) => r?.success)) {
+      await supabaseAdmin.from('profiles').update({ email_change_temp: null }).eq('id', userId);
+      return res.status(502).json({ success: false, error: 'The codes could not be emailed. Check the new address and try again.' });
+    }
+    return res.json({ success: true, message: 'Codes sent to both addresses.' });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    console.error('[email-change] request failed:', err.message);
+    return res.status(500).json({ success: false, error: 'The email change could not be started. Please try again.' });
   }
 });
 
@@ -2242,46 +2262,42 @@ app.post('/api/emails/qr-change-otp', async (req, res) => {
 
 app.post('/api/auth/confirm-email-change', async (req, res) => {
   const actor = await getAuthenticatedActor(req);
-  if (!actor) return res.status(401).json({ success: false, error: 'Authentication required.' });
+  if (!actor) return res.status(401).json({ success: false, error: 'Your sign-in has expired. Please sign in again.' });
   const userId = actor.user.id;
-  const otp = String(req.body?.otp || '');
+  const oldEmail = String(actor.user.email || '').toLowerCase();
+  const restart = (status, error) => supabaseAdmin.from('profiles').update({ email_change_temp: null }).eq('id', userId)
+    .then(() => res.status(status).json({ success: false, restart: true, error }));
 
   try {
-    const { data: profile, error: fetchError } = await supabaseAdmin
-      .from('profiles')
-      .select('email_change_temp')
-      .eq('id', userId)
-      .single();
+    const { data: profile, error: fetchError } = await supabaseAdmin.from('profiles').select('email_change_temp').eq('id', userId).single();
+    if (fetchError) throw fetchError;
+    const temp = profile?.email_change_temp;
+    if (!temp?.newEmail || !temp.current || !temp.next) return res.status(400).json({ success: false, restart: true, error: 'There is no email change waiting. Please start again.' });
+    if (Date.now() > new Date(temp.expires).getTime()) return restart(400, 'The codes have expired. Please start again.');
 
-    if (fetchError || !profile.email_change_temp) {
-      return res.status(400).json({ success: false, error: 'No active email change request' });
+    const ok = hashCode(String(req.body?.currentCode || '').trim()) === temp.current && hashCode(String(req.body?.newCode || '').trim()) === temp.next;
+    if (!ok) {
+      const attempts = Number(temp.attempts || 0) + 1;
+      if (attempts >= 5) return restart(429, 'Too many wrong codes. Please start again.');
+      await supabaseAdmin.from('profiles').update({ email_change_temp: { ...temp, attempts } }).eq('id', userId);
+      return res.status(400).json({ success: false, error: `A code is wrong. Check both inboxes and try again (${5 - attempts} tries left).` });
     }
+    if (await emailTakenByOther(temp.newEmail, userId)) return restart(409, EMAIL_TAKEN);
 
-    const { newEmail, otp: storedOtp, expires } = profile.email_change_temp;
-
-    if (new Date() > new Date(expires)) {
-      return res.status(400).json({ success: false, error: 'Code expired' });
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, { email: temp.newEmail, email_confirm: true });
+    if (authError) {
+      if (/already|registered|exists/i.test(authError.message || '')) return restart(409, EMAIL_TAKEN);
+      throw authError;
     }
-
-    if (otp !== storedOtp) {
-      return res.status(400).json({ success: false, error: 'Invalid authorization code' });
-    }
-
-    // Update Email in Supabase Auth
-    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, { email: newEmail });
-    if (authError) throw authError;
-
-    // Update Email in Profiles Table
-    const { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .update({ email: newEmail, email_change_temp: null })
-      .eq('id', userId);
-
+    const { error: profileError } = await supabaseAdmin.from('profiles').update({ email: temp.newEmail, email_change_temp: null }).eq('id', userId);
     if (profileError) throw profileError;
 
-    return res.json({ success: true, message: 'Email updated successfully' });
+    invalidateServerCache('admin:profiles');
+    void sendEmailChangedNotice({ oldEmail, newEmail: temp.newEmail }).catch((e) => console.error('[email-change] notice failed:', e.message));
+    return res.json({ success: true, email: temp.newEmail, message: 'Email address changed.' });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    console.error('[email-change] confirm failed:', err.message);
+    return res.status(500).json({ success: false, error: 'The email could not be changed. Please try again.' });
   }
 });
 

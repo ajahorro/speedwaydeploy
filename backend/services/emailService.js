@@ -140,8 +140,8 @@ const sendEmergencyRecoveryEmail = ({ recipientEmail, otp }) => deliver({
   reason: 'You get this email because someone asked to unlock this account.',
 });
 
-const sendEmailChangeCode = ({ oldEmail, newEmail, otp }) => deliver({
-  to: oldEmail,
+const sendEmailChangeCode = ({ to, oldEmail, newEmail, otp }) => deliver({
+  to,
   subject: 'Your code to change your Comar Garage email',
   preheader: 'Use it within 15 minutes. Never share it with anyone.',
   title: 'Confirm your new email address',
@@ -152,6 +152,20 @@ const sendEmailChangeCode = ({ oldEmail, newEmail, otp }) => deliver({
     { type: 'notice', tone: 'warn', title: 'Not you?', text: 'Do not share the code. Change your password now so no one else can change your email.' },
   ],
   reason: 'You get this email because someone asked to change the email on this account.',
+});
+
+/** Sent to the old address once the change is done, so a change the owner did not make is noticed. */
+const sendEmailChangedNotice = ({ oldEmail, newEmail }) => deliver({
+  to: oldEmail,
+  subject: 'Your Comar Garage email was changed',
+  preheader: 'You now sign in with your new address.',
+  title: 'Your email address was changed',
+  greeting: 'Hi,',
+  blocks: [
+    `The sign-in email for your account changed from **${oldEmail}** to **${newEmail}**. Use the new address the next time you sign in.`,
+    { type: 'notice', tone: 'warn', title: 'Not you?', text: 'Contact Comar Garage right away so we can secure your account.' },
+  ],
+  reason: 'You get this email because the email on this account was changed.',
 });
 
 const ROLE_WORD = { STAFF: 'staff', ADMIN: 'administrator', SUPER_ADMIN: 'administrator', CUSTOMER: 'customer' };
@@ -271,6 +285,7 @@ module.exports = {
   sendWrongPasswordSecurityNotice,
   sendEmergencyRecoveryEmail,
   sendEmailChangeCode,
+  sendEmailChangedNotice,
   sendInviteAccountEmail,
   sendQrChangeOtpEmail,
   sendAnnouncementEmail,

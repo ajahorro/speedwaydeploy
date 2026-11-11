@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  User, Mail, Phone, Lock, Shield, Trash2, Save, Loader2, 
+  User, Mail, Phone, Lock, Shield, Trash2, Save, 
   Key, AlertTriangle, ChevronRight, CheckCircle, Edit3, X, 
-  ShieldCheck, RefreshCw, Send
+  ShieldCheck, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import toast from '@/lib/toast';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
-import { PhoneInput, EmailInput } from '../../components/common/ContactInputs';
-import { phoneError, emailError, normalizePhPhone } from '../../utils/contactValidation';
+import { PhoneInput } from '../../components/common/ContactInputs';
+import { phoneError, normalizePhPhone } from '../../utils/contactValidation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,16 +21,16 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import PasswordInput from '../../components/PasswordInput';
 import { TourLauncher } from '../../components/common/GuidedTour';
 import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
+import ChangeEmailDialog from '../../features/accounts/ChangeEmailDialog';
 
 const CustomerProfile = () => {
   const { confirmThen } = useConfirmAction();
-  const { user, profile, updateProfile, verifyPassword, requestPasswordChange, resendPasswordChange, requestEmailChange, confirmEmailChange, deactivateAccount } = useAuth();
+  const { user, profile, updateProfile, verifyPassword, requestPasswordChange, resendPasswordChange, deactivateAccount } = useAuth();
 
   // States
   const [isEditing, setIsEditing] = useState(false);
   // Task 16: track confirmation-email delivery so the user can resend if needed.
   const [passwordEmailState, setPasswordEmailState] = useState(null);
-  const [isUpdating, setIsUpdating] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
@@ -43,11 +43,6 @@ const CustomerProfile = () => {
     phone: profile?.phone_number || user?.user_metadata?.phone_number || ''
   });
 
-  const [emailData, setEmailData] = useState({
-    newEmail: '',
-    otp: '',
-    step: 1 // 1: Request, 2: Confirm
-  });
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -161,35 +156,6 @@ const CustomerProfile = () => {
       toast.error(error.message || 'Something went wrong. Please try again.', { id: toastId });
     } finally {
       setPendingAction(null);
-    }
-  };
-
-  const handleEmailRequest = async (e) => {
-    e.preventDefault();
-    const emailProblem = emailError(emailData.newEmail);
-    if (emailProblem) { toast.error(emailProblem); return; }
-    setIsUpdating(true);
-    const res = await requestEmailChange(emailData.newEmail);
-    setIsUpdating(false);
-    if (res.success) {
-      setEmailData(prev => ({ ...prev, step: 2 }));
-      toast.success('Verification code sent to your current email');
-    } else {
-      toast.error(res.error || 'Failed to initiate email change');
-    }
-  };
-
-  const handleEmailConfirm = async (e) => {
-    e.preventDefault();
-    setIsUpdating(true);
-    const res = await confirmEmailChange(emailData.otp);
-    setIsUpdating(false);
-    if (res.success) {
-      setShowEmailModal(false);
-      setEmailData({ newEmail: '', otp: '', step: 1 });
-      toast.success('Email address updated successfully');
-    } else {
-      toast.error(res.error || 'Invalid or expired code');
     }
   };
 
@@ -430,55 +396,7 @@ const CustomerProfile = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Email Change */}
-      <Dialog open={showEmailModal} onOpenChange={setShowEmailModal}>
-        <DialogContent className="ui-root sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Update Email</DialogTitle>
-            <DialogDescription>
-              {emailData.step === 1
-                ? <>A verification code will be sent to <strong>{user.email}</strong> to confirm this change.</>
-                : 'Code sent. Check your inbox for the 6-digit code.'}
-            </DialogDescription>
-          </DialogHeader>
-
-          {emailData.step === 1 ? (
-            <form onSubmit={handleEmailRequest} className="grid gap-4">
-              <div className="grid gap-1.5">
-                <Label>New Email Address</Label>
-                <EmailInput
-                  as={Input}
-                  value={emailData.newEmail}
-                  onChange={(e) => setEmailData({ ...emailData, newEmail: e.target.value })}
-                />
-              </div>
-              <Button type="submit" disabled={isUpdating}>
-                {isUpdating ? <Loader2 className="animate-spin" /> : <Send />}
-                Send verification code
-              </Button>
-            </form>
-          ) : (
-            <form onSubmit={handleEmailConfirm} className="grid gap-4">
-              <div className="grid gap-1.5">
-                <Label htmlFor="email-otp">Verification code</Label>
-                <Input
-                  id="email-otp"
-                  type="text"
-                  required
-                  placeholder="6-digit code"
-                  value={emailData.otp}
-                  onChange={(e) => setEmailData({ ...emailData, otp: e.target.value })}
-                  className="h-12 text-center text-xl tracking-[0.5em]"
-                />
-              </div>
-              <Button type="submit" disabled={isUpdating}>
-                {isUpdating ? <Loader2 className="animate-spin" /> : 'Confirm email change'}
-              </Button>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setEmailData({ ...emailData, step: 1 })}>Didn't receive code? Try again</Button>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ChangeEmailDialog open={showEmailModal} onOpenChange={setShowEmailModal} />
 
       {/* Deactivation Confirmation */}
       <AlertDialog open={showDeactivateModal} onOpenChange={setShowDeactivateModal}>
