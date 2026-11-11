@@ -2933,6 +2933,7 @@ app.patch('/api/admin/staff/:id', async (req, res) => {
       metadata: { target_id: targetId, before: diff(before), after: diff(after) }
     });
 
+    invalidateServerCache('admin:profiles');
     return res.json({ success: true, changed, profile: toPublicProfile(after) });
   } catch (error) {
     console.error('[ADMIN] staff update failed:', error.message);

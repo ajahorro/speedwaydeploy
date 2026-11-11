@@ -472,7 +472,7 @@ const AdminAccountsManagement = () => {
         member={editingMember}
         open={Boolean(editingMember)}
         onOpenChange={(open) => { if (!open) setEditingMember(null); }}
-        onSaved={() => fetchAccounts()}
+        onSaved={(saved) => { if (saved?.id) setAccounts((list) => list.map((a) => (a.id === saved.id ? { ...a, ...saved } : a))); fetchAccounts(true); }}
       />
 
       <style>{`
