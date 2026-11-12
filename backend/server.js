@@ -6551,16 +6551,6 @@ app.post('/api/admin/backups/:id/restore', async (req, res) => {
   } catch (err) { backupError(res, err, 'The restore did not run. Nothing was changed.'); }
 });
 
-app.delete('/api/admin/backups/:id', async (req, res) => {
-  const actor = await requireAdmin(req);
-  if (!actor) return res.status(403).json({ success: false, error: 'Administrator access required.' });
-  try {
-    const removed = await backups.deleteBackup(supabaseAdmin, req.params.id);
-    await writeAuditLog({ actionType: 'BACKUP_DELETED', details: `Backup ${removed.file_path} deleted.`, actorId: actor.user.id, actorName: adminName(actor), actorRole: 'ADMIN', metadata: { backup_id: req.params.id } });
-    res.json({ success: true });
-  } catch (err) { backupError(res, err, 'The backup could not be deleted.'); }
-});
-
 app.get('/api/health', (req, res) => {
   const degraded = !startupConfig.ok;
 

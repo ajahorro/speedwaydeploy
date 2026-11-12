@@ -576,7 +576,6 @@
  "Back up now": "I-back up ngayon",
  "Back: Adjust Services": "Bumalik: Ayusin ang mga Serbisyo",
  "Backing up…": "Nagba-back up…",
- "Backup deleted.": "Nabura ang backup.",
  "Backup made.": "Nagawa ang backup.",
  "Backups": "Mga Backup",
  "Balance": "Balanse",
@@ -1094,7 +1093,6 @@
  "Delete Fleet?": "Burahin ang Fleet?",
  "Delete notification": "Burahin ang notification",
  "Delete this availability override?": "Burahin ang override sa availability na ito?",
- "Delete this backup?": "Burahin ang backup na ito?",
  "Delete vehicle": "Burahin ang sasakyan",
  "Delivered — not opened yet": "Naihatid — hindi pa nabubuksan",
  "Describe the problem you encountered. It goes straight to our support team, who will follow up via your registered email address.": "Ilarawan ang problemang naranasan mo. Diretso itong mapupunta sa aming support team, na makikipag-ugnayan sa iyo sa iyong rehistradong email address.",
@@ -1137,7 +1135,6 @@
  "Download": "I-download",
  "Download a spreadsheet or print the tab you are on, get a full PDF report, or ask the AI a question about the numbers.": "Mag-download ng spreadsheet o i-print ang tab na bukas, kumuha ng buong PDF report, o magtanong sa AI tungkol sa mga numero.",
  "Download CSV": "I-download ang CSV",
- "Download keeps a copy on your computer (a zip with a spreadsheet of each part). Restore puts the shop's data back to that day, after saving a backup of the current data first.": "Ang Download ay nagse-save ng kopya sa computer mo (zip na may spreadsheet ng bawat bahagi). Ibinabalik ng Restore ang data ng shop sa araw na iyon, matapos munang i-save ang backup ng kasalukuyang data.",
  "Download PDF": "I-download ang PDF",
  "Download the {} tab for {} as a spreadsheet": "I-download ang tab na {} para sa {} bilang spreadsheet",
  "DOWNPAYMENT": "DOWNPAYMENT",
@@ -1176,7 +1173,6 @@
  "e.g. Protection": "hal. Proteksyon",
  "e.g. Van / Minibus, Commercial Truck": "hal. Van / Minibus, Commercial Truck",
  "e.g., Holiday, Staff Training": "hal., Holiday, Training ng Staff",
- "Each backup has every booking, payment, receipt record, chat, setting and account detail, plus a spreadsheet (CSV) of each part.": "Bawat backup ay may lahat ng booking, bayad, rekord ng resibo, chat, setting at detalye ng account, kasama ang spreadsheet (CSV) ng bawat bahagi.",
  "Each car on this booking and its services. When the job is done, you can see the before-and-after photos.": "Bawat kotse sa booking na ito at ang mga serbisyo nito. Kapag tapos na ang trabaho, makikita mo ang mga larawan bago at pagkatapos.",
  "Each card counts something waiting for an admin: payments to check, bookings with no technician, no-shows, refund requests and finished cars to hand back. Click a card to open that list.": "Binibilang ng bawat card ang naghihintay sa admin: mga bayad na susuriin, booking na walang technician, no-show, request ng refund at tapos nang sasakyang ibabalik. I-click ang card para buksan ang listahang iyon.",
  "Each card has an icon, a short title and one line. With none, the text uses the full width.": "Bawat card ay may icon, maikling pamagat at isang linya. Kung wala, sasakupin ng teksto ang buong lapad.",
@@ -3924,5 +3920,7 @@
  " (done)": " (tapos na)",
  " (not done yet)": " (hindi pa tapos)",
  "Clock in on the Duty & Shift page.": "Mag-clock in sa pahina ng Duty & Shift.",
- "Take a photo of the vehicle before work begins.": "Kumuha ng larawan ng sasakyan bago magsimula ang trabaho."
+ "Take a photo of the vehicle before work begins.": "Kumuha ng larawan ng sasakyan bago magsimula ang trabaho.",
+ "Each backup has every booking, payment, receipt record, chat, setting and account detail, plus an Excel workbook with a sheet for each part.": "Bawat backup ay may lahat ng booking, bayad, rekord ng resibo, chat, setting at detalye ng account, kasama ang Excel workbook na may sheet para sa bawat bahagi.",
+ "Download keeps a copy on your computer (a zip with one Excel workbook, a sheet for each part). Restore puts the shop's data back to that day, after saving a backup of the current data first.": "Ang Download ay nagse-save ng kopya sa computer mo (zip na may isang Excel workbook, may sheet para sa bawat bahagi). Ibinabalik ng Restore ang data ng shop sa araw na iyon, matapos munang i-save ang backup ng kasalukuyang data."
 }

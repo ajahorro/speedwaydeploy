@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { DatabaseBackup, Download, RotateCcw, Trash2 } from 'lucide-react';
+import { DatabaseBackup, Download, RotateCcw } from 'lucide-react';
 import toast from '@/lib/toast';
 import { BACKEND_URL, authHeaders } from '@/config/api';
 import PageHeader from '@/components/PageHeader';
@@ -31,7 +31,6 @@ export default function BackupsPage() {
   const [list, setList] = useState(null);
   const [busy, setBusy] = useState(null); // 'create' | `${action}:${id}`
   const [restoring, setRestoring] = useState(null);
-  const [deleting, setDeleting] = useState(null);
   const [typed, setTyped] = useState('');
 
   const load = useCallback(async () => {
@@ -50,13 +49,11 @@ export default function BackupsPage() {
     run(`rs:${b.id}`, () => api(`/${b.id}/restore`, { method: 'POST', body: { confirm: 'RESTORE' } }),
       () => `Data restored from the ${day(b.created_at)} backup. A safety backup of the data before the restore was saved.`);
   };
-  const remove = () => { const b = deleting; setDeleting(null); run(`rm:${b.id}`, () => api(`/${b.id}`, { method: 'DELETE' }), () => 'Backup deleted.'); };
 
   const actions = (b) => (
     <div className="flex flex-wrap justify-end gap-2">
       <Button size="sm" variant="outline" disabled={!!busy} onClick={() => download(b)}><Download aria-hidden="true" /> Download</Button>
       <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setRestoring(b)}><RotateCcw aria-hidden="true" /> {busy === `rs:${b.id}` ? 'Restoring…' : 'Restore'}</Button>
-      <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => setDeleting(b)} aria-label={`Delete backup from ${fmt(b.created_at)}`}><Trash2 aria-hidden="true" /></Button>
     </div>
   );
 
@@ -70,7 +67,7 @@ export default function BackupsPage() {
 
       <Card className="flex-row flex-wrap items-center justify-between gap-4 rounded-md p-4" data-tour="bk-create">
         <div className="min-w-0 max-w-prose text-sm text-muted-foreground">
-          Each backup has every booking, payment, receipt record, chat, setting and account detail, plus a spreadsheet (CSV) of each part.
+          Each backup has every booking, payment, receipt record, chat, setting and account detail, plus an Excel workbook with a sheet for each part.
           Photos and uploaded images are not included. Download a copy now and then to keep one off the system.
         </div>
         <Button onClick={create} disabled={!!busy}><DatabaseBackup aria-hidden="true" /> {busy === 'create' ? 'Backing up…' : 'Back up now'}</Button>
@@ -141,19 +138,6 @@ export default function BackupsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <Button variant="destructive" disabled={typed !== 'RESTORE'} onClick={restore}>Restore</Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={!!deleting} onOpenChange={(o) => { if (!o) setDeleting(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this backup?</AlertDialogTitle>
-            <AlertDialogDescription>The {deleting && fmt(deleting.created_at)} backup will be gone for good. Your current data is not affected.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <Button variant="destructive" onClick={remove}>Delete</Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
