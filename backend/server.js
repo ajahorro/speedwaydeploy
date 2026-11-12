@@ -1241,7 +1241,22 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
         console.warn('⚠️ [AI OCR] QR version lookup failed (non-fatal):', cfgErr.message);
       }
     }
-    const expectedRecipientName = liveQrAccountName;
+    // The customer pays the QR frozen on their booking, which can be older than the live one after an admin
+    // QR change. A receipt addressed to either account is a legitimate payment.
+    let snapQrAccountName = '';
+    let snapQrAccountNumber = '';
+    if (supabaseAdmin && bookingId && /^[0-9a-f-]{36}$/i.test(String(bookingId))) {
+      try {
+        const { data: snapRow } = await supabaseAdmin.from('bookings').select('active_qr_snapshot').eq('id', bookingId).maybeSingle();
+        snapQrAccountName = String(snapRow?.active_qr_snapshot?.qr_account_name || '').trim();
+        snapQrAccountNumber = String(snapRow?.active_qr_snapshot?.qr_account_number || '').trim();
+      } catch (snapErr) {
+        console.warn('⚠️ [OCR] Booking QR snapshot lookup failed (non-fatal):', snapErr.message);
+      }
+    }
+    const matchesShopAccount = (parsed) => Boolean(liveQrAccountName && shopAccountMatches(parsed, liveQrAccountName, liveQrAccountNumber))
+      || Boolean(snapQrAccountName && shopAccountMatches(parsed, snapQrAccountName, snapQrAccountNumber));
+    const expectedRecipientName = liveQrAccountName || snapQrAccountName;
     if (!expectedRecipientName) {
       console.error('[OCR] No registered shop payment account was found in business_config. Auto-verification will fail closed.');
     }
@@ -1263,7 +1278,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
             && parsed.amount !== null
             && parsed.amount >= effectiveRequiredAmount
             && isReferenceValid
-            && (!expectedRecipientName || shopAccountMatches(parsed, expectedRecipientName, liveQrAccountNumber))
+            && (!expectedRecipientName || matchesShopAccount(parsed))
           );
         },
       });
@@ -1293,7 +1308,7 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
     // 🛡️ FINANCIAL INTEGRITY GUARD: Comparison Logic
     const extractedAmount = normalizeAmountValue(extractedData.amount) ?? 0;
     const referenceNo = String(extractedData.referenceNo || '').trim();
-    const isNameMatch = shopAccountMatches(extractedData, expectedRecipientName, liveQrAccountNumber);
+    const isNameMatch = Boolean(expectedRecipientName) && matchesShopAccount(extractedData);
 
     const isAmountMatch = extractedData.amount !== null && extractedAmount >= effectiveRequiredAmount;
     const overpaymentAmount = Math.max(0, Math.round((extractedAmount - fullAmount) * 100) / 100);
