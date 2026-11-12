@@ -6,7 +6,6 @@ import { TourLauncher } from './common/GuidedTour';
  * sidebar, and data refreshes on its own. The onRefresh/showBack/onBack props are still accepted and simply ignored,
  * so existing pages keep working unchanged.
  */
-// eslint-disable-next-line no-unused-vars
 const PageHeader = ({ title, subtitle, onRefresh, showBack, onBack, actionLabel, onAction, actionIcon, children, titleStyle = {}, tour = null, tourLabel = 'How this page works' }) => {
   return (
     <div

@@ -222,7 +222,7 @@ export default function ReceiptsPage() {
       isRefundRow(p) ? (proofFor(p)?.storage_path ? 'Proof of refund saved' : 'None') : (p.receipt_url ? 'Uploaded' : (isCashMethod(p.method) ? 'Cash' : 'None')),
     ]);
     const csv = [header, ...lines].map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
-    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `receipts-and-proofs-${new Date().toISOString().slice(0, 10)}.csv`;

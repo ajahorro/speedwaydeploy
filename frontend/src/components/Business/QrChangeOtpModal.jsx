@@ -47,6 +47,7 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
   const [error, setError] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [blockedNoChange, setBlockedNoChange] = useState(false);
+  const [uploadingQr, setUploadingQr] = useState(false);
   const otpInputRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -91,7 +92,6 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
     return next;
   });
 
-  const [uploadingQr, setUploadingQr] = useState(false);
   const handleQrFile = (file) => {
     if (!file) return;
 

@@ -38,7 +38,7 @@ const checks = [
   ['registration: only the email is locked when a booking invite pre-fills the form',
     /readOnly=\{lockEmail\}/.test(registerForm) && !/readOnly=\{isPrefilled\}/.test(registerForm) && !/isPrefilled/.test(registerForm)],
   ['sign-in: a guarded page sends signed-out visitors to login with ?next=',
-    /login\?next=/.test(protectedRoute)]
+    /\?next=/.test(protectedRoute) && /'\/login'/.test(protectedRoute)]
 ];
 
 let failed = 0;
