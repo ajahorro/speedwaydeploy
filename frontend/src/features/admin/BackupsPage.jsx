@@ -127,8 +127,8 @@ export default function BackupsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Restore the {restoring && fmt(restoring.created_at)} backup?</AlertDialogTitle>
             <AlertDialogDescription>
-              All bookings, payments, chats and settings go back to how they were then. Anything added after it will be replaced.
-              A backup of the current data is saved first, so this can be undone by restoring that one. Accounts and passwords are not removed.
+              All bookings, payments, chats and settings go back to how they were then. Anything added after it, including payments and refunds, will be lost.
+              A backup of the current data is saved first, so this can be undone by restoring that one. Accounts are never removed or reactivated, and upcoming bookings of deactivated accounts are cancelled again.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <label className="grid gap-1.5 text-sm">

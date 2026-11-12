@@ -235,7 +235,6 @@
  "A 6-digit code has been emailed to the administrator.": "Naipadala sa email ng administrator ang isang 6-digit na code.",
  "A 6-digit code was sent to your email.": "Naipadala sa iyong email ang isang 6-digit na code.",
  "A backup is also made on its own on the 1st of every month. Each one is kept for 3 months.": "Kusa ring gumagawa ng backup tuwing ika-1 ng bawat buwan. Itinatago ang bawat isa nang 3 buwan.",
- "A backup of the current data is saved first, so this can be undone by restoring that one. Accounts and passwords are not removed.": "Mase-save muna ang backup ng kasalukuyang data, kaya puwede itong ibalik sa pag-restore niyon. Hindi buburahin ang mga account at password.",
  "A booking is only considered secured once the required downpayment or full payment is verified.": "Ituturing lamang na secured ang booking kapag na-verify na ang kinakailangang downpayment o buong bayad.",
  "A cancellation reason is required.": "Kailangan ang dahilan ng pagkansela.",
  "A customer just booked an appointment.": "May customer na kakabook lang ng appointment.",
@@ -401,7 +400,6 @@
  "All bays are taken for this time. Try a different time or another day.": "Puno na ang lahat ng bay sa oras na ito. Subukan ang ibang oras o ibang araw.",
  "All bookings": "Lahat ng booking",
  "All bookings are subject to vehicle condition, available staff capacity, and timing confirmation by the studio.": "Ang lahat ng booking ay nakadepende sa kondisyon ng sasakyan, available na kapasidad ng staff, at kumpirmasyon ng oras ng studio.",
- "All bookings, payments, chats and settings go back to how they were then. Anything added after it will be replaced.": "Babalik ang lahat ng booking, bayad, chat at setting sa dati nilang ayos noon. Papalitan ang anumang idinagdag pagkatapos nito.",
  "All Clear": "Malinis Lahat",
  "All conversations": "Lahat ng usapan",
  "All fields are required —": "Kailangan ang lahat ng field —",
@@ -3922,5 +3920,7 @@
  "Clock in on the Duty & Shift page.": "Mag-clock in sa pahina ng Duty & Shift.",
  "Take a photo of the vehicle before work begins.": "Kumuha ng larawan ng sasakyan bago magsimula ang trabaho.",
  "Each backup has every booking, payment, receipt record, chat, setting and account detail, plus an Excel workbook with a sheet for each part.": "Bawat backup ay may lahat ng booking, bayad, rekord ng resibo, chat, setting at detalye ng account, kasama ang Excel workbook na may sheet para sa bawat bahagi.",
- "Download keeps a copy on your computer (a zip with one Excel workbook, a sheet for each part). Restore puts the shop's data back to that day, after saving a backup of the current data first.": "Ang Download ay nagse-save ng kopya sa computer mo (zip na may isang Excel workbook, may sheet para sa bawat bahagi). Ibinabalik ng Restore ang data ng shop sa araw na iyon, matapos munang i-save ang backup ng kasalukuyang data."
+ "Download keeps a copy on your computer (a zip with one Excel workbook, a sheet for each part). Restore puts the shop's data back to that day, after saving a backup of the current data first.": "Ang Download ay nagse-save ng kopya sa computer mo (zip na may isang Excel workbook, may sheet para sa bawat bahagi). Ibinabalik ng Restore ang data ng shop sa araw na iyon, matapos munang i-save ang backup ng kasalukuyang data.",
+ "All bookings, payments, chats and settings go back to how they were then. Anything added after it, including payments and refunds, will be lost.": "Babalik ang lahat ng booking, bayad, chat at setting sa dati nilang ayos noon. Mawawala ang anumang idinagdag pagkatapos nito, kasama ang mga bayad at refund.",
+ "A backup of the current data is saved first, so this can be undone by restoring that one. Accounts are never removed or reactivated, and upcoming bookings of deactivated accounts are cancelled again.": "Mase-save muna ang backup ng kasalukuyang data, kaya puwede itong ibalik sa pag-restore niyon. Hindi kailanman buburahin o muling bubuksan ang mga account, at kakanselahin ulit ang mga paparating na booking ng mga na-deactivate na account."
 }
