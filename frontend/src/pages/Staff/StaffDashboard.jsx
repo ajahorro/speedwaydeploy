@@ -10,6 +10,7 @@ import toast from '@/lib/toast';
 import { useAuth } from '../../hooks/useAuth';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import PageHeader from '../../components/PageHeader';
+import { STAFF_TOURS } from '../../features/tours/staffTours';
 import LoadingState from '../../components/LoadingState';
 import { BACKEND_URL } from '../../config/api';
 import { loadPreferences } from '../../utils/preferenceStore';
@@ -183,9 +184,11 @@ const StaffDashboard = () => {
           title="Active Assignments"
           subtitle={`Ready for duty, ${profile?.full_name?.split(' ')[0]}. Vehicles assigned to you for detailing today.`}
           onRefresh={fetchAssignedTasks}
+          tour={STAFF_TOURS.dashboard}
+          tourLabel="How this page works"
         />
 
-        <div style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', padding: '1.25rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', minWidth: isMobile ? 0 : '320px', width: isMobile ? '100%' : undefined, maxWidth: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div data-tour="sdash-shift" style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', padding: '1.25rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', minWidth: isMobile ? 0 : '320px', width: isMobile ? '100%' : undefined, maxWidth: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <TrendingUp size={14} color="var(--status-success)" /> Shift Tracker
@@ -224,7 +227,7 @@ const StaffDashboard = () => {
       </div>
 
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '2rem', alignItems: 'start' }}>
-        <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div data-tour="sdash-list" style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
             <ClipboardList size={20} color="var(--admin-brand)" />
             <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>

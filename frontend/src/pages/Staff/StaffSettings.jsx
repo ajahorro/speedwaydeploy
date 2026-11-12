@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import LegalReaderDialog from '../../features/legal/LegalReaderDialog';
 import { BookOpen } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
+import { STAFF_TOURS } from '../../features/tours/staffTours';
 import { APP_METADATA, SHOP_SOP } from '../../config/legalContent';
 import { SettingsSection, SettingRow, SettingButton, SettingTag } from '../../components/Settings/SettingsPrimitives';
 import AppPreferencesCard from '../../components/Settings/AppPreferencesCard';
@@ -18,9 +19,10 @@ const StaffSettings = () => {
       <PageHeader
         title="Settings"
         subtitle="Choose your interface appearance and access shop resources."
+        tour={STAFF_TOURS.settings}
       />
 
-      <AppPreferencesCard role="staff" />
+      <div data-tour="sset-prefs"><AppPreferencesCard role="staff" /></div>
 
       <AccountShortcutCard role="staff" />
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import PageHeader from '../../components/PageHeader';
+import { STAFF_TOURS } from '../../features/tours/staffTours';
 import StaffHistoryCalendar from '@/features/staff-history/StaffHistoryCalendar';
 
 /** The technician's own history: pick a day on the calendar to see the clock-ins and the services done that day. */
@@ -11,8 +12,9 @@ const StaffWorkHistory = () => {
       <PageHeader
         title="Attendance and vehicles"
         subtitle="Pick a day to see when you clocked in and out and the services you did."
+        tour={STAFF_TOURS.history}
       />
-      <StaffHistoryCalendar staffId={profile?.id} />
+      <div data-tour="shist-calendar"><StaffHistoryCalendar staffId={profile?.id} /></div>
     </div>
   );
 };

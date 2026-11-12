@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { useUI } from '../../context/UIContext';
 import PageHeader from '../../components/PageHeader';
+import { STAFF_TOURS } from '../../features/tours/staffTours';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -112,9 +113,10 @@ const StaffDuty = () => {
       <PageHeader
         title="Duty & Shift"
         subtitle="Clock in to start receiving detailing assignments, and clock out when you are done."
+        tour={STAFF_TOURS.duty}
       />
 
-      <Card className="ui-root max-w-2xl gap-5 rounded-md p-5 sm:p-6">
+      <Card data-tour="sduty-clock" className="ui-root max-w-2xl gap-5 rounded-md p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className={`grid size-12 place-items-center rounded-md border ${isClockedIn ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'border-primary/50 bg-primary/10 text-primary'}`}>
@@ -188,7 +190,7 @@ const StaffDuty = () => {
         )}
       </Card>
 
-      <Card className="ui-root max-w-2xl gap-3 rounded-md p-5 sm:p-6">
+      <Card data-tour="sduty-station" className="ui-root max-w-2xl gap-3 rounded-md p-5 sm:p-6">
         <div className="flex items-center gap-2">
           <MapPin className="size-[18px] text-primary" aria-hidden="true" />
           <h2 className="text-base font-semibold">Station Preference</h2>

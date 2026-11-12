@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { User, Mail, Phone, Shield, Key, Save, Loader2, UserCircle } from 'lucide-react';
 import toast from '@/lib/toast';
 import PageHeader from '../../components/PageHeader';
+import { STAFF_TOURS } from '../../features/tours/staffTours';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import PasswordInput from '../../components/PasswordInput';
@@ -111,12 +112,13 @@ const StaffProfile = () => {
       <PageHeader
         title="Technician Profile"
         subtitle="Manage your profile and password."
+        tour={STAFF_TOURS.profile}
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '2rem', alignItems: 'start' }}>
 
         {/* Identity Section */}
-        <section style={cardStyle}>
+        <section data-tour="sprof-identity" style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1.5rem' }}>
             <div style={{ width: '64px', height: '64px', borderRadius: 'var(--admin-radius)', background: 'var(--admin-brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <UserCircle size={40} color="white" />
@@ -159,7 +161,7 @@ const StaffProfile = () => {
         </section>
 
         {/* Security Section */}
-        <section style={cardStyle}>
+        <section data-tour="sprof-password" style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <Key size={20} color="var(--admin-brand)" />
             <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: '950', textTransform: 'uppercase', letterSpacing: '1px' }}>Change Password</h3>

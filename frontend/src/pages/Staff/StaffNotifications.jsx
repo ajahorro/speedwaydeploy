@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { subscribeTable } from '../../lib/realtimeHub';
 import PageHeader from '../../components/PageHeader';
+import { STAFF_TOURS } from '../../features/tours/staffTours';
 import { Bell, CheckCircle, Trash2, Search, AlertTriangle } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from '@/lib/toast';
@@ -150,11 +151,11 @@ const StaffNotifications = () => {
         profile={profile}
       />
 
-      <PageHeader title="NOTIFICATIONS" subtitle="Updates on your assigned tasks and system alerts." onRefresh={fetchNotifications}>
+      <PageHeader title="NOTIFICATIONS" subtitle="Updates on your assigned tasks and system alerts." onRefresh={fetchNotifications} tour={STAFF_TOURS.notifications}>
         <Button type="button" variant="outline" onClick={handleMarkAllAsRead} className="text-xs uppercase">Mark all as read</Button>
       </PageHeader>
 
-      <div className={`flex gap-3 rounded-md border bg-card p-3 ${isMobile ? 'flex-col' : 'flex-row'}`}>
+      <div data-tour="snot-filters" className={`flex gap-3 rounded-md border bg-card p-3 ${isMobile ? 'flex-col' : 'flex-row'}`}>
         <div className="relative w-full flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input type="text" placeholder="Search notifications..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} className="pl-9" />
@@ -168,7 +169,7 @@ const StaffNotifications = () => {
         </Tabs>
       </div>
 
-      <div className="grid gap-3">
+      <div data-tour="snot-list" className="grid gap-3">
         {loading && notifications.length === 0 ? (
           [1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full" />)
         ) : pagedNotifications.length > 0 ? (

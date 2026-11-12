@@ -6,6 +6,7 @@ import {
   Car, Clock, CheckCircle2, ChevronLeft, Play, Save, ShieldCheck
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
+import { STAFF_TOURS } from '../../features/tours/staffTours';
 import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import toast from '@/lib/toast';
@@ -179,11 +180,12 @@ const StaffJobDetails = () => {
         badge={`${unit.plate_number || 'NO PLATE'}`}
         title={`${unit.brand || ''} ${unit.model || ''}`.trim() || 'Assigned vehicle'}
         subtitle={`Scheduled ${time(unit.booking?.start_datetime)}`}
+        tour={STAFF_TOURS.job}
       />
 
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '1.5rem', alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0, width: '100%', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <section style={card}>
+          <section data-tour="sjob-vehicle" style={card}>
             <h3 style={heading}><Car size={18} color="var(--admin-brand)" /> Vehicle and services</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
               <div><div style={label}>Vehicle</div><div style={value}>{unit.brand} {unit.model}</div></div>
@@ -204,7 +206,7 @@ const StaffJobDetails = () => {
         </div>
 
         <div style={{ flex: 1, minWidth: 0, width: '100%', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <section style={card}>
+          <section data-tour="sjob-evidence" style={card}>
             <h3 style={heading}><Clock size={18} color="var(--status-warning)" /> Service evidence</h3>
             <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 700, lineHeight: 1.5, color: 'var(--admin-text-secondary)' }}>
               {isDone ? 'This job is finished. The photos below are the saved evidence.'
@@ -265,7 +267,7 @@ const StaffJobDetails = () => {
           </section>
 
           {!isDone && !bookingClosed && (
-            <section style={card}>
+            <section data-tour="sjob-start" style={card}>
               <h3 style={heading}>{isStartable ? 'Start this job' : 'Finish this job'}</h3>
               {isStartable && (
                 <>
@@ -275,7 +277,7 @@ const StaffJobDetails = () => {
                       Everything is ready. Press Start service now. If it is not started within an hour of its scheduled time, the booking is marked a no-show.
                     </p>
                   )}
-                  <Button type="button" onClick={() => requestStatus('IN_PROGRESS')} disabled={!canStart || busy} variant="default" className="w-full uppercase">
+                  <Button type="button" onClick={() => requestStatus('IN_PROGRESS')} disabled={!canStart || busy} variant="default" className="w-full uppercase disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100">
                     <Play size={16} /> Start service
                   </Button>
                 </>

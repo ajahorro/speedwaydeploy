@@ -3,6 +3,7 @@ import { BarChart2, CalendarDays, CheckCircle2, Clock, Wrench } from 'lucide-rea
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import PageHeader from '../../components/PageHeader';
+import { STAFF_TOURS } from '../../features/tours/staffTours';
 import LoadingState from '../../components/LoadingState';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -100,9 +101,9 @@ const StaffReports = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
-      <PageHeader title="Reports" subtitle="Booking reports for the whole shop, and your own work. Payments, prices, and customer contact details are not shown." onRefresh={load} />
+      <PageHeader title="Reports" subtitle="Booking reports for the whole shop, and your own work. Payments, prices, and customer contact details are not shown." onRefresh={load} tour={STAFF_TOURS.reports} />
 
-      <div className="ui-root">
+      <div data-tour="srep-tabs" className="ui-root">
       <Tabs defaultValue="bookings" className="gap-6">
         <TabsList>
           <TabsTrigger value="bookings">All bookings</TabsTrigger>
