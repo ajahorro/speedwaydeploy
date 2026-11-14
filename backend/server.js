@@ -6516,9 +6516,17 @@ const backupError = (res, err, fallback) => {
 const adminName = (actor) => actor.profile.full_name || actor.profile.email || 'Admin';
 
 app.post('/api/backups/scheduled', async (req, res) => {
+  // ── ADMIN AUTHENTICATION (added — this route had none) ─────────────────────
+  // Every other backup route requires requireAdmin. This one didn't, so any
+  // anonymous caller could force a full-database export/zip/upload cycle.
+  const actor = await requireAdmin(req);
+  if (!actor) {
+    console.warn('🛑 [SECURITY] Unauthorized scheduled-backup trigger blocked.');
+    return res.status(403).json({ success: false, error: 'Administrator access required.' });
+  }
   try {
     const made = await backups.ensureMonthly(supabaseAdmin);
-    if (made) await writeAuditLog({ actionType: 'BACKUP_CREATED', details: `Monthly backup ${made.file_path} created.`, metadata: { backup_id: made.id, trigger: 'SCHEDULED' } });
+    if (made) await writeAuditLog({ actionType: 'BACKUP_CREATED', details: `Monthly backup ${made.file_path} created.`, actorId: actor.user.id, actorName: adminName(actor), actorRole: 'ADMIN', metadata: { backup_id: made.id, trigger: 'SCHEDULED' } });
     res.json({ success: true, created: Boolean(made) });
   } catch (err) { backupError(res, err, 'The monthly backup could not be made.'); }
 });
