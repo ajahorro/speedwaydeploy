@@ -239,6 +239,10 @@ const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_RECEIPT_BYTES, files: 1 },
+  // The declared Content-Type of a multipart field is whatever the client sends, not a sniff of the
+  // actual bytes — reject anything outside the photo types this route accepts before it ever reaches
+  // Storage, rather than relying solely on the bucket's own allowed_mime_types.
+  fileFilter: (req, file, cb) => cb(null, Boolean(refundProofs.EXTENSIONS[file.mimetype])),
 });
 
 const PORT = process.env.PORT || 3000;
