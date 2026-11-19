@@ -1,8 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  ArrowLeftRight, BellRing, Calendar, Car, Clock, Contact2, Footprints, HardHat, History, Inbox, LayoutGrid, LineChart, ListChecks, LogOut, PlusSquare, Receipt, Settings, Store, Wallet,
-  FileArchive,
+  BadgeCheck, BellRing, Building2, Calendar, CalendarPlus, Car, ClipboardList, Clock, CreditCard, DoorOpen, History, LayoutGrid, LineChart, LogOut, MessageSquare, Receipt, Settings, Undo2, UserCog, Users,
   DatabaseBackup
 } from 'lucide-react';
 
@@ -15,22 +14,22 @@ import {
  */
 export const NAV_ICONS = {
   dashboard: LayoutGrid,
-  business: Store,
-  bookings: ListChecks,
+  business: Building2,
+  bookings: ClipboardList,
   calendar: Calendar,
-  newBooking: PlusSquare,
-  walkIn: Footprints,
-  messages: Inbox,
-  paymentVerification: Receipt,
-  refunds: ArrowLeftRight,
-  receipts: FileArchive,
+  newBooking: CalendarPlus,
+  walkIn: DoorOpen,
+  messages: MessageSquare,
+  paymentVerification: BadgeCheck,
+  refunds: Undo2,
+  receipts: Receipt,
   reports: LineChart,
   history: History,
   backups: DatabaseBackup,
-  staff: HardHat,
-  clients: Contact2,
+  staff: UserCog,
+  clients: Users,
   notifications: BellRing,
-  billing: Wallet,
+  billing: CreditCard,
   garage: Car,
   duty: Clock,
   settings: Settings,
