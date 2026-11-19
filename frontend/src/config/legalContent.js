@@ -72,38 +72,67 @@ export const LEGAL_DOCUMENTS = Object.freeze([
     id: 'privacy',
     title: 'Privacy Policy',
     eyebrow: 'DATA PRIVACY',
-    summary: 'How we collect, use, and protect your personal information.',
+    summary: 'How we collect, use, and protect your personal information, in line with the Data Privacy Act of 2012 (RA 10173).',
     sections: [
       {
-        heading: '1. Information We Collect',
+        heading: '1. Scope and Legal Basis',
+        paragraphs: [
+          'This Privacy Policy is adopted in compliance with the Data Privacy Act of 2012 (Republic Act No. 10173), its Implementing Rules and Regulations, and the issuances of the National Privacy Commission (NPC). It applies to all personal data Comar Garage collects through this platform from Customers, Staff, and Administrators.',
+          'We process your personal data only on a lawful basis recognized under RA 10173: your consent, the performance of the booking contract you enter into with us, compliance with a legal obligation (such as tax and accounting records), or our legitimate business interest in operating the shop, provided this does not override your fundamental rights.',
+        ],
+      },
+      {
+        heading: '2. Information We Collect',
         paragraphs: [
           'We collect the information you provide during booking and account creation: your name, contact number, email address, vehicle details, and payment proof.',
+          'We do not request or store government-issued identification numbers (such as a driver’s license, passport, or SSS/TIN number) through this platform.',
         ],
       },
       {
-        heading: '2. How We Use Your Information',
+        heading: '3. How We Use Your Information',
         paragraphs: [
           'Personal information is processed for scheduling, service communication, payment verification, and account management only.',
-          'We do not sell your personal information to third parties.',
+          'We do not sell your personal information to third parties. Limited data is shared only with the service providers that run this platform (database, hosting, and email delivery), solely to operate the system, and under their own confidentiality and security obligations to us.',
         ],
       },
       {
-        heading: '3. Data Retention',
+        heading: '4. How We Protect Your Information',
         paragraphs: [
-          'Booking and payment records are retained for operational, accounting, and legal-compliance purposes. Deactivated accounts are retained for a 15-day recovery window before permanent purging.',
+          'We implement reasonable and appropriate organizational, physical, and technical security measures, as required under RA 10173, proportionate to the personal data we hold.',
+          'Technical measures include encrypted (HTTPS/TLS) data transmission, encrypted account credentials, database-level Row-Level Security that restricts each account to only the data its role is authorized to see, time-limited private links for uploaded payment receipts rather than public access, and an audit log of changes to sensitive records.',
+          'Access to personal data within Comar Garage is limited to personnel who need it to perform their role, such as verifying a payment or assigning a technician.',
         ],
       },
       {
-        heading: '4. Your Rights',
+        heading: '5. Data Retention',
         paragraphs: [
+          'Booking and payment records are retained for operational, accounting, and legal-compliance purposes, and no longer than reasonably necessary for those purposes or as required by applicable law. Deactivated accounts are retained for a 15-day recovery window before permanent purging.',
+        ],
+      },
+      {
+        heading: '6. Your Rights as a Data Subject',
+        paragraphs: [
+          'Under RA 10173, you have the right to: be informed that your personal data is being processed; access your personal data on reasonable request; correct any inaccurate or outdated personal data; object to or withdraw consent for processing, subject to legal or contractual limitations; request the erasure or blocking of your personal data when it is no longer necessary for the purpose it was collected for; be indemnified for damages from a violation of your rights; and lodge a complaint with the National Privacy Commission.',
           'You may review and update your personal information at any time from your profile.',
-          'You may request deletion of your account data using the “Request Account Data Deletion” action in Settings.',
+          'You may request deletion of your account data using the “Request Account Data Deletion” action in Settings. Some records may be retained for a limited period where required for accounting or legal-compliance purposes, as described in Section 5.',
         ],
       },
       {
-        heading: '5. Consent',
+        heading: '7. Consent',
         paragraphs: [
-          'By submitting a booking you authorize Comar Garage to process the personal data required for service delivery, account management, and operational communications.',
+          'By submitting a booking you authorize Comar Garage to process the personal data required for service delivery, account management, and operational communications, as described in this Policy.',
+        ],
+      },
+      {
+        heading: '8. Data Breach Notification',
+        paragraphs: [
+          'In the event of a personal data breach that poses a real risk of serious harm to an affected individual, Comar Garage will notify the affected individual and the National Privacy Commission within the period required under RA 10173 and its Implementing Rules and Regulations.',
+        ],
+      },
+      {
+        heading: '9. Contact Us',
+        paragraphs: [
+          'For questions, concerns, or requests regarding your personal data or this Policy, you may reach us at ajahorro@gmail.com.',
         ],
       },
     ],
