@@ -1606,7 +1606,18 @@ const AdminBookingDetails = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {bookingPayments.map((p) => (
+                  {bookingPayments.map((p) => {
+                    const isRefundRow = String(p.method || '').toUpperCase() === 'SYSTEM_REFUND';
+                    // Processing a refund rewrites the ORIGINAL payment's own status to REFUNDED/REFUND_PENDING
+                    // (it's how the ledger totals it up) — but this row is what happened at the time, which was
+                    // a successful payment. The refund itself is the separate SYSTEM_REFUND row below it.
+                    const statusLabel = p.method === 'RECEIVABLE'
+                      ? (p.status === 'PENDING' ? 'TO BE RECEIVED' : 'CANCELLED')
+                      : isRefundRow ? 'REFUNDED'
+                      : ['REFUNDED', 'REFUND_PENDING'].includes(p.status) ? 'PAID'
+                      : String(p.status || '').toUpperCase().replace(/_/g, ' ');
+                    const isPaidLook = statusLabel === 'PAID';
+                    return (
                     <tr key={p.id} style={{ borderBottom: '1px solid var(--admin-border)' }}>
                       <td style={{ padding: '1.25rem 0.75rem', verticalAlign: 'middle', textAlign: 'left' }}>
                         <div style={{ fontWeight: '800', color: 'var(--admin-text-primary)', fontSize: '0.85rem' }}>{new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
@@ -1614,15 +1625,15 @@ const AdminBookingDetails = () => {
                       <td style={{ padding: '1.25rem 0.75rem', verticalAlign: 'middle', textAlign: 'left', fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '800' }}>
                         {new Date(p.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                       </td>
-                      <td style={{ padding: '1.25rem 0.75rem', verticalAlign: 'middle', textAlign: 'left', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>{p.method}</td>
+                      <td style={{ padding: '1.25rem 0.75rem', verticalAlign: 'middle', textAlign: 'left', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>{isRefundRow ? 'Refunded' : p.method}</td>
                       <td style={{ padding: '1.25rem 0.75rem', verticalAlign: 'middle', textAlign: 'left' }}>
                         <span style={{
                           fontSize: '0.55rem', fontWeight: '950', padding: '0.3rem 0.6rem', borderRadius: '2px',
-                          background: p.status === 'PAID' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                          color: p.status === 'PAID' ? '#10b981' : '#f59e0b',
-                          border: `1px solid ${p.status === 'PAID' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`
+                          background: isPaidLook ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                          color: isPaidLook ? '#10b981' : '#f59e0b',
+                          border: `1px solid ${isPaidLook ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`
                         }}>
-                          {p.method === 'RECEIVABLE' ? (p.status === 'PENDING' ? 'TO BE RECEIVED' : 'CANCELLED') : p.status.toUpperCase()}
+                          {statusLabel}
                         </span>
                       </td>
                       <td style={{ padding: '1.25rem 0.75rem', verticalAlign: 'middle', textAlign: 'right', fontWeight: '950' }}>₱{p.amount?.toLocaleString()}</td>
@@ -1647,7 +1658,8 @@ const AdminBookingDetails = () => {
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {bookingPayments.length === 0 && (
                     <tr><td colSpan="6" style={{ padding: '3rem', textAlign: 'center', color: 'var(--admin-text-secondary)', fontWeight: '800' }}>NO TRANSACTIONS RECORDED</td></tr>
                   )}
