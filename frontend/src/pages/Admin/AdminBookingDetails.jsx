@@ -1896,7 +1896,16 @@ const AdminBookingDetails = () => {
                           <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.55rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase' }}>Technician</label>
                           <select
                             value={v.staff_id || ''}
-                            onChange={event => { const staffId = event.target.value; confirmThen({ title: 'Change technician?', message: `The technician for this ${vehicles.length > 1 ? 'vehicle' : 'booking'} will be changed.`, confirmText: 'Change technician' }, () => handleAssignStaff(staffId, v.id)); }}
+                            onChange={event => {
+                              const staffId = event.target.value;
+                              const unit = vehicles.length > 1 ? 'vehicle' : 'booking';
+                              const isReassign = Boolean(v.staff_id);
+                              confirmThen({
+                                title: isReassign ? 'Change technician?' : 'Assign technician?',
+                                message: isReassign ? `The technician for this ${unit} will be changed.` : `This technician will be assigned to this ${unit}.`,
+                                confirmText: isReassign ? 'Change technician' : 'Assign technician'
+                              }, () => handleAssignStaff(staffId, v.id));
+                            }}
                             disabled={isLocked || booking.status === 'in_progress' || lockedVehicleIds.has(v.id)}
                             title={lockedVehicleIds.has(v.id) ? 'The assigned technician cannot be changed after submitting a before photo.' : undefined}
                             style={{ width: '100%', padding: '0.4rem', background: 'var(--admin-card)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '800' }}
