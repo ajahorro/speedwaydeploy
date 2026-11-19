@@ -7,6 +7,13 @@
       "sourceType": "github",
       "skillPath": "skills/ponytail/SKILL.md",
       "computedHash": "56d72677aca02689ac89bd48734e8c19b40ab86716d1257eaf5f1238b43cda6b"
+    },
+    "rederive": {
+      "source": "EricJujianZou/rederive",
+      "commit": "22d9a5a723a30ac69ed9b566282031c22c8d450a",
+      "sourceType": "github",
+      "skillPath": "skills/rederive/SKILL.md",
+      "computedHash": "cfba79bf50a1378c7187bff0c7ab2cd2f697dd831e5f2618a541a22c8868da5e"
     }
   }
 }
