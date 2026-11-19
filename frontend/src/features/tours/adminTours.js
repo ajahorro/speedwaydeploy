@@ -118,10 +118,11 @@ export const ADMIN_TOURS = {
   ],
 
   bookingDetails: [
-    { target: '[data-tour="bd-actions"]', title: '1. Booking actions', body: 'Reschedule, allow an early start, cancel or flag a no-show from here. Buttons only appear when that action is allowed for the booking’s current status.' },
-    { target: '[data-tour="bd-ledger"]', title: '2. Money', body: 'Every payment, top-up and refund for this booking, with what is still owed. Record a cash or digital payment here.' },
-    { target: '[data-tour="bd-units"]', title: '3. Vehicles and technicians', body: 'Each vehicle in the booking, its services and its technician. Assign or change a technician here (it locks once they take the “before” photo).' },
-    { target: '[data-tour="bd-payment"]', title: '4. Payment check', body: 'The receipt the customer sent and what the system read from it. Approve or reject it here.' },
-    { target: '[data-tour="bd-audit"]', title: '5. History', body: 'Everything that happened to this booking, who did it and when.' },
+    { target: '[data-tour="bd-summary"]', title: '1. Booking summary', body: 'The schedule, technician, customer and status. Customer and Status have a small arrow — click the label to show the customer’s email/phone/account type, or the full status detail.' },
+    { target: '[data-tour="bd-actions"]', title: '2. Booking actions', body: 'Reschedule, allow an early start, cancel or flag a no-show from here. Buttons only appear when that action is allowed for the booking’s current status.' },
+    { target: '[data-tour="bd-ledger"]', title: '3. Money', body: 'Every payment, top-up and refund for this booking, with what is still owed. Record a cash or digital payment here.' },
+    { target: '[data-tour="bd-units"]', title: '4. Vehicles and technicians', body: 'Each vehicle in the booking, its services and its technician. Assign or change a technician here (it locks once they take the “before” photo).' },
+    { target: '[data-tour="bd-payment"]', title: '5. Payment check', body: 'The receipt the customer sent and what the system read from it. Approve or reject it here.' },
+    { target: '[data-tour="bd-audit"]', title: '6. History', body: 'Everything that happened to this booking, who did it and when.' },
   ],
 };

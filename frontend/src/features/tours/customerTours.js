@@ -18,7 +18,7 @@ export const CUSTOMER_TOURS = {
     { target: '[data-tour="cbk-list"]', title: '3. Your bookings', body: 'Tap a booking to see its details, payments and photos of your car.' },
   ],
   bookingDetails: [
-    { target: '[data-tour="cbd-summary"]', title: '1. Booking summary', body: 'The date and time, your technician, the status of the job and how much is paid.' },
+    { target: '[data-tour="cbd-summary"]', title: '1. Booking summary', body: 'The date and time, your technician, and the status of the job. Click Status to see the full payment detail.' },
     { target: '[data-tour="cbd-receipt"]', title: '2. Your receipt', body: 'After the shop checks your payment, open or print your acknowledgement receipt here. It is also emailed to you.' },
     { target: '[data-tour="cbd-main"]', title: '3. Cars and services', body: 'Each car on this booking and its services. When the job is done, you can see the before-and-after photos.' },
     { target: '[data-tour="cbd-billing"]', title: '4. Payments', body: 'Every payment you made and the balance left. Pay the balance here if there is one.' },

@@ -1476,7 +1476,9 @@ const AdminBookingDetails = () => {
         </div>
       </div>
 
-      <BookingSummaryHeader booking={booking} showCustomer onUnitCollected={derivedStatus === 'completed' ? requestReleaseBooking : undefined} paymentStatus={paymentSummary} />
+      <div data-tour="bd-summary">
+        <BookingSummaryHeader booking={booking} showCustomer onUnitCollected={derivedStatus === 'completed' ? requestReleaseBooking : undefined} paymentStatus={paymentSummary} />
+      </div>
 
       {isNoShowBooking && (
         <div

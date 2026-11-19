@@ -132,11 +132,19 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
           return (
             <SummaryItem icon={Activity} label="Status" expandable expanded={statusOpen} onToggle={() => setStatusOpen((v) => !v)}>
               <span style={{ display: 'block' }}>
-                {flowLabel}
-                {statusOpen && (
+                {/* A cancelled badge's text already starts with "Cancelled" (e.g. "Cancelled · Refunded"),
+                    the same word flowLabel gives for a cancelled booking — show just one of them, not both. */}
+                {statusOpen && isCancelled ? (
+                  <span style={{ color: badge.color }}>{badge.text}</span>
+                ) : (
                   <>
-                    <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '600' }}> &middot; </span>
-                    <span style={{ color: badge.color }}>{badge.text}</span>
+                    {flowLabel}
+                    {statusOpen && (
+                      <>
+                        <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '600' }}> &middot; </span>
+                        <span style={{ color: badge.color }}>{badge.text}</span>
+                      </>
+                    )}
                   </>
                 )}
               </span>
