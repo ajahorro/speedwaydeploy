@@ -520,10 +520,10 @@ const AdminRefunds = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: 'var(--admin-radius-sm)', padding: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '950', fontSize: '0.75rem', color: '#f59e0b', marginBottom: '0.4rem', textTransform: 'uppercase' }}>
-                      <Clock size={16} /> Financial Refund Completed — Email Receipt Pending
+                      <Clock size={16} /> Refund Completed, Receipt Email Pending
                     </div>
                     <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--admin-text-secondary)', lineHeight: 1.45 }}>
-                      The money reversion of <strong>₱{Number(state.selectedItem.refundedAmount || 0).toLocaleString()}</strong> was already executed and recorded in the database. The customer notification email failed to deliver and can be retried below.
+                      The refund of <strong>₱{Number(state.selectedItem.refundedAmount || 0).toLocaleString()}</strong> has already been processed and recorded. Only the receipt email to the customer failed to send. You can retry sending it below.
                     </p>
                   </div>
 
@@ -646,7 +646,7 @@ const AdminRefunds = () => {
                   )}
 
                   <div>
-                    <label htmlFor="refund-derived" style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Refund Amount (₱) — Derived</label>
+                    <label htmlFor="refund-derived" style={{ display: 'block', fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Refund Amount (₱), Calculated Automatically</label>
                     <input
                       id="refund-derived"
                       type="text"
@@ -656,7 +656,9 @@ const AdminRefunds = () => {
                       style={{ width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px dashed var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-secondary)', fontSize: '1rem', fontWeight: '950', cursor: 'not-allowed' }}
                     />
                     <div style={{ marginTop: '0.4rem', fontSize: '0.6rem', fontWeight: '800', color: 'var(--admin-text-secondary)' }}>
-                      {state.selectedItem.overpaymentRefundRemaining > 0 ? 'Queued booking excess' : 'Total Paid'}{isExcessRefund ? ' (no deduction applies)' : ' − Deduction'} = ₱{selectedRefundTotal.toLocaleString()} − ₱{Math.min(deductionValue, selectedRefundTotal).toLocaleString()}
+                      {isExcessRefund
+                        ? `${state.selectedItem.overpaymentRefundRemaining > 0 ? 'Queued booking excess' : 'Total paid'}: ₱${selectedRefundTotal.toLocaleString()} (no deduction applies)`
+                        : `Total paid ₱${selectedRefundTotal.toLocaleString()}, minus deduction ₱${Math.min(deductionValue, selectedRefundTotal).toLocaleString()}`}
                     </div>
                   </div>
                 </>
@@ -693,7 +695,9 @@ const AdminRefunds = () => {
                     {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'Amount Reverted' : 'Refundable Total'}
                   </span>
                   <span style={{ fontWeight: '950', fontSize: '1.5rem' }}>
-                    ₱{(state.selectedItem.refundStatus === 'EMAIL_PENDING' ? (state.selectedItem.refundedAmount || 0) : selectedRefundTotal).toLocaleString()}
+                    {/* Tracks derivedRefund (total paid minus the live deduction), not the fixed
+                        selectedRefundTotal, so this figure updates as the admin edits the deduction. */}
+                    ₱{(state.selectedItem.refundStatus === 'EMAIL_PENDING' ? (state.selectedItem.refundedAmount || 0) : derivedRefund).toLocaleString()}
                   </span>
                 </div>
                 {(state.selectedItem.refundProofRows || []).length > 0 && (
@@ -716,7 +720,7 @@ const AdminRefunds = () => {
                 {['PENDING', 'QUEUED', 'PROCESSING', 'EMAIL_PENDING'].includes(state.selectedItem.refundStatus) && (
                   isRefundLocked ? (
                     <div style={{ width: '100%', padding: '0.85rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', fontWeight: '900', fontSize: '0.68rem', color: 'var(--admin-text-secondary)', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                      Refund finalized — the financial trail is locked.
+                      Refund finalized. The financial trail is now locked.
                     </div>
                   ) : (
                     <Button className="w-full font-black" disabled={state.selectedItem.refundStatus !== 'EMAIL_PENDING' && (!state.refundReason || !state.refundMethod || derivedRefund <= 0 || deductionExceedsPaid || (state.refundMethod !== 'CASH' && state.proofStatus !== 'accepted'))} onClick={() => setState(prev => ({ ...prev, confirmRefundItem: state.selectedItem }))}>
