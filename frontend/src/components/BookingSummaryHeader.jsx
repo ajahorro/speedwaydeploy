@@ -1,5 +1,5 @@
-import React from 'react';
-import { AlertTriangle, Calendar, User, Wrench, CreditCard, CheckCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, Calendar, User, Wrench, Activity, CheckCircle, ChevronDown } from 'lucide-react';
 import { formatBookingDate, formatBookingTime } from '../utils/bookingHelpers';
 import { derivePaymentStatusBadge } from '../utils/paymentUtils';
 
@@ -65,6 +65,13 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
   const normalizedStatus = rawStatus === 'PENDING' ? 'SCHEDULED' : rawStatus;
   const isNoShow = normalizedStatus === 'FLAGGED_NOSHOW' || normalizedStatus === 'NO_SHOW';
   const currentStepIndex = Math.max(0, LIFECYCLE_STEPS.indexOf(normalizedStatus));
+  const flowLabel = isNoShow ? 'Flagged No-Show' : LIFECYCLE_STEPS[currentStepIndex].replace('_', ' ');
+
+  // Both default closed: the header's job is "what is this, at a glance" — full
+  // contact details and the full progress/payment breakdown are one click away
+  // instead of always on screen.
+  const [customerOpen, setCustomerOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
 
   return (
     <div
@@ -93,36 +100,42 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
             booking time. This makes "who is this for" answerable without opening
             the sidebar, and works for walk-ins that have no profile row. */}
         {showCustomer && (
-          <SummaryItem icon={User} label="Customer">
+          <SummaryItem icon={User} label="Customer" expandable expanded={customerOpen} onToggle={() => setCustomerOpen((v) => !v)}>
             <span style={{ display: 'block' }}>
               {customerName(booking)}
             </span>
-            {customerEmail(booking) && (
-              <span style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.72rem', fontWeight: '600', color: 'var(--admin-text-secondary)' }}>
-                {customerEmail(booking)}
-              </span>
+            {customerOpen && (
+              <>
+                {customerEmail(booking) && (
+                  <span style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.72rem', fontWeight: '600', color: 'var(--admin-text-secondary)' }}>
+                    {customerEmail(booking)}
+                  </span>
+                )}
+                {customerPhone(booking) && (
+                  <span style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.72rem', fontWeight: '600', color: 'var(--admin-text-secondary)' }}>
+                    {customerPhone(booking)}
+                  </span>
+                )}
+                <span style={{ display: 'block', marginTop: '0.2rem', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase' }}>
+                  <span style={{ color: booking?.customer_id ? 'var(--admin-brand)' : 'rgba(196, 31, 43, 0.62)' }}>
+                    {booking?.customer_id ? 'Customer Account' : (booking?.is_walk_in === false ? 'Account Deleted' : 'Walk-in Guest')}
+                  </span>
+                </span>
+              </>
             )}
-            {customerPhone(booking) && (
-              <span style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.72rem', fontWeight: '600', color: 'var(--admin-text-secondary)' }}>
-                {customerPhone(booking)}
-              </span>
-            )}
-            <span style={{ display: 'block', marginTop: '0.2rem', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase' }}>
-              <span style={{ color: booking?.customer_id ? 'var(--admin-brand)' : 'rgba(196, 31, 43, 0.62)' }}>
-                {booking?.customer_id ? 'Customer Account' : (booking?.is_walk_in === false ? 'Account Deleted' : 'Walk-in Guest')}
-              </span>
-            </span>
           </SummaryItem>
         )}
         {paymentStatus ? (() => {
           const badge = derivePaymentStatusBadge(booking, paymentStatus);
           if (!badge) return null;
           return (
-            <SummaryItem icon={CreditCard} label="Payment Status">
-              <span style={{ color: badge.color, fontWeight: '900' }}>
-                {badge.text}
+            <SummaryItem icon={Activity} label="Status" expandable expanded={statusOpen} onToggle={() => setStatusOpen((v) => !v)}>
+              <span style={{ display: 'block' }}>
+                {flowLabel}
+                <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '600' }}> &middot; </span>
+                <span style={{ color: badge.color }}>{badge.text}</span>
               </span>
-              {badge.subtext && (
+              {statusOpen && badge.subtext && (
                 <span style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.65rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>
                   {badge.subtext}
                 </span>
@@ -151,7 +164,7 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
           </div>
         </div>
       )}
-      {!isNoShow && (
+      {!isNoShow && statusOpen && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', overflowX: 'auto', paddingTop: '0.5rem' }}>
           <div style={{ position: 'absolute', top: '22px', left: '8%', right: '8%', height: '2px', backgroundColor: 'var(--admin-border)', zIndex: 0 }} />
           {LIFECYCLE_STEPS.map((step, index) => {
@@ -180,15 +193,30 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
   );
 };
 
-const SummaryItem = ({ icon: Icon, label, children }) => (
- <div style={{ flex: '1 1 200px', display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-    <IconBox><Icon size={20} /></IconBox>
-    <div style={{ minWidth: 0, flex: '1 1 auto' }}>
-      <p style={labelStyle}>{label}</p>
-      <div style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', color: 'var(--admin-text-primary)', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{children}</div>
+/** A header stat. With `expandable`, the label becomes a toggle button (chevron flips to show
+ *  state) that the caller uses to hide/reveal extra detail inside `children`. */
+const SummaryItem = ({ icon: Icon, label, children, expandable = false, expanded = false, onToggle }) => {
+  const LabelTag = expandable ? 'button' : 'p';
+  return (
+    <div style={{ flex: '1 1 200px', display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+      <IconBox><Icon size={20} /></IconBox>
+      <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+        <LabelTag
+          type={expandable ? 'button' : undefined}
+          onClick={expandable ? onToggle : undefined}
+          aria-expanded={expandable ? expanded : undefined}
+          style={expandable
+            ? { ...labelStyle, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }
+            : labelStyle}
+        >
+          {label}
+          {expandable && <ChevronDown size={12} style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} aria-hidden="true" />}
+        </LabelTag>
+        <div style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', color: 'var(--admin-text-primary)', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{children}</div>
+      </div>
     </div>
- </div>
-);
+  );
+};
 
 const IconBox = ({ children }) => (
   <div style={{ padding: '0.5rem', backgroundColor: 'rgba(128, 128, 128, 0.1)', borderRadius: '8px', color: 'var(--admin-brand)', flexShrink: 0 }}>{children}</div>
