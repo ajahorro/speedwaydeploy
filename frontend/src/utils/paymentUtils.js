@@ -214,7 +214,10 @@ export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
   const { totalPaid, balance, hasProcessedRefund } = ps;
 
   if (CANCELLED_BADGES[ps.status]) {
-    return { statusKey: ps.status, ...CANCELLED_BADGES[ps.status], balance: 0 };
+    // A processed refund that kept part of the payment (e.g. a cancellation fee) is settled,
+    // not "partial" — nothing is still owed back. Only an in-progress refund reads as partial.
+    const key = ps.status === 'CANCELLED_PARTIALLY_REFUNDED' && hasProcessedRefund ? 'CANCELLED_REFUNDED' : ps.status;
+    return { statusKey: key, ...CANCELLED_BADGES[key], balance: 0 };
   }
 
   const billingType = (booking.billing_type || '').toUpperCase();

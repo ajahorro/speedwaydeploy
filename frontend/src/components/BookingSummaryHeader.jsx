@@ -64,8 +64,11 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
   const rawStatus = booking?.status?.toUpperCase() || 'PENDING';
   const normalizedStatus = rawStatus === 'PENDING' ? 'SCHEDULED' : rawStatus;
   const isNoShow = normalizedStatus === 'FLAGGED_NOSHOW' || normalizedStatus === 'NO_SHOW';
-  const currentStepIndex = Math.max(0, LIFECYCLE_STEPS.indexOf(normalizedStatus));
-  const flowLabel = isNoShow ? 'Flagged No-Show' : LIFECYCLE_STEPS[currentStepIndex].replace('_', ' ');
+  const isCancelled = normalizedStatus === 'CANCELLED';
+  // -1 so no step reads as completed/current below — CANCELLED isn't in LIFECYCLE_STEPS,
+  // and Math.max(0, -1) used to default a cancelled booking to a misleading "SCHEDULED".
+  const currentStepIndex = isCancelled ? -1 : Math.max(0, LIFECYCLE_STEPS.indexOf(normalizedStatus));
+  const flowLabel = isNoShow ? 'Flagged No-Show' : isCancelled ? 'Cancelled' : LIFECYCLE_STEPS[currentStepIndex].replace('_', ' ');
 
   // Both default closed so the header stays a glance, not a full detail dump.
   const [customerOpen, setCustomerOpen] = useState(false);
@@ -130,8 +133,12 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
             <SummaryItem icon={Activity} label="Status" expandable expanded={statusOpen} onToggle={() => setStatusOpen((v) => !v)}>
               <span style={{ display: 'block' }}>
                 {flowLabel}
-                <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '600' }}> &middot; </span>
-                <span style={{ color: badge.color }}>{badge.text}</span>
+                {statusOpen && (
+                  <>
+                    <span style={{ color: 'var(--admin-text-secondary)', fontWeight: '600' }}> &middot; </span>
+                    <span style={{ color: badge.color }}>{badge.text}</span>
+                  </>
+                )}
               </span>
               {statusOpen && badge.subtext && (
                 <span style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.65rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>
@@ -162,7 +169,7 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
           </div>
         </div>
       )}
-      {!isNoShow && statusOpen && (
+      {!isNoShow && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', overflowX: 'auto', paddingTop: '0.5rem' }}>
           <div style={{ position: 'absolute', top: '22px', left: '8%', right: '8%', height: '2px', backgroundColor: 'var(--admin-border)', zIndex: 0 }} />
           {LIFECYCLE_STEPS.map((step, index) => {
