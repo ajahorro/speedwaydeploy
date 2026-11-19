@@ -179,14 +179,13 @@ export const getPaymentStatusUI = (status) => {
       return { label: 'PARTIAL REFUND', color: 'var(--status-warning)' };
     case 'VERIFYING':
       return { label: 'VERIFYING', color: 'var(--status-accent)' };
+    // The refund detail (nothing paid / refunded / partly / not yet) only matters once you open the
+    // booking, where the ledger shows it properly — the directory just needs to say it's cancelled.
     case 'NO_CHARGE':
-      return { label: 'CANCELLED · NOTHING PAID', color: 'var(--admin-text-secondary)' };
     case 'CANCELLED_REFUNDED':
-      return { label: 'CANCELLED · REFUNDED', color: 'var(--admin-text-secondary)' };
     case 'CANCELLED_PARTIALLY_REFUNDED':
-      return { label: 'CANCELLED · PARTLY REFUNDED', color: 'var(--status-warning)' };
     case 'CANCELLED_NOT_REFUNDED':
-      return { label: 'CANCELLED · NOT REFUNDED', color: 'var(--status-danger)' };
+      return { label: 'CANCELLED', color: 'var(--admin-text-secondary)' };
     case 'DOWNPAYMENT_PAID':
       return { label: 'DOWNPAYMENT', color: 'var(--status-info)' };
     default:
