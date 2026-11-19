@@ -2860,16 +2860,28 @@ app.post('/api/auth/emergency-recovery/verify', async (req, res) => {
 
   try {
     await supabaseAdmin.from('account_recovery_otps').delete().lte('expires_at', new Date().toISOString());
+    // Match the live challenge by email alone (there's at most one, per the partial unique index),
+    // so a wrong code still hits this row and its attempts count — matching by otp_hash let a wrong
+    // guess look identical to "no such challenge", so attempts was stored but never checked.
     const { data: challenge, error: lookupError } = await supabaseAdmin
       .from('account_recovery_otps')
       .select('*')
       .eq('email', normalizedEmail)
-      .eq('otp_hash', hashConfirmationToken(String(otp)))
       .is('consumed_at', null)
       .gt('expires_at', new Date().toISOString())
       .maybeSingle();
     if (lookupError) throw lookupError;
     if (!challenge) return res.status(400).json({ success: false, error: 'The recovery code is incorrect or has expired.' });
+
+    if (challenge.otp_hash !== hashConfirmationToken(String(otp))) {
+      const attempts = Number(challenge.attempts || 0) + 1;
+      if (attempts >= 5) {
+        await supabaseAdmin.from('account_recovery_otps').delete().eq('id', challenge.id);
+        return res.status(429).json({ success: false, error: 'Too many wrong codes. Please request a new one.' });
+      }
+      await supabaseAdmin.from('account_recovery_otps').update({ attempts }).eq('id', challenge.id);
+      return res.status(400).json({ success: false, error: 'The recovery code is incorrect or has expired.' });
+    }
 
     // Claim the challenge atomically so it can never be replayed.
     const { data: claimed, error: claimError } = await supabaseAdmin
