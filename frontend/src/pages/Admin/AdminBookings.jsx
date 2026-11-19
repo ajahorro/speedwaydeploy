@@ -8,7 +8,7 @@ import {
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { getPaymentStatusUI } from '../../utils/paymentUtils';
+import { getPaymentStatusUI, calculatePaymentSummary } from '../../utils/paymentUtils';
 import { formatBookingDate, formatBookingTime, getStatusColor } from '../../utils/bookingHelpers';
 import { useAdminBookings } from '../../hooks/useAdminBookings';
 import { supabase } from '../../lib/supabase';
@@ -96,6 +96,9 @@ const AdminBookings = () => {
   const getPaymentStatus = (booking) => {
     return getPaymentStatusUI(booking.calculatedPaymentStatus);
   };
+
+  // Cancelled: what it actually kept net of any refund. Active: what's expected once finished.
+  const getDisplayAmount = (booking) => calculatePaymentSummary(booking).displayAmount;
 
   const submitCancellation = async (booking, reason) => {
     const toastId = toast.loading('Cancelling booking and queuing refunds...');
@@ -302,7 +305,7 @@ const AdminBookings = () => {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
                    <div style={{ color: pStatus.color, fontSize: '0.7rem', fontWeight: '950', textTransform: 'uppercase', background: 'rgba(255,255,255,0.02)', padding: '0.4rem 0.75rem', borderRadius: 'var(--admin-radius-sm)', border: `1px solid ${pStatus.color}40` }}>
-                     ₱{(booking.total_amount || 0).toLocaleString()} • {pStatus.label}
+                     ₱{getDisplayAmount(booking).toLocaleString()} • {pStatus.label}
                    </div>
                    <ArrowRight size={16} style={{ color: 'var(--admin-text-secondary)', opacity: 0.3 }} />
                 </div>
@@ -361,7 +364,7 @@ const AdminBookings = () => {
                     </td>
                     <td style={{ padding: '1.25rem 1.5rem' }}>
                       <div style={{ fontWeight: '950', color: 'var(--admin-brand)', fontSize: '1rem', fontFamily: 'monospace' }}>
-                        ₱{(booking.total_amount || 0).toLocaleString()}
+                        ₱{getDisplayAmount(booking).toLocaleString()}
                       </div>
                       <div style={{ fontSize: '0.55rem', fontWeight: '950', color: pStatus.color }}>{pStatus.label}</div>
                     </td>

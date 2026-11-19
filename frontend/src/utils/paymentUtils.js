@@ -75,6 +75,7 @@ export const calculatePaymentSummary = (booking = {}) => {
   const credit = Number(row.excess_amount || 0);
   const refundStatus = String(booking.refund_status || '').toUpperCase();
   const hasProcessedRefund = processedRefunds > 0 || ['PROCESSED', 'REFUNDED', 'RELEASED'].includes(refundStatus);
+  const isCancelled = String(booking.status || '').toLowerCase() === 'cancelled';
 
   let status = 'UNPAID';
   switch (row.paid_status) {
@@ -103,6 +104,10 @@ export const calculatePaymentSummary = (booking = {}) => {
     status,
     totalAmount,
     effectiveTotalAmount,
+    // What a summary list should show as "the amount": a cancelled booking is settled by what it
+    // actually kept net of any refund (0 once fully refunded, the retained fee otherwise); anything
+    // still active shows what's expected once the service finishes, not the stale original total.
+    displayAmount: isCancelled ? totalPaid : effectiveTotalAmount,
     totalPaid,
     verifiedPaid: Number(row.verified_paid || 0),
     processedRefunds,
