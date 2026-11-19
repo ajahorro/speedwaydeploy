@@ -199,24 +199,20 @@ export const getPaymentStatusUI = (status) => {
  * @param {object} [summary] - pre-computed calculatePaymentSummary() result (optional)
  * @returns {{ statusKey, text, shortText, color, balance, subtext? }}
  */
+// A cancelled booking is settled by the ledger's own paid_status, not by comparing totalPaid
+// against the pre-cancellation total_amount below (see derivePaymentStatusBadge).
+const CANCELLED_BADGES = {
+  CANCELLED_REFUNDED: { text: 'Cancelled · Refunded', shortText: 'Refunded', color: 'var(--admin-text-secondary)' },
+  CANCELLED_PARTIALLY_REFUNDED: { text: 'Cancelled · Partly Refunded', shortText: 'Partial Refund', color: 'var(--status-warning)' },
+  CANCELLED_NOT_REFUNDED: { text: 'Cancelled · Not Refunded', shortText: 'Not Refunded', color: 'var(--status-danger)' },
+  NO_CHARGE: { text: 'Cancelled · Nothing Paid', shortText: 'No Charge', color: 'var(--admin-text-secondary)' },
+};
+
 export const derivePaymentStatusBadge = (booking = {}, summary = null) => {
   const ps = summary || calculatePaymentSummary(booking);
   const totalAmount = Number(booking.total_amount || 0);
   const { totalPaid, balance, hasProcessedRefund } = ps;
 
-  // A cancelled & voided booking is settled by what the ledger says it owes now
-  // (ps.status, from the booking_ledger_v's own paid_status), not by comparing
-  // totalPaid against the pre-cancellation total_amount below — that comparison
-  // is only meaningful for a booking that is still active. Without this, a
-  // cancelled booking that kept a no-show/cancellation fee and refunded the
-  // rest (totalPaid > 0 but < totalAmount, balance already 0) fell through to
-  // "Partially Paid" with a contradictory "₱0 remaining" underneath it.
-  const CANCELLED_BADGES = {
-    CANCELLED_REFUNDED: { text: 'Cancelled · Refunded', shortText: 'Refunded', color: 'var(--admin-text-secondary)' },
-    CANCELLED_PARTIALLY_REFUNDED: { text: 'Cancelled · Partly Refunded', shortText: 'Partial Refund', color: 'var(--status-warning)' },
-    CANCELLED_NOT_REFUNDED: { text: 'Cancelled · Not Refunded', shortText: 'Not Refunded', color: 'var(--status-danger)' },
-    NO_CHARGE: { text: 'Cancelled · Nothing Paid', shortText: 'No Charge', color: 'var(--admin-text-secondary)' },
-  };
   if (CANCELLED_BADGES[ps.status]) {
     return { statusKey: ps.status, ...CANCELLED_BADGES[ps.status], balance: 0 };
   }

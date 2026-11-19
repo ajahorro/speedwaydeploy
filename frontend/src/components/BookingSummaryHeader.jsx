@@ -67,9 +67,7 @@ const BookingSummaryHeader = ({ booking, onUnitCollected, showCustomer = true, s
   const currentStepIndex = Math.max(0, LIFECYCLE_STEPS.indexOf(normalizedStatus));
   const flowLabel = isNoShow ? 'Flagged No-Show' : LIFECYCLE_STEPS[currentStepIndex].replace('_', ' ');
 
-  // Both default closed: the header's job is "what is this, at a glance" — full
-  // contact details and the full progress/payment breakdown are one click away
-  // instead of always on screen.
+  // Both default closed so the header stays a glance, not a full detail dump.
   const [customerOpen, setCustomerOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
 

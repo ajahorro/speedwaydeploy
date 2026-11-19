@@ -695,8 +695,7 @@ const AdminRefunds = () => {
                     {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'Amount Reverted' : 'Refundable Total'}
                   </span>
                   <span style={{ fontWeight: '950', fontSize: '1.5rem' }}>
-                    {/* Tracks derivedRefund (total paid minus the live deduction), not the fixed
-                        selectedRefundTotal, so this figure updates as the admin edits the deduction. */}
+                    {/* derivedRefund, not the fixed selectedRefundTotal, so this tracks the deduction live. */}
                     ₱{(state.selectedItem.refundStatus === 'EMAIL_PENDING' ? (state.selectedItem.refundedAmount || 0) : derivedRefund).toLocaleString()}
                   </span>
                 </div>
