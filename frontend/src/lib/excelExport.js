@@ -115,9 +115,10 @@ export async function downloadWorkbook({ fileName, sheets }) {
   wb.creator = 'Comar Garage';
   wb.created = new Date();
   for (const sheet of sheets) {
-    const ws = wb.addWorksheet(String(sheet.name || 'Sheet').replace(/[[\]:*?/\\]/g, '_').slice(0, 31), {
-      views: [{ state: 'frozen', ySplit: sheet.freeze ?? 0 }]
-    });
+    const name = String(sheet.name || 'Sheet').replace(/[[\]:*?/\\]/g, '_').slice(0, 31);
+    // A frozen-pane view needs an actual split (ySplit/xSplit > 0) — state:'frozen' with ySplit:0
+    // is invalid OOXML, which is why Excel was repairing every download by discarding the sheet view.
+    const ws = wb.addWorksheet(name, sheet.freeze ? { views: [{ state: 'frozen', ySplit: sheet.freeze }] } : {});
     renderSheet(ws, sheet);
   }
   const buffer = await wb.xlsx.writeBuffer();
