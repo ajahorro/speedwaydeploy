@@ -197,6 +197,13 @@ export const emitEvent = async (eventType, { userId, bookingId, meta = {} }) => 
   }
 
   // ===== TASK 3: AUDIT PERSISTENCE =====
+  // A chat message is private conversation, already durably stored (with its own access rules) in
+  // booking_messages — it does not belong copied into the audit trail, which is for accountability
+  // over administrative/financial actions. Logging it here also ran once per NOTIFIED RECIPIENT
+  // (emitEvent fires per-recipient from emitEventToMany), so one message to N admins wrote N
+  // identical rows. Skipping chat events here fixes both: no private text in the audit log, and no
+  // duplicate rows.
+  if (eventType === EVENTS.MESSAGE_RECEIVED) return;
   try {
     const { data: { user: actor } } = await supabase.auth.getUser();
     await supabase.from('audit_logs').insert({
