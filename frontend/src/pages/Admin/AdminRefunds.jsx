@@ -114,7 +114,13 @@ const AdminRefunds = () => {
           payments: b.payments,
           bookingStatus: b.status
         });
-        const refundLimit = getRefundRequestLimit({ totalPaid, overpaymentRefundRemaining });
+        // Once a refund has been processed (its amount already accounts for any deduction kept as a
+        // fee), the ledger's net_settled can still show the deduction itself as "unsettled" money —
+        // that is the business's kept fee, not a balance still owed, so it must never reappear as a
+        // refundable amount. A genuinely new, separate excess-payment refund still shows normally.
+        const refundLimit = (overpaymentRefundRemaining <= 0 && ['PROCESSED', 'EMAIL_PENDING'].includes(String(b.refund_status || '').trim().toUpperCase()))
+          ? 0
+          : getRefundRequestLimit({ totalPaid, overpaymentRefundRemaining });
 
         return {
           ...b,
@@ -516,14 +522,16 @@ const AdminRefunds = () => {
                 <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>{state.selectedItem.customer?.email}</div>
               </div>
 
-              {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? (
+              {['EMAIL_PENDING', 'PROCESSED', 'COMPLETED'].includes(state.selectedItem.refundStatus) ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: 'var(--admin-radius-sm)', padding: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '950', fontSize: '0.75rem', color: '#f59e0b', marginBottom: '0.4rem', textTransform: 'uppercase' }}>
-                      <Clock size={16} /> Refund Completed, Receipt Email Pending
+                  <div style={{ background: state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(16, 185, 129, 0.08)', border: `1px solid ${state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(16, 185, 129, 0.25)'}`, borderRadius: 'var(--admin-radius-sm)', padding: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '950', fontSize: '0.75rem', color: state.selectedItem.refundStatus === 'EMAIL_PENDING' ? '#f59e0b' : '#10b981', marginBottom: '0.4rem', textTransform: 'uppercase' }}>
+                      <Clock size={16} /> {state.selectedItem.refundStatus === 'EMAIL_PENDING' ? 'Refund Completed, Receipt Email Pending' : 'Refund Finalized'}
                     </div>
                     <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--admin-text-secondary)', lineHeight: 1.45 }}>
-                      The refund of <strong>₱{Number(state.selectedItem.refundedAmount || 0).toLocaleString()}</strong> has already been processed and recorded. Only the receipt email to the customer failed to send. You can retry sending it below.
+                      {state.selectedItem.refundStatus === 'EMAIL_PENDING'
+                        ? <>The refund of <strong>₱{Number(state.selectedItem.refundedAmount || 0).toLocaleString()}</strong> has already been processed and recorded. Only the receipt email to the customer failed to send. You can retry sending it below.</>
+                        : <>The refund of <strong>₱{Number(state.selectedItem.refundedAmount || 0).toLocaleString()}</strong> has already been processed and recorded. This record is now locked — nothing here can be changed.</>}
                     </p>
                   </div>
 
