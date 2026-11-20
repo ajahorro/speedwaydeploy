@@ -104,8 +104,11 @@ export const calculateOccupancy = (hour, dateStr, activeBookings = [], blocks = 
   const occupiedVehicles = [];
   let legacyBayCount = 0;
   activeBookings.forEach(b => {
-    const start = new Date(b.start_datetime.substring(0, 19));
-    const end = new Date(b.end_datetime.substring(0, 19));
+    // Use the full timestamp, offset included — stripping it (as a prior version of this
+    // line did) makes JS parse the UTC wall-clock as if it were local time, shifting every
+    // booking by the shop's UTC+8 offset.
+    const start = new Date(b.start_datetime);
+    const end = new Date(b.end_datetime);
     
     if (checkTime >= start && checkTime < end) {
       const activeVehicles = (b.vehicles || []).filter(v => 

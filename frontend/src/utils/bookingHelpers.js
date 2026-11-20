@@ -1,4 +1,5 @@
 import { STATUS_COLORS, BOOKING_STATUSES, THRESHOLDS } from '../config/constants';
+import { SHOP_TIMEZONE } from './shopTime';
 
 /**
  * bookingHelpers.js
@@ -35,9 +36,12 @@ export const getStatusLabel = (status) => {
   return labels[status?.toLowerCase()] || status?.toUpperCase() || 'Unknown';
 };
 
+// Pinned to the shop's own clock (Asia/Manila): an appointment time is when it happens
+// at the garage, not whatever hour that instant lands on for a viewer in another timezone.
 export const formatBookingDate = (date) => {
   if (!date) return 'Unscheduled';
   return new Date(date).toLocaleDateString('en-US', {
+    timeZone: SHOP_TIMEZONE,
     month: 'long',
     day: 'numeric',
     year: 'numeric'
@@ -47,6 +51,7 @@ export const formatBookingDate = (date) => {
 export const formatBookingTime = (date) => {
   if (!date) return '';
   return new Date(date).toLocaleTimeString('en-US', {
+    timeZone: SHOP_TIMEZONE,
     hour: '2-digit',
     minute: '2-digit'
   });
