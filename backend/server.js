@@ -4544,6 +4544,47 @@ app.post('/api/support/report', async (req, res) => {
       if (await countSupport('profile_id', profileId, DAY, { kind: 'DELETION_REQUEST' }) >= SUPPORT_LIMITS.deletionPerDay) {
         return res.json({ success: true, alreadyReceived: true, message: 'We already have your request. Our team will process it shortly.' });
       }
+
+      // Auto-process the clean case: a customer with no refund still being reviewed or in flight.
+      // That's the only real conflict a deletion request can run into — everything else (upcoming
+      // bookings included) is already handled safely by the deactivation this reuses, which cancels
+      // them. Staff/admin accounts, and any case with an open refund, still go to a human below.
+      if (String(actor.profile.role || '').toUpperCase() === 'CUSTOMER') {
+        try {
+          const { data: openRefund } = await supabaseAdmin
+            .from('bookings')
+            .select('id')
+            .eq('customer_id', profileId)
+            .not('refund_status', 'is', null)
+            .not('refund_status', 'in', '(REFUNDED,REJECTED)')
+            .limit(1)
+            .maybeSingle();
+
+          if (!openRefund) {
+            const { data: deactivation, error: deactivateErr } = await supabaseAdmin.rpc('deactivate_customer_account', {
+              p_user_id: profileId, p_actor_id: profileId
+            });
+            if (!deactivateErr) {
+              const bearerToken = req.headers.authorization?.replace(/^Bearer\s+/i, '');
+              if (bearerToken) await supabaseAdmin.auth.admin.signOut(bearerToken, 'global').catch(() => {});
+              await store(false, 'auto_processed');
+              await writeAuditLog({
+                actionType: 'ACCOUNT_DATA_DELETION_REQUESTED',
+                details: `Account data deletion request from ${actor.profile.email || actor.user.email}: auto-processed (no open refund). ${(deactivation?.cancelled_bookings?.length || 0)} upcoming booking(s) cancelled. Scheduled for permanent deletion in 15 days.`,
+                actorId: profileId, actorName: actor.profile.full_name || actor.profile.email || 'User', actorRole: 'CUSTOMER'
+              }).catch(() => {});
+              return res.json({
+                success: true,
+                autoProcessed: true,
+                message: 'Your account has been deactivated and your personal data is scheduled for permanent deletion in 15 days. Sign in again before then if you change your mind.'
+              });
+            }
+            console.warn('📨 [SUPPORT] Deletion auto-process failed, falling back to manual review:', deactivateErr.message);
+          }
+        } catch (autoErr) {
+          console.warn('📨 [SUPPORT] Deletion eligibility check failed, falling back to manual review:', autoErr.message);
+        }
+      }
     } else {
       if (await countSupport('profile_id', profileId, 7 * DAY, { message_hash: messageHash }) > 0) {
         return res.json({ success: true, alreadyReceived: true, message: 'We already received this report. Our team will follow up by email.' });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { HelpCircle, Bug, UserX, Download, LogOut, MonitorSmartphone } from 'lucide-react';
+import { HelpCircle, Bug, UserX, Download, LogOut, MonitorSmartphone, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import toast from '@/lib/toast';
@@ -39,7 +39,7 @@ const sendSupportReport = async ({ kind, message, elapsedMs, website = '' }) => 
       body: JSON.stringify({ kind, message, elapsedMs, website, page: typeof window !== 'undefined' ? window.location.pathname : '' })
     });
     const body = await response.json().catch(() => ({}));
-    return { ok: response.ok && body.success !== false, error: body.error, message: body.message, retryAfterSec: body.retryAfterSec };
+    return { ok: response.ok && body.success !== false, error: body.error, message: body.message, retryAfterSec: body.retryAfterSec, autoProcessed: body.autoProcessed };
   } catch {
     return { ok: false, error: 'The server could not be reached.' };
   }
@@ -111,6 +111,28 @@ const AppMetadataFooter = ({ role = 'customer' }) => {
       setFiling(false);
       if (result?.success) toast.success('Account deactivated. Sign in within 15 days to recover it.');
       else toast.error(result?.error || 'The account could not be deactivated.');
+    },
+  });
+
+  // Separate from Deactivate: this asks us to erase the account, not just pause it. The server runs it
+  // immediately (same 15-day recovery, so it's never a surprise) unless something needs a person first,
+  // such as a refund still being reviewed — then it's filed and our team follows up by email instead.
+  const handleDeletionRequest = () => openModal({
+    title: 'Request data deletion?',
+    message: 'If nothing needs a person to check first (like a refund still being reviewed), this happens right away: you are signed out now and your personal data is permanently deleted in 15 days unless you sign back in before then. Otherwise, our team will follow up by email.',
+    type: 'danger',
+    confirmText: 'Request deletion',
+    cancelText: 'Cancel',
+    onConfirm: async () => {
+      setFiling(true);
+      const result = await sendSupportReport({ kind: 'DELETION_REQUEST', message: 'Customer requested deletion of their personal data.' });
+      setFiling(false);
+      if (result.ok) {
+        toast.success(result.message || 'Your request has been received.');
+        if (result.autoProcessed) signOut(role === 'customer' ? '/' : '/staff/login');
+      } else {
+        toast.error(result.error || `The request could not be sent. You can email us at ${APP_METADATA.supportEmail}.`);
+      }
     },
   });
 
@@ -204,6 +226,17 @@ const AppMetadataFooter = ({ role = 'customer' }) => {
         >
           <SettingButton variant="danger" onClick={handleDeactivate} disabled={filing}>
             <UserX size={14} /> Deactivate
+          </SettingButton>
+        </SettingRow>
+      )}
+
+      {showDeletion && (
+        <SettingRow
+          title="Request Data Deletion"
+          subtitle="Ask us to erase your personal data now, instead of just deactivating."
+        >
+          <SettingButton variant="danger" onClick={handleDeletionRequest} disabled={filing}>
+            <Trash2 size={14} /> Request
           </SettingButton>
         </SettingRow>
       )}
