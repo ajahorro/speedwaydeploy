@@ -16,12 +16,14 @@ import { useLanguage } from '../../context/LanguageContext';
 import { fetchWithCache, invalidateCache } from '../../lib/cache';
 import { useAuth } from '../../hooks/useAuth';
 import ClientDirectoryList from '../../features/clients/ClientDirectoryList';
+import { useConfirmAction } from '../../hooks/useConfirmAction';
 
 const AdminUserManagement = () => {
   const navigate = useNavigate();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const { language } = useLanguage();
   const { user: currentUser } = useAuth();
+  const { confirmThen } = useConfirmAction();
   const [defaultAdminId, setDefaultAdminId] = useState(null);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -77,9 +79,10 @@ const AdminUserManagement = () => {
         return bData;
       }, { ttl: 30000, swr: true });
       
+      // Removed services are soft-deleted (kept for audit); never show them as live line items.
       const processed = (data || []).map(b => ({
         ...b,
-        services: b.vehicles?.flatMap(v => v.services || []) || []
+        services: b.vehicles?.flatMap(v => (v.services || []).filter(s => !s.removed_at)) || []
       }));
 
       setUserBookings(processed);
@@ -101,15 +104,9 @@ const AdminUserManagement = () => {
   });
 
   // Accounts are never deleted: the button deactivates an active account and reactivates a deactivated one.
-  const handleDeleteUser = async (target) => {
-    if (!target) return;
-    if (target.id === currentUser?.id) return toast.error('You cannot deactivate your own account.');
-    if (target.id === defaultAdminId) return toast.error('The Default Admin account cannot be deactivated.');
+  const performDeleteUser = async (target) => {
     const name = target.full_name || target.email;
     const reactivate = target.is_active === false;
-    if (!window.confirm(reactivate
-      ? `Reactivate the account of ${name}? They will be able to sign in again.`
-      : `Deactivate the account of ${name}? They will not be able to sign in. You can reactivate it within 15 days; after that it is deleted permanently. The shop keeps its booking and payment records.`)) return;
     const toastId = toast.loading(reactivate ? `Reactivating ${name}...` : `Deactivating ${name}...`);
     try {
       const response = await fetch(`${BACKEND_URL}/api/admin/${reactivate ? 'reactivate-staff' : 'delete-account'}`, {
@@ -126,6 +123,21 @@ const AdminUserManagement = () => {
     } catch (err) {
       toast.error(err.message, { id: toastId });
     }
+  };
+
+  const handleDeleteUser = (target) => {
+    if (!target) return;
+    if (target.id === currentUser?.id) return toast.error('You cannot deactivate your own account.');
+    if (target.id === defaultAdminId) return toast.error('The Default Admin account cannot be deactivated.');
+    const name = target.full_name || target.email;
+    const reactivate = target.is_active === false;
+    confirmThen({
+      title: reactivate ? 'Reactivate this account?' : 'Deactivate this account?',
+      message: reactivate
+        ? `Reactivate the account of ${name}? They will be able to sign in again.`
+        : `Deactivate the account of ${name}? They will not be able to sign in. You can reactivate it within 15 days; after that it is deleted permanently. The shop keeps its booking and payment records.`,
+      confirmText: reactivate ? 'Reactivate' : 'Deactivate'
+    }, () => performDeleteUser(target));
   };
 
   const getRoleBadge = (role) => {

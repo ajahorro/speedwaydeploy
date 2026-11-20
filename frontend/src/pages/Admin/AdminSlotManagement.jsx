@@ -75,8 +75,6 @@ const AdminSlotManagement = () => {
   };
 
   const handleDeleteSlot = async (id) => {
-    if (!window.confirm('Delete this availability override?')) return;
-    
     const toastId = toast.loading('Updating...');
     try {
       const { error } = await supabase
@@ -93,6 +91,15 @@ const AdminSlotManagement = () => {
   };
 
   // Calendar Logic
+  // date.toISOString() converts to UTC, which flips to the previous day for any
+  // UTC+ timezone (including the shop's own) — format the LOCAL date instead.
+  const toLocalDateStr = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -112,7 +119,7 @@ const AdminSlotManagement = () => {
 
   const isDayBlocked = (date) => {
     if (!date) return false;
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = toLocalDateStr(date);
     return blockedSlots.some(s => s.block_date === dateStr);
   };
 
@@ -155,7 +162,7 @@ const AdminSlotManagement = () => {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px', background: 'var(--admin-border)' }}>
             {calendarDays.map((date, i) => {
-              const isSelected = date && formData.date === date.toISOString().split('T')[0];
+              const isSelected = date && formData.date === toLocalDateStr(date);
               const isBlocked = isDayBlocked(date);
               
               return (
@@ -163,7 +170,7 @@ const AdminSlotManagement = () => {
                   key={i} 
                   onClick={() => {
                     if (date) {
-                      setFormData({...formData, date: date.toISOString().split('T')[0]});
+                      setFormData({...formData, date: toLocalDateStr(date)});
                       setIsAdding(true);
                     }
                   }}
@@ -264,7 +271,7 @@ const AdminSlotManagement = () => {
                     <div style={{ fontSize: '0.8rem', fontWeight: '950' }}>{new Date(slot.block_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
                     <div style={{ fontSize: '0.65rem', color: 'var(--admin-brand)', fontWeight: '900' }}>{slot.start_time ? `${slot.start_time.slice(0, 5)} - ${slot.end_time.slice(0, 5)}` : 'WHOLE DAY'}</div>
                   </div>
-                  <button onClick={() => handleDeleteSlot(slot.id)} style={{ background: 'transparent', border: 'none', color: 'var(--status-danger)', cursor: 'pointer', padding: '0.5rem' }}><Trash size={16} /></button>
+                  <button onClick={() => confirmThen({ title: 'Delete this override?', message: 'Delete this availability override?', confirmText: 'Delete' }, () => handleDeleteSlot(slot.id))} style={{ background: 'transparent', border: 'none', color: 'var(--status-danger)', cursor: 'pointer', padding: '0.5rem' }}><Trash size={16} /></button>
                 </div>
               ))}
             </div>

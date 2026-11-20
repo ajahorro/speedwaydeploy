@@ -196,7 +196,7 @@ export default function ReceiptsPage() {
     try {
       const { data, error } = await supabase
         .from('bookings')
-        .select('*, payments:payments!payments_booking_id_fkey(*), vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services(*))')
+        .select('*, payments:payments!payments_booking_id_fkey(*), vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*)')
         .eq('id', payment.booking_id)
         .single();
       if (error) throw error;

@@ -40,6 +40,11 @@ const CustomerBilling = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      // Removed services are soft-deleted (kept for audit); never show them as live line items
+      // on a printed receipt.
+      (data || []).forEach((booking) => (booking.vehicles || []).forEach((v) => {
+        v.services = (v.services || []).filter((s) => !s.removed_at);
+      }));
       const processedBookings = await Promise.all((data || []).map(async (booking) => ({
         ...booking,
         payments: await signRows(booking.payments || [])

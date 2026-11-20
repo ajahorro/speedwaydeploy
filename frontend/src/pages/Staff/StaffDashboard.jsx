@@ -144,7 +144,13 @@ const StaffDashboard = () => {
       { table: 'notifications', filter: `user_id=eq.${profile?.id}` }
     ], fetchAssignedTasks);
 
-    return () => { stopRealtime(); };
+    // The booking_vehicles filter above only matches rows where staff_id is ME *after* the
+    // change, so the exact UPDATE that reassigns a vehicle away from me never matches and never
+    // arrives — this list can then show stale "assigned" work until the tab is hidden/reopened.
+    // A periodic refetch (same pattern as StaffTables.jsx) closes that gap.
+    const pollInterval = setInterval(fetchAssignedTasks, 60000);
+
+    return () => { stopRealtime(); clearInterval(pollInterval); };
   }, [fetchAssignedTasks, profile?.id]);
 
   const handleClockIn = async () => {

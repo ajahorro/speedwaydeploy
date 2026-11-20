@@ -15,6 +15,7 @@ import { downloadStaffBookingsCsv, downloadStaffBookingsPdf, statusGroup, status
 import { supabase } from '@/lib/supabase';
 import PhotoProofGallery from '@/components/Photos/PhotoProofGallery';
 import { usePaged } from '@/components/common/ListPager';
+import { useAuth } from '@/hooks/useAuth';
 
 // The assistant loads only when it is opened, so the report's first paint is unchanged.
 const AssistantPanel = lazy(() => import('@/features/financial-reports/AssistantPanel'));
@@ -73,6 +74,7 @@ function BarList({ rows, valueKey, labelKey, formatLabel = (value) => value, emp
  * The "Ask the bookings assistant" panel is the same helper the administrator has, limited to bookings.
  */
 export default function StaffBookingsReport() {
+  const { profile } = useAuth();
   const { preset, range, setPreset, setCustomRange } = useReportRange('bookings');
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -98,7 +100,22 @@ export default function StaffBookingsReport() {
 
   useEffect(() => { load(); }, [load]);
 
+  // This shop-wide report lists every booking, but service_photos RLS only lets the admin,
+  // the customer, or the vehicle's own assigned technician actually read the photos — a
+  // reporting-enabled staff member viewing someone else's job gets an empty, errorless
+  // gallery that looks like a bug. Check assignment here so we can say so plainly instead.
+  const canSeeEvidence = (b) => {
+    if (String(profile?.role || '').toUpperCase() === 'ADMIN') return true;
+    const myName = (profile?.full_name || '').trim().toLowerCase();
+    if (!myName) return false;
+    return (b.vehicles || []).some((v) => (v.technician || '').trim().toLowerCase() === myName);
+  };
+
   const handleOpenEvidence = async (b) => {
+    if (!canSeeEvidence(b)) {
+      toast.error('Evidence is only viewable for bookings assigned to you.');
+      return;
+    }
     let bid = b.booking_id || b.id;
     if (!bid && b.reference) {
       try {

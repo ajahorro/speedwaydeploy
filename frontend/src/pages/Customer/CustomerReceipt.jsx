@@ -43,6 +43,11 @@ const CustomerReceipt = () => {
         ]);
         if (bookingError) throw bookingError;
         if (!booking) throw new Error('Booking not found');
+        // Removed services are soft-deleted (kept for audit); never show them as a line item
+        // on the Statement of Account.
+        (booking.vehicles || []).forEach((v) => {
+          v.services = (v.services || []).filter((s) => !s.removed_at);
+        });
         if (!cancelled) setState({ booking, ledger, transactions, loading: false, error: null });
       } catch (e) {
         if (!cancelled) setState((prev) => ({ ...prev, loading: false, error: e.message }));

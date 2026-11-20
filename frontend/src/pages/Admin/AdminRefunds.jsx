@@ -62,7 +62,7 @@ const AdminRefunds = () => {
         .select(`
           *,
           customer:profiles!bookings_customer_id_fkey(full_name, email, phone_number),
-          vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services(*)),
+          vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*),
           payments:payments!payments_booking_id_fkey(*)
         `)
         .or('status.in.(cancelled,FLAGGED_NOSHOW),refund_status.in.(QUEUED,PROCESSING,PROCESSED,EMAIL_PENDING)')

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, Mail, Phone, Lock, Shield, Trash2, Save, 
   Key, AlertTriangle, ChevronRight, CheckCircle, Edit3, X, 
@@ -51,6 +51,11 @@ const CustomerProfile = () => {
   });
 
   const [pendingAction, setPendingAction] = useState(null); // 'profile' or 'password'
+  // Both password-verification flows below (profile-save confirm and the password-change form)
+  // had no double-submit guard, unlike every other submit flow in the app — a fast double-click
+  // before the first verifyPassword(...) resolves could fire the action twice.
+  const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
+  const passwordActionInFlight = useRef(false);
 
   const displayName = `${formData.firstName} ${formData.lastName}`.trim() || 'Customer';
   const initials = displayName.split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase();
@@ -91,6 +96,7 @@ const CustomerProfile = () => {
 
   const handleUpdatePasswordClick = async (e) => {
     e.preventDefault();
+    if (passwordActionInFlight.current) return;
     if (!passwordData.currentPassword) return toast.error('Please enter your current password.');
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       return toast.error('New passwords do not match');
@@ -99,6 +105,8 @@ const CustomerProfile = () => {
       return toast.error('New password must be more than 4 characters');
     }
 
+    passwordActionInFlight.current = true;
+    setIsVerifyingPassword(true);
     const toastId = toast.loading('Checking your current password...');
     try {
       const isVerified = await verifyPassword(passwordData.currentPassword);
@@ -118,11 +126,23 @@ const CustomerProfile = () => {
       }
     } catch (error) {
       toast.error(error.message || 'Something went wrong. Please try again.', { id: toastId });
+    } finally {
+      passwordActionInFlight.current = false;
+      setIsVerifyingPassword(false);
     }
   };
 
   const executeVerifiedAction = async () => {
-    const isVerified = await verifyPassword(passwordData.currentPassword);
+    if (passwordActionInFlight.current) return;
+    passwordActionInFlight.current = true;
+    setIsVerifyingPassword(true);
+    let isVerified;
+    try {
+      isVerified = await verifyPassword(passwordData.currentPassword);
+    } finally {
+      passwordActionInFlight.current = false;
+      setIsVerifyingPassword(false);
+    }
 
     if (!isVerified.success) {
       toast.error('Password check failed. Please try again.');
@@ -350,7 +370,7 @@ const CustomerProfile = () => {
                   </AlertDescription>
                 </Alert>
               )}
-              <Button type="submit" disabled={!isPasswordFormValid} className="w-full">Confirm change password</Button>
+              <Button type="submit" disabled={!isPasswordFormValid || isVerifyingPassword} className="w-full">Confirm change password</Button>
             </form>
           </Card>
 
@@ -391,7 +411,7 @@ const CustomerProfile = () => {
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowPassModal(false); setPasswordData({ ...passwordData, currentPassword: '' }); }}>Cancel</Button>
-            <Button onClick={executeVerifiedAction}>Continue</Button>
+            <Button onClick={executeVerifiedAction} disabled={isVerifyingPassword}>Continue</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

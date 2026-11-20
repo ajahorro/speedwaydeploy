@@ -74,6 +74,12 @@ const AdminPayments = () => {
 
       if (paymentError) throw paymentError;
 
+      // Removed services are soft-deleted (kept for audit); never show them as a line item on
+      // the printed/downloaded receipt.
+      (paymentData || []).forEach(p => (p.booking?.vehicles || []).forEach(v => {
+        v.services = (v.services || []).filter(s => !s.removed_at);
+      }));
+
       const processed = (await signRows(paymentData || [])).map(p => {
         const url = p.receipt_url;
         const customerName = p.booking?.customer_name || p.booking?.customer?.full_name || 'Fleet Transaction';

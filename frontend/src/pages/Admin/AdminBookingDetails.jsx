@@ -1033,7 +1033,6 @@ const AdminBookingDetails = () => {
   // Only while scheduled/confirmed (mirrors the RPC's own status gate). Any amount already paid
   // toward the removed service is auto-queued to the Refund Hub by remove_added_service itself.
   const handleRemoveService = async (serviceRowId, serviceName) => {
-    if (!window.confirm(`Remove "${serviceName}" from this booking? Any amount already paid toward it will be queued for refund.`)) return;
     const toastId = toast.loading(`Removing ${serviceName}...`);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -1917,7 +1916,7 @@ const AdminBookingDetails = () => {
                               {['scheduled', 'confirmed'].includes(derivedStatus) && (
                                 <button
                                   type="button"
-                                  onClick={() => handleRemoveService(s.id, s.service_name)}
+                                  onClick={() => confirmThen({ title: 'Remove this service?', message: `Remove "${s.service_name}" from this booking? Any amount already paid toward it will be queued for refund.`, confirmText: 'Remove service' }, () => handleRemoveService(s.id, s.service_name))}
                                   title={`Remove ${s.service_name}`}
                                   aria-label={`Remove ${s.service_name}`}
                                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', marginLeft: '0.3rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--admin-text-secondary)', opacity: 0.7 }}

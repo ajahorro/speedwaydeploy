@@ -152,5 +152,7 @@ export const fetchVehicleHistory = async (plateNumber) => {
     .order('created_at', { ascending: false });
 
   if (error) throw error;
+  // Removed services are soft-deleted (kept for audit); never show them in the service log.
+  (data || []).forEach((v) => { v.services = (v.services || []).filter((s) => !s.removed_at); });
   return data || [];
 };

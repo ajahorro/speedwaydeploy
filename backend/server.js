@@ -3916,7 +3916,14 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
 
     if (['STAFF', 'ADMIN'].includes(String(profile.role || '').toUpperCase())) {
       const { error: staffOffError } = await supabaseAdmin.rpc('deactivate_staff_account', { p_account_id: userId, p_reason: 'Deactivated from the account page.' });
-      if (staffOffError) throw staffOffError;
+      if (staffOffError) {
+        // Check the specific "default staff"/"last remaining staff" guards before the generic
+        // active-service 23514 fallback below — otherwise either one is mislabeled as the wrong reason.
+        if (/default staff account|last remaining staff/i.test(staffOffError.message || '')) {
+          return res.status(403).json({ success: false, error: staffOffError.message });
+        }
+        throw staffOffError;
+      }
     }
 
     const cancelledCount = deactivation?.cancelled_bookings?.length || 0;
@@ -5713,7 +5720,13 @@ app.post('/api/bookings/update-master-status', async (req, res) => {
 app.post('/api/bookings/release', async (req, res) => {
   const { bookingId } = req.body;
   if (!bookingId) return res.status(400).json({ success: false, error: 'Booking ID is required.' });
-  if (!(await getLifecycleActor(req))) return denyLifecycle(req, res);
+  const actor = await getLifecycleActor(req);
+  if (!actor) return denyLifecycle(req, res);
+  // Only the admin UI calls this; releasing a booking clears its bay, so it shouldn't be
+  // reachable by a plain staff token even though getLifecycleActor accepts ADMIN or STAFF.
+  if (String(actor.profile.role || '').toUpperCase() !== 'ADMIN') {
+    return res.status(403).json({ success: false, error: 'Administrator access required to release a booking.' });
+  }
 
   try {
     const { data: booking, error: fetchError } = await supabaseAdmin
@@ -5845,6 +5858,11 @@ app.get('/api/staff/tasks', async (req, res) => {
       if (historicalBookingError) throw historicalBookingError;
       if (String(historicalBooking?.status || '').toLowerCase() !== 'released') return false;
 
+      // Removed services are soft-deleted (kept for audit); never show them as live work.
+      (historicalBooking.vehicles || []).forEach((vehicle) => {
+        vehicle.services = (vehicle.services || []).filter((s) => !s.removed_at);
+      });
+
       const vehicles = requestedVehicleId
         ? (historicalBooking.vehicles || []).filter((vehicle) => vehicle.id === requestedVehicleId)
         : historicalBooking.vehicles || [];
@@ -5907,7 +5925,10 @@ app.get('/api/staff/tasks', async (req, res) => {
     const bookings = (rawBookings || [])
       .map((booking) => ({
         ...booking,
-        vehicles: (booking.vehicles || []).filter((vehicle) => vehicle.staff_id === actor.profile.id)
+        vehicles: (booking.vehicles || [])
+          .filter((vehicle) => vehicle.staff_id === actor.profile.id)
+          // Removed services are soft-deleted (kept for audit); never show them as live work.
+          .map((vehicle) => ({ ...vehicle, services: (vehicle.services || []).filter((s) => !s.removed_at) }))
       }))
       .filter((booking) => booking.vehicles.length > 0);
 
