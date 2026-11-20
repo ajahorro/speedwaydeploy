@@ -33,6 +33,7 @@ const AdminAccountsManagement = () => {
 
   const [accounts, setAccounts] = useState([]);
   const [defaultAdminId, setDefaultAdminId] = useState(null);
+  const [defaultStaffId, setDefaultStaffId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -59,8 +60,9 @@ const AdminAccountsManagement = () => {
         return json;
       }, { ttl: 60000, swr: true, forceRefresh });
 
-      // Store the default admin ID from the backend (single source of truth)
+      // Store the default admin/staff IDs from the backend (single source of truth)
       setDefaultAdminId(result.defaultAdminId || null);
+      setDefaultStaffId(result.defaultStaffId || null);
       // Filter to only STAFF and ADMIN roles
       // (a deactivated account is listed in the "Deactivated" panel until it is reactivated or deleted)
       const staffAndAdmins = (result.data || []).filter(p => (p.role === 'STAFF' || p.role === 'ADMIN') && p.is_active !== false);
@@ -177,6 +179,12 @@ const AdminAccountsManagement = () => {
   const adminCount = accounts.filter(a => a.role === 'ADMIN').length;
   const isLastAdmin = (member) => member.role === 'ADMIN' && adminCount <= 1;
 
+  // 🛡️ Default Staff Guard — mirrors the default-admin protection above, and the
+  // "last remaining staff" guard mirrors the last-admin one. Backend is the source of truth.
+  const isDefaultStaff = (member) => member.id === defaultStaffId;
+  const staffCount = accounts.filter(a => a.role === 'STAFF').length;
+  const isLastStaff = (member) => member.role === 'STAFF' && staffCount <= 1;
+
   const handleDeactivate = (member) => {
     if (member.role === 'STAFF' && member.hasActiveServices) {
       toast.error('Cannot deactivate staff assigned to active services. Reassign or complete their services first.');
@@ -184,6 +192,10 @@ const AdminAccountsManagement = () => {
     }
     if (isDefaultAdmin(member)) {
       toast.error('Default Admin accounts cannot be deactivated.');
+      return;
+    }
+    if (isDefaultStaff(member)) {
+      toast.error('The Default Staff account cannot be deactivated.');
       return;
     }
     // 🛡️ TASK 17: never allow self-deactivation from the UI.
@@ -194,6 +206,11 @@ const AdminAccountsManagement = () => {
     // 🛡️ TASK 14: keep at least one administrator at all times.
     if (isLastAdmin(member)) {
       toast.error('This is the last remaining administrator and cannot be deactivated.');
+      return;
+    }
+    // Keep at least one active staff member at all times.
+    if (isLastStaff(member)) {
+      toast.error('This is the last remaining staff account and cannot be deactivated.');
       return;
     }
 
@@ -343,7 +360,7 @@ const AdminAccountsManagement = () => {
             isSubmitting={isSubmitting}
             onEdit={setEditingMember}
             onDeactivate={handleDeactivate}
-            isProtected={(member) => isDefaultAdmin(member) || isSelf(member) || isLastAdmin(member)}
+            isProtected={(member) => isDefaultStaff(member) || isSelf(member) || isLastStaff(member)}
           />
         ) : (
           <AdminTable

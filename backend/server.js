@@ -2556,7 +2556,8 @@ app.get('/api/admin/profiles', async (req, res) => {
           }
         : {})
     }));
-    const responsePayload = { success: true, data: profilesWithServiceState, defaultAdminId: DEFAULT_ADMIN_ID };
+    const { data: defaultStaffRow } = await supabaseAdmin.from('app_singletons').select('value').eq('key', 'default_staff_id').maybeSingle();
+    const responsePayload = { success: true, data: profilesWithServiceState, defaultAdminId: DEFAULT_ADMIN_ID, defaultStaffId: defaultStaffRow?.value || null };
     setCachedResponse('admin:profiles', responsePayload, 20000); // 20s in-memory TTL
     return res.json(responsePayload);
   } catch (err) {
@@ -3174,6 +3175,9 @@ app.post('/api/admin/revoke-access', async (req, res) => {
     });
 
     if (error) {
+      if (/default staff account|last remaining staff/i.test(error.message || '')) {
+        return res.status(403).json({ success: false, error: error.message });
+      }
       if (error.code === '23514' || /assigned to an active service/i.test(error.message || '')) {
         return res.status(409).json({
           success: false,
@@ -3226,7 +3230,12 @@ app.post('/api/admin/delete-account', async (req, res) => {
       p_account_id: memberId,
       p_reason: `Deactivated by ${actor.profile.full_name || actor.profile.email || 'an administrator'}.`
     });
-    if (error) throw error;
+    if (error) {
+      if (/default staff account|last remaining staff/i.test(error.message || '')) {
+        return res.status(403).json({ success: false, error: error.message });
+      }
+      throw error;
+    }
     await writeAuditLog({
       actionType: 'DEACTIVATE_ACCOUNT', actorId: actor.profile.id,
       actorName: actor.profile.full_name || actor.profile.email || 'ADMIN', actorRole: 'ADMIN',
