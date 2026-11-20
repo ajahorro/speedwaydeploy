@@ -43,6 +43,7 @@ const TAB_NAMES = {
   refunds: 'refunds-and-credits',
   outstanding: 'outstanding'
 };
+const TAB_ORDER = ['overview', 'bookings', 'transactions', 'refunds', 'outstanding'];
 
 const TRANSACTION_HEADERS = ['Recognized At', 'Receipt No.', 'Booking Ref', 'Customer', 'Method', 'Status', 'Amount (PHP)', 'Reference'];
 const TRANSACTION_FORMATS = ['text', 'text', 'text', 'text', 'text', 'text', 'money', 'text'];
@@ -66,91 +67,89 @@ const refundRows = (rows) => rows.map((row) => [
   Math.abs(Number(row.amount || 0))
 ]);
 
-/**
- * A formatted, print-ready .xlsx of the tab that is open, for the date range that is chosen. Every
- * figure comes from the same database totals and ledger rows the screen shows, so a file always
- * reconciles with the page. Transfer fees are never exported: they exist only in the receipt reading.
- */
-export async function downloadReportCsv({ tab = 'overview', range, method = 'ALL', report, daily = [] }) {
-  const toLabel = new Date(range.to.getTime() - 1);
-  const meta = [
-    ['Reporting Period', `${toDateParam(range.from)} to ${toDateParam(toLabel)}`],
-    ['Generated On', formatDate(new Date())]
-  ];
-  const blocks = [
-    { type: 'title', text: `COMAR GARAGE FINANCIAL REPORT — ${(TAB_NAMES[tab] || tab).toUpperCase()}` },
-    { type: 'meta', rows: meta },
-    { type: 'spacer' }
-  ];
-  let count = 0;
-
+/** Builds the section blocks (and row count) for a single tab. Each tab fetches its own ledger rows,
+ * independent of which tab is open on screen, so every sheet in the bundled workbook is complete. */
+async function buildTabSections(tab, { range, method, report, daily }) {
   if (tab === 'bookings') {
     const data = await fetchBookingsReport(range);
     const rows = data?.bookings || [];
-    count = rows.length;
-    blocks.push({
-      type: 'section',
-      title: 'BOOKINGS SUMMARY',
-      headers: ['Start Time', 'Reference', 'Customer', 'Status', 'Vehicles and Services', 'Total (PHP)', 'Paid (PHP)', 'Balance (PHP)', 'To Be Received (PHP)'],
-      formats: ['text', 'text', 'text', 'text', 'text', 'money', 'money', 'money', 'money'],
-      rows: rows.map((b) => [
-        formatDate(b.start_datetime),
-        `#${String(b.reference || '').toUpperCase()}`,
-        b.customer_name || 'Customer',
-        formatStatus(b.status),
-        (b.vehicles || []).map((v) => `${[v.brand, v.model].filter(Boolean).join(' ')} ${v.plate || ''}: ${(v.services || []).map((x) => x.name).join(' + ')}`.trim()).join(' | '),
-        Number(b.total || 0),
-        Number(b.paid || 0),
-        Number(b.balance || 0),
-        Number(b.deferred || 0)
-      ])
-    });
-  } else if (tab === 'transactions') {
-    const [settled, pending] = await Promise.all([fetchAll(range, 'settled', method), fetchAll(range, 'pending', 'ALL')]);
-    count = settled.length + pending.length;
-    blocks.push(
-      { type: 'section', title: 'SETTLED PAYMENTS (NET REVENUE)', headers: TRANSACTION_HEADERS, formats: TRANSACTION_FORMATS, rows: transactionRows(settled) },
-      { type: 'spacer' },
-      { type: 'section', title: 'AWAITING VERIFICATION (NOT COUNTED AS REVENUE YET)', headers: TRANSACTION_HEADERS, formats: TRANSACTION_FORMATS, rows: transactionRows(pending) }
-    );
-  } else if (tab === 'refunds') {
-    const refunds = await fetchAll(range, 'refund', 'ALL');
-    count = refunds.length;
-    blocks.push(
-      {
+    return {
+      count: rows.length,
+      sections: [{
         type: 'section',
-        title: 'REFUNDS SUMMARY',
-        formats: ['text', 'money'],
-        rows: [
-          ['Total Refunds in Range (PHP)', Number(report?.refunds || 0)],
-          ['Overpayments Held (PHP)', Number(report?.overpayments || 0)],
-          ['Customer Credit Liability (PHP)', Number(report?.customer_credit_liability || 0)]
-        ]
-      },
-      { type: 'spacer' },
-      { type: 'section', title: 'REFUND TRANSACTIONS', headers: REFUND_HEADERS, formats: REFUND_FORMATS, rows: refundRows(refunds) }
-    );
-  } else if (tab === 'outstanding') {
+        title: 'BOOKINGS SUMMARY',
+        headers: ['Start Time', 'Reference', 'Customer', 'Status', 'Vehicles and Services', 'Total (PHP)', 'Paid (PHP)', 'Balance (PHP)', 'To Be Received (PHP)'],
+        formats: ['text', 'text', 'text', 'text', 'text', 'money', 'money', 'money', 'money'],
+        rows: rows.map((b) => [
+          formatDate(b.start_datetime),
+          `#${String(b.reference || '').toUpperCase()}`,
+          b.customer_name || 'Customer',
+          formatStatus(b.status),
+          (b.vehicles || []).map((v) => `${[v.brand, v.model].filter(Boolean).join(' ')} ${v.plate || ''}: ${(v.services || []).map((x) => x.name).join(' + ')}`.trim()).join(' | '),
+          Number(b.total || 0),
+          Number(b.paid || 0),
+          Number(b.balance || 0),
+          Number(b.deferred || 0)
+        ])
+      }]
+    };
+  }
+  if (tab === 'transactions') {
+    const [settled, pending] = await Promise.all([fetchAll(range, 'settled', method), fetchAll(range, 'pending', 'ALL')]);
+    return {
+      count: settled.length + pending.length,
+      sections: [
+        { type: 'section', title: 'SETTLED PAYMENTS (NET REVENUE)', headers: TRANSACTION_HEADERS, formats: TRANSACTION_FORMATS, rows: transactionRows(settled) },
+        { type: 'spacer' },
+        { type: 'section', title: 'AWAITING VERIFICATION (NOT COUNTED AS REVENUE YET)', headers: TRANSACTION_HEADERS, formats: TRANSACTION_FORMATS, rows: transactionRows(pending) }
+      ]
+    };
+  }
+  if (tab === 'refunds') {
+    const refunds = await fetchAll(range, 'refund', 'ALL');
+    return {
+      count: refunds.length,
+      sections: [
+        {
+          type: 'section',
+          title: 'REFUNDS SUMMARY',
+          formats: ['text', 'money'],
+          rows: [
+            ['Total Refunds in Range (PHP)', Number(report?.refunds || 0)],
+            ['Overpayments Held (PHP)', Number(report?.overpayments || 0)],
+            ['Customer Credit Liability (PHP)', Number(report?.customer_credit_liability || 0)]
+          ]
+        },
+        { type: 'spacer' },
+        { type: 'section', title: 'REFUND TRANSACTIONS', headers: REFUND_HEADERS, formats: REFUND_FORMATS, rows: refundRows(refunds) }
+      ]
+    };
+  }
+  if (tab === 'outstanding') {
     const rows = await fetchOutstandingBookings({ limit: MAX_ROWS });
-    count = rows.length;
-    blocks.push({
-      type: 'section',
-      title: 'OUTSTANDING BALANCES (AS OF NOW)',
-      headers: ['Booking Ref', 'Customer', 'Appointment', 'Status', 'Total Expected (PHP)', 'Amount Settled (PHP)', 'Balance Owed (PHP)'],
-      formats: ['text', 'text', 'text', 'text', 'money', 'money', 'money'],
-      rows: rows.map((row) => [
-        `#${String(row.booking_id || '').substring(0, 8).toUpperCase()}`,
-        row.customer_name || 'Customer',
-        formatDate(row.start_datetime),
-        formatStatus(row.booking_status),
-        Number(row.expected_amount || 0),
-        Number(row.net_settled || 0),
-        Number(row.outstanding_amount || 0)
-      ])
-    });
-  } else {
-    count = daily.length;
-    blocks.push(
+    return {
+      count: rows.length,
+      sections: [{
+        type: 'section',
+        title: 'OUTSTANDING BALANCES (AS OF NOW)',
+        headers: ['Booking Ref', 'Customer', 'Appointment', 'Status', 'Total Expected (PHP)', 'Amount Settled (PHP)', 'Balance Owed (PHP)'],
+        formats: ['text', 'text', 'text', 'text', 'money', 'money', 'money'],
+        rows: rows.map((row) => [
+          `#${String(row.booking_id || '').substring(0, 8).toUpperCase()}`,
+          row.customer_name || 'Customer',
+          formatDate(row.start_datetime),
+          formatStatus(row.booking_status),
+          Number(row.expected_amount || 0),
+          Number(row.net_settled || 0),
+          Number(row.outstanding_amount || 0)
+        ])
+      }]
+    };
+  }
+  // overview
+  return {
+    count: daily.length,
+    sections: [
       {
         type: 'section',
         title: 'FINANCIAL OVERVIEW SUMMARY',
@@ -191,12 +190,39 @@ export async function downloadReportCsv({ tab = 'overview', range, method = 'ALL
         formats: ['text', 'int'],
         rows: (report?.top_services || []).map((t) => [t.name, Number(t.count || 0)])
       }
-    );
-  }
+    ]
+  };
+}
+
+/**
+ * A formatted, print-ready .xlsx with every report tab (overview, bookings, transactions, refunds,
+ * outstanding) bundled as its own sheet, for the date range that is chosen. Every figure comes from
+ * the same database totals and ledger rows the screen shows, so the file always reconciles with the
+ * page. Transfer fees are never exported: they exist only in the receipt reading.
+ */
+export async function downloadReportCsv({ range, method = 'ALL', report, daily = [] }) {
+  const toLabel = new Date(range.to.getTime() - 1);
+  const meta = [
+    ['Reporting Period', `${toDateParam(range.from)} to ${toDateParam(toLabel)}`],
+    ['Generated On', formatDate(new Date())]
+  ];
+
+  const results = await Promise.all(TAB_ORDER.map((tab) => buildTabSections(tab, { range, method, report, daily })));
+  const totalRows = results.reduce((sum, r) => sum + r.count, 0);
+  const sheets = TAB_ORDER.map((tab, i) => ({
+    name: TAB_NAMES[tab],
+    span: 9,
+    blocks: [
+      { type: 'title', text: `COMAR GARAGE FINANCIAL REPORT — ${TAB_NAMES[tab].toUpperCase()}` },
+      { type: 'meta', rows: meta },
+      { type: 'spacer' },
+      ...results[i].sections
+    ]
+  }));
 
   await downloadWorkbook({
-    fileName: `Comar-Garage-${TAB_NAMES[tab] || tab}_${toDateParam(range.from)}_${toDateParam(toLabel)}`,
-    sheets: [{ name: TAB_NAMES[tab] || tab, blocks, span: 9 }]
+    fileName: `Comar-Garage-financial-report_${toDateParam(range.from)}_${toDateParam(toLabel)}`,
+    sheets
   });
-  return { rows: count, truncated: count >= MAX_ROWS };
+  return { rows: totalRows, truncated: results.some((r) => r.count >= MAX_ROWS) };
 }

@@ -111,7 +111,7 @@ export const ADMIN_TOURS = {
   reports: [
     { target: '[data-tour="rep-range"]', title: '1. Choose the dates', body: 'Pick a ready range (like this month) or your own dates. Everything on the page follows these dates.' },
     { target: '[data-tour="rep-tabs"]', title: '2. Pick a view', body: 'Overview shows the totals; the other tabs list bookings, payments, refunds and credits, and balances still owed.' },
-    { target: '[data-tour="rep-actions"]', title: '3. Export, print or ask', body: 'Download a spreadsheet or print the tab you are on, get a full PDF report, or ask the AI a question about the numbers.' },
+    { target: '[data-tour="rep-actions"]', title: '3. Export, print or ask', body: 'Download Excel exports every tab as one workbook, Print only prints the tab you are on, or get a full PDF report, or ask the AI a question about the numbers.' },
     { target: '[data-tour="rep-kpis"]', title: '4. Sales and balances', body: 'Gross sales is the price of the services sold; discounts and promos are taken off to give net sales; average sale is net sales per booking. Refunds and pending cover the dates chosen; outstanding, deferred and customer credit are as of today.' },
     { target: '[data-tour="rep-chart"]', title: '5. Money over time', body: 'Money collected, refunds and payments waiting for checking, day by day. Point at the chart to see a day’s numbers.' },
     { target: '[data-tour="rep-breakdown"]', title: '6. How customers pay, and what they buy', body: 'Money collected by payment method, and the services booked most.' },

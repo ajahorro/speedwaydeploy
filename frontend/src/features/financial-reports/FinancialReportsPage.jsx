@@ -95,10 +95,10 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const result = await downloadReportCsv({ tab, range, method, report, daily });
+      const result = await downloadReportCsv({ range, method, report, daily });
       toast.success(result.truncated
-        ? `Exported the first ${result.rows} rows.`
-        : `Exported the ${TAB_LABELS[tab] || 'report'} for ${rangeLabel}.`);
+        ? `Exported the first ${result.rows} rows across all tabs.`
+        : `Exported all report tabs for ${rangeLabel}.`);
     } catch (error) {
       console.error('Report export failed:', error);
       toast.error('Export failed. Please try again.');
@@ -146,10 +146,10 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
           <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
         </TabsList>
 
-        {/* What these export or print depends on the tab chosen above, so they sit right under the tabs. */}
+        {/* Export bundles every tab into one workbook; Print and Report PDF still depend on the tab chosen above. */}
         <div className="flex flex-col gap-2 print:hidden" data-tour="rep-actions">
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={handleExport} disabled={exporting || loading} title={`Download the ${TAB_LABELS[tab]} tab for ${rangeLabel} as a spreadsheet`}>
+            <Button variant="outline" onClick={handleExport} disabled={exporting || loading} title={`Download every tab (overview, bookings, transactions, refunds, outstanding) for ${rangeLabel} as one Excel workbook`}>
               <Download /> {exporting ? 'Exporting…' : 'Download Excel'}
             </Button>
             <Button variant="outline" onClick={handleDailyReport} disabled={dailyBusy} title={`A full PDF report for ${rangeLabel}`}>
@@ -162,7 +162,7 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
               <Sparkles /> Ask AI
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">These apply to the <strong>{TAB_LABELS[tab]}</strong> tab and the dates shown: {rangeLabel}.</p>
+          <p className="text-xs text-muted-foreground">Download Excel exports every tab for {rangeLabel}; Print only prints the <strong>{TAB_LABELS[tab]}</strong> tab shown now.</p>
         </div>
 
         <TabsContent value="overview" className="flex flex-col gap-4">
