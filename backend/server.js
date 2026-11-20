@@ -2951,7 +2951,8 @@ app.post('/api/admin/services/usage', async (req, res) => {
     const { data, error } = await supabaseAdmin
       .from('booking_vehicle_services')
       .select('service_name')
-      .in('service_name', requested);
+      .in('service_name', requested)
+      .is('removed_at', null);
     if (error) throw error;
 
     const usage = {};
@@ -5446,7 +5447,7 @@ app.post('/api/bookings/add-service', async (req, res) => {
       }
       const { data: catalogDuration, error: durationError } = await supabaseAdmin.rpc('catalog_service_duration', { p_name: item.serviceName });
       if (durationError) throw durationError;
-      const { data: existing } = await supabaseAdmin.from('booking_vehicle_services').select('id').eq('booking_vehicle_id', item.vehicleId).ilike('service_name', item.serviceName).maybeSingle();
+      const { data: existing } = await supabaseAdmin.from('booking_vehicle_services').select('id').eq('booking_vehicle_id', item.vehicleId).ilike('service_name', item.serviceName).is('removed_at', null).maybeSingle();
       if (existing) return res.status(409).json({ success: false, error: `"${item.serviceName}" is already assigned to the vehicle.` });
 
       items.push({
@@ -5605,6 +5606,40 @@ app.post('/api/bookings/add-service', async (req, res) => {
     return res.json({ success: true, added: items.length, paymentId: paymentId || null, awaitingVerification: Boolean(payment && payment.status === 'FOR_VERIFICATION') });
   } catch (error) {
     console.error('Add service failed:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/bookings/remove-service', async (req, res) => {
+  const { bookingId, serviceRowId, note } = req.body || {};
+  const actor = await requireAdmin(req);
+  if (!actor) return res.status(403).json({ success: false, error: 'Administrator access required.' });
+  if (!bookingId || !serviceRowId) return res.status(400).json({ success: false, error: 'Booking and service are required.' });
+
+  try {
+    const { data, error } = await supabaseAdmin.rpc('remove_added_service', {
+      p_booking_id: bookingId,
+      p_service_row_id: serviceRowId,
+      p_actor_id: actor.profile.id,
+      p_actor_name: actor.profile.full_name || actor.profile.email || 'Admin',
+      p_actor_role: 'ADMIN',
+      p_note: note || null
+    });
+    if (error) {
+      if (/can only be removed while the booking is scheduled or confirmed/i.test(error.message || '')) {
+        return res.status(409).json({ success: false, error: error.message });
+      }
+      if (/must have at least one service/i.test(error.message || '')) {
+        return res.status(409).json({ success: false, error: error.message });
+      }
+      if (error.code === 'PGRST202' || /not found/i.test(error.message || '')) {
+        return res.status(404).json({ success: false, error: error.message || 'Booking or service not found.' });
+      }
+      throw error;
+    }
+    return res.json({ success: true, ...data });
+  } catch (error) {
+    console.error('Remove service failed:', error.message);
     return res.status(500).json({ success: false, error: error.message });
   }
 });

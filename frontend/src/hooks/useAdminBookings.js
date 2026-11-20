@@ -38,13 +38,17 @@ export const useAdminBookings = () => {
         .select(`
           *,
           customer:profiles!bookings_customer_id_fkey(full_name, email),
-          vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services!booking_vehicle_id(service_name)),
+          vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services!booking_vehicle_id(service_name, removed_at)),
           payments:payments!payments_booking_id_fkey(id, status)
         `)
         .order('created_at', { ascending: false })
         .range(0, fetchAllRef.current ? 9999 : PAGE_SIZE);
 
       if (error) throw error;
+      // Removed services are soft-deleted (kept for audit); never show them as live line items.
+      (data || []).forEach((booking) => (booking.vehicles || []).forEach((v) => {
+        v.services = (v.services || []).filter((s) => !s.removed_at);
+      }));
       // One extra row is requested so we know whether older bookings exist.
       const more = !fetchAllRef.current && (data || []).length > PAGE_SIZE;
       if (more) data.pop();

@@ -234,7 +234,8 @@ const AdminBookingDetails = () => {
         const { data: sData } = await supabase
           .from('booking_vehicle_services')
           .select('*')
-          .in('booking_vehicle_id', vehicleIds);
+          .in('booking_vehicle_id', vehicleIds)
+          .is('removed_at', null);
 
         vehiclesWithServices = vData.map(v => ({
           ...v,
@@ -897,6 +898,7 @@ const AdminBookingDetails = () => {
         .select('id')
         .eq('booking_vehicle_id', vehicleId)
         .ilike('service_name', service.name)
+        .is('removed_at', null)
         .maybeSingle();
       if (existingServiceError) throw existingServiceError;
       if (existingService) throw new Error(`"${service.name}" is already assigned to this vehicle.`);
@@ -1025,6 +1027,34 @@ const AdminBookingDetails = () => {
       toast.error(err.message || 'Validation failed', { id: toastId });
     } finally {
       setIsUpdatingDuration(false);
+    }
+  };
+
+  // Only while scheduled/confirmed (mirrors the RPC's own status gate). Any amount already paid
+  // toward the removed service is auto-queued to the Refund Hub by remove_added_service itself.
+  const handleRemoveService = async (serviceRowId, serviceName) => {
+    if (!window.confirm(`Remove "${serviceName}" from this booking? Any amount already paid toward it will be queued for refund.`)) return;
+    const toastId = toast.loading(`Removing ${serviceName}...`);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${BACKEND_URL}/api/bookings/remove-service`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
+        body: JSON.stringify({ bookingId: id, serviceRowId })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) throw new Error(result.error || 'Service removal was rejected.');
+      toast.success(
+        result.refund_queued > 0
+          ? `${serviceName} removed. ₱${Number(result.refund_queued).toLocaleString()} already paid toward it was queued for refund.`
+          : `${serviceName} removed. The total has been updated.`,
+        { id: toastId }
+      );
+      await fetchBookingDetails();
+      await fetchPayments();
+    } catch (err) {
+      logger.error('Remove service failed:', err);
+      toast.error(err.message || 'Could not remove the service.', { id: toastId });
     }
   };
 
@@ -1882,7 +1912,20 @@ const AdminBookingDetails = () => {
                           {bookingPackages.length > 0 ? (
                             <span style={{ fontSize: '0.6rem', fontWeight: '800', color: 'var(--admin-text-secondary)', marginLeft: '0.5rem' }}>Included</span>
                           ) : (
-                            <span style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-brand)', marginLeft: '0.5rem', opacity: 0.8 }}>₱{resolveFrozenServicePrice(s).toLocaleString()}</span>
+                            <>
+                              <span style={{ fontSize: '0.65rem', fontWeight: '950', color: 'var(--admin-brand)', marginLeft: '0.5rem', opacity: 0.8 }}>₱{resolveFrozenServicePrice(s).toLocaleString()}</span>
+                              {['scheduled', 'confirmed'].includes(derivedStatus) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveService(s.id, s.service_name)}
+                                  title={`Remove ${s.service_name}`}
+                                  aria-label={`Remove ${s.service_name}`}
+                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', marginLeft: '0.3rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--admin-text-secondary)', opacity: 0.7 }}
+                                >
+                                  <X size={12} />
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       ))}

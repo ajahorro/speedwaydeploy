@@ -101,13 +101,17 @@ const AdminSchedule = () => {
         .select(`
           *,
           customer:profiles!bookings_customer_id_fkey(full_name, email),
-          vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services(service_name))
+          vehicles:booking_vehicles!booking_vehicles_booking_id_fkey(*, services:booking_vehicle_services(service_name, removed_at))
         `)
         .lte('start_datetime', fetchEnd)
         .gte('end_datetime', fetchStart)
         .not('status', 'ilike', 'cancelled');
 
       if (bookingsError) throw bookingsError;
+      // Removed services are soft-deleted (kept for audit); never show them as live line items.
+      (bookingsRaw || []).forEach((b) => (b.vehicles || []).forEach((v) => {
+        v.services = (v.services || []).filter((s) => !s.removed_at);
+      }));
 
       // 🛡️ MANUAL PROFILE RESOLUTION
       const bookingsData = [];

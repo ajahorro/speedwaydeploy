@@ -253,7 +253,8 @@ const CustomerBookingDetails = () => {
         const { data: sData } = await supabase
           .from('booking_vehicle_services')
           .select('*')
-          .in('booking_vehicle_id', vehicleIds);
+          .in('booking_vehicle_id', vehicleIds)
+          .is('removed_at', null);
 
         vehiclesWithServices = vData.map(v => ({
           ...v,

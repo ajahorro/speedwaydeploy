@@ -569,6 +569,13 @@ export const fetchCustomerBookings = async (customerId) => {
     .eq('customer_id', customerId)
     .order('created_at', { ascending: false });
 
+  // Removed services are soft-deleted (kept for audit); never show them as live line items.
+  if (!error && data) {
+    data.forEach((booking) => (booking.vehicles || []).forEach((v) => {
+      v.services = (v.services || []).filter((s) => !s.removed_at);
+    }));
+  }
+
   if (error) {
     // This is a READ path. Its message used to say the booking "could not be
     // reserved" — copy that leaked from the reschedule flow — which was
@@ -630,6 +637,10 @@ export const fetchBookingById = async (bookingId) => {
     .single();
 
   if (error) throw error;
+  // Removed services are soft-deleted (kept for audit); never show them as live line items.
+  (data?.vehicles || []).forEach((v) => {
+    v.services = (v.services || []).filter((s) => !s.removed_at);
+  });
   return data;
 };
 
