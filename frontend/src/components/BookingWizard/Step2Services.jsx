@@ -528,23 +528,34 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
         {additionMode === 'individual' && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem' }}>
             {garageVehicles.map((vehicle) => {
+              // Already in this booking: blurred and inert, not a remove-toggle — a vehicle you've
+              // already configured services for shouldn't be one click away from silently dropping
+              // out when you're only here to add a DIFFERENT one. Removing it stays possible, but
+              // only via that vehicle's own "Remove" button further down, where it's unambiguous.
               const selected = isGarageVehicleSelected(vehicle);
+              const inert = selected || vehicleAdditionLocked;
               return (
                 <button
                   key={vehicle.id}
                   type="button"
-                  tabIndex={vehicleAdditionLocked ? -1 : undefined}
+                  tabIndex={inert ? -1 : undefined}
                   aria-pressed={selected}
-                  onClick={() => toggleGarageVehicle(vehicle)}
-                  title={selected ? `Remove ${vehicle.brand} ${vehicle.model} from this booking` : `Add ${vehicle.brand} ${vehicle.model}`}
+                  aria-disabled={selected || undefined}
+                  onClick={() => {
+                    if (selected) { toast('Already added to this booking — remove it below to choose a different vehicle.', { icon: '🔒' }); return; }
+                    toggleGarageVehicle(vehicle);
+                  }}
+                  title={selected ? `${vehicle.brand} ${vehicle.model} is already in this booking` : `Add ${vehicle.brand} ${vehicle.model}`}
                   className="booking-addable-card"
                   style={{
                     padding: '.75rem 1rem', display: 'flex', alignItems: 'center', gap: '.5rem',
-                    background: selected ? 'rgba(var(--admin-brand-rgb), 0.08)' : 'var(--admin-bg)',
+                    background: selected ? 'var(--admin-bg)' : 'var(--admin-bg)',
                     color: 'var(--admin-text-primary)',
-                    border: `2px solid ${selected ? 'var(--admin-brand)' : 'var(--admin-border)'}`,
-                    borderRadius: '6px', cursor: vehicleAdditionLocked ? 'not-allowed' : 'pointer',
-                    textAlign: 'left', opacity: selected ? .9 : 1,
+                    border: `2px solid ${selected ? 'var(--admin-border)' : 'var(--admin-border)'}`,
+                    borderRadius: '6px', cursor: selected ? 'not-allowed' : (vehicleAdditionLocked ? 'not-allowed' : 'pointer'),
+                    textAlign: 'left',
+                    opacity: selected ? .45 : 1,
+                    filter: selected ? 'grayscale(.5) blur(.3px)' : 'none',
                     transition: 'transform .2s ease, border-color .2s ease, box-shadow .2s ease',
                   }}
                 >
@@ -552,7 +563,7 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
                   <span>
                     <strong style={{ display: 'block' }}>{vehicle.brand} {vehicle.model}</strong>
                     <small style={{ color: 'var(--admin-text-secondary)' }}>
-                      {selected ? 'Added to booking · click to remove' : `${vehicle.plate_number} · ${vehicle.type}`}
+                      {selected ? 'Already in this booking' : `${vehicle.plate_number} · ${vehicle.type}`}
                     </small>
                   </span>
                 </button>
