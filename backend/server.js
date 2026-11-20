@@ -3905,6 +3905,18 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
 
     const cancelledCount = deactivation?.cancelled_bookings?.length || 0;
 
+    // The frontend only signs out of the LOCAL session, so the access token used to make this very
+    // request stays valid until it expires. For a self-deactivation, revoke it (and every other
+    // session for this account) server-side now — using the admin's own token here would sign the
+    // admin out instead, so this only applies when the actor deactivated themselves.
+    if (userId === actor.profile.id) {
+      const rawAuthHeader = req.headers.authorization || '';
+      const bearerToken = /^Bearer\s+/i.test(rawAuthHeader) ? rawAuthHeader.replace(/^Bearer\s+/i, '') : null;
+      if (bearerToken) {
+        await supabaseAdmin.auth.admin.signOut(bearerToken, 'global').catch((e) => console.warn('[AUTH] Global session revoke after deactivation failed:', e.message));
+      }
+    }
+
     // Record in Audit Log
     await writeAuditLog({
       actionType: 'ACCOUNT_DEACTIVATION',
