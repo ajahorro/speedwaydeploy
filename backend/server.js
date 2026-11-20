@@ -3125,6 +3125,9 @@ app.post('/api/admin/revoke-access', async (req, res) => {
     if (checkErr) throw checkErr;
 
     if (String(profile.role || '').toUpperCase() === 'STAFF') {
+      // Move their not-yet-started work to another technician automatically; only work
+      // already physically under way still blocks deactivation below.
+      await supabaseAdmin.rpc('auto_reassign_staff_pending_work', { p_staff_id: memberId }).catch((e) => console.warn('[REVOKE-ACCESS] Auto-reassign failed:', e.message));
       const { data: hasActiveServices, error: activeServicesError } = await supabaseAdmin
         .rpc('staff_has_active_services', { p_staff_id: memberId });
       if (activeServicesError) throw activeServicesError;
@@ -3215,6 +3218,7 @@ app.post('/api/admin/delete-account', async (req, res) => {
       if ((count || 0) <= 1) return res.status(403).json({ success: false, error: 'The last remaining administrator cannot be deactivated.' });
     }
     if (role === 'STAFF') {
+      await supabaseAdmin.rpc('auto_reassign_staff_pending_work', { p_staff_id: memberId }).catch((e) => console.warn('[DELETE-ACCOUNT] Auto-reassign failed:', e.message));
       const { data: busy } = await supabaseAdmin.rpc('staff_has_active_services', { p_staff_id: memberId });
       if (busy) return res.status(409).json({ success: false, error: 'This staff account cannot be deactivated while assigned to an active service. Reassign or complete the service first.' });
     }
@@ -3687,8 +3691,10 @@ app.post('/api/staff/toggle-shift', async (req, res) => {
 
   try {
     // A technician with a job under way (started, or its before photo is saved) or one starting within 5 minutes
-    // may not clock out: an admin has to assign another staff member first.
+    // may not clock out. Work that hasn't started yet can be moved to another technician automatically; only
+    // work that's physically under way still needs an admin to hand it off.
     if (!newStatus) {
+      await supabaseAdmin.rpc('auto_reassign_staff_pending_work', { p_staff_id: userId }).catch((e) => console.warn('[CLOCK-OUT] Auto-reassign failed:', e.message));
       const { data: blockers, error: blockerError } = await supabaseAdmin.rpc('staff_clock_out_blockers', { p_staff: userId });
       if (blockerError) throw blockerError;
       if ((blockers || []).length > 0) {
@@ -3823,6 +3829,7 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
     if (profileError) throw profileError;
 
     if (String(profile.role || '').toUpperCase() === 'STAFF') {
+      await supabaseAdmin.rpc('auto_reassign_staff_pending_work', { p_staff_id: userId }).catch((e) => console.warn('[DEACTIVATE-ACCOUNT] Auto-reassign failed:', e.message));
       const { data: hasActiveServices, error: activeServicesError } = await supabaseAdmin
         .rpc('staff_has_active_services', { p_staff_id: userId });
       if (activeServicesError) throw activeServicesError;
