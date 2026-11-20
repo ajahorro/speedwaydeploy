@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { subscribeTable } from '../lib/realtimeHub';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirmAction } from '../hooks/useConfirmAction';
-import { loadDraft, slimDraftData, writeLocalDraft, saveServerDraft } from '../services/bookingDraftService';
+import { loadDraft, slimDraftData, writeLocalDraft, saveServerDraft, deleteDraft } from '../services/bookingDraftService';
 
 /**
  * The "send me your booking details" invitation inside the chat.
@@ -28,11 +28,15 @@ export default function BookingInviteCard({ message }) {
     if (!message.invite_id || sentByOtherAdmin) return;
     const { data } = await supabase
       .from('booking_draft_invites')
-      .select('id, status, expires_at, customer_id')
+      .select('id, status, expires_at, customer_id, booking_id')
       .eq('id', message.invite_id)
       .maybeSingle();
     setInvite(data || null);
-  }, [message.invite_id, sentByOtherAdmin]);
+    // The admin actually finished the booking (not just opened it) — the customer's own saved
+    // draft for it is now stale and would otherwise still offer to "resume" a booking that already
+    // exists. Clear it here, in the customer's own browser, the only place that can reach it.
+    if (data?.booking_id && !isAdmin) deleteDraft(user.id, 'customer');
+  }, [message.invite_id, sentByOtherAdmin, isAdmin, user?.id]);
 
   useEffect(() => {
     load();
@@ -75,7 +79,9 @@ export default function BookingInviteCard({ message }) {
       const { data, error } = await supabase.rpc('use_booking_draft_invite', { p_invite_id: invite.id });
       if (error) throw error;
       const draft = { data: { ...data.data, adminCustomerReady: true, customerId: data.customer_id }, step: data.step || 1,
-        extras: { isNewGuest: false, selectedCustomer: data.customer_id, guest: { firstName: '', lastName: '', email: '', phone: '' }, guestAsGuest: false } };
+        // inviteId travels with the draft so that, once this walk-in booking is actually submitted,
+        // the invite (and the customer's own stale draft) can be marked complete.
+        extras: { isNewGuest: false, selectedCustomer: data.customer_id, guest: { firstName: '', lastName: '', email: '', phone: '' }, guestAsGuest: false, inviteId: invite.id } };
       writeLocalDraft(user.id, 'admin_walkin', draft);
       await saveServerDraft(user.id, 'admin_walkin', draft);
       navigate('/admin/walk-in');

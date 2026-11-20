@@ -16,6 +16,9 @@ const AdminWalkInWizard = () => {
   const [isNewGuest, setIsNewGuest] = useState(true);
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState('');
+  // Set only when this walk-in was opened from a customer's shared "Book for customer" invite
+  // (BookingInviteCard); lets submitAdminBooking mark that invite complete once this booking is made.
+  const [inviteId, setInviteId] = useState(null);
   const [guest, setGuest] = useState({ firstName: '', lastName: '', email: '', phone: '' });
   // Identity-collision detection: a guest email that already belongs to a
   // registered CUSTOMER must not be silently booked as an account-less guest.
@@ -233,6 +236,12 @@ const AdminWalkInWizard = () => {
       customerEmail: bookingData.guest?.email || bookingData.customerEmail || null
     });
     toastManager.success('Walk-in booking created and confirmed.');
+    if (inviteId && booking?.id) {
+      // Best-effort: mark the invite complete so the customer's chat card clears their now-stale
+      // draft. Never let this hold up or fail a booking that already succeeded.
+      supabase.rpc('complete_booking_draft_invite', { p_invite_id: inviteId, p_booking_id: booking.id })
+        .then(({ error }) => { if (error) console.warn('[booking draft invite] could not mark complete:', error.message); });
+    }
     return booking;
   };
 
@@ -245,16 +254,18 @@ const AdminWalkInWizard = () => {
     // Clear both identity-collision signals so the next walk-in starts neutral.
     setEmailMatch(null);
     setGuestAsGuest(false);
+    setInviteId(null);
   };
 
   // The customer panel keeps its own state, so it travels with the draft.
-  const draftExtras = { isNewGuest, selectedCustomer, guest, guestAsGuest };
+  const draftExtras = { isNewGuest, selectedCustomer, guest, guestAsGuest, inviteId };
   const restorePanel = (extras) => {
     if (!extras) return;
     setIsNewGuest(extras.isNewGuest !== false);
     setSelectedCustomer(extras.selectedCustomer || '');
     setGuest({ firstName: '', lastName: '', email: '', phone: '', ...(extras.guest || {}) });
     setGuestAsGuest(Boolean(extras.guestAsGuest));
+    setInviteId(extras.inviteId || null);
   };
 
   return <CustomerBookAppointment adminMode adminSelectedCustomerId={selectedCustomer} renderAdminPanel={renderAdminPanel} onAdminSubmit={submitAdminBooking} onAdminReset={handleAdminReset} draftExtras={draftExtras} onDraftRestore={restorePanel} />;
