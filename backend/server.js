@@ -278,6 +278,18 @@ if (supabaseUrl && supabaseKey) {
   console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY missing. Database-dependent features (Emails/Invites) will be disabled, but AI services will remain active.');
 }
 
+// Finds one auth.users row by email via an indexed SQL lookup (find_auth_user_by_email),
+// instead of paging listUsers() and scanning the first page in JS — that pattern is O(n)
+// per request and silently stops finding anyone past the first page once the account base
+// grows beyond it. Returns null if no match or the account has no email.
+const findAuthUserByEmail = async (email) => {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return null;
+  const { data, error } = await supabaseAdmin.rpc('find_auth_user_by_email', { p_email: normalized });
+  if (error) throw error;
+  return data?.[0] || null;
+};
+
 // 🛡️ DEFAULT ADMIN — Single source of truth.
 /**
  * Backend Data Normalization Helper
@@ -792,9 +804,7 @@ app.post('/admin/generate-invite', async (req, res) => {
 
     let authExists = false;
     try {
-      const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      const target = normalizedEmail.toLowerCase();
-      authExists = Boolean((list?.users || []).some((u) => (u.email || '').toLowerCase() === target));
+      authExists = Boolean(await findAuthUserByEmail(normalizedEmail));
     } catch (lookupErr) {
       console.warn('⚠️ [INVITE SYSTEM] auth.users duplicate lookup unavailable:', lookupErr.message);
     }
@@ -2027,9 +2037,7 @@ app.post('/api/auth/request-password-change', async (req, res) => {
   try {
     const { error: verifyError } = await supabaseAdmin.auth.signInWithPassword({ email, password: currentPassword });
     if (verifyError) return res.status(401).json({ success: false, error: 'Invalid current password.' });
-    const { data: users, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (usersError) throw usersError;
-    const account = users.users.find(item => item.email?.toLowerCase() === email.toLowerCase());
+    const account = await findAuthUserByEmail(email);
     if (!account) return res.status(401).json({ success: false, error: 'Invalid current password.' });
     const delivery = await createPasswordConfirmationRequest({ userId: account.id, email: account.email, purpose: 'UPDATE', newPassword });
     return res.json({
@@ -2058,9 +2066,7 @@ app.post('/api/auth/resend-password-confirmation', async (req, res) => {
   try {
     const { error: verifyError } = await supabaseAdmin.auth.signInWithPassword({ email, password: currentPassword });
     if (verifyError) return res.status(401).json({ success: false, error: 'Invalid current password.' });
-    const { data: users, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (usersError) throw usersError;
-    const account = users.users.find(item => item.email?.toLowerCase() === email.toLowerCase());
+    const account = await findAuthUserByEmail(email);
     if (!account) return res.status(401).json({ success: false, error: 'Invalid current password.' });
 
     // Re-use the still-valid pending request when one exists, issuing a FRESH
@@ -2195,9 +2201,7 @@ app.post('/api/auth/resend-signup', async (req, res) => {
   const reply = { success: true, message: 'If this address has an account waiting for confirmation, a new link is on its way.' };
   if (!isValidEmail(email)) return res.json(reply);
   try {
-    const { data: users, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (usersError) throw usersError;
-    const account = users.users.find((u) => u.email?.toLowerCase() === email);
+    const account = await findAuthUserByEmail(email);
     if (account && !account.email_confirmed_at) {
       const { data, error } = await supabaseAdmin.auth.admin.generateLink({ type: 'magiclink', email });
       if (error) throw error;
@@ -2222,9 +2226,8 @@ app.post('/api/auth/recover-password', async (req, res) => {
   assertDelivery('FORGOT_PASSWORD', DELIVERY.LINK);
 
   try {
-    const { data: users, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (usersError) throw usersError;
-    const account = users.users.find(item => item.email?.toLowerCase() === email.toLowerCase() && !item.deleted_at);
+    const found = await findAuthUserByEmail(email);
+    const account = found && !found.deleted_at ? found : null;
 
     // EMAIL AUTH POLICY (see backend/docs/EMAIL_AUTH_POLICY.md):
     //   FORGOT PASSWORD = 6-digit nothing. It ALWAYS delivers a one-time LINK to
@@ -2667,9 +2670,8 @@ app.post('/api/admin/invite-account', async (req, res) => {
         return res.status(403).json({ success: false, error: 'Only administrators may invite accounts.' });
       }
       if (rpcMissing) {
-        // Fallback duplicate check. `auth.users` is not reachable from here without
-        // the SECURITY DEFINER function, so we check the two sources we CAN read:
-        // profiles.email, and the auth admin API via a filtered listUsers lookup.
+        // Fallback duplicate check: profiles.email, plus auth.users via the
+        // SECURITY DEFINER find_auth_user_by_email lookup.
         console.warn('⚠️ [INVITE] create_invited_account RPC missing — using fallback duplicate check.');
 
         const { data: existingProfile } = await supabaseAdmin
@@ -2680,9 +2682,7 @@ app.post('/api/admin/invite-account', async (req, res) => {
 
         let authExists = false;
         try {
-          const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-          const target = normalizedEmail.toLowerCase();
-          authExists = Boolean((list?.users || []).some((u) => (u.email || '').toLowerCase() === target));
+          authExists = Boolean(await findAuthUserByEmail(normalizedEmail));
         } catch (lookupErr) {
           console.warn('⚠️ [INVITE] auth.users duplicate lookup unavailable:', lookupErr.message);
         }
@@ -2830,9 +2830,8 @@ app.post('/api/auth/emergency-recovery/request', async (req, res) => {
   console.log(`🆘 [RECOVERY] Emergency recovery requested for ${normalizedEmail}`);
 
   try {
-    const { data: users, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (usersError) throw usersError;
-    const account = users.users.find(item => item.email?.toLowerCase() === normalizedEmail && !item.deleted_at);
+    const found = await findAuthUserByEmail(normalizedEmail);
+    const account = found && !found.deleted_at ? found : null;
 
     // Never reveal whether the account exists. Only dispatch on a real match.
     if (account?.email) {
@@ -6268,10 +6267,7 @@ app.get('/api/debug/user/:email', async (req, res) => {
 
   const { email } = req.params;
   try {
-    const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
-    if (error) throw error;
-
-    const user = users.find(u => u.email === email);
+    const user = await findAuthUserByEmail(email);
     if (!user) {
       return res.json({ success: false, message: 'User not found in Auth' });
     }
@@ -6281,8 +6277,7 @@ app.get('/api/debug/user/:email', async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        confirmed_at: user.confirmed_at,
-        last_sign_in_at: user.last_sign_in_at,
+        confirmed_at: user.email_confirmed_at,
         metadata: user.user_metadata
       }
     });
