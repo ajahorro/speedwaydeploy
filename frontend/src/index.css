@@ -743,3 +743,10 @@ div[style*="position: fixed"][style*="inset: 0"][style*="align-items: center"] {
 .skip-link { position: fixed; left: 1rem; top: -4rem; z-index: 100001; padding: 0.6rem 1rem; border-radius: 2px;
   background: #C41F2B; color: #fff; font-weight: 800; text-decoration: none; }
 .skip-link:focus { top: 1rem; outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Every password field already draws its own show/hide eye button (PasswordInput, StyledInput).
+   Edge's built-in reveal icon would otherwise sit on top of it, showing two eyes in one field. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
