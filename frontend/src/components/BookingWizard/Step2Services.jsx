@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Car, Check, Layers, Lock, Plus, Trash2, X } from 'lucide-react';
-import { getServiceCatalog, getBestPromoForService, fetchActivePromos, priceVehicleServices, calculateBookingDiscountSummary, isPackageRule, isPromoActiveForNow, getPackageServicesForVehicle, getPackageStandaloneSum } from '../../data/servicesCatalog';
+import { getServiceCatalog, getBestPromoForService, fetchActivePromos, priceVehicleServices, calculateBookingDiscountSummary, isPackageRule, isPromoActiveForNow, getPackageServicesForVehicle, getPackageStandaloneSum, getTierGroupmates } from '../../data/servicesCatalog';
 import { fetchUserGarage, fetchFleetGroups } from '../../services/garageService';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -324,7 +324,10 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
         .map((name) => all.find((svc) => String(svc.name).trim().toLowerCase() === name))
         .filter(Boolean)
         .map((svc) => ({ ...svc, runtime_uuid: newId(), price: Number(svc.prices[vehicle.type] || 0) }));
-      const { services: pricedServices, package: activePackage } = priceVehicleServices(vehicle.type, [...kept, ...added]);
+      // Drop any already-kept service that's just a lower/higher tier of a job the package now covers.
+      const addedGroupmateIds = new Set(added.flatMap((svc) => getTierGroupmates(svc.id)));
+      const dedupedKept = kept.filter((item) => !addedGroupmateIds.has(item.id));
+      const { services: pricedServices, package: activePackage } = priceVehicleServices(vehicle.type, [...dedupedKept, ...added]);
       return { ...vehicle, services: pricedServices, package_applied: activePackage ? activePackage.name : null, package_price: activePackage ? activePackage.packagePrice : null };
     }));
   };
@@ -353,15 +356,25 @@ const Step2Services = ({ bookingData, setBookingData, adminMode = false, onNext,
 
   const toggleService = (unit, service) => {
     const selected = unit.vehicles.every((vehicle) => vehicle.services?.some((item) => item.id === service.id));
+    const groupmateNames = selected ? [] : getTierGroupmates(service.id)
+      .filter((id) => unit.vehicles.some((vehicle) => vehicle.services?.some((item) => item.id === id)))
+      .map((id) => Object.values(SERVICE_CATALOG).flat().find((svc) => svc.id === id)?.name)
+      .filter(Boolean);
+    if (groupmateNames.length) {
+      toast(`Switched to ${service.name} — removed ${groupmateNames.join(', ')} to avoid charging for both.`, { icon: '🔁' });
+    }
 
     updateVehicles((current) => current.map((vehicle) => {
       if (!unit.vehicles.some((member) => member.id === vehicle.id)) return vehicle;
 
-      // 1. Apply the raw toggle to this vehicle's service list.
+      // 1. Apply the raw toggle to this vehicle's service list. Adding a service silently
+      //    drops any other tier of the same job already selected (e.g. Basic Carwash when
+      //    Premium Carwash is chosen) instead of letting both get charged or blocking checkout.
+      const groupmateIds = selected ? [] : getTierGroupmates(service.id);
       const rawServices = selected
         ? (vehicle.services || []).filter((item) => item.id !== service.id)
         : [
-            ...(vehicle.services || []),
+            ...(vehicle.services || []).filter((item) => !groupmateIds.includes(item.id)),
             { ...service, runtime_uuid: newId(), price: Number(service.prices[vehicle.type] || 0) },
           ];
 

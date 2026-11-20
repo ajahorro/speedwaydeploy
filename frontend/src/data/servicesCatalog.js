@@ -1043,3 +1043,20 @@ export const describeServiceRequirementViolation = (violations = []) => {
   const { serviceName, requires } = violations[0];
   return `"${serviceName}" requires ${requires.map((r) => `"${r}"`).join(' or ')} on the same vehicle. Please add the prerequisite or remove the add-on.`;
 };
+
+// TIERED SERVICE GROUPS — each group is different tiers of the SAME job (the higher tier's
+// description is a strict superset of the lower one's), not independent add-ons. Picking one
+// tier should silently drop any other tier of that same job already on the vehicle, instead of
+// letting the customer pay for both or blocking the booking with a validation message.
+export const TIER_GROUPS = [
+  ['wash_basic', 'wash_premium'],       // Car Wash: Basic vs Premium All Carwash
+  ['det_int_ord', 'det_int_baklas'],    // Detailing: Interior ordinary vs with baklas
+  ['ext_wax', 'ext_buff'],              // Exterior Care: Hand/Spray Wax vs Buffing with Wax
+  ['ext_acid_wind', 'ext_acid_full'],   // Exterior Care: Acid rain windshield-only vs full
+];
+
+/** Other service IDs that are a different tier of the same job as serviceId (empty if none). */
+export const getTierGroupmates = (serviceId) => {
+  const group = TIER_GROUPS.find((g) => g.includes(serviceId));
+  return group ? group.filter((id) => id !== serviceId) : [];
+};
