@@ -1170,6 +1170,17 @@ app.post('/api/ocr/verify-receipt', upload.single('receipt'), async (req, res) =
       return res.status(400).json({ success: false, valid: false, reason: 'NO_FILE', error: 'No receipt image uploaded' });
     }
 
+    // iPhones still default to HEIC; sharp (used below for OCR preprocessing and
+    // storage) cannot decode it, so convert to JPEG before anything else touches it.
+    try {
+      const converted = await require('./services/heicToJpeg').toJpegIfHeic(req.file.buffer, req.file.mimetype);
+      req.file.buffer = converted.buffer;
+      req.file.mimetype = converted.mimetype;
+    } catch (heicError) {
+      console.error('[OCR] HEIC conversion failed:', heicError.message);
+      return res.status(400).json({ success: false, valid: false, reason: 'UNREADABLE_IMAGE', error: 'That photo could not be read. Please upload a clear JPEG, PNG, or WebP photo of the receipt.' });
+    }
+
     // ── SC-18: RATE LIMIT (server-side) ────────────────────────────────────
     // A script could previously fire unlimited scans (the client re-entrancy
     // guard is trivially bypassed) and drain OCR credits. We throttle per
@@ -4672,6 +4683,15 @@ app.post('/api/admin/site-photos', (req, res, next) => sitePhotoUpload.single('p
   if (!supabaseAdmin) return res.status(500).json({ success: false, error: 'Storage is not available.' });
   if (!req.file?.buffer?.length) return res.status(400).json({ success: false, error: 'Choose a photo to upload.' });
 
+  // sharp cannot decode real HEIC (an iPhone camera-roll photo); convert first.
+  try {
+    const converted = await require('./services/heicToJpeg').toJpegIfHeic(req.file.buffer, req.file.mimetype);
+    req.file.buffer = converted.buffer;
+    req.file.mimetype = converted.mimetype;
+  } catch {
+    return res.status(400).json({ success: false, error: 'That file is not a JPEG, PNG, WebP or HEIC photo.' });
+  }
+
   const adminId = admin.profile?.id || admin.user?.id;
   const now = Date.now();
   const recent = (siteUploadTimes.get(adminId) || []).filter((t) => now - t < 10 * 60 * 1000);
@@ -4871,6 +4891,16 @@ app.post('/api/admin/refunds/proof', receiveRefundProof, async (req, res) => {
   if (!['CASH', 'BANK TRANSFER'].includes(refundMethod)) return res.status(400).json({ success: false, code: 'BAD_METHOD', error: 'Choose Cash or Bank Transfer as the refund method first.' });
   if (!req.file) return res.status(400).json({ success: false, code: 'NO_FILE', error: 'Choose the proof of refund picture.' });
   if (!refundProofs.EXTENSIONS[req.file.mimetype]) return res.status(415).json({ success: false, code: 'UNSUPPORTED_TYPE', error: 'The proof must be a JPEG, PNG, WebP or HEIC picture.' });
+
+  // sharp cannot decode real HEIC; convert before anything below reads the picture.
+  try {
+    const converted = await require('./services/heicToJpeg').toJpegIfHeic(req.file.buffer, req.file.mimetype);
+    req.file.buffer = converted.buffer;
+    req.file.mimetype = converted.mimetype;
+  } catch (heicError) {
+    console.error('[REFUND PROOF] HEIC conversion failed:', heicError.message);
+    return res.status(400).json({ success: false, code: 'UNREADABLE_IMAGE', error: 'That photo could not be read. Please upload a clear JPEG, PNG, or WebP picture.' });
+  }
 
   const identity = `refund-proof:${admin.profile.id}`;
   const rate = ocrGuard.checkRateLimit(identity);
