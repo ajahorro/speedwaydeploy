@@ -170,7 +170,7 @@ export default function StaffBookingsReport() {
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setAssistantOpen(true)}><Sparkles /> Ask the bookings assistant</Button>
           <Button variant="outline" onClick={() => downloadPdf()} disabled={loading || busy === 'pdf' || !(report?.bookings || []).length}><FileDown /> {busy === 'pdf' ? 'Creating PDF…' : 'Download PDF'}</Button>
-          <Button variant="outline" onClick={downloadCsv} disabled={loading || !(report?.bookings || []).length}><FileSpreadsheet /> Download CSV</Button>
+          <Button variant="outline" onClick={downloadCsv} disabled={loading || !(report?.bookings || []).length}><FileSpreadsheet /> Download Excel</Button>
         </div>
       </div>
 

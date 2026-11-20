@@ -24,7 +24,7 @@ const HELP = [
   '• "What was our best day last month?"',
   '• "Show me today\'s bookings", "bookings tomorrow", "what were the bookings on October 5?"',
   '• "Create a PDF of this week\'s bookings"',
-  '• "Create a report for last month" or "Export this month as CSV"'
+  '• "Create a report for last month" or "Export this month as Excel"'
 ].join('\n');
 
 /** Reads a period out of the question; falls back to the range on screen. */
@@ -85,7 +85,7 @@ function createBuiltInAnswerer({ runTool, isDay, todayInManila }) {
     };
 
     try {
-      const wantsExport = /(export|download|csv)/.test(q);
+      const wantsExport = /(export|download|csv|excel|xlsx)/.test(q);
       const wantsReport = /(create|open|show|generate|make|view)\s+(me\s+)?(a\s+|the\s+)?report|report\s+for/.test(q);
       const wantsOwed = /(owe|owes|outstanding|unpaid|balance|receivable|to be received)/.test(q);
       const wantsMoney = /(earn|revenue|sales|income|collected|made)/.test(q);
@@ -190,7 +190,7 @@ function createBuiltInAnswerer({ runTool, isDay, todayInManila }) {
       if (wantsExport) {
         const exported = await run('export_report_csv', {});
         if (exported.action) actions.push(exported.action);
-        lines.push('Downloading the CSV.');
+        lines.push('Downloading the Excel file.');
       }
       return { status: 200, body: { success: true, answer: lines.join('\n'), actions, toolsUsed, mode: 'built-in' } };
     } catch (error) {

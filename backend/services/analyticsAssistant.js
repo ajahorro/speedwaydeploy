@@ -11,7 +11,7 @@ const { createStaffBuiltInAnswerer } = require('./analyticsStaffBuiltIn');
  * free-form questions; the key lives only on the server. The model never gets SQL or write access: it can only call the
  * small fixed set of read-only tools below, each of which runs as the signed-in ADMIN (their own
  * JWT, so the database's own admin checks and RLS still apply), plus two "action" tools that just
- * ask the page to change its date range or export the CSV.
+ * ask the page to change its date range or export the Excel file.
  */
 
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
@@ -80,7 +80,7 @@ const TOOLS = [
   },
   {
     name: 'export_report_csv',
-    description: 'Ask the report page to download the CSV for the range currently shown.',
+    description: 'Ask the report page to download the Excel file for the range currently shown.',
     input_schema: { type: 'object', properties: {} }
   }
 ];
@@ -113,7 +113,7 @@ const STAFF_TOOLS = [
   },
   {
     name: 'export_report_csv',
-    description: 'Ask the Reports page to download the bookings CSV for the range currently shown.',
+    description: 'Ask the Reports page to download the bookings Excel file for the range currently shown.',
     input_schema: { type: 'object', properties: {} }
   }
 ];
@@ -279,7 +279,7 @@ const systemPrompt = (range) => [
   '- Net received is money that reached the shop (transfer fees are not revenue). "Deferred receivables" are balances an admin marked "to be received" and are NOT money received.',
   '- Convert phrases like "this week" or "last month" to exact YYYY-MM-DD dates before calling a tool, and say which dates you used.',
   '- For questions about bookings on a day or period, call get_bookings_report and list them briefly (time, customer, vehicle, status, balance).',
-  '- When asked to create, open or show a money report, call set_report_range; for a bookings report call show_bookings_report; for a PDF of bookings call create_bookings_pdf; to download the CSV call export_report_csv; then confirm in one sentence.',
+  '- When asked to create, open or show a money report, call set_report_range; for a bookings report call show_bookings_report; for a PDF of bookings call create_bookings_pdf; to download the Excel file call export_report_csv; then confirm in one sentence.',
   '- Be brief: a short answer first, then at most a few bullet points. You cannot change any data.'
 ].join('\n');
 
@@ -291,7 +291,7 @@ const staffSystemPrompt = (range) => [
   '- You have no information about money. If asked about payments, revenue, refunds, prices, balances, discounts, customer phone numbers or emails, accounts, or the audit log, say briefly that staff reports cover bookings only, and offer a booking-related alternative.',
   '- Convert phrases like "this week" or "last month" to exact YYYY-MM-DD dates before calling a tool, and say which dates you used.',
   '- For questions about bookings on a day or period, call get_bookings_report and list them briefly (time, customer, vehicle, status). For counts, popular services, busiest days or technician workload, call get_booking_stats.',
-  '- When asked to show or open the report, call show_bookings_report; for a PDF call create_bookings_pdf; for the CSV call export_report_csv.',
+  '- When asked to show or open the report, call show_bookings_report; for a PDF call create_bookings_pdf; for the Excel file call export_report_csv.',
   '- Be brief: a short answer first, then at most a few bullet points. You cannot change any data.'
 ].join('\n');
 

@@ -150,7 +150,7 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
         <div className="flex flex-col gap-2 print:hidden" data-tour="rep-actions">
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={handleExport} disabled={exporting || loading} title={`Download the ${TAB_LABELS[tab]} tab for ${rangeLabel} as a spreadsheet`}>
-              <Download /> {exporting ? 'Exporting…' : 'Download CSV'}
+              <Download /> {exporting ? 'Exporting…' : 'Download Excel'}
             </Button>
             <Button variant="outline" onClick={handleDailyReport} disabled={dailyBusy} title={`A full PDF report for ${rangeLabel}`}>
               <FileText /> {dailyBusy ? 'Preparing…' : 'Report PDF'}

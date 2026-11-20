@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Download, ExternalLink, FileImage, FileText, ImageOff, Search } from 'lucide-react';
 import toast from '@/lib/toast';
 import { supabase } from '@/lib/supabase';
+import { downloadWorkbook } from '@/lib/excelExport';
 import { subscribeTable } from '@/lib/realtimeHub';
 import PageHeader from '@/components/PageHeader';
 import PaymentReceipt from '@/components/PaymentReceipt';
@@ -208,26 +209,36 @@ export default function ReceiptsPage() {
     }
   };
 
-  const exportCsv = () => {
-    const header = ['Receipt no.', 'Date', 'Customer', 'Booking no.', 'Method', 'Reference no.', 'Amount', 'Status', 'Proof'];
-    const lines = filtered.map((p) => [
+  const exportCsv = async () => {
+    const rows = filtered.map((p) => [
       formatReceiptNo(p.receipt_no) || '',
       fmtDate(dateOf(p)),
       customerOf(p.booking),
       bookingNoOf(p),
       isRefundRow(p) ? 'Refund' : methodLabel(p.method),
       referenceOf(p),
-      Number(p.amount || 0).toFixed(2),
+      Number(p.amount || 0),
       statusOf(p).label,
       isRefundRow(p) ? (proofFor(p)?.storage_path ? 'Proof of refund saved' : 'None') : (p.receipt_url ? 'Uploaded' : (isCashMethod(p.method) ? 'Cash' : 'None')),
     ]);
-    const csv = [header, ...lines].map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `receipts-and-proofs-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    await downloadWorkbook({
+      fileName: `receipts-and-proofs-${new Date().toISOString().slice(0, 10)}`,
+      sheets: [{
+        name: 'Receipts',
+        span: 9,
+        blocks: [
+          { type: 'title', text: 'COMAR GARAGE \u2014 RECEIPTS AND PROOFS' },
+          { type: 'meta', rows: [['Generated On', fmtDate(new Date())]] },
+          { type: 'spacer' },
+          {
+            type: 'section',
+            headers: ['Receipt no.', 'Date', 'Customer', 'Booking no.', 'Method', 'Reference no.', 'Amount', 'Status', 'Proof'],
+            formats: ['text', 'text', 'text', 'text', 'text', 'text', 'money', 'text', 'text'],
+            rows
+          }
+        ]
+      }]
+    });
   };
 
   const clearFilters = () => { setView('ALL'); setMethod('ALL'); setProof('ANY'); setFrom(''); setTo(''); setQuery(''); };
@@ -332,7 +343,7 @@ export default function ReceiptsPage() {
           <div className="flex flex-wrap gap-2">
             {filtersOn && <Button type="button" size="sm" variant="ghost" onClick={clearFilters}>Clear filters</Button>}
             <Button type="button" size="sm" variant="outline" onClick={exportCsv} disabled={!filtered.length}>
-              <Download aria-hidden="true" /> Export CSV
+              <Download aria-hidden="true" /> Export Excel
             </Button>
           </div>
         </div>

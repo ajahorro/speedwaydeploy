@@ -1,3 +1,5 @@
+import { downloadWorkbook } from '@/lib/excelExport';
+
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const when = (iso) => (iso ? new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
 
@@ -23,21 +25,9 @@ export const statusWords = (status) => {
 
 const vehicleLine = (v) => [[v.brand, v.model].filter(Boolean).join(' ') || 'Vehicle', v.plate ? `(${v.plate})` : ''].filter(Boolean).join(' ');
 
-const csvCell = (value) => {
-  const text = String(value ?? '');
-  // a leading = + - @ would be run as a formula by a spreadsheet
-  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
-  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-};
-
-/** Downloads the bookings of the report as a CSV (no money, no contact details). */
-export const downloadStaffBookingsCsv = ({ report, fileLabel }) => {
-  const rows = [
-    ['COMAR GARAGE — STAFF BOOKINGS REPORT'],
-    ['Report Period', fileLabel || 'All Bookings'],
-    [],
-    ['Start Time', 'Booking Ref', 'Customer', 'Status', 'Walk-in', 'Vehicle', 'Plate Number', 'Services', 'Assigned Technician']
-  ];
+/** Downloads the bookings of the report as a styled, print-ready .xlsx (no money, no contact details). */
+export const downloadStaffBookingsCsv = async ({ report, fileLabel }) => {
+  const rows = [];
   (report?.bookings || []).forEach((b) => {
     const vehicles = b.vehicles?.length ? b.vehicles : [{}];
     vehicles.forEach((v) => rows.push([
@@ -52,14 +42,23 @@ export const downloadStaffBookingsCsv = ({ report, fileLabel }) => {
       v.technician || 'Unassigned'
     ]));
   });
-  const blob = new Blob(['﻿' + rows.map((row) => row.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `Comar-Garage-bookings-${fileLabel || 'report'}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  await downloadWorkbook({
+    fileName: `Comar-Garage-bookings-${fileLabel || 'report'}`,
+    sheets: [{
+      name: 'Bookings',
+      span: 9,
+      blocks: [
+        { type: 'title', text: 'COMAR GARAGE — STAFF BOOKINGS REPORT' },
+        { type: 'meta', rows: [['Report Period', fileLabel || 'All Bookings']] },
+        { type: 'spacer' },
+        {
+          type: 'section',
+          headers: ['Start Time', 'Booking Ref', 'Customer', 'Status', 'Walk-in', 'Vehicle', 'Plate Number', 'Services', 'Assigned Technician'],
+          rows
+        }
+      ]
+    }]
+  });
 };
 
 /** The printable document: the bookings of the range with their vehicles, services and technicians. */

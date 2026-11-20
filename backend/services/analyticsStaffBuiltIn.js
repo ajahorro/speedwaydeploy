@@ -19,7 +19,7 @@ const HELP = [
   '• "What are the most booked services this month?"',
   '• "What was the busiest day last month?"',
   '• "Which technician has the most vehicles this week?"',
-  '• "Create a PDF of this week\'s bookings" or "Export this month as CSV"'
+  '• "Create a PDF of this week\'s bookings" or "Export this month as Excel"'
 ].join('\n');
 
 const REFUSAL = 'Staff reports cover bookings only. Payments, revenue, refunds, prices, customer contact details and accounts are not available to staff accounts. I can tell you about bookings, services, vehicles and technician workload instead.';
@@ -46,7 +46,7 @@ function createStaffBuiltInAnswerer({ runTool, isDay, todayInManila }) {
         return reply(REFUSAL);
       }
 
-      const wantsExport = /(export|download|csv)/.test(q);
+      const wantsExport = /(export|download|csv|excel|xlsx)/.test(q);
       const wantsPdf = /\bpdf\b/.test(q);
       const wantsShow = /(show|open|display|create|generate|make|view)\s+(me\s+)?(a\s+|the\s+)?(report|bookings)|report\s+for/.test(q);
       const wantsCount = /(how many|count|number of|total)/.test(q);
@@ -130,7 +130,7 @@ function createStaffBuiltInAnswerer({ runTool, isDay, todayInManila }) {
       if (wantsExport) {
         const exported = await run('export_report_csv', {});
         if (exported.action) actions.push(exported.action);
-        lines.push('Downloading the CSV.');
+        lines.push('Downloading the Excel file.');
       }
       return reply(lines.join('\n') || HELP);
     } catch (error) {

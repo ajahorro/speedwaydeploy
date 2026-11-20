@@ -17,7 +17,7 @@ const QUICK_QUESTIONS = [
 /**
  * Admin analytics assistant (master plan 4.6). Loaded on demand (React.lazy in the report page),
  * so nothing here weighs on first paint. It only reads reports through the backend and can ask
- * this page to change its date range or export the CSV; it cannot change any data.
+ * this page to change its date range or export the Excel file; it cannot change any data.
  */
 export default function AssistantPanel({
   open, onOpenChange, range, onSetRange, onExport, onShowBookings, onBookingsPdf,
