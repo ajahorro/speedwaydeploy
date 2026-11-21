@@ -24,6 +24,7 @@ import { matchesSearchText } from '../../utils/searchMatch';
 import { usePaged } from '../../components/common/ListPager';
 import { signRows } from '../../lib/privateFiles';
 import { ADMIN_TOURS } from '../../features/tours/adminTours';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 const AdminPayments = () => {
   const { openImage } = useImagePreview();
@@ -285,7 +286,7 @@ const AdminPayments = () => {
       setReceiptBooking(payment.booking);
       setReceiptPayment(payment);
     } catch (err) {
-      toast.error(err.message, { id: toastId });
+      toast.error(safeErrorMessage(err), { id: toastId });
     }
   };
 

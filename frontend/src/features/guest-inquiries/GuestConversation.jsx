@@ -6,6 +6,7 @@ import { subscribeTable } from '@/lib/realtimeHub';
 import { BACKEND_URL, authHeaders } from '@/config/api';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 const timeLabel = (iso) => new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' });
 
@@ -52,7 +53,7 @@ export default function GuestConversation({ inquiryId, email, onChanged }) {
       await load();
       onChanged?.();
     } catch (error) {
-      toast.error(error.message);
+      toast.error(safeErrorMessage(error));
     } finally {
       setSending(false);
     }

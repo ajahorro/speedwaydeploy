@@ -3,6 +3,7 @@ import { X, Image as ImageIcon, Loader2, Camera, ChevronLeft, ChevronRight } fro
 import toast from '@/lib/toast';
 import { fetchBookingPhotos, fetchVehiclePhotos, resolvePhotoUrls } from '../../services/photoService';
 import { useImagePreview } from '../../context/ImagePreviewContext';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 /**
  * PhotoProofGallery — Batch 5
@@ -32,7 +33,7 @@ const PhotoProofGallery = ({ bookingId, bookingVehicleId = null, open, onClose }
       } catch (error) {
         if (!cancelled) {
           setPhotos([]);
-          toast.error(error.message || 'Could not load photo evidence.');
+          toast.error(safeErrorMessage(error, 'Could not load photo evidence.'));
         }
       } finally {
         if (!cancelled) setLoading(false);

@@ -49,6 +49,7 @@ import { ensureShopConfig, bayCapacityOf } from '../../config/shopConfig';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { signRows } from '../../lib/privateFiles';
 import { useImagePreview } from '../../context/ImagePreviewContext';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 const AdminBookingDetails = () => {
   const { openImage } = useImagePreview();
@@ -524,7 +525,7 @@ const AdminBookingDetails = () => {
       fetchPayments(); fetchAuditLogs(); fetchBookingDetails();
     } catch (err) {
       logger.error('Payment verification failed:', err);
-      toast.error(err.message || 'Verification failed', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Verification failed'), { id: toastId });
     }
   };
 
@@ -626,7 +627,7 @@ const AdminBookingDetails = () => {
       toast.success(`Booking marked as ${String(status).replace(/_/g, ' ').toLowerCase()}.`, { id: toastId });
       toast.followUp(result.warnings);
       fetchBookingDetails();
-    } catch (err) { toast.error(err.message || 'Update failed', { id: toastId }); }
+    } catch (err) { toast.error(safeErrorMessage(err, 'Update failed'), { id: toastId }); }
   };
 
   const requestBookingStatusUpdate = (status) => {
@@ -696,7 +697,7 @@ const AdminBookingDetails = () => {
           fetchBookingDetails();
           fetchAuditLogs();
         } catch (err) {
-          toast.error(err.message || 'Cancellation failed', { id: toastId });
+          toast.error(safeErrorMessage(err, 'Cancellation failed'), { id: toastId });
         }
       }
     });
@@ -779,7 +780,7 @@ const AdminBookingDetails = () => {
       fetchAuditLogs();
     } catch (err) {
       setUndoNoShowModal(prev => ({ ...prev, isSubmitting: false, validationMessage: err.message || 'Unable to restore booking.' }));
-      toast.error(err.message || 'Unable to restore booking.');
+      toast.error(safeErrorMessage(err, 'Unable to restore booking.'));
     }
   };
 
@@ -1024,7 +1025,7 @@ const AdminBookingDetails = () => {
       setServiceManual(false);
     } catch (err) {
       logger.error('Added service payment failed:', err);
-      toast.error(err.message || 'Validation failed', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Validation failed'), { id: toastId });
     } finally {
       setIsUpdatingDuration(false);
     }
@@ -1053,7 +1054,7 @@ const AdminBookingDetails = () => {
       await fetchPayments();
     } catch (err) {
       logger.error('Remove service failed:', err);
-      toast.error(err.message || 'Could not remove the service.', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Could not remove the service.'), { id: toastId });
     }
   };
 
@@ -1115,7 +1116,7 @@ const AdminBookingDetails = () => {
       await fetchBookingDetails();
       await fetchPayments();
     } catch (err) {
-      toast.error(err.message || 'Could not cancel it.', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Could not cancel it.'), { id: toastId });
     }
   };
 
@@ -1186,7 +1187,7 @@ const AdminBookingDetails = () => {
       toast.dismiss(toastId);
       setReceiptModal(true);
     } catch (err) {
-      toast.error(err.message, { id: toastId });
+      toast.error(safeErrorMessage(err), { id: toastId });
     }
   };
 
@@ -1275,7 +1276,7 @@ const AdminBookingDetails = () => {
         setRescheduleIssue({ code, message: toCleanMessage(err), date: rescheduleDate, time: rescheduleTime });
         toast.dismiss(toastId);
       } else {
-        toast.error(err.message || 'Failed to reschedule appointment', { id: toastId });
+        toast.error(safeErrorMessage(err, 'Failed to reschedule appointment'), { id: toastId });
       }
     } finally {
       setIsRescheduling(false);
@@ -1386,7 +1387,7 @@ const AdminBookingDetails = () => {
           fetchBookingDetails();
           fetchAuditLogs();
         } catch (err) {
-          toast.error(err.message || 'Unable to release booking.', { id: toastId });
+          toast.error(safeErrorMessage(err, 'Unable to release booking.'), { id: toastId });
         }
       }
     });

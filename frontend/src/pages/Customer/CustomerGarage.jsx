@@ -32,6 +32,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Card } from '@/components/ui/card';
 import { TourLauncher } from '../../components/common/GuidedTour';
 import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 // Radix Select cannot hold an empty value, so "no fleet" travels as this marker inside the dialog only.
 const NO_FLEET = '__none__';
@@ -143,7 +144,7 @@ const CustomerGarage = () => {
       setIsModalOpen(false);
       loadGarage();
     } catch (error) {
-      toast.error(error.message || 'Operation failed', { id: toastId });
+      toast.error(safeErrorMessage(error, 'Operation failed'), { id: toastId });
     }
   };
 
@@ -170,7 +171,7 @@ const CustomerGarage = () => {
       await loadGarage();
       toast.success('Fleet created with selected vehicles');
     } catch (error) {
-      toast.error(error.message || 'Failed to create fleet group');
+      toast.error(safeErrorMessage(error, 'Failed to create fleet group'));
     } finally {
       setIsCreatingFleet(false);
     }
@@ -208,7 +209,7 @@ const CustomerGarage = () => {
       await loadGarage();
       toast.success('Fleet updated');
     } catch (error) {
-      toast.error(error.message || 'Failed to update fleet');
+      toast.error(safeErrorMessage(error, 'Failed to update fleet'));
     } finally {
       setIsSavingFleet(false);
     }
@@ -234,7 +235,7 @@ const CustomerGarage = () => {
           await loadGarage();
           showToast('Fleet deleted', 'success');
         } catch (error) {
-          showToast(error.message || 'Failed to delete fleet', 'error');
+          showToast(safeErrorMessage(error, 'Failed to delete fleet'), 'error');
         }
       }
     });

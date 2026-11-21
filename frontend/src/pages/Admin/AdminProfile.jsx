@@ -9,6 +9,7 @@ import { supabase } from '../../lib/supabase';
 import PasswordInput from '../../components/PasswordInput';
 import ChangeEmailDialog from '../../features/accounts/ChangeEmailDialog';
 import { Button } from '@/components/ui/button';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 const AdminProfile = () => {
   const navigate = useNavigate();
@@ -100,7 +101,7 @@ const AdminProfile = () => {
         setFormData(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
       }
     } catch (err) {
-      toast.error(err.message || 'Something went wrong. Please try again.', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Something went wrong. Please try again.'), { id: toastId });
     } finally {
       setLoading(false);
       setPendingAction(null);
@@ -131,7 +132,7 @@ const AdminProfile = () => {
         toast.success('Confirmation email resent. Please check your inbox.', { id: toastId });
       }
     } catch (err) {
-      toast.error(err.message || 'Unable to resend the confirmation email.', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Unable to resend the confirmation email.'), { id: toastId });
     }
   };
 

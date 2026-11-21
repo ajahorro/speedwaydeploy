@@ -20,6 +20,7 @@ import AboutGallery, { ABOUT_LAYOUTS } from '@/features/site-content/AboutGaller
 import ShopMap from '@/features/site-content/ShopMap';
 import { TourLauncher } from '@/components/common/GuidedTour';
 import { ADMIN_TOURS } from '@/features/tours/adminTours';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 /**
  * Business Hub › About & Map. Photos (with captions) and their layout for the landing page's About section, and the
@@ -134,7 +135,7 @@ export function AboutMapCard({ focus = null } = {}) {
       // one clear match: drop the pin straight away
       if ((body.results || []).length === 1) pickMatch(body.results[0]);
     } catch (error) {
-      toast.error(error.message || 'The address search did not work.');
+      toast.error(safeErrorMessage(error, 'The address search did not work.'));
       setMatches(null);
     } finally {
       setSearching(false);
@@ -204,7 +205,7 @@ export function AboutMapCard({ focus = null } = {}) {
       const photo = await sendPhoto(file);
       setDraft((d) => ({ ...d, hero: { id: photo.id, url: photo.url } }));
     } catch (error) {
-      toast.error(error.message || 'The photo could not be uploaded.');
+      toast.error(safeErrorMessage(error, 'The photo could not be uploaded.'));
     } finally {
       setHeroUploading(false);
     }
@@ -222,7 +223,7 @@ export function AboutMapCard({ focus = null } = {}) {
         const photo = await sendPhoto(file);
         setPhotos((list) => (list.length >= MAX_PHOTOS ? list : [...list, photo]));
       } catch (error) {
-        toast.error(error.message || 'The photo could not be uploaded.');
+        toast.error(safeErrorMessage(error, 'The photo could not be uploaded.'));
       } finally {
         setUploading((n) => n - 1);
       }
@@ -272,7 +273,7 @@ export function AboutMapCard({ focus = null } = {}) {
         toast.success('Section saved. The landing page shows it now.', { icon: <Save size={18} /> });
       }
     } catch (error) {
-      toast.error(error.message || 'The changes could not be saved.');
+      toast.error(safeErrorMessage(error, 'The changes could not be saved.'));
     } finally {
       setSaving(false);
       setSavingSection(null);

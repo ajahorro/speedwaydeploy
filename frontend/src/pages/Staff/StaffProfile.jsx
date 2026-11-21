@@ -9,6 +9,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
 import PasswordInput from '../../components/PasswordInput';
 import ChangeEmailDialog from '../../features/accounts/ChangeEmailDialog';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 const StaffProfile = () => {
   const { profile, user, verifyPassword, requestPasswordChange, resendPasswordChange } = useAuth();
@@ -51,7 +52,7 @@ const StaffProfile = () => {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      toast.error(err.message || 'Your password could not be changed.');
+      toast.error(safeErrorMessage(err, 'Your password could not be changed.'));
     } finally {
       setPassLoading(false);
     }
@@ -82,7 +83,7 @@ const StaffProfile = () => {
         toast.success('Confirmation email resent. Please check your inbox.', { id: toastId });
       }
     } catch (err) {
-      toast.error(err.message || 'Unable to resend the confirmation email.', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Unable to resend the confirmation email.'), { id: toastId });
     }
   };
 

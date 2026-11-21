@@ -31,6 +31,7 @@ import { BACKEND_URL, authHeaders } from '../../config/api';
 import { writeAdminAuditLog } from '../../services/auditLogService';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { EmailInput } from '../../components/common/ContactInputs';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 // ── TAB DEFINITIONS: THE SINGLE SOURCE OF TRUTH ────────────────────────────
 //
@@ -1062,7 +1063,7 @@ export default function BusinessHub() {
 
     } catch (err) {
       console.error('Save failed:', err);
-      toast.error(err.message || 'Failed to save settings. Please try again.');
+      toast.error(safeErrorMessage(err, 'Failed to save settings. Please try again.'));
       setMessage({ type: 'error', text: err.message || 'Failed to save settings. Please try again.' });
     } finally {
       setSaving(false);

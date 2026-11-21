@@ -41,6 +41,7 @@ import { TourLauncher } from '../../components/common/GuidedTour';
 import { signRows } from '../../lib/privateFiles';
 import { downloadCalendarEvent } from '../../utils/calendarFile';
 import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 const CustomerBookingDetails = () => {
   const { openImage } = useImagePreview();
@@ -125,7 +126,7 @@ const CustomerBookingDetails = () => {
         throw new Error(result.error);
       }
     } catch (err) {
-      toast.error(err.message || 'Failed to cancel booking', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Failed to cancel booking'), { id: toastId });
     } finally {
       setIsCancelling(false);
     }
@@ -195,7 +196,7 @@ const CustomerBookingDetails = () => {
         setRescheduleIssue({ code, message: toCleanMessage(err), date: rescheduleDate, time: rescheduleTime });
         toast.dismiss(toastId);
       } else {
-        toast.error(err.message || 'Failed to reschedule appointment', { id: toastId });
+        toast.error(safeErrorMessage(err, 'Failed to reschedule appointment'), { id: toastId });
       }
     } finally {
       setIsRescheduling(false);

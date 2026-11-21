@@ -6,6 +6,7 @@ import { Bell, CheckCheck, ChevronRight, Info, Calendar, Star, Megaphone, Messag
 import toast from '@/lib/toast';
 import NotificationDetailsModal from './NotificationDetailsModal';
 import { isRedundantStaffTechnicianAssignment, resolveStaffJobId } from '../utils/notificationRouting';
+import { safeErrorMessage } from '../utils/safeErrorMessage';
 
 const TYPE_ICONS = {
   ANNOUNCEMENT: Megaphone,
@@ -175,7 +176,7 @@ const NotificationPopover = ({ profile, onClose, onRead }) => {
         onClose();
         navigate(`/staff/job/${jobId}${isChatNotification(n) ? '?chat=open' : ''}`);
       } catch (error) {
-        toast.error(`Could not open the assigned vehicle: ${error.message || 'lookup failed.'}`);
+        toast.error(`Could not open the assigned vehicle: ${safeErrorMessage(error, 'lookup failed.')}`);
       }
       return;
     }

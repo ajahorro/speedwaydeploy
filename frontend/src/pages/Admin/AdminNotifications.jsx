@@ -12,6 +12,7 @@ import NotificationDetailsModal from '../../components/NotificationDetailsModal'
 import { isNotificationActionable, resolveBookingId } from '../../utils/notificationRouting';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
 import { matchesSearchText } from '../../utils/searchMatch';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DELETE CONFIRMATION MODAL (REQ #5)
@@ -145,7 +146,7 @@ const AdminNotifications = () => {
         navigate(`/admin/bookings/${bookingId}`);
       } catch (error) {
         logger.error('Notification booking lookup failed:', error);
-        toast.error(`The booking record could not be resolved: ${error.message || 'lookup failed.'}`);
+        toast.error(`The booking record could not be resolved: ${safeErrorMessage(error, 'lookup failed.')}`);
       }
       return;
     }
@@ -253,7 +254,7 @@ const AdminNotifications = () => {
       logger.admin('Global broadcast complete.');
     } catch (err) {
       logger.error('Broadcast Error', err);
-      toast.error(err.message || 'Failed to transmit global signal');
+      toast.error(safeErrorMessage(err, 'Failed to transmit global signal'));
     } finally {
       setBroadcasting(false);
     }

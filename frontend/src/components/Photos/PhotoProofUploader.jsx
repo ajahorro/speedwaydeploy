@@ -10,6 +10,7 @@ import {
   resolvePhotoUrls,
   deleteServicePhoto
 } from '../../services/photoService';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 /**
  * PhotoProofUploader — Batch 5
@@ -146,7 +147,7 @@ const PhotoProofUploader = ({
       toast.success('Evidence uploaded.', { id: toastId });
       await load();
     } catch (err) {
-      toast.error(err.message || 'Upload failed.', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Upload failed.'), { id: toastId });
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = '';
@@ -167,7 +168,7 @@ const PhotoProofUploader = ({
       toast.success('Photo removed.', { id: toastId });
       await load();
     } catch (err) {
-      toast.error(err.message || 'Remove failed.', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Remove failed.'), { id: toastId });
     }
   };
 

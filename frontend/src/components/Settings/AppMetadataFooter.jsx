@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SettingsSection, SettingRow, SettingButton, SettingTag } from './SettingsPrimitives';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 /**
  * APP METADATA & SUPPORT FOOTER.
@@ -147,7 +148,7 @@ const AppMetadataFooter = ({ role = 'customer' }) => {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      toast.error(err.message);
+      toast.error(safeErrorMessage(err));
     } finally {
       setFiling(false);
     }

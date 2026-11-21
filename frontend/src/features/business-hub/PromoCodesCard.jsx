@@ -13,6 +13,7 @@ import { usePaged } from '@/components/common/ListPager';
 import { formatDateRange } from '@/utils/dateRange';
 import { formatPeso } from '@/features/finance/money';
 import { useConfirmAction } from '@/hooks/useConfirmAction';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 const EMPTY = { code: '', name: '', discount_type: 'percentage', discount_value: '', vehicle_types: [], valid_from: '', valid_until: '', max_uses: '' };
 
@@ -98,7 +99,7 @@ export function PromoCodesCard() {
 
   const archive = async (row) => {
     const { error } = await supabase.from('promo_codes').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', row.id);
-    if (error) { toast.error(error.message || 'Could not archive the code.'); return; }
+    if (error) { toast.error(safeErrorMessage(error, 'Could not archive the code.')); return; }
     await writeAdminAuditLog({ actionType: 'PROMO_CODE_ARCHIVED', details: `Archived promo code ${row.code}.`, metadata: { code: row.code } });
     toast.success(`Promo code ${row.code} archived.`);
     await load();

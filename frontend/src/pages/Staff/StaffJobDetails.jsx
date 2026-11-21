@@ -22,6 +22,7 @@ import { fetchStaffBookings } from '../../utils/notificationRouting';
 import { BACKEND_URL } from '../../config/api';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 /**
  * The one page for a single assigned vehicle. Everything a technician does on a job happens here:
@@ -130,7 +131,7 @@ const StaffJobDetails = () => {
       toast.success(newStatus === 'COMPLETED' ? 'Job finished' : 'Service started', { id: toastId });
       await fetchJobDetails({ silent: true });
     } catch (err) {
-      toast.error(err.message || 'Status update failed', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Status update failed'), { id: toastId });
     } finally {
       setBusy(false);
     }

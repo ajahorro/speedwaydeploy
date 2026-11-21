@@ -4,6 +4,7 @@ import { requestQrChangeOtp, verifyQrChangeOtp, QR_FIELDS, validateQrRecipients 
 import { sanitizeQrAccountName, sanitizeQrAccountNumber } from '../../services/qrConfigUtils';
 import toast from '@/lib/toast';
 import { BACKEND_URL, authHeaders } from '../../config/api';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 const uploadQrImage = async (file) => {
   const headers = await authHeaders();
@@ -105,7 +106,7 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
     setUploadingQr(true);
     uploadQrImage(file)
       .then((url) => { setField('qr_code_url', url); setError(''); })
-      .catch((err) => { setError(err.message); toast.error(err.message); })
+      .catch((err) => { setError(safeErrorMessage(err)); toast.error(safeErrorMessage(err)); })
       .finally(() => setUploadingQr(false));
   };
 
@@ -155,7 +156,7 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
       toast.success('A 6-digit code has been emailed to the administrator.');
     } catch (err) {
       setError(err.message || 'Could not send the verification code.');
-      toast.error(err.message || 'Could not send the verification code.');
+      toast.error(safeErrorMessage(err, 'Could not send the verification code.'));
     } finally {
       setBusy(false);
     }
@@ -175,7 +176,7 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
       onClose?.();
     } catch (err) {
       setError(err.message || 'Verification failed.');
-      toast.error(err.message || 'Verification failed.');
+      toast.error(safeErrorMessage(err, 'Verification failed.'));
     } finally {
       setBusy(false);
     }

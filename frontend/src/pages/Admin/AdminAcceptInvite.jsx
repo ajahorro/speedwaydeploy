@@ -5,6 +5,7 @@ import toast from '@/lib/toast';
 import { BACKEND_URL } from '../../config/api';
 import PasswordInput from '../../components/PasswordInput';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 const AdminAcceptInvite = () => {
   const isMobile = useMediaQuery('(max-width: 480px)');
@@ -80,7 +81,7 @@ const AdminAcceptInvite = () => {
         throw new Error(data.error || 'Activation failed');
       }
     } catch (err) {
-      toast.error(err.message);
+      toast.error(safeErrorMessage(err));
     } finally {
       setSubmitting(false);
     }

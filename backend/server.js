@@ -165,6 +165,19 @@ const isBreachedPassword = async (password) => {
 
 const hashConfirmationToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
+// Never let a raw JS runtime error (an actual code bug — "x.catch is not a function",
+// "Cannot read properties of undefined", etc.) reach the browser as literal source-level
+// text in a toast. A deliberately-thrown Error with a human-written message (business
+// validation, a Postgres constraint message) still passes through as-is; only JS's own
+// built-in error types are swapped for a safe, generic message. The real error is always
+// still logged server-side by the caller before this is used.
+const safeErrorMessage = (err, fallback = 'Something went wrong. Please try again.') => {
+  if (err instanceof TypeError || err instanceof ReferenceError || err instanceof SyntaxError || err instanceof RangeError) {
+    return fallback;
+  }
+  return err?.message || fallback;
+};
+
 const app = express();
 app.use(compression({ threshold: 1024 }));
 // Browsers may call this API only from the shop's own website (plus local development). Requests with no Origin
@@ -553,7 +566,7 @@ const writeAuditLog = async ({
 
   if (error) {
     console.error(`❌ [AUDIT] ${actionType} FAILED to record: ${error.code || ''} ${error.message}`);
-    return { success: false, error: error.message, code: error.code };
+    return { success: false, error: safeErrorMessage(error), code: error.code };
   }
   console.log(`📋 [AUDIT] ${actionType} recorded (actor: ${actorName}).`);
   return { success: true };
@@ -900,7 +913,7 @@ app.post('/admin/generate-invite', async (req, res) => {
     });
   } catch (err) {
     console.error(`❌ Generate Invite Failed: ${err.message}`);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -1062,7 +1075,7 @@ app.post('/invite/accept', async (req, res) => {
 
   } catch (err) {
     console.error(`❌ Activation Final Error: ${err.message}`);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -2345,7 +2358,7 @@ app.post('/api/emails/qr-change-otp', async (req, res) => {
     return res.json({ success: true, message: 'Verification code sent.' });
   } catch (err) {
     console.error('❌ QR OTP dispatch error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -2561,7 +2574,7 @@ app.get('/api/admin/profiles', async (req, res) => {
     setCachedResponse('admin:profiles', responsePayload, 20000); // 20s in-memory TTL
     return res.json(responsePayload);
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -2586,7 +2599,7 @@ const sendAccountSetupInvite = async ({ userId, email, firstName, role }) => {
       expiresAt,
     });
   } catch (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: safeErrorMessage(error) };
   }
 };
 
@@ -2813,7 +2826,7 @@ app.post('/api/admin/invite-account', async (req, res) => {
     });
   } catch (err) {
     console.error(`❌ [INVITE] Failed: ${err.message}`);
-    return res.status(500).json({ success: false, error: err.message || 'Failed to create invitation.' });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err, 'Failed to create invitation.') });
   }
 });
 
@@ -3129,7 +3142,7 @@ app.post('/api/admin/revoke-access', async (req, res) => {
     if (String(profile.role || '').toUpperCase() === 'STAFF') {
       // Move their not-yet-started work to another technician automatically; only work
       // already physically under way still blocks deactivation below.
-      await supabaseAdmin.rpc('auto_reassign_staff_pending_work', { p_staff_id: memberId }).catch((e) => console.warn('[REVOKE-ACCESS] Auto-reassign failed:', e.message));
+      await supabaseAdmin.rpc('auto_reassign_staff_pending_work', { p_staff_id: memberId }).then(() => {}, (e) => console.warn('[REVOKE-ACCESS] Auto-reassign failed:', e.message));
       const { data: hasActiveServices, error: activeServicesError } = await supabaseAdmin
         .rpc('staff_has_active_services', { p_staff_id: memberId });
       if (activeServicesError) throw activeServicesError;
@@ -3177,7 +3190,7 @@ app.post('/api/admin/revoke-access', async (req, res) => {
 
     if (error) {
       if (/default staff account|last remaining staff/i.test(error.message || '')) {
-        return res.status(403).json({ success: false, error: error.message });
+        return res.status(403).json({ success: false, error: safeErrorMessage(error) });
       }
       if (error.code === '23514' || /assigned to an active service/i.test(error.message || '')) {
         return res.status(409).json({
@@ -3199,7 +3212,7 @@ app.post('/api/admin/revoke-access', async (req, res) => {
 
     return res.json({ success: true });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -3223,7 +3236,7 @@ app.post('/api/admin/delete-account', async (req, res) => {
       if ((count || 0) <= 1) return res.status(403).json({ success: false, error: 'The last remaining administrator cannot be deactivated.' });
     }
     if (role === 'STAFF') {
-      await supabaseAdmin.rpc('auto_reassign_staff_pending_work', { p_staff_id: memberId }).catch((e) => console.warn('[DELETE-ACCOUNT] Auto-reassign failed:', e.message));
+      await supabaseAdmin.rpc('auto_reassign_staff_pending_work', { p_staff_id: memberId }).then(() => {}, (e) => console.warn('[DELETE-ACCOUNT] Auto-reassign failed:', e.message));
       const { data: busy } = await supabaseAdmin.rpc('staff_has_active_services', { p_staff_id: memberId });
       if (busy) return res.status(409).json({ success: false, error: 'This staff account cannot be deactivated while assigned to an active service. Reassign or complete the service first.' });
     }
@@ -3233,7 +3246,7 @@ app.post('/api/admin/delete-account', async (req, res) => {
     });
     if (error) {
       if (/default staff account|last remaining staff/i.test(error.message || '')) {
-        return res.status(403).json({ success: false, error: error.message });
+        return res.status(403).json({ success: false, error: safeErrorMessage(error) });
       }
       throw error;
     }
@@ -3334,7 +3347,7 @@ app.post('/api/admin/broadcast', async (req, res) => {
 
     return res.json({ success: true, receiversCount: profiles.length });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -3466,7 +3479,7 @@ app.post('/api/admin/promos', async (req, res) => {
     });
   } catch (err) {
     console.error('🏷️ [ADMIN PROMO] Error persisting promo:', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -3577,7 +3590,7 @@ app.post('/api/admin/promos/:promoId/archive', async (req, res) => {
     return res.json({ success: true, archived: true, promoRules: nextRules });
   } catch (error) {
     console.error('🏷️ [ADMIN PROMO] Archive failed:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(error) });
   }
 });
 
@@ -3630,7 +3643,7 @@ app.delete('/api/admin/promos/:promoId', async (req, res) => {
     return res.json({ success: true, deleted: true, promoRules: nextRules });
   } catch (error) {
     console.error('🏷️ [ADMIN PROMO] Delete failed:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(error) });
   }
 });
 
@@ -3682,7 +3695,7 @@ app.get('/api/promos/active', async (req, res) => {
     });
   } catch (err) {
     console.error('🏷️ [PROMO ACTIVE] Error fetching active promos:', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -3704,7 +3717,7 @@ app.post('/api/staff/toggle-shift', async (req, res) => {
     // may not clock out. Work that hasn't started yet can be moved to another technician automatically; only
     // work that's physically under way still needs an admin to hand it off.
     if (!newStatus) {
-      await supabaseAdmin.rpc('auto_reassign_staff_pending_work', { p_staff_id: userId }).catch((e) => console.warn('[CLOCK-OUT] Auto-reassign failed:', e.message));
+      await supabaseAdmin.rpc('auto_reassign_staff_pending_work', { p_staff_id: userId }).then(() => {}, (e) => console.warn('[CLOCK-OUT] Auto-reassign failed:', e.message));
       const { data: blockers, error: blockerError } = await supabaseAdmin.rpc('staff_clock_out_blockers', { p_staff: userId });
       if (blockerError) throw blockerError;
       if ((blockers || []).length > 0) {
@@ -3769,7 +3782,7 @@ app.post('/api/staff/toggle-shift', async (req, res) => {
     return res.json({ success: true, profile: updatedProfile });
   } catch (err) {
     console.error('Shift Toggle Backend Error:', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -3806,7 +3819,7 @@ app.post('/api/staff/update-preferences', async (req, res) => {
     return res.json({ success: true, profile: updatedProfile });
   } catch (err) {
     console.error('Preference Update Error:', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -3839,7 +3852,7 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
     if (profileError) throw profileError;
 
     if (String(profile.role || '').toUpperCase() === 'STAFF') {
-      await supabaseAdmin.rpc('auto_reassign_staff_pending_work', { p_staff_id: userId }).catch((e) => console.warn('[DEACTIVATE-ACCOUNT] Auto-reassign failed:', e.message));
+      await supabaseAdmin.rpc('auto_reassign_staff_pending_work', { p_staff_id: userId }).then(() => {}, (e) => console.warn('[DEACTIVATE-ACCOUNT] Auto-reassign failed:', e.message));
       const { data: hasActiveServices, error: activeServicesError } = await supabaseAdmin
         .rpc('staff_has_active_services', { p_staff_id: userId });
       if (activeServicesError) throw activeServicesError;
@@ -3962,7 +3975,7 @@ app.post('/api/auth/deactivate-account', async (req, res) => {
         error: 'This staff account cannot be deactivated while assigned to an active service. Reassign or complete the service first.'
       });
     }
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -4086,7 +4099,7 @@ app.post('/api/garage/sync', async (req, res) => {
     return res.json({ success: true, message: 'Vehicle registered in garage' });
   } catch (err) {
     console.error('❌ [GARAGE] Sync Error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -5172,7 +5185,7 @@ app.post('/api/admin/purge-bookings', async (req, res) => {
     return res.json({ success: true, message: 'All booking data purged. Clean slate.' });
   } catch (err) {
     console.error('❌ Purge Error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -5222,7 +5235,7 @@ const handleBookingCancellation = async (req, res, actor) => {
       : /BOOKING_CANNOT_BE_CANCELLED/.test(message) ? 409
         : /BOOKING_NOT_OWNED_BY_CUSTOMER|CANCELLATION_ACTOR_NOT_ALLOWED/.test(message) ? 403
         : 500;
-    return res.status(status).json({ success: false, error: err.message });
+    return res.status(status).json({ success: false, error: safeErrorMessage(err) });
   }
 };
 
@@ -5240,7 +5253,7 @@ app.post('/api/bookings/cancel', async (req, res) => {
       .select('id, customer_id')
       .eq('id', bookingId)
       .maybeSingle();
-    if (error) return res.status(500).json({ success: false, error: error.message });
+    if (error) return res.status(500).json({ success: false, error: safeErrorMessage(error) });
     if (!booking) return res.status(404).json({ success: false, error: 'Booking not found.' });
     if (booking.customer_id !== actor.profile.id) {
       return res.status(403).json({ success: false, error: 'You may only cancel your own booking.' });
@@ -5365,7 +5378,7 @@ app.post('/api/bookings/undo-no-show', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ Undo No-Show Error:', err.message);
-    return res.status(500).json({ success: false, error: err.message || 'Unable to restore the booking.' });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err, 'Unable to restore the booking.') });
   }
 });
 
@@ -5613,7 +5626,7 @@ app.post('/api/bookings/add-service', async (req, res) => {
     return res.json({ success: true, added: items.length, paymentId: paymentId || null, awaitingVerification: Boolean(payment && payment.status === 'FOR_VERIFICATION') });
   } catch (error) {
     console.error('Add service failed:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(error) });
   }
 });
 
@@ -5634,20 +5647,20 @@ app.post('/api/bookings/remove-service', async (req, res) => {
     });
     if (error) {
       if (/can only be removed while the booking is scheduled or confirmed/i.test(error.message || '')) {
-        return res.status(409).json({ success: false, error: error.message });
+        return res.status(409).json({ success: false, error: safeErrorMessage(error) });
       }
       if (/must have at least one service/i.test(error.message || '')) {
-        return res.status(409).json({ success: false, error: error.message });
+        return res.status(409).json({ success: false, error: safeErrorMessage(error) });
       }
       if (error.code === 'PGRST202' || /not found/i.test(error.message || '')) {
-        return res.status(404).json({ success: false, error: error.message || 'Booking or service not found.' });
+        return res.status(404).json({ success: false, error: safeErrorMessage(error, 'Booking or service not found.') });
       }
       throw error;
     }
     return res.json({ success: true, ...data });
   } catch (error) {
     console.error('Remove service failed:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(error) });
   }
 });
 
@@ -5713,7 +5726,7 @@ app.post('/api/bookings/update-master-status', async (req, res) => {
     return res.json({ success: true, status: normalizedStatus });
   } catch (error) {
     console.error('Master lifecycle update failed:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(error) });
   }
 });
 
@@ -5779,7 +5792,7 @@ app.post('/api/bookings/release', async (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     console.error('Release booking error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -6125,7 +6138,7 @@ app.post('/api/bookings/reconcile-payment-state', async (req, res) => {
     return res.json({ success: true, status: nextStatus, warnings });
   } catch (err) {
     console.error('Payment state reconciliation failed:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -6361,7 +6374,7 @@ app.post('/api/bookings/update-status', async (req, res) => {
         code: 'PHOTO_PROOF_REQUIRED'
       });
     }
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -6395,7 +6408,7 @@ app.get('/api/debug/user/:email', async (req, res) => {
       }
     });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -6564,7 +6577,7 @@ app.post('/api/admin/blocked-slots', async (req, res) => {
     return res.json({ success: true, data });
   } catch (err) {
     console.error('❌ Block Slot Error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -6607,7 +6620,7 @@ app.patch('/api/admin/blocked-slots/:id', async (req, res) => {
     return res.json({ success: true, data });
   } catch (err) {
     console.error('❌ Trim Block Slot Error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -6642,7 +6655,7 @@ app.delete('/api/admin/blocked-slots/:id', async (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     console.error('❌ Unblock Slot Error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 
@@ -6838,7 +6851,7 @@ app.get('/api/bookings/slots', async (req, res) => {
     return res.json({ success: true, date, slots });
   } catch (err) {
     console.error('❌ Slot Enumeration Error:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: safeErrorMessage(err) });
   }
 });
 

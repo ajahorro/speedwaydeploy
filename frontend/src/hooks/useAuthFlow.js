@@ -8,6 +8,7 @@ import { emailError, phoneError, normalizePhPhone } from '../utils/contactValida
 import { safeNextPath } from '../utils/safeNextPath';
 import { BREACHED_PASSWORD_ERROR, isBreachedPassword } from '../utils/breachedPassword';
 import { onHandOff } from '@/lib/tabHandoff';
+import { safeErrorMessage } from '../utils/safeErrorMessage';
 
 /**
  * @param {{ next?: string }} [options] next: where to go after sign-in when the page address has no ?next=
@@ -77,7 +78,7 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
       // no success toast here: the account may still be on the wrong page (see the redirect above)
     } catch (error) {
       setLoginError(error.message || 'Login failed.');
-      toast.error(error.message || 'Login failed.');
+      toast.error(safeErrorMessage(error, 'Login failed.'));
     } finally {
       setIsLoading(false);
     }
@@ -139,7 +140,7 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
 
       setMode('AWAIT_LINK');
     } catch (error) {
-      toast.error(error.message || 'Registration failed.');
+      toast.error(safeErrorMessage(error, 'Registration failed.'));
     } finally {
       setIsLoading(false);
     }
@@ -167,7 +168,7 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not resend the activation link.');
       toast.success(`Activation link resent to ${target}.`);
     } catch (error) {
-      toast.error(error.message || 'Could not resend the activation link.');
+      toast.error(safeErrorMessage(error, 'Could not resend the activation link.'));
     } finally {
       setIsLoading(false);
     }
@@ -190,7 +191,7 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
       toast.success('If an account is associated with that email, a password reset link has been sent.');
       setMode('LOGIN');
     } catch (error) {
-      toast.error(error.message);
+      toast.error(safeErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
@@ -226,7 +227,7 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
       setMode('RECOVER_OTP');
       return true;
     } catch (error) {
-      toast.error(error.message || 'Could not start account recovery.');
+      toast.error(safeErrorMessage(error, 'Could not start account recovery.'));
       return false;
     } finally {
       setIsLoading(false);
@@ -260,7 +261,7 @@ export const useAuthFlow = ({ next: nextOption, audience } = {}) => {
       setMode('LOGIN');
       return true;
     } catch (error) {
-      toast.error(error.message || 'Unable to complete account recovery.');
+      toast.error(safeErrorMessage(error, 'Unable to complete account recovery.'));
       return false;
     } finally {
       setIsLoading(false);

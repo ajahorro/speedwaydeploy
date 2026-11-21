@@ -6,6 +6,7 @@ import toast from '@/lib/toast';
 import { BACKEND_URL } from '../config/api';
 import PasswordInput from '../components/PasswordInput';
 import { handOff } from '@/lib/tabHandoff';
+import { safeErrorMessage } from '../utils/safeErrorMessage';
 
 const PasswordConfirmation = () => {
   const token = new URLSearchParams(window.location.search).get('token');
@@ -49,7 +50,7 @@ const PasswordConfirmation = () => {
       })
       .catch(error => {
         setStatus('invalid');
-        toast.error(error.message);
+        toast.error(safeErrorMessage(error));
       });
   }, [token]);
 
@@ -68,7 +69,7 @@ const PasswordConfirmation = () => {
       if (!response.ok || !result.success) throw new Error(result.error || 'Unable to reset password.');
       setStatus('complete');
     } catch (error) {
-      toast.error(error.message);
+      toast.error(safeErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }

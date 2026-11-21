@@ -18,6 +18,7 @@ import { ADMIN_TOURS } from '../../features/tours/adminTours';
 import { writeAdminAuditLog } from '../../services/auditLogService';
 import { ensureShopConfig, getShopConfig } from '../../config/shopConfig';
 import { isPromoRuleLive, setCatalogSource } from '../../data/servicesCatalog';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 /**
  * PromoManager (System A)
@@ -434,7 +435,7 @@ const PromoManager = ({ isMobile: isMobileProp = false }) => {
         } catch (error) {
           setPromoRules(previousRules);
           const unreachable = error?.name === 'AbortError' || /failed to fetch|networkerror|load failed/i.test(String(error?.message || ''));
-          toast.error(unreachable ? 'The promotions service did not answer. The promo was not archived. Please try again.' : (error.message || 'The promotion could not be archived.'), { id: toastId });
+          toast.error(unreachable ? 'The promotions service did not answer. The promo was not archived. Please try again.' : (safeErrorMessage(error, 'The promotion could not be archived.')), { id: toastId });
         }
       }
     });

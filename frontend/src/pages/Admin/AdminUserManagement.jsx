@@ -17,6 +17,7 @@ import { fetchWithCache, invalidateCache } from '../../lib/cache';
 import { useAuth } from '../../hooks/useAuth';
 import ClientDirectoryList from '../../features/clients/ClientDirectoryList';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 const AdminUserManagement = () => {
   const navigate = useNavigate();
@@ -121,7 +122,7 @@ const AdminUserManagement = () => {
       invalidateCache('admin_profiles');
       fetchUsers(true);
     } catch (err) {
-      toast.error(err.message, { id: toastId });
+      toast.error(safeErrorMessage(err), { id: toastId });
     }
   };
 

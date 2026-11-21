@@ -18,6 +18,7 @@ import { getOverpaymentRefundRemaining, getRefundRequestLimit } from '../../util
 import { matchesSearchText } from '../../utils/searchMatch';
 import { fetchRefundProofs, refundProofKey, uploadRefundProof, discardRefundProof, REFUND_PROOF_ACCEPT, MAX_REFUND_PROOF_BYTES } from '../../services/refundProofService';
 import RefundProofButton from '../../features/finance/RefundProofButton';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 const AdminRefunds = () => {
   const navigate = useNavigate();
@@ -360,7 +361,7 @@ const AdminRefunds = () => {
       setState(prev => ({ ...clearProof(prev), selectedItem: null, confirmRefundItem: null, refundReason: '', refundMethod: '', refundAmount: 0 }));
     } catch (err) {
       logger.error('Refund Process Error', err);
-      toast.error(err.message || 'Failed to synchronize refund records', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Failed to synchronize refund records'), { id: toastId });
       setState(prev => ({ ...prev, refundItems: previousRefundItems }));
     }
   };

@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { resolveBookingId, resolveStaffJobId } from '../utils/notificationRouting';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { safeErrorMessage } from '../utils/safeErrorMessage';
 
 const TYPE_ICONS = {
   ANNOUNCEMENT: Megaphone,
@@ -66,7 +67,7 @@ const NotificationDetailsModal = ({ notification, onClose, onMarkRead, profile }
       onClose();
       navigate(targetUrl);
     } catch (error) {
-      toast.error(`Could not open the associated booking: ${error.message || 'lookup failed.'}`);
+      toast.error(`Could not open the associated booking: ${safeErrorMessage(error, 'lookup failed.')}`);
     }
   };
 

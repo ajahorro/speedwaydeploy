@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 /**
  * Staff accounts that have not signed in for a period chosen here are deactivated automatically
@@ -71,7 +72,7 @@ export default function InactiveStaffPanel({ onChanged, confirmThen }) {
       await load();
       onChanged?.();
     } catch (error) {
-      toast.error(error.message);
+      toast.error(safeErrorMessage(error));
     } finally {
       setBusyId(null);
     }

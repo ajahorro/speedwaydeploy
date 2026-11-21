@@ -22,6 +22,7 @@ import InactiveStaffPanel from '../../features/accounts/InactiveStaffPanel';
 import StaffTables, { AdminTable } from '../../features/accounts/StaffTables';
 import { matchesSearchText } from '../../utils/searchMatch';
 import { fetchWithCache, invalidateCache } from '../../lib/cache';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 const AdminAccountsManagement = () => {
   const { confirmThen } = useConfirmAction();
@@ -158,7 +159,7 @@ const AdminAccountsManagement = () => {
       fetchAccounts(true);
     } catch (err) {
       logger.error('Invitation Error', err);
-      toast.error(err.message || 'Failed to send invitation', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Failed to send invitation'), { id: toastId });
     } finally {
       setIsSubmitting(false);
     }
@@ -240,7 +241,7 @@ const AdminAccountsManagement = () => {
           invalidateCache('admin_profiles');
           fetchAccounts(true);
         } catch (err) {
-          toast.error(err.message || 'Failed to revoke account access');
+          toast.error(safeErrorMessage(err, 'Failed to revoke account access'));
         } finally {
           setIsSubmitting(false);
         }

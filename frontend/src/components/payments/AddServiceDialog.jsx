@@ -9,6 +9,7 @@ import { BACKEND_URL } from '@/config/api';
 import { getServiceCatalog } from '@/data/servicesCatalog';
 import { fetchRequiredDownpayment } from '@/services/ledgerService';
 import { formatPeso } from '@/features/finance/money';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 // Same rule the server applies: a payment is asked for when the services cost ₱1,000 or more together and the
 // booking's downpayment is not yet covered (counting what is already waiting for verification).
@@ -103,7 +104,7 @@ export default function AddServiceDialog({ open, onOpenChange, booking, vehicles
       await send(null);
       toast.success(selected.length === 1 ? `${selected[0].name} added to your booking.` : `${selected.length} services added to your booking.`);
     } catch (error) {
-      toast.error(error.message || 'The services could not be added.');
+      toast.error(safeErrorMessage(error, 'The services could not be added.'));
     } finally {
       setBusy(false);
     }

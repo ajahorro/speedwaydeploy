@@ -12,6 +12,7 @@ import {
   AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { ADMIN_TOURS } from '@/features/tours/adminTours';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 /** System & Admin › Backups: monthly and on-demand copies of all the shop's data, kept 3 months. */
 
@@ -34,13 +35,13 @@ export default function BackupsPage() {
   const [typed, setTyped] = useState('');
 
   const load = useCallback(async () => {
-    try { setList((await api('')).backups); } catch (err) { toast.error(err.message, { id: 'backups-load' }); setList([]); }
+    try { setList((await api('')).backups); } catch (err) { toast.error(safeErrorMessage(err), { id: 'backups-load' }); setList([]); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const run = async (key, fn, done) => {
     setBusy(key);
-    try { const r = await fn(); if (done) toast.success(done(r)); await load(); } catch (err) { toast.error(err.message); } finally { setBusy(null); }
+    try { const r = await fn(); if (done) toast.success(done(r)); await load(); } catch (err) { toast.error(safeErrorMessage(err)); } finally { setBusy(null); }
   };
   const create = () => run('create', () => api('', { method: 'POST' }), () => 'Backup made.');
   const download = (b) => run(`dl:${b.id}`, async () => { const { url } = await api(`/${b.id}/download`); window.location.assign(url); });

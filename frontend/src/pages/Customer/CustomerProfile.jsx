@@ -22,6 +22,7 @@ import PasswordInput from '../../components/PasswordInput';
 import { TourLauncher } from '../../components/common/GuidedTour';
 import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
 import ChangeEmailDialog from '../../features/accounts/ChangeEmailDialog';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 
 const CustomerProfile = () => {
   const { confirmThen } = useConfirmAction();
@@ -125,7 +126,7 @@ const CustomerProfile = () => {
         toast.success('Check your email to confirm the password change', { id: toastId });
       }
     } catch (error) {
-      toast.error(error.message || 'Something went wrong. Please try again.', { id: toastId });
+      toast.error(safeErrorMessage(error, 'Something went wrong. Please try again.'), { id: toastId });
     } finally {
       passwordActionInFlight.current = false;
       setIsVerifyingPassword(false);
@@ -173,7 +174,7 @@ const CustomerProfile = () => {
         }
       }
     } catch (error) {
-      toast.error(error.message || 'Something went wrong. Please try again.', { id: toastId });
+      toast.error(safeErrorMessage(error, 'Something went wrong. Please try again.'), { id: toastId });
     } finally {
       setPendingAction(null);
     }
@@ -203,7 +204,7 @@ const CustomerProfile = () => {
         toast.success('Confirmation email resent. Please check your inbox.', { id: toastId });
       }
     } catch (err) {
-      toast.error(err.message || 'Unable to resend the confirmation email.', { id: toastId });
+      toast.error(safeErrorMessage(err, 'Unable to resend the confirmation email.'), { id: toastId });
     }
   };
 
