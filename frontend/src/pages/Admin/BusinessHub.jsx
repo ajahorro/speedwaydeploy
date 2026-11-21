@@ -1064,7 +1064,7 @@ export default function BusinessHub() {
     } catch (err) {
       console.error('Save failed:', err);
       toast.error(safeErrorMessage(err, 'Failed to save settings. Please try again.'));
-      setMessage({ type: 'error', text: err.message || 'Failed to save settings. Please try again.' });
+      setMessage({ type: 'error', text: safeErrorMessage(err, 'Failed to save settings. Please try again.') });
     } finally {
       setSaving(false);
     }
@@ -1773,7 +1773,7 @@ export default function BusinessHub() {
       });
     } catch (err) {
       console.error('Catalog save failed:', err);
-      setMessage({ type: 'error', text: err.message || 'Failed to save service catalog changes.' });
+      setMessage({ type: 'error', text: safeErrorMessage(err, 'Failed to save service catalog changes.') });
     }
   };
 

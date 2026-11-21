@@ -3,6 +3,7 @@ import { supabase, createUniqueChannel } from '../lib/supabase';
 import { logger } from '../utils/logger';
 import toast from '@/lib/toast';
 import { BACKEND_URL, authHeaders } from '../config/api';
+import { safeErrorMessage } from '../utils/safeErrorMessage';
 import { onHandOff } from '@/lib/tabHandoff';
 
 export const AuthContext = createContext({});
@@ -161,7 +162,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       if (fetchId !== activeFetchRef.current) return;
       logger.error(`Sync Error (ID: ${fetchId})`, err);
-      setError(err.message);
+      setError(safeErrorMessage(err));
     } finally {
       if (fetchId === activeFetchRef.current) {
         setLoading(false);

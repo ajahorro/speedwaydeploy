@@ -155,7 +155,7 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
       setPhase('otp');
       toast.success('A 6-digit code has been emailed to the administrator.');
     } catch (err) {
-      setError(err.message || 'Could not send the verification code.');
+      setError(safeErrorMessage(err, 'Could not send the verification code.'));
       toast.error(safeErrorMessage(err, 'Could not send the verification code.'));
     } finally {
       setBusy(false);
@@ -175,7 +175,7 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
       onCommitted?.(result);
       onClose?.();
     } catch (err) {
-      setError(err.message || 'Verification failed.');
+      setError(safeErrorMessage(err, 'Verification failed.'));
       toast.error(safeErrorMessage(err, 'Verification failed.'));
     } finally {
       setBusy(false);

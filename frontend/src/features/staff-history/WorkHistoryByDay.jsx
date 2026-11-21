@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Clock, ExternalLink } from 'lucide-react';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 
@@ -128,7 +129,7 @@ export default function WorkHistoryByDay({ staffId, isAdmin = false, onNavigate 
       setDays((prev) => (before ? [...prev, ...(data?.days || [])] : (data?.days || [])));
       setHasMore(Boolean(data?.has_more));
     } catch (err) {
-      setError(err.message || 'Could not load the history.');
+      setError(safeErrorMessage(err, 'Could not load the history.'));
     } finally {
       setLoading(false);
     }

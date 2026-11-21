@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Car } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { safeErrorMessage } from '../../utils/safeErrorMessage';
 import { useLanguage } from '@/context/LanguageContext';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
@@ -51,7 +52,7 @@ export default function StaffHistoryCalendar({ staffId }) {
       if (rpcError) throw rpcError;
       setDays(new Map((data?.days || []).map((entry) => [entry.day, entry])));
     } catch (err) {
-      setError(err.message || 'Could not load the history.');
+      setError(safeErrorMessage(err, 'Could not load the history.'));
     } finally {
       setLoading(false);
     }
