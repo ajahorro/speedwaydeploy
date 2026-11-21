@@ -326,7 +326,7 @@ export default function DateTimePicker({
           display: flex;
           flex-direction: column;
         }
-        @media (min-width: 700px) {
+        @media (min-width: 601px) {
           .dtp-root {
             flex-direction: row;
           }
@@ -349,7 +349,7 @@ export default function DateTimePicker({
           overflow-y: auto;
           max-height: 420px;
         }
-        @media (min-width: 700px) {
+        @media (min-width: 601px) {
           .dtp-slots-pane {
             max-height: 440px;
           }

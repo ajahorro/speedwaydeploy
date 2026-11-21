@@ -15,7 +15,7 @@ import { CUSTOMER_TOURS } from '../../features/tours/customerTours';
  */
 const CustomerSettings = () => {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: '4rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: '5rem' }}>
       {/* Header */}
       <div style={{ marginBottom: '1.5rem' }}>
         <h1 className="text-fluid-h1" style={{ margin: '0 0 0.35rem 0', color: 'var(--admin-text-primary)', textTransform: 'uppercase', letterSpacing: '-1.5px', lineHeight: 1.1 }}>

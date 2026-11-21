@@ -221,7 +221,7 @@ export function HeroActions({ user, pending, onAuth }) {
 
 export function AboutFeatures({ items }) {
   return (
-    <div className="landing-ui grid grid-cols-2 gap-4">
+    <div className="landing-ui grid grid-cols-1 sm:grid-cols-2 gap-4">
       {items.map((item, index) => (
         <Card key={`${index}-${item.title}`} className="lp-card-hover gap-3 py-6">
           <CardHeader className="gap-3 px-5">

@@ -13,7 +13,7 @@ import ChangeEmailDialog from '../../features/accounts/ChangeEmailDialog';
 const StaffProfile = () => {
   const { profile, user, verifyPassword, requestPasswordChange, resendPasswordChange } = useAuth();
   const [showEmailChange, setShowEmailChange] = useState(false);
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const isMobile = useMediaQuery('(max-width: 1024px)');
   const [loading, setLoading] = useState(false);
   const [passLoading, setPassLoading] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -61,7 +61,7 @@ const StaffProfile = () => {
     background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)',
     border: '1px solid var(--admin-border)',
     borderRadius: 'var(--admin-radius)',
-    padding: isMobile ? '1.25rem' : '2rem',
+    padding: isMobile ? '1.25rem' : '1.5rem',
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem'
@@ -108,7 +108,7 @@ const StaffProfile = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%', maxWidth: '1200px', paddingBottom: '4rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', maxWidth: '1200px', paddingBottom: '2rem' }}>
       <PageHeader
         title="Technician Profile"
         subtitle="Manage your profile and password."

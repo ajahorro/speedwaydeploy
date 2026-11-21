@@ -68,12 +68,12 @@ const BookingSuccess = ({ bookingData }) => {
   }, [receiptBooking.id]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2rem', gap: '2rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 'clamp(1rem, 4vw, 2rem)', gap: '2rem' }}>
       <div className="no-print" style={{ textAlign: 'center' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(var(--admin-success-rgb), 0.1)', marginBottom: '1rem' }}>
           <CheckCircle size={40} color="var(--admin-success)" />
         </div>
-        <h1 style={{ fontSize: '2rem', fontWeight: '950', color: 'var(--admin-text-on-brand)', margin: 0, textTransform: 'uppercase' }}>Booking Logged!</h1>
+        <h1 style={{ fontSize: 'clamp(1.5rem, 6vw, 2rem)', fontWeight: '950', color: 'var(--admin-text-on-brand)', margin: 0, textTransform: 'uppercase' }}>Booking Logged!</h1>
         <p style={{ color: 'var(--admin-text-secondary)', fontWeight: '600', marginTop: '0.5rem' }}>Your appointment has been saved. Here is your booking summary.</p>
       </div>
 

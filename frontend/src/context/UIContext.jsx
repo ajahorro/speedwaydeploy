@@ -226,25 +226,6 @@ export const UIProvider = ({ children }) => {
         }
 
         /*
-         * Mobile: a centred dialog with 2rem of horizontal padding wastes most of
-         * a 360px screen and forces unnecessary inner scrolling. Tighten the
-         * chrome, and make the action buttons full-width so the primary action is
-         * an easy tap target rather than a small pill in the bottom-right corner.
-         */
-        @media (max-width: 480px) {
-          .app-modal-content { padding: 1.5rem 1.25rem 1rem 1.25rem !important; }
-          .app-modal-actions {
-            padding: 0.875rem 1.25rem !important;
-            flex-direction: column-reverse !important;
-            align-items: stretch !important;
-          }
-          .app-modal-actions > button {
-            width: 100% !important;
-            padding: 0.8rem 1.25rem !important;
-          }
-        }
-
-        /*
          * Respect the user's motion preference. The slide/scale spring is
          * decorative; for someone who has asked the OS for reduced motion it is
          * uncomfortable, and there is no reason to keep it.

@@ -117,22 +117,6 @@
   --admin-brand-light: #C41F2B;
 }
 
-@media (max-width: 480px) {
-  .app-modal-content {
-    padding: 1.25rem 1.25rem 1rem !important;
-  }
-
-  .app-modal-actions {
-    padding: 1rem 1.25rem !important;
-    flex-direction: column-reverse;
-  }
-
-  .app-modal-actions button {
-    width: 100%;
-    min-height: 2.75rem;
-  }
-}
-
 /* Global reset sits in the `base` cascade layer (order declared in
    styles/ui.css) so Tailwind spacing utilities on shadcn components can beat
    it. A zero-specificity `*` rule already lost to every other selector, so

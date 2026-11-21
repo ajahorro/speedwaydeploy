@@ -249,7 +249,7 @@ const cardStyle = {
   background: 'var(--admin-card)',
   border: '1px solid var(--admin-border)',
   borderRadius: 'var(--admin-radius)',
-  padding: '1.75rem',
+  padding: '1.5rem',
   display: 'flex',
   flexDirection: 'column',
   gap: '1.25rem',

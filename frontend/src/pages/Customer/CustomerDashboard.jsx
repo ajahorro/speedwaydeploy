@@ -30,7 +30,7 @@ const CustomerDashboard = () => {
   const upcomingBookings = activeTrackableBookings.slice(1);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', paddingBottom: '5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '5rem' }}>
 
       {/* Header Section */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -423,7 +423,7 @@ const AdminAuditLogs = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '4rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
       <PageHeader
         showBack
         onBack={() => navigate(-1)}

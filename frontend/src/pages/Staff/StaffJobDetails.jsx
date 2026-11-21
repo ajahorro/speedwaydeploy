@@ -165,7 +165,7 @@ const StaffJobDetails = () => {
     borderRadius: 'var(--admin-radius)', padding: isMobile ? '1rem' : '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem'
   };
   const label = { fontSize: '0.72rem', fontWeight: 950, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' };
-  const heading = { display: 'flex', alignItems: 'center', gap: '0.6rem', margin: 0, fontSize: '0.85rem', fontWeight: 950, textTransform: 'uppercase' };
+  const heading = { display: 'flex', alignItems: 'center', gap: '0.75rem', margin: 0, fontSize: '0.85rem', fontWeight: 950, textTransform: 'uppercase' };
   const value = { fontSize: '0.9rem', fontWeight: 700, color: 'var(--admin-text-primary)', overflowWrap: 'anywhere' };
   const statusColor = isDone ? 'var(--status-success)' : (isRunning ? 'var(--status-warning)' : 'var(--admin-text-secondary)');
   const time = (iso) => (iso ? new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'Not recorded');

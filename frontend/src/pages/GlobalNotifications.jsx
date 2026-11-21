@@ -111,7 +111,7 @@ const GlobalNotifications = () => {
   const cardStyle = { background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', padding: '1.25rem', cursor: 'pointer', transition: '0.2s' };
 
   return (
-    <div style={{ width: '100%', maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2.5rem', paddingBottom: '5rem' }}>
+    <div style={{ width: '100%', maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '5rem' }}>
       {confirmDeleteId !== null && <DeleteConfirmModal onConfirm={handleConfirmDelete} onCancel={() => setConfirmDeleteId(null)} />}
       <NotificationDetailsModal notification={selectedNotification} onClose={() => setSelectedNotification(null)} onMarkRead={handleMarkAsRead} profile={profile} />
 

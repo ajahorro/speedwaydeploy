@@ -584,7 +584,7 @@ const CustomerBookAppointment = ({ adminMode = false, adminSelectedCustomerId = 
 
       {/* Step Content */}
       {adminMode && <div data-tour="book-customer">{renderAdminPanel?.({ bookingData, setBookingData: updateBookingData, isCustomerDetailsLocked: customerDetailsLocked })}</div>}
-      <div data-tour="book-content" style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 0, padding: '2rem', boxShadow: 'var(--admin-card-shadow)' }}>
+      <div data-tour="book-content" style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: 0, padding: 'clamp(1rem, 4vw, 2rem)', boxShadow: 'var(--admin-card-shadow)' }}>
         {currentStep === 1 && <Step2Services bookingData={bookingData} setBookingData={updateBookingData} adminMode={adminMode} activeVehicleIndex={activeVehicleIndex} onNext={nextStep} onCancel={handleCancelBooking} />}
         {currentStep === 2 && <Step1Schedule bookingData={bookingData} setBookingData={updateBookingData} activeVehicleIndex={activeVehicleIndex} onNext={nextStep} onBack={prevStep} onCancel={handleCancelBooking} customerDetailsLocked={customerDetailsLocked} adminMode={adminMode} selectedCustomerId={adminSelectedCustomerId} />}
         {currentStep === 3 && (

@@ -15,7 +15,7 @@ const StaffSettings = () => {
   const openSop = () => setSopOpen(true);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '4rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
       <PageHeader
         title="Settings"
         subtitle="Choose your interface appearance and access shop resources."

@@ -140,7 +140,7 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
       {/* Page Title */}
       <div>

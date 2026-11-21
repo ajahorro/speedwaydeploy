@@ -30,7 +30,7 @@ const DeleteConfirmModal = ({ onConfirm, onCancel }) => (
       background: 'var(--admin-card)',
       border: '1px solid var(--admin-border)',
       borderRadius: 'var(--admin-radius)',
-      padding: '2rem',
+      padding: 'clamp(1.25rem, 5vw, 2rem)',
       maxWidth: '420px',
       width: '100%',
       boxShadow: '0 25px 60px rgba(0,0,0,0.5)'
@@ -328,7 +328,7 @@ const AdminNotifications = () => {
   const safePage = Math.min(currentPage, totalPages);
   const pagedNotifications = filteredNotifications.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const cardStyle = { background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', padding: '1.25rem' };
+  const cardStyle = { background: 'var(--admin-card)', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', padding: '1.5rem' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>

@@ -4,8 +4,10 @@ import { Mail, Lock, User, CheckCircle, AlertCircle, Loader2 } from 'lucide-reac
 import toast from '@/lib/toast';
 import { BACKEND_URL } from '../../config/api';
 import PasswordInput from '../../components/PasswordInput';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 const AdminAcceptInvite = () => {
+  const isMobile = useMediaQuery('(max-width: 480px)');
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get('token');
@@ -145,7 +147,7 @@ const AdminAcceptInvite = () => {
           </p>
         </div>
 
-        <div style={{ background: '#111', border: '1px solid #222', borderRadius: '1.5rem', padding: '2.5rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
+        <div style={{ background: '#111', border: '1px solid #222', borderRadius: '1.5rem', padding: isMobile ? '1.5rem' : '2.5rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
           <div style={{ marginBottom: '2rem' }}>
             <h2 style={{ fontSize: '1.25rem', fontWeight: '900', color: 'var(--admin-text-primary)', margin: '0 0 0.5rem' }}>Welcome aboard!</h2>
             <p style={{ fontSize: '0.85rem', color: '#666', margin: 0 }}>
@@ -155,7 +157,7 @@ const AdminAcceptInvite = () => {
           </div>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
               <div>
                 <label style={labelStyle}>First Name</label>
                 <div style={{ position: 'relative' }}>

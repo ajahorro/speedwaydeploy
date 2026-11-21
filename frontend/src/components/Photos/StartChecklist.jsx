@@ -60,7 +60,7 @@ const StartChecklist = ({ taskId, clockedIn, beforePhotos, startDatetime, earlyS
                 <label
                   htmlFor={`photo-input-${taskId}-before`}
                   style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', minHeight: '2.25rem', padding: '0 0.9rem',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', minHeight: '2.75rem', padding: '0 0.9rem',
                     border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', background: 'var(--admin-card)', color: 'var(--admin-text-primary)',
                     fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer', whiteSpace: 'nowrap'
                   }}

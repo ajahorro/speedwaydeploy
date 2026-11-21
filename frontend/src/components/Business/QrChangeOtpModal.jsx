@@ -352,7 +352,7 @@ const QrChangeOtpModal = ({ open, currentConfig = {}, onClose, onCommitted }) =>
         </div>
 
         {/* Actions */}
-        <div style={{ padding: '1rem 1.5rem 1.5rem', borderTop: '1px solid var(--admin-border)', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <div className="qr-otp-actions" style={{ padding: '1rem 1.5rem 1.5rem', borderTop: '1px solid var(--admin-border)', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
           <button type="button" onClick={onClose} style={{ flex: '1 1 120px', minHeight: '2.75rem', padding: '0.85rem 1rem', background: 'var(--admin-bg)', color: 'var(--admin-text-primary)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', fontWeight: 950, fontSize: '0.78rem', textTransform: 'uppercase', cursor: 'pointer' }}>
             Cancel
           </button>

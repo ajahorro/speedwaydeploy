@@ -8,9 +8,11 @@ import {
 import PageHeader from '../../components/PageHeader';
 import toast from '@/lib/toast';
 import { useConfirmAction } from '../../hooks/useConfirmAction';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 const AdminSlotManagement = () => {
   const { confirmThen } = useConfirmAction();
+  const isMobile = useMediaQuery('(max-width: 1024px)');
   const [blockedSlots, setBlockedSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -127,7 +129,7 @@ const AdminSlotManagement = () => {
   const inputStyle = { width: '100%', padding: '0.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '4px', color: 'var(--admin-text-primary)', fontWeight: '700', fontSize: '0.85rem', outline: 'none' };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '4rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
       <PageHeader
         title="Availability Terminal"
         subtitle="Surgically override availability for maintenance or holidays."
@@ -137,7 +139,7 @@ const AdminSlotManagement = () => {
         actionIcon={isAdding ? <X size={18} /> : <Plus size={18} />}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '2rem', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.2fr 0.8fr', gap: isMobile ? '1.5rem' : '1.5rem', alignItems: 'start' }}>
         
         {/* Month Calendar Grid */}
         <div style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)', borderRadius: '4px', overflow: 'hidden' }}>

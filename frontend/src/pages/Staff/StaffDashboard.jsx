@@ -184,7 +184,7 @@ const StaffDashboard = () => {
   const completionRate = totalAssigned > 0 ? Math.round((stats.completed / totalAssigned) * 100) : 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2rem' }}>
         <PageHeader
           title="Active Assignments"
@@ -194,7 +194,7 @@ const StaffDashboard = () => {
           tourLabel="How this page works"
         />
 
-        <div data-tour="sdash-shift" style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', padding: '1.25rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', minWidth: isMobile ? 0 : '320px', width: isMobile ? '100%' : undefined, maxWidth: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div data-tour="sdash-shift" style={{ background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', padding: isMobile ? '1.25rem' : '1.5rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)', minWidth: isMobile ? 0 : '320px', width: isMobile ? '100%' : undefined, maxWidth: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <TrendingUp size={14} color="var(--status-success)" /> Shift Tracker
@@ -278,7 +278,7 @@ const StaffDashboard = () => {
           )}
         </div>
 
-        <div style={{ width: isMobile ? '100%' : '320px', display: 'flex', flexDirection: 'column', gap: '2rem', position: 'sticky', top: '100px' }}>
+        <div style={{ width: isMobile ? '100%' : '320px', display: 'flex', flexDirection: 'column', gap: '2rem', position: isMobile ? 'static' : 'sticky', top: '100px' }}>
           {!profile?.is_clocked_in && (
             <div style={{ padding: '1.25rem', background: 'rgba(var(--admin-brand-rgb, 196, 31, 43), 0.05)', border: '1px solid rgba(var(--admin-brand-rgb, 196, 31, 43), 0.15)', borderRadius: 'var(--admin-radius)', textAlign: 'center' }}>
               <Clock size={24} color="var(--admin-brand)" style={{ margin: '0 auto 0.75rem' }} />

@@ -1399,7 +1399,7 @@ const AdminBookingDetails = () => {
       display: 'flex',
       flexDirection: 'column',
       gap: '1.5rem',
-      padding: '0 0 10rem 0',
+      padding: '0 0 2rem 0',
       position: 'relative'
     }}>
 

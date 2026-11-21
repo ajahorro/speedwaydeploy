@@ -378,7 +378,7 @@ const AdminDashboard = () => {
   }, [refreshDashboard]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'fadeIn 0.5s ease' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.5s ease' }}>
       <PageHeader
         title="Dashboard"
         subtitle="Real-time performance metrics and fleet coordination."

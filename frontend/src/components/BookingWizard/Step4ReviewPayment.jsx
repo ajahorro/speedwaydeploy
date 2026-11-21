@@ -1190,7 +1190,7 @@ const Step4ReviewPayment = ({ bookingData, setBookingData, adminMode = false, on
                       {qrTarget?.PAYMENT_QR_URL ? (
                         <QRMagnifier qrUrl={qrTarget.PAYMENT_QR_URL} accountName={qrTarget.QR_ACCOUNT_NAME} accountNumber={qrTarget.QR_ACCOUNT_NUMBER} />
                       ) : (
-                        <div style={{ width: '100%', maxWidth: '400px', height: '550px', margin: '1.5rem auto', background: 'var(--admin-card)', border: '1px dashed var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', borderRadius: 'var(--admin-radius-lg)' }}>No QR Configured</div>
+                        <div style={{ width: '100%', maxWidth: '400px', aspectRatio: '400 / 550', margin: '1.5rem auto', background: 'var(--admin-card)', border: '1px dashed var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', borderRadius: 'var(--admin-radius-lg)' }}>No QR Configured</div>
                       )}
                       <div style={{ fontSize: '1.25rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>{qrTarget?.QR_ACCOUNT_NAME}</div>
                       <div style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--admin-brand)', marginTop: '0.25rem' }}>{qrTarget?.QR_ACCOUNT_NUMBER}</div>

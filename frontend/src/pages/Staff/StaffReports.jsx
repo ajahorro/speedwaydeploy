@@ -21,11 +21,11 @@ const statusWords = (status) => {
   return 'Waiting to start';
 };
 
-const cardStyle = { background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: '1.25rem' };
+const cardStyle = { background: 'var(--admin-card)', boxShadow: 'var(--admin-card-shadow)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius)', padding: '1.5rem' };
 const smallLabel = { fontSize: '0.68rem', fontWeight: 900, color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' };
 
 const Stat = ({ icon: Icon, label, value }) => (
-  <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
+  <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
     <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(var(--admin-brand-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
       <Icon size={18} color="var(--admin-brand)" />
     </div>

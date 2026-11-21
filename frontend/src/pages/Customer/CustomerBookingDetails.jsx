@@ -410,7 +410,7 @@ const CustomerBookingDetails = () => {
           }
         }
       `}</style>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '5rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '5rem' }}>
 
       {/* HEADER */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -485,7 +485,7 @@ const CustomerBookingDetails = () => {
           {/* ===== E. SERVICE BREAKDOWN ===== */}
           {vehicles.map((v, vIdx) => (
             <div key={v.id} style={cardStyle}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--admin-border)', paddingBottom: '1rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', borderBottom: '1px solid var(--admin-border)', paddingBottom: '1rem', marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                   <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--admin-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--admin-border)' }}>
                     <Car size={22} color="var(--admin-brand)" />
@@ -543,7 +543,7 @@ const CustomerBookingDetails = () => {
 
                 {/* Batch 5: always render so photos stored only in service_photos are reachable. */}
                 {true && (
-                  <div style={{ display: 'flex', gap: '1.5rem' }}>
+                  <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
                       <Button type="button" onClick={() => {
                           setPhotoGalleryVehicleId(v.id);

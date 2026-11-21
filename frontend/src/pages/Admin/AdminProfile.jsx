@@ -111,7 +111,7 @@ const AdminProfile = () => {
     background: 'var(--admin-card)',
     borderRadius: 'var(--admin-radius)',
     border: '1px solid var(--admin-border)',
-    padding: isMobile ? '1.5rem' : '2rem',
+    padding: '1.5rem',
     boxShadow: 'var(--admin-card-shadow)',
     position: 'relative'
   };
@@ -160,14 +160,14 @@ const AdminProfile = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '4rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
       <PageHeader
         title="ADMIN ACCOUNT"
         subtitle="Manage your profile and password."
         onRefresh={() => toast.success('Synchronizing profile...')}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: '2rem', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: '1.5rem', alignItems: 'start' }}>
         
         {/* Personal Information */}
         <div style={cardStyle}>
