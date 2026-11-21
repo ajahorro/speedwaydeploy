@@ -44,7 +44,10 @@ export function BookingsTable({ range, rangeLabel, refreshKey, pdfRequest }) {
   const downloadPdf = async () => {
     setPdfBusy(true);
     try {
-      const data = report || await fetchBookingsReport(range);
+      // Always a fresh, capped fetch: html2canvas has to rasterize one block per booking, so a
+      // wide range with hundreds of bookings (the on-screen table's full, uncapped `report`)
+      // would hang the tab. 300 rows keeps the PDF fast regardless of how big the range is.
+      const data = await fetchBookingsReport(range, 300);
       await downloadBookingsPdf({ report: data, rangeLabel, fileLabel: rangeLabel.replace(/[^0-9A-Za-z]+/g, '-').replace(/^-|-$/g, '') });
     } catch (error) {
       console.error('Bookings PDF failed:', error);

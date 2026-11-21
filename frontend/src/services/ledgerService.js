@@ -75,11 +75,15 @@ export const fetchOutstandingBookings = async ({ limit = 200 } = {}) => {
   return (data || []).map(normalizeBookingLedger);
 };
 
-/** Every booking that starts in [from, to) with its vehicles, services and money (admin only). */
-export const fetchBookingsReport = async ({ from, to }) => {
+/** Every booking that starts in [from, to) with its vehicles, services and money (admin only).
+ * `limit` bounds how many individual booking rows come back (totals still cover the whole
+ * range) — pass one when the result feeds a PDF, so html2canvas never has to rasterize
+ * hundreds of booking blocks in one shot; leave it unset for the on-screen table and Excel. */
+export const fetchBookingsReport = async ({ from, to }, limit = null) => {
   const { data, error } = await supabase.rpc('bookings_report', {
     p_from: from.toISOString(),
-    p_to: to.toISOString()
+    p_to: to.toISOString(),
+    p_limit: limit
   });
   if (error) throw error;
   return data;

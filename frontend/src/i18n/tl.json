@@ -505,7 +505,6 @@
   "Ask a question…": "Magtanong…",
   "Ask about bookings, money and balances for any day. It can open a report or create a PDF, but it cannot change any data.": "Magtanong tungkol sa mga booking, pera at balanse sa anumang araw. Maaari itong magbukas ng ulat o gumawa ng PDF, ngunit hindi nito mababago ang anumang datos.",
   "Ask about bookings, services, vehicles, and technician workload for any day. It can open a report or create a PDF. It does not have payments, prices, or customer contact details, and it cannot change any data.": "Magtanong tungkol sa mga booking, serbisyo, sasakyan, at dami ng trabaho ng technician sa anumang araw. Maaari itong magbukas ng ulat o gumawa ng PDF. Wala itong access sa mga bayad, presyo, o contact details ng customer, at hindi nito mababago ang anumang datos.",
-  "Ask AI": "Magtanong sa AI",
   "Ask for booking details": "Humingi ng detalye ng booking",
   "Ask the bookings assistant": "Tanungin ang bookings assistant",
   "Ask the finance assistant": "Tanungin ang finance assistant",
@@ -3923,5 +3922,6 @@
   "Each backup has every booking, payment, receipt record, chat, setting and account detail, plus an Excel workbook with a sheet for each part.": "Bawat backup ay may lahat ng booking, bayad, rekord ng resibo, chat, setting at detalye ng account, kasama ang Excel workbook na may sheet para sa bawat bahagi.",
   "Download keeps a copy on your computer (a zip with one Excel workbook, a sheet for each part). Restore puts the shop's data back to that day, after saving a backup of the current data first.": "Ang Download ay nagse-save ng kopya sa computer mo (zip na may isang Excel workbook, may sheet para sa bawat bahagi). Ibinabalik ng Restore ang data ng shop sa araw na iyon, matapos munang i-save ang backup ng kasalukuyang data.",
   "All bookings, payments, chats and settings go back to how they were then. Anything added after it, including payments and refunds, will be lost.": "Babalik ang lahat ng booking, bayad, chat at setting sa dati nilang ayos noon. Mawawala ang anumang idinagdag pagkatapos nito, kasama ang mga bayad at refund.",
-  "A backup of the current data is saved first, so this can be undone by restoring that one. Accounts are never removed or reactivated, and upcoming bookings of deactivated accounts are cancelled again.": "Mase-save muna ang backup ng kasalukuyang data, kaya puwede itong ibalik sa pag-restore niyon. Hindi kailanman buburahin o muling bubuksan ang mga account, at kakanselahin ulit ang mga paparating na booking ng mga na-deactivate na account."
+  "A backup of the current data is saved first, so this can be undone by restoring that one. Accounts are never removed or reactivated, and upcoming bookings of deactivated accounts are cancelled again.": "Mase-save muna ang backup ng kasalukuyang data, kaya puwede itong ibalik sa pag-restore niyon. Hindi kailanman buburahin o muling bubuksan ang mga account, at kakanselahin ulit ang mga paparating na booking ng mga na-deactivate na account.",
+  "Ask Reports Assistant": "Magtanong sa Reports Assistant"
 }

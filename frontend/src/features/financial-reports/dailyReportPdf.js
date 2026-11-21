@@ -100,12 +100,13 @@ export const buildDailyReportHtml = (report) => {
     ${heading('3. Refunds')}
     ${table([['Time'], ['Booking'], ['Customer'], ['Reference'], ['Amount', 'right']], refundRows, `No refunds ${isRange ? 'in this period' : 'today'}.`)}
 
-    ${heading(`4. Bookings ${isRange ? 'in this period' : 'today'} (${bookings.length})`)}
+    ${heading(`4. Bookings ${isRange ? 'in this period' : 'today'} (${bookings.length}${report?.bookings_truncated ? ` of ${report.bookings_total_count}` : ''})`)}
+    ${report?.bookings_truncated ? `<p style="color:#C41F2B;font-size:9.5px;margin:0 0 6px">Showing the most recent ${bookings.length} of ${report.bookings_total_count} bookings in this period (the totals above still cover all of them). Download Excel for the complete list.</p>` : ''}
     ${bookingBlocks || `<p style="color:#666">No bookings are scheduled ${scope}.</p>`}
 
     ${heading(isRange ? '5. Balances still to collect from these bookings' : '5. Balances still to collect from today\'s bookings')}
     ${table([['Booking'], ['Customer'], ['Contact'], ['Status'], ['Owed', 'right']], owingRows, isRange ? 'Nothing is owed on these bookings.' : 'Nothing is owed on today\'s bookings.')}
-    ${owing.length ? `<p style="margin:4px 0 0"><strong>Total owed: ${esc(formatPeso(owing.reduce((sum, b) => sum + Number(b.balance || 0), 0)))}</strong></p>` : ''}
+    ${owing.length ? `<p style="margin:4px 0 0"><strong>${report?.bookings_truncated ? 'Owed on the bookings shown above' : 'Total owed'}: ${esc(formatPeso(owing.reduce((sum, b) => sum + Number(b.balance || 0), 0)))}</strong>${report?.bookings_truncated ? ` (still owed across the whole period: ${esc(formatPeso(totals.balance))})` : ''}</p>` : ''}
   </div>`;
 };
 

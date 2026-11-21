@@ -159,7 +159,7 @@ export default function FinancialReportsPage({ defaultTab = 'overview' }) {
               <Printer /> Print
             </Button>
             <Button variant="outline" onClick={() => setAssistantOpen(true)}>
-              <Sparkles /> Ask AI
+              <Sparkles /> Ask Reports Assistant
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">Download Excel exports every tab for {rangeLabel}; Print only prints the <strong>{TAB_LABELS[tab]}</strong> tab shown now.</p>
