@@ -226,6 +226,7 @@ const AdminLayout = () => {
       <aside className="no-print" style={sidebarStyle}>
         <div style={{
           padding: '2rem 1.5rem',
+          paddingTop: 'calc(2rem + var(--safe-top))',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-start',
@@ -267,7 +268,7 @@ const AdminLayout = () => {
           ))}
         </nav>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', padding: '1rem 0.5rem', borderTop: '1px solid var(--admin-border)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', padding: '1rem 0.5rem', paddingBottom: 'calc(1rem + var(--safe-bottom))', borderTop: '1px solid var(--admin-border)' }}>
           <SidebarLink to="/admin/settings" icon={NAV_ICONS.settings}>Settings</SidebarLink>
 
           <SidebarButton icon={NAV_ICONS.logout} onClick={handleLogout}>Log out</SidebarButton>
@@ -280,6 +281,7 @@ const AdminLayout = () => {
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: isMobile ? '0.6rem 1rem' : '0.75rem 2.5rem',
+          paddingTop: isMobile ? 'calc(0.6rem + var(--safe-top))' : 'calc(0.75rem + var(--safe-top))',
           borderBottom: '1px solid var(--admin-border)',
           background: 'var(--admin-card)',
           position: 'sticky',
@@ -361,7 +363,7 @@ const AdminLayout = () => {
           </div>
         </header>
 
-        <main style={{ flex: 1, minHeight: 0, padding: isMobile ? '1.5rem 1rem' : '2.5rem', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', background: 'var(--admin-bg)' }}>
+        <main style={{ flex: 1, minHeight: 0, padding: isMobile ? '1.5rem 1rem' : '2.5rem', paddingBottom: isMobile ? 'calc(1.5rem + var(--safe-bottom))' : 'calc(2.5rem + var(--safe-bottom))', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', background: 'var(--admin-bg)' }}>
           <Outlet />
         </main>
         <TermsGate />

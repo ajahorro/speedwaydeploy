@@ -192,6 +192,7 @@ const StaffLayout = () => {
       <aside style={sidebarStyle}>
         <div style={{
           padding: '2rem 1.5rem',
+          paddingTop: 'calc(2rem + var(--safe-top))',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-start',
@@ -231,7 +232,7 @@ const StaffLayout = () => {
           ))}
         </nav>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', padding: '1rem 0.5rem', borderTop: '1px solid var(--admin-border)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', padding: '1rem 0.5rem', paddingBottom: 'calc(1rem + var(--safe-bottom))', borderTop: '1px solid var(--admin-border)' }}>
           <div style={{ padding: '0 1rem 0.5rem', fontSize: '0.72rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', opacity: 0.55 }}>System</div>
 
           <SidebarLink to="/staff/settings" icon={NAV_ICONS.settings}>Settings</SidebarLink>
@@ -256,7 +257,7 @@ const StaffLayout = () => {
           height: '70px', background: 'var(--admin-card)', backdropFilter: 'blur(10px)',
           borderBottom: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center',
           justifyContent: 'space-between', gap: '0.75rem',
-          padding: isMobile ? '0.75rem 1rem' : '0 2rem', position: 'sticky', top: 0, zIndex: 30,
+          padding: isMobile ? '0.75rem 1rem' : '0 2rem', paddingTop: isMobile ? 'calc(0.75rem + var(--safe-top))' : 'var(--safe-top)', position: 'sticky', top: 0, zIndex: 30,
           overflowX: 'visible', maxWidth: '100%', boxShadow: 'var(--admin-card-shadow)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '0.75rem', minWidth: 0, flexShrink: 1 }}>
@@ -328,7 +329,7 @@ const StaffLayout = () => {
           </div>
         </header>
 
-        <div style={{ padding: isMobile ? '1.5rem' : '2.5rem', maxWidth: '1400px', margin: '0 auto', minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ padding: isMobile ? '1.5rem' : '2.5rem', paddingBottom: isMobile ? 'calc(1.5rem + var(--safe-bottom))' : 'calc(2.5rem + var(--safe-bottom))', maxWidth: '1400px', margin: '0 auto', minHeight: 0, overflow: 'hidden' }}>
           <Outlet />
         </div>
       </main>

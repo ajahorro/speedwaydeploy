@@ -140,6 +140,7 @@ const CustomerLayout = () => {
       <aside className="no-print" style={sidebarStyle}>
         <div style={{
           padding: '2rem 1.5rem',
+          paddingTop: 'calc(2rem + var(--safe-top))',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-start',
@@ -166,7 +167,7 @@ const CustomerLayout = () => {
           ))}
         </nav>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', padding: '1rem 0.5rem', borderTop: '1px solid var(--admin-border)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', padding: '1rem 0.5rem', paddingBottom: 'calc(1rem + var(--safe-bottom))', borderTop: '1px solid var(--admin-border)' }}>
           <div style={{ padding: '0 1rem 0.5rem', fontSize: '0.6rem', fontWeight: '950', color: 'var(--admin-text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', opacity: 0.55 }}>System</div>
           <SidebarLink to="/customer/settings" icon={NAV_ICONS.settings}>Settings</SidebarLink>
 
@@ -180,6 +181,7 @@ const CustomerLayout = () => {
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: isMobile ? '0.75rem 1rem' : '1rem 2.5rem',
+          paddingTop: isMobile ? 'calc(0.75rem + var(--safe-top))' : 'calc(1rem + var(--safe-top))',
           borderBottom: '1px solid var(--admin-border)',
           background: 'var(--admin-card)',
           position: 'sticky',
@@ -259,7 +261,7 @@ const CustomerLayout = () => {
           </div>
         )}
 
-        <main style={{ flex: 1, minHeight: 0, padding: isMobile ? '1.5rem 1rem' : '2.5rem', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', background: 'var(--admin-bg)' }}>
+        <main style={{ flex: 1, minHeight: 0, padding: isMobile ? '1.5rem 1rem' : '2.5rem', paddingBottom: isMobile ? 'calc(1.5rem + var(--safe-bottom))' : 'calc(2.5rem + var(--safe-bottom))', overflowY: 'auto', scrollPaddingTop: 'var(--app-shell-header-height)', background: 'var(--admin-bg)' }}>
           <Outlet />
         </main>
         <TermsGate />
