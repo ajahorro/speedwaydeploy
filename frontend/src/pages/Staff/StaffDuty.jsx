@@ -129,7 +129,7 @@ const StaffDuty = () => {
               </p>
             </div>
           </div>
-          <Badge variant="outline" className={`gap-2 uppercase ${isClockedIn ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400' : 'border-destructive/40 text-destructive'}`}>
+          <Badge variant="ghost" className={`gap-2 bg-transparent uppercase ${isClockedIn ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}`}>
             <span className={`size-2 rounded-full ${isClockedIn ? 'bg-emerald-500' : 'bg-destructive'}`} aria-hidden="true" />
             {isClockedIn ? 'ON DUTY' : 'OFF DUTY'}
           </Badge>
