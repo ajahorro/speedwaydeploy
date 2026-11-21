@@ -274,8 +274,6 @@ const StaffLayout = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '1rem' : '1.25rem', flexWrap: 'nowrap', flexShrink: 0, position: 'relative' }}>
             {/* 🟢 Header Status Badge */}
             <div style={{
-              padding: isMobile ? '0.35rem 0.6rem' : '0.4rem 0.85rem', background: 'var(--admin-input-bg)',
-              borderRadius: '100px', border: '1px solid var(--admin-border)',
               display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0
             }}>
               <div style={{
