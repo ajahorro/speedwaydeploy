@@ -179,7 +179,7 @@ const AdminNotifications = () => {
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      logger.admin('Scanning for system signals...');
+      logger.admin('Scanning for notifications...');
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -194,10 +194,10 @@ const AdminNotifications = () => {
       if (isMountedRef.current) {
         setNotifications(dedupe(raw || []));
       }
-      logger.admin('Signal spectrum synchronized.');
+      logger.admin('Notifications synchronized.');
     } catch (err) {
       logger.error('Notification Fetch Error', err);
-      toast.error('Failed to load signals.');
+      toast.error('Failed to load notifications.');
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
@@ -221,7 +221,7 @@ const AdminNotifications = () => {
 
     setBroadcasting(true);
     try {
-      logger.admin('Preparing global signal broadcast...');
+      logger.admin('Preparing global notification broadcast...');
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user found');
@@ -247,14 +247,14 @@ const AdminNotifications = () => {
         throw new Error(result.error || 'Failed to transmit broadcast');
       }
 
-      toast.success(`Broadcast signal transmitted to ${result.receiversCount} receivers`);
+      toast.success(`Broadcast notification sent to ${result.receiversCount} receivers`);
       setBroadcastForm({ message: '' });
       fetchNotifications();
       window.dispatchEvent(new Event('notificationsRead'));
       logger.admin('Global broadcast complete.');
     } catch (err) {
       logger.error('Broadcast Error', err);
-      toast.error(safeErrorMessage(err, 'Failed to transmit global signal'));
+      toast.error(safeErrorMessage(err, 'Failed to send global notification'));
     } finally {
       setBroadcasting(false);
     }
@@ -270,25 +270,30 @@ const AdminNotifications = () => {
       if (error) throw error;
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
       window.dispatchEvent(new Event('notificationsRead'));
-      if (!silent) toast.success('Signal acknowledged');
+      if (!silent) toast.success('Notification marked as read');
     } catch (err) {
       logger.error('Mark Read Error', err);
     }
   };
 
   const handleMarkAllAsRead = async () => {
-    const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
-    if (unreadIds.length === 0) return;
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Update every unread row for this user in the DB, not just the page's
+      // loaded subset (fetchNotifications caps at 500) - otherwise a user with
+      // more unread notifications than that cap never actually reaches zero.
       const { error } = await supabase
         .from('notifications')
         .update({ is_read: true })
-        .in('id', unreadIds);
+        .eq('user_id', user.id)
+        .eq('is_read', false);
 
       if (error) throw error;
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       window.dispatchEvent(new Event('notificationsRead'));
-      toast.success('All signals acknowledged');
+      toast.success('All notifications marked as read');
     } catch (err) {
       logger.error('Mark All Read Error', err);
     }
@@ -310,11 +315,11 @@ const AdminNotifications = () => {
       if (error) throw error;
       setNotifications(prev => prev.filter(n => n.id !== id));
       window.dispatchEvent(new Event('notificationsRead'));
-      toast.success('Signal purged');
+      toast.success('Notification deleted');
       // ⚠️ Intentionally NO audit_log insert here — per system design (REQ #5 CRITICAL)
     } catch (err) {
       logger.error('Delete Notification Error', err);
-      toast.error('Failed to purge signal');
+      toast.error('Failed to delete notification');
     }
   };
 
@@ -402,7 +407,7 @@ const AdminNotifications = () => {
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '1rem', background: 'var(--admin-card)', padding: '0.75rem', borderRadius: 'var(--admin-radius)', border: '1px solid var(--admin-border)' }}>
         <div style={{ position: 'relative', flex: 1, width: '100%' }}>
           <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)' }} />
-          <input type="text" placeholder="Search signals..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: '600', outline: 'none' }} />
+          <input type="text" placeholder="Search notifications..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', color: 'var(--admin-text-primary)', fontWeight: '600', outline: 'none' }} />
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--admin-bg)', padding: '0.25rem', borderRadius: 'var(--admin-radius-sm)', border: '1px solid var(--admin-border)' }}>
           {['ALL', 'UNREAD', 'READ'].map(f => (
@@ -434,7 +439,7 @@ const AdminNotifications = () => {
                       <span style={{ fontSize: '0.65rem', fontWeight: '950', color: notif.is_read ? 'var(--admin-text-secondary)' : 'var(--admin-brand)' }}>{notif.notification_type || notif.type}</span>
                       <span style={{ fontSize: '0.65rem', color: 'var(--admin-text-secondary)' }}>{new Date(notif.created_at).toLocaleString()}</span>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>{notif.title || 'Signal Received'}</p>
+                    <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '950', color: 'var(--admin-text-primary)' }}>{notif.title || 'Notification Received'}</p>
                     <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: '700', color: 'var(--admin-text-secondary)' }}>{notif.message}</p>
                   </div>
                 </div>
@@ -480,7 +485,7 @@ const AdminNotifications = () => {
             <Bell size={20} style={{ opacity: 0.3, flexShrink: 0 }} />
             <div>
               <p style={{ margin: 0, fontWeight: '950', fontSize: '0.85rem', textTransform: 'uppercase' }}>All Clear</p>
-              <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>No signals match your current filter.</p>
+              <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--admin-text-secondary)', fontWeight: '600' }}>No notifications match your current filter.</p>
             </div>
           </div>
         )}
