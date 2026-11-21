@@ -116,7 +116,7 @@ const StaffDuty = () => {
         tour={STAFF_TOURS.duty}
       />
 
-      <Card data-tour="sduty-clock" className="ui-root max-w-2xl gap-5 rounded-md p-5 sm:p-6">
+      <div data-tour="sduty-clock" className="ui-root flex flex-col max-w-2xl gap-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className={`grid size-12 place-items-center rounded-md border ${isClockedIn ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'border-primary/50 bg-primary/10 text-primary'}`}>
@@ -188,7 +188,7 @@ const StaffDuty = () => {
             <LogIn /> Clock In
           </Button>
         )}
-      </Card>
+      </div>
 
       <Card data-tour="sduty-station" className="ui-root max-w-2xl gap-3 rounded-md p-5 sm:p-6">
         <div className="flex items-center gap-2">
