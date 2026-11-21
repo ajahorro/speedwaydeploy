@@ -404,10 +404,10 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
   };
 
   // --- RENDER HELPERS ---
+  // Staff have no chat access (policy 2026-11-21): only Admin and Customer ever author a message.
   const getRoleColor = (role) => {
     switch (role) {
       case 'ADMIN': return '#C41F2B';
-      case 'STAFF': return '#a855f7';
       case 'CUSTOMER': return 'var(--admin-brand)';
       default: return 'var(--admin-text-secondary)';
     }
@@ -416,7 +416,6 @@ const BookingChat = ({ bookingId, customerId: customerIdProp }) => {
   const getRoleLabel = (role) => {
     switch (role) {
       case 'ADMIN': return 'Admin';
-      case 'STAFF': return 'Technician';
       case 'CUSTOMER': return 'Customer';
       default: return 'System';
     }
