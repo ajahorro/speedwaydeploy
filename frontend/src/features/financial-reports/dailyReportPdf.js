@@ -94,10 +94,12 @@ export const buildDailyReportHtml = (report) => {
     ${table([['Method'], ['Payments', 'right'], ['Amount', 'right']], methodRows, `No money was received ${isRange ? 'in this period' : 'today'}.`)}
     <p style="color:#666;font-size:9.5px;margin:4px 0 0">Amounts are what the shop actually received.</p>
 
-    ${heading('2. Payments received')}
+    ${heading(`2. Payments received${received.truncated ? ` (${paymentRows.length} of ${received.total_count})` : ''}`)}
+    ${received.truncated ? `<p style="color:#C41F2B;font-size:9.5px;margin:0 0 4px">Showing the most recent ${paymentRows.length} of ${received.total_count} payments (the totals above still cover all of them). Download Excel for the complete list.</p>` : ''}
     ${table([['Time'], ['Booking'], ['Customer'], ['Method'], ['Reference'], ['Amount', 'right']], paymentRows, `No payments ${isRange ? 'in this period' : 'today'}.`)}
 
-    ${heading('3. Refunds')}
+    ${heading(`3. Refunds${refunds.truncated ? ` (${refundRows.length} of ${refunds.total_count})` : ''}`)}
+    ${refunds.truncated ? `<p style="color:#C41F2B;font-size:9.5px;margin:0 0 4px">Showing the most recent ${refundRows.length} of ${refunds.total_count} refunds (the totals above still cover all of them). Download Excel for the complete list.</p>` : ''}
     ${table([['Time'], ['Booking'], ['Customer'], ['Reference'], ['Amount', 'right']], refundRows, `No refunds ${isRange ? 'in this period' : 'today'}.`)}
 
     ${heading(`4. Bookings ${isRange ? 'in this period' : 'today'} (${bookings.length}${report?.bookings_truncated ? ` of ${report.bookings_total_count}` : ''})`)}
@@ -123,7 +125,10 @@ export async function downloadDailyReportPdf(report) {
         margin: [0.4, 0.4, 0.5, 0.4],
         filename: `Comar-Garage-report-${report.day}${report.last_day && report.last_day !== report.day ? `_to_${report.last_day}` : ''}.pdf`,
         image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+        // html2pdf rasterizes the whole report as one tall canvas before slicing it into pages, so scale
+        // is a direct multiplier on how many pixels the browser has to paint; 1.5 still prints sharp on
+        // A4 but keeps a long, fully-populated report from choking the tab (2026-11-21).
+        html2canvas: { scale: 1.5, backgroundColor: '#ffffff' },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', 'h2'] }
       })

@@ -63,7 +63,9 @@ export async function downloadBookingsPdf({ report, rangeLabel, fileLabel }) {
         margin: 0.35,
         filename: `Comar-Garage-bookings-${fileLabel || 'report'}.pdf`,
         image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+        // Same reasoning as dailyReportPdf.js: this is one big canvas for the whole table, so a lower
+        // scale keeps a fully-populated (300-row) export from hanging the tab (2026-11-21).
+        html2canvas: { scale: 1.5, backgroundColor: '#ffffff' },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' },
         pagebreak: { mode: ['css', 'legacy'], avoid: 'tr' }
       })
