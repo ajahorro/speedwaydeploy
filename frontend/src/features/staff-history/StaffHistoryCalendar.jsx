@@ -40,6 +40,15 @@ export default function StaffHistoryCalendar({ staffId }) {
 
   const fmtTime = useCallback((iso) => (iso ? new Date(iso).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' }) : '—'), [locale]);
   const fmtDay = useCallback((date) => date.toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }), [locale]);
+  // A session now appears on every day it spans (e.g. clocked in Nov 7, out Nov 10), so the same timestamp can show
+  // up under several day cards. Tag the time with its own date whenever it falls on a day other than the one being
+  // viewed, so "7:47 AM" on the Nov 7 card doesn't read as if the clock-out happened that morning.
+  const fmtWhen = useCallback((iso, dayKey) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    const sameDay = toKey(d) === dayKey;
+    return sameDay ? fmtTime(iso) : `${fmtTime(iso)} (${d.toLocaleDateString(locale, { month: 'short', day: 'numeric' })})`;
+  }, [fmtTime, locale]);
 
   const load = useCallback(async (visibleMonth) => {
     if (!staffId) return;
@@ -61,9 +70,13 @@ export default function StaffHistoryCalendar({ staffId }) {
   useEffect(() => { load(month); }, [month, load]);
 
   const worked = useMemo(() => [...days.keys()].map(fromKey), [days]);
-  const entry = days.get(toKey(selected));
+  const dayKey = toKey(selected);
+  const entry = days.get(dayKey);
   const sessions = entry?.sessions || [];
   const vehicles = entry?.vehicles || [];
+  // A session spanning a different calendar day than the one shown needs the full "in → out" line (each end
+  // tagged with its own date), not just the summary tiles, or it reads like a same-day clock-out.
+  const spansOtherDay = (s) => toKey(new Date(s.clock_in_at)) !== dayKey || (s.clock_out_at && toKey(new Date(s.clock_out_at)) !== dayKey);
 
   return (
     <div className="ui-root grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
@@ -76,22 +89,22 @@ export default function StaffHistoryCalendar({ staffId }) {
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-md bg-muted/50 px-3 py-2">
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Clocked in</p>
-                  <p className="text-sm font-semibold">{sessions.length ? fmtTime(sessions[0].clock_in_at) : '—'}</p>
+                  <p className="text-sm font-semibold">{sessions.length ? fmtWhen(sessions[0].clock_in_at, dayKey) : '—'}</p>
                 </div>
                 <div className="rounded-md bg-muted/50 px-3 py-2">
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Clocked out</p>
-                  <p className="text-sm font-semibold">{!sessions.length ? '—' : (sessions[sessions.length - 1].clock_out_at ? fmtTime(sessions[sessions.length - 1].clock_out_at) : 'On shift')}</p>
+                  <p className="text-sm font-semibold">{!sessions.length ? '—' : (sessions[sessions.length - 1].clock_out_at ? fmtWhen(sessions[sessions.length - 1].clock_out_at, dayKey) : 'On shift')}</p>
                 </div>
                 <div className="rounded-md bg-muted/50 px-3 py-2">
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Vehicles</p>
                   <p className="text-sm font-semibold">{vehicles.length}</p>
                 </div>
               </div>
-              {sessions.length > 1 && (
+              {(sessions.length > 1 || sessions.some(spansOtherDay)) && (
                 <ul className="m-0 grid list-none gap-1 p-0 text-sm text-muted-foreground">
                   {sessions.map((s) => (
                     <li key={s.id} className="flex flex-wrap justify-between gap-x-4">
-                      <span>{fmtTime(s.clock_in_at)} → {s.clock_out_at ? fmtTime(s.clock_out_at) : 'On shift'}</span>
+                      <span>{fmtWhen(s.clock_in_at, dayKey)} → {s.clock_out_at ? fmtWhen(s.clock_out_at, dayKey) : 'On shift'}</span>
                       <span>{s.clock_out_at ? hoursBetween(s.clock_in_at, s.clock_out_at) : ''}</span>
                     </li>
                   ))}

@@ -9,6 +9,14 @@ const DAYS_PER_PAGE = 3;
 
 const dayLabel = (day) => new Date(`${day}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
 const timeLabel = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—');
+// A session now appears on every day it spans, so a clock-in or clock-out time belonging to a different calendar
+// day than the one being viewed gets its own date appended, instead of reading as same-day.
+const whenLabel = (iso, day) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const sameDay = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === day;
+  return sameDay ? timeLabel(iso) : `${timeLabel(iso)} (${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`;
+};
 const dateTimeLabel = (iso) => (iso ? new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'Not recorded');
 const statusWords = (status) => String(status || '').replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
 
@@ -85,7 +93,7 @@ function DayRow({ entry, isAdmin, onViewBooking }) {
               <ul className="m-0 grid list-none gap-1 p-0 text-sm">
                 {sessions.map((s) => (
                   <li key={s.id} className="flex flex-wrap justify-between gap-x-4">
-                    <span>{timeLabel(s.clock_in_at)} → {s.clock_out_at ? timeLabel(s.clock_out_at) : <em>still on shift</em>}</span>
+                    <span>{whenLabel(s.clock_in_at, entry.day)} → {s.clock_out_at ? whenLabel(s.clock_out_at, entry.day) : <em>still on shift</em>}</span>
                     <span className="text-muted-foreground">{s.clock_out_at ? hoursBetween(s.clock_in_at, s.clock_out_at) : ''}</span>
                   </li>
                 ))}
