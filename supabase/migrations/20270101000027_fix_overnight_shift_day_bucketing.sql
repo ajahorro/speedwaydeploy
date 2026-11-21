@@ -25,7 +25,7 @@ begin
   end if;
 
   with att as (
-    select a.id, a.clock_in_at, a.clock_out_at, gs.day
+    select a.id, a.clock_in_at, a.clock_out_at, gs.day::date as day
       from public.staff_attendance a
       cross join lateral generate_series(
              (a.clock_in_at at time zone 'Asia/Manila')::date,
@@ -92,7 +92,7 @@ begin
   end if;
 
   with att as (
-    select a.id, a.clock_in_at, a.clock_out_at, gs.day
+    select a.id, a.clock_in_at, a.clock_out_at, gs.day::date as day
       from public.staff_attendance a
       cross join lateral generate_series(
              (a.clock_in_at at time zone 'Asia/Manila')::date,
