@@ -75,12 +75,17 @@ const FloatingBubbleChat = () => {
     const handlePointerDownOutside = (event) => {
       const clickedInsideChat = chatRef.current?.contains(event.target);
       const clickedBubble = bubbleRef.current?.contains(event.target);
+      // The booking-tag picker (a Radix Select, e.g. in BookingChat) renders its open
+      // dropdown in a portal under document.body, outside chatRef — without this check
+      // every click on one of its options read as an outside click and closed the whole
+      // panel before the selection could register.
+      const clickedPortaledPicker = Boolean(event.target.closest?.('[data-slot^="select-"]'));
 
       if (closeTimerRef.current) {
         clearTimeout(closeTimerRef.current);
       }
 
-      if (!clickedInsideChat && !clickedBubble) {
+      if (!clickedInsideChat && !clickedBubble && !clickedPortaledPicker) {
         closeTimerRef.current = setTimeout(() => {
           closeChat();
         }, 120);
