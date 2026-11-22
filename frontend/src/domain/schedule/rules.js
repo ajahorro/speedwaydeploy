@@ -153,7 +153,11 @@ const parseTimeToMinutes = (value) => {
   if (value == null) return null;
   const raw = String(value).trim().toUpperCase();
   if (!raw) return null;
-  const match = raw.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/);
+  // Postgres `time` columns (blocked_slots.start_time/end_time) always come back as
+  // 'HH:MM:SS', not 'HH:MM' — the seconds must be optionally matched (and discarded)
+  // or every partial-time block silently parses as unparseable, which isDateBookable
+  // then reads as "no start time" and treats as a whole-day block (2026-11-22).
+  const match = raw.match(/^(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(AM|PM)?$/);
   if (!match) return null;
   let hour = parseInt(match[1], 10);
   const minute = match[2] ? parseInt(match[2], 10) : 0;
