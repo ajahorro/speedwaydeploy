@@ -42,6 +42,8 @@ const AdminPayments = () => {
     filter: 'PENDING',
     methodFilter: 'ALL',
     selectedItem: null,
+    dateFrom: '',
+    dateTo: '',
   });
 
   const [receiptBooking, setReceiptBooking] = useState(null);
@@ -116,13 +118,18 @@ const AdminPayments = () => {
 
   // MEMOIZED FILTERING
   const filteredItems = useMemo(() => {
+    // "YYYY-MM-DD" from a date input, compared against created_at's own local date.
+    const fromDate = state.dateFrom ? new Date(`${state.dateFrom}T00:00:00`) : null;
+    const toDate = state.dateTo ? new Date(`${state.dateTo}T23:59:59.999`) : null;
     return state.payments.filter(p => {
       const matchesSearch = matchesSearchText(state.searchTerm, p.customer_name, p.reference_number, p.detected_ref, p.amount, p.method, p.booking_id);
+      const createdAt = p.created_at ? new Date(p.created_at) : null;
+      const matchesDate = (!fromDate || (createdAt && createdAt >= fromDate)) && (!toDate || (createdAt && createdAt <= toDate));
       const normalizedMethod = String(p.method || '').trim().toLowerCase();
       const isCashMethod = normalizedMethod === 'cash';
       const isDigitalMethod = ['gcash', 'digital', 'bank transfer', 'paymaya', 'maya', 'card', 'online'].includes(normalizedMethod);
 
-      if (state.filter === 'PENDING') return matchesSearch && !isCashMethod && p.status === 'FOR_VERIFICATION';
+      if (state.filter === 'PENDING') return matchesSearch && matchesDate && !isCashMethod && p.status === 'FOR_VERIFICATION';
       if (state.filter === 'PROCESSED') {
         // cash is processed the moment it is recorded; digital payments once they are verified
         const isProcessed = (isCashMethod && !['REJECTED', 'VOID', 'CANCELLED'].includes(String(p.status || '').toUpperCase()))
@@ -132,15 +139,15 @@ const AdminPayments = () => {
           : state.methodFilter === 'Cash'
             ? isCashMethod
             : isDigitalMethod;
-        return matchesSearch && isProcessed && matchesMethodFilter;
+        return matchesSearch && matchesDate && isProcessed && matchesMethodFilter;
       }
 
-      return matchesSearch;
+      return matchesSearch && matchesDate;
     });
-  }, [state.payments, state.searchTerm, state.filter, state.methodFilter]);
+  }, [state.payments, state.searchTerm, state.filter, state.methodFilter, state.dateFrom, state.dateTo]);
 
   // 10 transactions a page; back to page 1 on a new search or filter
-  const { rows: pagedItems, pager: paymentPager } = usePaged(filteredItems, { resetKey: [state.searchTerm, state.filter, state.methodFilter], label: 'transactions' });
+  const { rows: pagedItems, pager: paymentPager } = usePaged(filteredItems, { resetKey: [state.searchTerm, state.filter, state.methodFilter, state.dateFrom, state.dateTo], label: 'transactions' });
 
   const handleVerifyPayment = async (payment) => {
     const toastId = toast.loading('Verifying transaction...');
@@ -399,6 +406,35 @@ const AdminPayments = () => {
                 onChange={(e) => setState(prev => ({ ...prev, searchTerm: e.target.value }))}
                 style={{ flex: 1, background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', padding: '0.85rem 1rem 0.85rem 2.75rem', color: 'var(--admin-text-primary)', outline: 'none', fontWeight: '950', fontSize: '0.75rem', width: '100%' }}
               />
+            </div>
+            <div data-tour="pay-date-range" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', width: isMobile ? '100%' : 'auto' }}>
+              <input
+                type="date"
+                aria-label="From date"
+                value={state.dateFrom}
+                max={state.dateTo || undefined}
+                onChange={(e) => setState(prev => ({ ...prev, dateFrom: e.target.value }))}
+                style={{ flex: isMobile ? 1 : 'none', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', padding: '0.6rem 0.65rem', color: 'var(--admin-text-primary)', outline: 'none', fontWeight: '800', fontSize: '0.7rem' }}
+              />
+              <span style={{ color: 'var(--admin-text-secondary)', fontSize: '0.7rem', fontWeight: '900' }}>to</span>
+              <input
+                type="date"
+                aria-label="To date"
+                value={state.dateTo}
+                min={state.dateFrom || undefined}
+                onChange={(e) => setState(prev => ({ ...prev, dateTo: e.target.value }))}
+                style={{ flex: isMobile ? 1 : 'none', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: 'var(--admin-radius-sm)', padding: '0.6rem 0.65rem', color: 'var(--admin-text-primary)', outline: 'none', fontWeight: '800', fontSize: '0.7rem' }}
+              />
+              {(state.dateFrom || state.dateTo) && (
+                <button
+                  type="button"
+                  onClick={() => setState(prev => ({ ...prev, dateFrom: '', dateTo: '' }))}
+                  title="Clear dates"
+                  style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
             <div data-tour="pay-filter" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: isMobile ? '100%' : 'auto' }}>
               <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--admin-bg)', padding: '0.25rem', borderRadius: 'var(--admin-radius-sm)', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'center' : 'flex-start', border: '1px solid var(--admin-border)' }}>
