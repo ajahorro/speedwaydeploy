@@ -107,6 +107,17 @@ const Step1Schedule = ({ bookingData, setBookingData, activeVehicleIndex = 0, on
     };
   }, [bookingData.date, fetchSlots]);
 
+  // Slots are only recomputed above on a DB change or a date/vehicle/duration
+  // edit, so a same-day slot already rendered stays clickable after its own
+  // start time passes if the user simply leaves the screen open (e.g. still
+  // showing 3:00 PM as pickable at 8:00 PM). Poll once a minute so passed
+  // slots silently drop out on their own (2026-11-22).
+  useEffect(() => {
+    if (!bookingData.date) return undefined;
+    const interval = setInterval(() => fetchSlots(true), 60000);
+    return () => clearInterval(interval);
+  }, [bookingData.date, fetchSlots]);
+
   const handleTimeSelect = (time) => {
     setBookingData({ ...bookingData, time });
   };
