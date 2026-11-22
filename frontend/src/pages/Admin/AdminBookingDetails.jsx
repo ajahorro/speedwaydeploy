@@ -73,6 +73,8 @@ const AdminBookingDetails = () => {
   const [loading, setLoading] = useState(true);
   const [paymentModal, setPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
+  // Cash handed over by the customer, when it's more than paymentAmount (the rest is change given back).
+  const [cashTendered, setCashTendered] = useState('');
   // Top-up: how the customer paid (Cash, or Digital with a reference number).
   const [topUpMethod, setTopUpMethod] = useState('Cash');
   const [topUpReference, setTopUpReference] = useState('');
@@ -810,6 +812,14 @@ const AdminBookingDetails = () => {
     const topUpRef = topUpReference.trim();
     if (isDigitalTopUp && topUpRef.length < 4) return toast.error('Enter the digital transaction reference number.');
 
+    // Cash tendered is what the customer actually handed over; it can exceed the amount
+    // applied to the booking (which stays capped at the balance above) — the rest is change.
+    const tendered = !isDigitalTopUp && Number(cashTendered) > 0 ? Number(cashTendered) : null;
+    if (tendered !== null && tendered < Number(paymentAmount)) {
+      return toast.error('Cash tendered can\'t be less than the amount being recorded.');
+    }
+    const change = tendered !== null ? tendered - Number(paymentAmount) : 0;
+
     setSubmittingPayment(true);
     const toastId = toast.loading('Recording manual payment...');
     try {
@@ -824,7 +834,8 @@ const AdminBookingDetails = () => {
         verified_by: actor?.id,
         verified_at: new Date().toISOString(),
         reference_number: isDigitalTopUp ? topUpRef : null,
-        notes: `PAYMENT_${isDigitalTopUp ? 'DIGITAL' : 'CASH'} | Top-up recorded by Admin${isDigitalTopUp ? ` | REF:${topUpRef}` : ''}`
+        cash_tendered: tendered,
+        notes: `PAYMENT_${isDigitalTopUp ? 'DIGITAL' : 'CASH'} | Top-up recorded by Admin${isDigitalTopUp ? ` | REF:${topUpRef}` : ''}${change > 0 ? ` | TENDERED:${tendered} | CHANGE:${change}` : ''}`
       }).select().single();
 
       if (pError) {
@@ -841,14 +852,15 @@ const AdminBookingDetails = () => {
         action_type: 'PAYMENT_RECORDED',
         actor_name: actor?.email || 'Admin',
         actor_role: 'ADMIN',
-        details: `Top-up recorded: ₱${Number(paymentAmount).toLocaleString()}, ${isDigitalTopUp ? 'Digital' : 'Cash'}${isDigitalTopUp ? `, reference ${topUpRef}` : ''}.`
+        details: `Top-up recorded: ₱${Number(paymentAmount).toLocaleString()}, ${isDigitalTopUp ? 'Digital' : 'Cash'}${isDigitalTopUp ? `, reference ${topUpRef}` : ''}${change > 0 ? `, cash tendered ₱${tendered.toLocaleString()}, change given ₱${change.toLocaleString()}` : ''}.`
       });
 
       // Passing the new payment emails its receipt once (booking-lifecycle).
       await reconcileBookingPaymentState(pData?.id || null);
-      toast.success('Payment recorded.', { id: toastId });
+      toast.success(change > 0 ? `Payment recorded. Change due: ${formatCurrency(change)}.` : 'Payment recorded.', { id: toastId });
       setPaymentModal(false);
       setPaymentAmount('');
+      setCashTendered('');
       setTopUpReference('');
       fetchPayments(); fetchBookingDetails(); fetchAuditLogs();
     } catch (err) {
@@ -1806,26 +1818,46 @@ const AdminBookingDetails = () => {
                     )}
                   </div>
                 ) : (
-                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.75rem', animation: 'fadeIn 0.3s ease' }}>
-                    <div style={{ flex: 1, position: 'relative' }}>
-                      <div style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-brand)', fontWeight: '950' }}>₱</div>
+                  <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', animation: 'fadeIn 0.3s ease' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                      <div style={{ flex: 1, position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-brand)', fontWeight: '950' }}>₱</div>
+                        <input
+                          type="number"
+                          className="no-spinner"
+                          placeholder={balance > 0 ? "Cash amount received..." : "Record Manual Override..."}
+                          value={paymentAmount}
+                          onChange={(e) => setPaymentAmount(e.target.value)}
+                          style={{ width: '100%', padding: '0.85rem 0.85rem 0.85rem 2rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '0.5rem', color: 'var(--admin-text-primary)', fontWeight: '900', outline: 'none' }}
+                        />
+                      </div>
+                      <button
+                        onClick={() => confirmThen({ title: 'Record this payment?', message: `${formatCurrency(Number(paymentAmount) || 0)} paid in cash will be added to this booking’s ledger and the customer will be notified.${Number(cashTendered) > Number(paymentAmount) ? ` Change due: ${formatCurrency(Number(cashTendered) - Number(paymentAmount))}.` : ''}`, confirmText: 'Record payment' }, handleRecordPayment)}
+                        disabled={submittingPayment || !(Number(paymentAmount) > 0) || (Number(cashTendered) > 0 && Number(cashTendered) < Number(paymentAmount))}
+                        title={!(Number(paymentAmount) > 0) ? 'Enter an amount first' : undefined}
+                        style={{ padding: '0 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: (submittingPayment || !(Number(paymentAmount) > 0) || (Number(cashTendered) > 0 && Number(cashTendered) < Number(paymentAmount))) ? 0.4 : 1 }}
+                      >
+                        {submittingPayment ? 'SAVING...' : 'RECORD PAYMENT'}
+                      </button>
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                      <div style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-secondary)', fontWeight: '950' }}>₱</div>
                       <input
                         type="number"
                         className="no-spinner"
-                        placeholder={balance > 0 ? "Cash amount received..." : "Record Manual Override..."}
-                        value={paymentAmount}
-                        onChange={(e) => setPaymentAmount(e.target.value)}
-                        style={{ width: '100%', padding: '0.85rem 0.85rem 0.85rem 2rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '0.5rem', color: 'var(--admin-text-primary)', fontWeight: '900', outline: 'none' }}
+                        placeholder="Cash tendered by customer (optional, if more than the amount above)"
+                        value={cashTendered}
+                        onChange={(e) => setCashTendered(e.target.value)}
+                        style={{ width: '100%', padding: '0.7rem 0.85rem 0.7rem 2rem', background: 'var(--admin-bg)', border: '1px solid var(--admin-border)', borderRadius: '0.5rem', color: 'var(--admin-text-primary)', fontWeight: '800', fontSize: '0.8rem', outline: 'none' }}
                       />
                     </div>
-                    <button
-                      onClick={() => confirmThen({ title: 'Record this payment?', message: `${formatCurrency(Number(paymentAmount) || 0)} paid in cash will be added to this booking’s ledger and the customer will be notified.`, confirmText: 'Record payment' }, handleRecordPayment)}
-                      disabled={submittingPayment || !(Number(paymentAmount) > 0)}
-                      title={!(Number(paymentAmount) > 0) ? 'Enter an amount first' : undefined}
-                      style={{ padding: '0 1.5rem', background: 'var(--admin-brand)', color: 'var(--admin-text-primary)', borderRadius: '0.5rem', border: 'none', fontWeight: '950', fontSize: '0.7rem', cursor: 'pointer', opacity: (submittingPayment || !(Number(paymentAmount) > 0)) ? 0.4 : 1 }}
-                    >
-                      {submittingPayment ? 'SAVING...' : 'RECORD PAYMENT'}
-                    </button>
+                    {Number(cashTendered) > 0 && (
+                      <div style={{ fontSize: '0.7rem', fontWeight: '900', color: Number(cashTendered) < Number(paymentAmount) ? '#C41F2B' : 'var(--admin-text-secondary)' }}>
+                        {Number(cashTendered) < Number(paymentAmount)
+                          ? 'Cash tendered is less than the amount being recorded.'
+                          : `Change due: ${formatCurrency(Number(cashTendered) - Number(paymentAmount))}`}
+                      </div>
+                    )}
                   </div>
                 )}
               </>

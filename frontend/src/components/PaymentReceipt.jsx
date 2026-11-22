@@ -204,6 +204,10 @@ const PaymentReceipt = ({ booking, vehicles = [], user, selectedPayment, onClose
             {isReceipt && <><div className="k">Reference no.</div><div style={{ overflowWrap: 'anywhere' }}>{reference || (cash ? 'Paid at the shop' : 'Not provided')}</div></>}
             {isReceipt && <><div className="k">Recorded</div><div>{dateTime(selectedPayment.verified_at || selectedPayment.created_at) || '—'}</div></>}
             {pay && pay.transferFee > 0 && <><div className="k">Transfer fee</div><div className="ar-num" style={{ textAlign: 'left' }}>{peso(pay.transferFee)} (charged by the payment app, not by the shop)</div></>}
+            {isReceipt && Number(selectedPayment.cash_tendered) > Number(selectedPayment.amount) && <>
+              <div className="k">Cash tendered</div><div className="ar-num">{peso(selectedPayment.cash_tendered)}</div>
+              <div className="k" style={{ fontWeight: 800, color: '#18181b' }}>Change given</div><div className="ar-num" style={{ fontWeight: 800 }}>{peso(Number(selectedPayment.cash_tendered) - Number(selectedPayment.amount))}</div>
+            </>}
           </div>
         </div>
         <div className="ar-box">
