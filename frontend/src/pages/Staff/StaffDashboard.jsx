@@ -261,8 +261,9 @@ const StaffDashboard = () => {
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--admin-text-secondary)', fontWeight: 900, textTransform: 'uppercase' }}>
-                    {new Date(task.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <div style={{ fontSize: '0.78rem', color: 'var(--admin-text-secondary)', fontWeight: 900, textTransform: 'uppercase', textAlign: 'right' }}>
+                    <div>{new Date(task.start_datetime).toLocaleDateString([], { month: 'short', day: 'numeric' })}</div>
+                    <div>{new Date(task.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                   </div>
                   <div style={badgeStyle(task.status)}>{task.status?.replace(/_/g, ' ').toUpperCase()}</div>
                   <ArrowRight size={16} color="var(--admin-text-secondary)" />
