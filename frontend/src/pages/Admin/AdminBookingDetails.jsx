@@ -250,20 +250,31 @@ const AdminBookingDetails = () => {
           const price = resolveFrozenServicePrice(s);
           return sum + price;
         }, 0);
+        // `subtotal`/resolveFrozenServicePrice resolve to the final (post-discount)
+        // price, so they equal total_amount whenever a discount applied — which is
+        // what made "sub-total" and "total" render identically. grossSubtotal sums
+        // the pre-discount base_price instead, so the two can actually differ.
+        const grossSubtotal = (v.services || []).reduce((sum, s) => {
+          const base = Number(s.base_price);
+          return sum + (base > 0 ? base : resolveFrozenServicePrice(s));
+        }, 0);
         return {
           ...v,
-          subtotal: Number(v.subtotal) > 0 ? Number(v.subtotal) : snapshotSubtotal
+          subtotal: Number(v.subtotal) > 0 ? Number(v.subtotal) : snapshotSubtotal,
+          grossSubtotal
         };
       });
 
       const calculatedTotal = processedVehicles.reduce((sum, v) => sum + v.subtotal, 0);
+      const calculatedGrossTotal = processedVehicles.reduce((sum, v) => sum + v.grossSubtotal, 0);
 
       setBooking({
         ...bData,
         customer,
         assigned_staff,
         vehicle_technicians: processedVehicles.map((vehicleRow) => ({ vehicleId: vehicleRow.id, label: `${vehicleRow.brand || ''} ${vehicleRow.model || ''}`.trim() || vehicleRow.plate_number || 'Vehicle', name: vehicleTechnicianMap[vehicleRow.id]?.name || null, staffId: vehicleTechnicianMap[vehicleRow.id]?.id || null })),
-        total_amount: Number(bData.total_amount) > 0 ? Number(bData.total_amount) : calculatedTotal
+        total_amount: Number(bData.total_amount) > 0 ? Number(bData.total_amount) : calculatedTotal,
+        gross_amount: Number(bData.discount_amount_snapshot) > 0 ? calculatedGrossTotal : (Number(bData.total_amount) > 0 ? Number(bData.total_amount) : calculatedTotal)
       });
       setVehicles(processedVehicles);
 
@@ -1837,7 +1848,14 @@ const AdminBookingDetails = () => {
                   {staffList.filter(staff => staff.isAvailable).map(staff => <option key={staff.id} value={staff.id}>{staff.full_name || staff.name}</option>)}
                 </select>
               )}
-              <div style={{ fontSize: '0.65rem', fontWeight: '900', color: 'var(--admin-text-secondary)', opacity: 0.6 }}>SUB-TOTAL: {formatCurrency(booking.total_amount)}</div>
+              <div style={{ fontSize: '0.65rem', fontWeight: '900', color: 'var(--admin-text-secondary)', opacity: 0.6 }}>
+                SUB-TOTAL: {formatCurrency(booking.gross_amount)}
+                {Number(booking.discount_amount_snapshot) > 0 && (
+                  <span style={{ color: 'var(--admin-brand)', marginLeft: '0.5rem' }}>
+                    −{formatCurrency(booking.discount_amount_snapshot)} discount{booking.promo_name_snapshot ? ` (${booking.promo_name_snapshot})` : ''}
+                  </span>
+                )}
+              </div>
             </div>
 
             {vehicles.length === 0 ? (
